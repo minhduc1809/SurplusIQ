@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: surplusiq_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-surplus_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-surplus_secret_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-surplusiq_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-surplus_admin} -d ${POSTGRES_DB:-surplusiq_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: surplusiq_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
+    name: surplusiq_pgdata
+  redisdata:
+    name: surplusiq_redisdata

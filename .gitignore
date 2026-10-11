@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+*.apk
+*.aab
+
+# Android & Gradle
+.gradle/
+local.properties
+*.hprof
+
+# Environment & Credentials
+.env
+*.local
+secrets/
+
+# Database & Docker storage
+docker/data/
+postgres_data/
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
