@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/build/**',
+      '**/coverage/**',
       'apps/android/**',
       '.git/**',
       '.githooks/**',

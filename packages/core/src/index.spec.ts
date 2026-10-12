@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DynamicPricingEngine, QrTokenEngine, ForecastingEngine } from './index';
+import { roundTo500, calculateFloorPrice } from './validation/bounds.validator';
 
 describe('SurplusIQ Core Package Suite', () => {
   it('should calculate dynamic price properly', () => {
@@ -71,5 +72,19 @@ describe('SurplusIQ Core Package Suite', () => {
     const verification = QrTokenEngine.verifyToken(token, secretKey);
     expect(verification.isValid).toBe(true);
     expect(verification.payload?.orderId).toBe('order-test-uuid-1');
+  });
+
+  it('xác thực hàm roundTo500 và calculateFloorPrice với các ca biên đặc biệt', () => {
+    expect(roundTo500(NaN)).toBe(0);
+    expect(roundTo500(Infinity)).toBe(0);
+    expect(roundTo500(-Infinity)).toBe(0);
+    expect(roundTo500(25200)).toBe(25000);
+    expect(roundTo500(25300)).toBe(25500);
+
+    // Custom floor price cụ thể
+    expect(calculateFloorPrice(100000, 45200)).toBe(45000);
+    expect(calculateFloorPrice(100000, -100)).toBe(40000); // Rơi vào fallback ratio 0.4
+    expect(calculateFloorPrice(100000, undefined, 0.05)).toBe(10000); // Clamp min ratio 0.1
+    expect(calculateFloorPrice(100000, undefined, 0.95)).toBe(90000); // Clamp max ratio 0.9
   });
 });
