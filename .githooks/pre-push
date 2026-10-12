@@ -1,0 +1,42 @@
+#!/bin/sh
+# SurplusIQ Git Pre-Push Hook (rule.md)
+# Nhắc nhở và kiểm tra kéo cập nhật mới nhất từ origin/main trước khi push
+
+current_branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+# Bỏ qua nếu không có remote hoặc đang push tag
+if [ -z "$current_branch" ]; then
+  exit 0
+fi
+
+# Cho phép bỏ qua khi biến môi trường ALLOW_UNSYNCED_PUSH=1
+if [ "$ALLOW_UNSYNCED_PUSH" = "1" ]; then
+  exit 0
+fi
+
+echo "======================================================================"
+echo "🔍 [GIT HOOK PRE-PUSH] Đang kiểm tra đồng bộ với origin/main..."
+echo "======================================================================"
+
+# Kiểm tra nếu remote origin/main tồn tại
+if git rev-parse --verify origin/main >/dev/null 2>&1; then
+  # Kiểm tra xem nhánh hiện tại có chứa commit mới nhất của origin/main không
+  BEHIND_COUNT=$(git rev-list --count ${current_branch}..origin/main 2>/dev/null || echo "0")
+  if [ "$BEHIND_COUNT" -gt 0 ]; then
+    echo "⚠️  CẢNH BÁO: Nhánh '$current_branch' đang bị chậm $BEHIND_COUNT commit so với origin/main!"
+    echo "Theo quy định rule.md mục 3: Bạn cần kéo (pull) origin/main về trước khi push:"
+    echo ""
+    echo "   git fetch origin"
+    echo "   git merge origin/main"
+    echo "   # hoặc: git rebase origin/main"
+    echo ""
+    echo "Vui lòng đồng bộ và giải quyết xung đột cục bộ trước khi push."
+    echo "Nếu bạn chắc chắn muốn bỏ qua lần này: ALLOW_UNSYNCED_PUSH=1 git push"
+    echo "======================================================================"
+    exit 1
+  fi
+fi
+
+echo "✅ Kiểm tra pre-push hợp lệ! Tiến hành đẩy code lên remote."
+echo "======================================================================"
+exit 0

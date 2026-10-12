@@ -1,0 +1,56 @@
+#!/bin/sh
+# SurplusIQ Git Commit Message Hook (rule.md)
+# Kiểm tra định dạng commit: <type>(<scope>): <mô tả>
+
+commit_msg_file="$1"
+commit_msg=$(head -n 1 "$commit_msg_file")
+
+# Bỏ qua merge commit hoặc fixup commit
+if echo "$commit_msg" | grep -qE "^(Merge branch|Revert |fixup!|squash!)"; then
+  exit 0
+fi
+
+# Regex bắt buộc: type(scope): mô tả
+# type: feat | update | fix | refactor | test | docs | chore
+# scope: app | web | back | core | simulation | infra | all
+pattern='^(feat|update|fix|refactor|test|docs|chore)\((app|web|back|core|simulation|infra|all)\): .+'
+
+if ! echo "$commit_msg" | grep -qE "$pattern"; then
+  echo ""
+  echo "======================================================================"
+  echo "❌ [GIT HOOK LỖI] Thông điệp commit KHÔNG đúng định dạng theo rule.md!"
+  echo "======================================================================"
+  echo "Thông điệp bạn vừa nhập: \"$commit_msg\""
+  echo ""
+  echo "📌 Định dạng bắt buộc:"
+  echo "   <type>(<scope>): <mô tả nội dung thay đổi>"
+  echo ""
+  echo "Các tiền tố <type> được phép:"
+  echo "   • feat      : Tính năng mới"
+  echo "   • update    : Cập nhật luồng nghiệp vụ / cấu hình hiện có"
+  echo "   • fix       : Sửa lỗi (bug fix)"
+  echo "   • refactor  : Tái cấu trúc mã nguồn"
+  echo "   • test      : Viết test / kiểm thử"
+  echo "   • docs      : Tài liệu / spec / kế hoạch"
+  echo "   • chore     : Công việc hạ tầng / bảo trì thư viện"
+  echo ""
+  echo "Các phạm vi <scope> được phép:"
+  echo "   • back      : Backend API (NestJS, PostgreSQL, TypeORM, BullMQ)"
+  echo "   • web       : Web Dashboard (React, Vite)"
+  echo "   • app       : Mobile App Android (Kotlin, Jetpack Compose)"
+  echo "   • core      : Thư viện lõi (@surplusiq/core)"
+  echo "   • simulation: Hệ thống mô phỏng benchmark"
+  echo "   • infra     : Docker, CI/CD, Scripts"
+  echo "   • all       : Thay đổi toàn cục / liên quan nhiều module"
+  echo ""
+  echo "Ví dụ hợp lệ:"
+  echo "   git commit -m \"feat(back): them api giu suat 10 phut voi khoa bi quan\""
+  echo "   git commit -m \"update(web): tich hop giao dien quet ma qr nhan hang\""
+  echo "   git commit -m \"fix(app): sua loi hien thi gia sau khi ap dung uu dai\""
+  echo "   git commit -m \"docs(all): cap nhat ke hoach trien khai chi tiet\""
+  echo "======================================================================"
+  echo ""
+  exit 1
+fi
+
+exit 0
