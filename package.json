@@ -10,14 +10,37 @@
     "infra:up": "docker compose --env-file .env -f docker/docker-compose.yml up -d",
     "infra:down": "docker compose --env-file .env -f docker/docker-compose.yml down",
     "infra:logs": "docker compose --env-file .env -f docker/docker-compose.yml logs -f",
+    "build": "npm run build:core && npm --workspace=@surplusiq/backend run build && npm --workspace=@surplusiq/web run build",
     "build:core": "npm --workspace=@surplusiq/core run build",
+    "migration:run": "npm --workspace=@surplusiq/backend run migration:run",
+    "migration:revert": "npm --workspace=@surplusiq/backend run migration:revert",
     "dev:backend": "npm --workspace=@surplusiq/backend run start:dev",
     "dev:web": "npm --workspace=@surplusiq/web run dev",
     "dev:simulation": "npm --workspace=@surplusiq/simulation run start",
     "setup:hooks": "git config core.hooksPath .githooks",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm --workspace=@surplusiq/core run test && npm --workspace=@surplusiq/backend run test",
+    "test:core": "npm --workspace=@surplusiq/core run test",
+    "test:backend": "npm --workspace=@surplusiq/backend run test"
   },
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.1",
+    "@typescript-eslint/parser": "^8.71.1",
+    "dotenv": "^18.0.7",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "jest": "^30.5.2",
+    "prettier": "^3.9.10",
+    "ts-jest": "^29.4.14",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.4"
   }
 }

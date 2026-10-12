@@ -13,10 +13,7 @@ export class QrTokenEngine {
    */
   public static generateToken(payload: TokenPayload, secretKey: string): string {
     const dataString = `${payload.orderId}:${payload.storeId}:${payload.buyerId}:${payload.expiresAt}`;
-    const signature = crypto
-      .createHmac('sha256', secretKey)
-      .update(dataString)
-      .digest('hex');
+    const signature = crypto.createHmac('sha256', secretKey).update(dataString).digest('hex');
 
     const combined = JSON.stringify({ ...payload, sig: signature });
     return Buffer.from(combined).toString('base64url');
@@ -27,7 +24,7 @@ export class QrTokenEngine {
    */
   public static verifyToken(
     tokenString: string,
-    secretKey: string
+    secretKey: string,
   ): { isValid: boolean; payload?: TokenPayload; error?: string } {
     try {
       const decodedJson = Buffer.from(tokenString, 'base64url').toString('utf-8');
@@ -45,10 +42,7 @@ export class QrTokenEngine {
 
       // Xác thực chữ ký
       const dataString = `${orderId}:${storeId}:${buyerId}:${expiresAt}`;
-      const expectedSig = crypto
-        .createHmac('sha256', secretKey)
-        .update(dataString)
-        .digest('hex');
+      const expectedSig = crypto.createHmac('sha256', secretKey).update(dataString).digest('hex');
 
       if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) {
         return { isValid: false, error: 'Chữ ký mã QR không hợp lệ hoặc đã bị chỉnh sửa.' };

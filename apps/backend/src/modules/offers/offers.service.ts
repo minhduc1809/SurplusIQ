@@ -8,7 +8,7 @@ import { DynamicPricingEngine } from '@surplusiq/core';
 export class OffersService {
   constructor(
     @InjectRepository(OfferEntity)
-    private readonly offerRepo: Repository<OfferEntity>
+    private readonly offerRepo: Repository<OfferEntity>,
   ) {}
 
   async findAllActive() {
