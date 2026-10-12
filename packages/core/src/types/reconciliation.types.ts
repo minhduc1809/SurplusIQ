@@ -3,11 +3,7 @@
  * Tuân thủ BRD 5.16 (R2-063, R2-066, R2-067), BR-075, VC-10, Chương 13 #2
  */
 
-export type ReconciliationOrderStatus =
-  | 'PICKED_UP'
-  | 'PICKUP_EXPIRED'
-  | 'REFUNDED'
-  | 'CANCELLED';
+export type ReconciliationOrderStatus = 'PICKED_UP' | 'PICKUP_EXPIRED' | 'REFUNDED' | 'CANCELLED';
 
 export interface ReconciliationOrder {
   orderId: string;
