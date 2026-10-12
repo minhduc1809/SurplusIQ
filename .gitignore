@@ -32,3 +32,6 @@ Thumbs.db
 
 # Local execution wrappers
 powershell.cmd
+
+# Documentation
+docs/
