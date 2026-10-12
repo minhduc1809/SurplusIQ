@@ -8,6 +8,7 @@ describe('SurplusIQ Core Package Suite', () => {
     const closing = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours later
 
     const result = DynamicPricingEngine.calculateDynamicPrice({
+      productId: 'prod-test-01',
       originalPrice: 100000,
       remainingStock: 5,
       initialStock: 10,
@@ -30,17 +31,18 @@ describe('SurplusIQ Core Package Suite', () => {
         {
           date: '2026-10-10',
           dayOfWeek: 6,
+          quantityProduced: 30,
           quantitySold: 25,
-          quantitySurplus: 5,
+          quantityWasted: 5,
           weather: 'SUNNY',
-          hasEvent: false,
+          isHoliday: false,
         },
       ],
       {
-        date: '2026-10-11',
         dayOfWeek: 0,
         weather: 'SUNNY',
-        hasEvent: false,
+        isHoliday: false,
+        isSpecialEvent: false,
       },
     );
 
