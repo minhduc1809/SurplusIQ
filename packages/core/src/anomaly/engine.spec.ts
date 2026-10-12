@@ -211,4 +211,33 @@ describe('AnomalyDetectionEngine', () => {
       }),
     ).toThrow('Không tìm thấy dữ liệu chỉ số');
   });
+
+  it('xử lý đường cơ sở có MAD = 0 (tất cả các ngày cùng giá trị) và tự động tìm targetDate trong history', () => {
+    // 28 ngày lịch sử đều có wasteQuantity = 5 (MAD = 0)
+    const history = createMockHistory(28);
+    history.forEach((h) => {
+      h.wasteQuantity = 5;
+    });
+
+    // Thêm ngày 29 vào history với ngày targetDate '2026-10-13' (Thứ Ba) và wasteQuantity = 20 (> 20% expected)
+    history.push({
+      date: '2026-10-13',
+      dayOfWeek: 2,
+      revenue: 1000000,
+      wasteQuantity: 20, // Bất thường khi baseline chỉ là 5
+      ordersCount: 30,
+      noShowRate: 0.05,
+    });
+
+    const res = AnomalyDetectionEngine.detect({
+      storeId: 'store-01',
+      targetDate: '2026-10-13', // Không truyền targetMetrics, để engine tự tìm trong history
+      history,
+    });
+
+    expect(res.isEligible).toBe(true);
+    const wasteAnomaly = res.anomalies.find((a) => a.metric === 'WASTE_QUANTITY');
+    expect(wasteAnomaly).toBeDefined();
+    expect(wasteAnomaly?.direction).toBe('SURGE');
+  });
 });

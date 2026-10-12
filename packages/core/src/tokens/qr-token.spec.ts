@@ -98,6 +98,16 @@ describe('QrTokenEngine & BackupPinEngine (BR-022, 9.1, R1-057, R2-052)', () => 
         'MALFORMED',
       );
       expect(QrTokenEngine.verify('', secretKey, now).errorCode).toBe('MALFORMED');
+
+      // Token có JSON hợp lệ nhưng thiếu trường bắt buộc
+      const incompleteJson = Buffer.from(JSON.stringify({ jti: 'test-jti' })).toString('base64url');
+      expect(QrTokenEngine.verify(incompleteJson, secretKey, now).errorCode).toBe('MALFORMED');
+    });
+
+    it('hàm verifyToken legacy adapter trả về lỗi chính xác khi token không hợp lệ', () => {
+      const legacyRes = QrTokenEngine.verifyToken('invalid-token', secretKey);
+      expect(legacyRes.isValid).toBe(false);
+      expect(legacyRes.error).toBeDefined();
     });
   });
 
