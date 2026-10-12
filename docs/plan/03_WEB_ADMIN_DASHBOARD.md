@@ -141,6 +141,84 @@ apps/web/src/
 
 ---
 
+### 3.6. Màn hình Gói Dịch vụ & Hạn mức (`/subscription`) — R2-011..R2-016, VC-01..VC-11
+- **Chỉ dành cho**: Chủ cửa hàng (OWNER). Quản lý và nhân viên quầy bị ẩn hoàn toàn (12.18.2).
+- **Thẻ thông tin gói hiện tại**:
+  * Hiển thị gói: `Cơ bản (BASIC)`, `Dùng thử Pro (TRIAL)` hoặc `Pro (PRO)`.
+  * Trạng thái và ngày bắt đầu / kết thúc chu kỳ (VC-01, VC-02).
+  * Đồng hồ đếm ngược ngày hết hạn; cảnh báo nhắc nhở trước 7 ngày và 1 ngày (VC-04).
+- **Hành động vòng đời gói**:
+  * Nút "Nâng cấp lên Pro" / "Gia hạn Pro" (R2-012, R2-013, VC-02, VC-03): Hiển thị modal VietQR chuyển khoản 300.000 VND/tháng kèm mã giao dịch duy nhất (`gateway_txn_id`, VC-10).
+  * Nút "Hạ về Cơ bản" / "Hủy Pro" (R2-012, R2-014, VC-05, VC-08): Modal xác nhận nêu rõ quyền lợi Pro được bảo lưu đến hết ngày `period_end`, không hoàn tiền phần thừa; sau đó tự chuyển về Basic (VC-06).
+- **Bảng hạn mức sử dụng thời gian thực (`/subscription/quotas`) — R2-016**:
+  * Hiển thị tiến độ: Suất mở hôm nay (15/20 CB hoặc 45/100 Pro), AI đọc ảnh (18/20 CB hoặc 120/300 Pro), AI hỏi đáp (8/10 CB hoặc 150/300 Pro), Nhân viên (1/1 CB hoặc 3/5 Pro), Ưu đãi chạy (2/2 CB hoặc 6/10 Pro), Chiến dịch tháng (3/4 CB hoặc 12/30 Pro).
+  * Nút tải hóa đơn PDF (`/subscription/invoices`) — R2-015 (bất biến).
+
+### 3.7. Màn hình Nhân viên & Phân quyền (`/staff`) — R2-076..R2-081
+- **Chỉ dành cho**: Chủ cửa hàng (OWNER).
+- **Mời nhân viên (`POST /store/staff/invite`) — R2-076**:
+  * Nhập email nhân viên, họ tên, chọn nhóm quyền: `Quản lý (MANAGER)` hoặc `Nhân viên quầy (COUNTER)`.
+  * Tạo liên kết mời dùng 1 lần, có hiệu lực trong 72 giờ.
+  * Chặn mời vượt hạn mức gói (tối đa 1 ở Basic, 5 ở Pro).
+- **Quản lý danh sách & Giám sát (`/staff/list`) — R2-077..R2-081**:
+  * Danh sách: Tên, email, nhóm quyền, trạng thái (`Chờ kích hoạt`, `Hoạt động`, `Tạm khóa`), lần hoạt động cuối.
+  * Nút "Đổi nhóm quyền" (R2-078), "Tạm khóa / Mở khóa" (R2-079), "Gỡ nhân viên" (R2-080).
+  * Nhật ký thao tác nhân viên (R2-081): Lọc theo nhân viên, xem lịch sử quét QR, điều chỉnh tồn, hủy đơn trong 90 ngày.
+
+### 3.8. Màn hình Phân nhóm Khách hàng & Ưu đãi & Túi bất ngờ (`/customers`, `/promotions`) — R2-082..R2-094
+- **Danh sách khách hàng ẩn danh (`/customers`) — R2-082, R2-083**:
+  * Hiển thị: Mã khách rút gọn (`#KH-9021`), chữ cái đầu họ tên (`Nguyễn V. A.`), tổng số đơn, tổng chi tiêu, ngày mua cuối, số lần không đến nhận (noshow). Tuyệt đối không hiển thị SĐT/email/địa chỉ.
+  * Ghi chú nội bộ về khách (R2-085): Thêm ghi chú ngắn (tối đa 200 ký tự, cấm PII).
+- **Phân nhóm khách theo quy tắc (`/customers/segments`) — R2-084 (Pro)**:
+  * 4 tệp khách tự động tính hằng ngày: `Mới`, `Thân thiết` (≥ 5 đơn), `Có nguy cơ rời` (> 30 ngày không mua), `Thường không đến nhận` (tỷ lệ noshow cao, R2-087). Yêu cầu tối thiểu 20 khách.
+- **Quản lý Ưu đãi & Túi bất ngờ (`/promotions`) — R2-088..R2-091**:
+  * Tạo ưu đãi: Giảm % (max 50%) hoặc Giảm tiền (max 50% giá bán), chọn đối tượng áp dụng (Tất cả, Khách yêu thích, Thân thiết, Nguy cơ rời). Giới hạn 2 ưu đãi chạy ở Basic, 10 ở Pro.
+  * Tạo Túi bất ngờ (`Surprise Bag`) — R2-091: Gộp nhiều món dư cuối ngày, giá bán cố định ≤ 60% giá trị ước tính tối thiểu, bắt buộc khai báo cảnh báo dị ứng.
+- **Chiến dịch thông báo (`/promotions/campaigns`) — R2-092..R2-094**:
+  * Soạn tin nhắn gửi khách yêu thích đã bật nhận ưu đãi (tiêu đề ≤ 50, nội dung ≤ 150 ký tự). Giới hạn 4 chiến dịch/tháng ở Basic, 30 ở Pro. Không gửi trong khung 22:00 - 07:00. Báo cáo tỷ lệ mở và doanh thu phát sinh trong 24h.
+
+### 3.9. Màn hình Công việc, Lịch nhận & Quyên góp từ thiện (`/calendar`, `/donations`) — R2-095..R2-098, R2-121
+- **Bảng việc cần làm hôm nay (`/tasks`) — R2-095, R2-096**:
+  * Tổng hợp việc ưu tiên: Đề xuất giá chờ duyệt (15p), Khiếu nại sắp hết hạn (48h), Nhập số thực tế cuối ngày, Suất chưa mở bán, Món thiếu dữ liệu.
+- **Lịch hẹn nhận hàng theo mốc 15 phút (`/calendar/pickups`) — R2-098**:
+  * Gom đơn theo từng mốc 15 phút để quầy chuẩn bị hàng sẵn sàng. Đánh dấu cờ "Khách báo sắp đến" (R1-060).
+- **Khai báo ngày nghỉ & Giờ đặc biệt (`/calendar/closures`) — R2-097**:
+  * Khai báo ngày nghỉ lễ hoặc giờ mở cửa đặc biệt để hệ thống loại trừ khỏi dự báo và chặn đăng suất.
+- **Ghi nhận tặng từ thiện suất ế (`/donations`) — R2-121**:
+  * Khi còn dưới 30 phút hết khung nhận và còn ≥ 3 suất, hệ thống nhắc chủ cân nhắc tặng cho nơi nhận hỗ trợ. Ghi nhận số suất tặng, không tính phí và hoa hồng.
+
+### 3.10. Màn hình Cấu hình quán, Audit Log & Xuất dữ liệu (`/settings`) — R2-101..R2-103
+- **Quy tắc kinh doanh của tiệm (`/settings/rules`) — R2-101**:
+  * Suất tối đa mỗi đơn (1-5, mặc định 5).
+  * Thời gian trễ cho phép khi nhận (0-30 phút, mặc định 15 phút).
+  * Cho phép nhận hộ bằng mã 8 ký tự (bật/tắt).
+- **Nhật ký thay đổi cấu hình & Audit log (`/settings/audit-logs`) — R2-102, R2-075**:
+  * Bảng bất biến: Thời điểm, người thực hiện, hành động, giá trị cũ/mới, địa chỉ IP (lưu 12 tháng).
+- **Xuất toàn bộ dữ liệu cửa hàng (`/settings/export`) — R2-103**:
+  * Xuất toàn bộ món, suất, đơn (khách đã ẩn danh), sao kê dạng CSV/JSON (link tải hết hạn 24h).
+
+### 3.11. Màn hình Mô phỏng Chính sách giá (`/pro/simulation`) — R2-104, R2-105
+- **Chỉ dành cho**: Gói Pro.
+- Chọn kịch bản giá (giảm cố định 30% cuối ngày vs định giá động WMA) chạy trên 14-90 ngày dữ liệu lịch sử của quán.
+- Hiển thị bảng so sánh: Doanh thu thu hồi ước tính, Hao hụt ước tính, Số lần hết hàng sớm. Nhãn ghi rõ "Số liệu ước tính mô phỏng".
+
+### 3.12. Màn hình Trợ lý AI Quản trị (`/ai-assistant`) — R2-021, R2-108..R2-126
+- **Hỏi đáp dữ liệu kinh doanh bằng ngôn ngữ tự nhiên (R2-108, R2-109)**:
+  * Hộp chat thông minh: Chủ hỏi câu hỏi kinh doanh $\to$ Backend biên dịch thành truy vấn chỉ số có cấu trúc trong CSDL $\to$ Trả về biểu đồ/bảng số liệu thật kèm lời giải thích ngắn.
+  * Hạn mức: 10 câu/tháng ở Basic, 300 câu/tháng ở Pro. Fallback: Nếu AI timeout 10s hoặc ngắt kết nối, hiển thị danh mục báo cáo dựng sẵn.
+- **Thẻ đề xuất hành động thông minh (R2-114, R2-115) — Pro**:
+  * Hệ thống phát sinh tối đa 20 thẻ đề xuất/tháng: Đổi khung nhận, Giảm lượng làm món A, Tạo túi bất ngờ cuối ngày.
+  * Chủ bấm "Chấp nhận" $\to$ Kích hoạt thao tác; theo dõi đo lường kết quả trong 7 ngày.
+- **Công cụ hỗ trợ nhập liệu AI**:
+  * AI đọc ảnh món điền thông tin (R2-021, R2-119): Nhận diện ảnh, cảnh báo mờ/tối, gợi ý tên món.
+  * AI đọc hạn dùng từ ảnh nhãn OCR (R2-120): Điền sẵn ngày giờ hạn dùng để chủ kiểm tra.
+  * AI soạn nội dung marketing & gợi ý phản hồi khiếu nại (R2-117, R2-118).
+- **Cấu hình & Nhật ký AI (`/ai-assistant/settings`) — R2-122..R2-125**:
+  * Bật/tắt từng tính năng AI, chọn giọng điệu (Thân thiện / Trang trọng / Ngắn gọn).
+  * Xem nhật ký truy vết AI 90 ngày (ai hỏi, tính năng, độ trễ, kết quả, phản hồi).
+
+---
+
 ## 4. Bộ điều khiển Time Machine Simulation (`TimeMachineBar`) — R2-065
 
 Thanh công cụ cố định trên đỉnh giao diện (chỉ kích hoạt ở chế độ Demo/Dev):
@@ -150,3 +228,56 @@ Thanh công cụ cố định trên đỉnh giao diện (chỉ kích hoạt ở 
   * `+ 30 phút`: Xem các đơn quá hạn chuyển sang cảnh báo hết hạn nhận.
   * `Sang ngày hôm sau`: Kích hoạt job chốt số cuối ngày, sinh dự báo mới và sao kê tuần.
 - Toàn bộ giao diện kết nối WebSocket / Polling phản ứng tức thời với thời gian ảo.
+
+---
+
+## 5. Ma trận Phân quyền Vai trò & Gói dịch vụ cho 126 Use Cases R2
+
+| Nhóm tính năng | Mã Use Case | Vai trò (Owner / Manager / Counter) | Gói áp dụng | Hạn mức áp dụng |
+|---|---|---|---|---|
+| **Tài khoản & Cửa hàng** | `R2-001..R2-003` | Owner (Đăng ký, Đăng nhập, Đăng xuất) | Tất cả | — |
+| | `R2-004` | Owner, Manager, Counter (Đổi/Quên mật khẩu) | Tất cả | Link reset 30 phút |
+| | `R2-005..R2-006` | Owner toàn quyền, Manager chỉ xem hồ sơ | Tất cả | Logo max 2MB |
+| | `R2-007` | Owner (Khung giờ mặc định, giá sàn ≥ 40%) | Tất cả | Giá sàn 10-100% |
+| | `R2-008` | Owner (Chế độ giá: Duyệt tay / Tự động) | Duyệt tay: CB; Tự động: Pro | Tự động chỉ gói Pro |
+| | `R2-009..R2-010` | Owner (Tạm ngưng / Mở lại quán) | Tất cả | — |
+| **Gói dịch vụ (VC-01..11)** | `R2-011..R2-016` | **Chỉ Owner** (Quản lý & Quầy bị khóa) | Tất cả (Basic/Trial/Pro) | Pro: 300.000đ/tháng |
+| **Danh mục món** | `R2-017..R2-024` | Owner, Manager (Xem, Tạo, Sửa, Lưu trữ) | Tất cả | Tên duy nhất trong quán |
+| | `R2-025` | Owner, Manager (Nhập CSV) | Tất cả | 100 dòng CB / 500 dòng Pro |
+| **Suất bán & Tồn kho** | `R2-026..R2-030` | Owner, Manager (Xem, Tạo, Sửa, Nhân bản) | Tất cả | 20 suất/ngày CB / 100 Pro |
+| | `R2-031` | Owner, Manager, Counter (Điều chỉnh tồn) | Tất cả | Bắt buộc chọn lý do |
+| | `R2-032..R2-033` | Owner, Manager (Đóng sớm, Hủy hoàn tiền) | Tất cả | Hoàn 100% không hoa hồng |
+| | `R2-034..R2-035` | Tự động đóng hết giờ & Xem lịch sử suất | Tất cả | Lưu vết bất biến |
+| **Dự báo Pro** | `R2-036..R2-038` | Owner, Manager (Xem, Chấp nhận, Ghi đè) | **Chỉ Pro / Dùng thử** | Tối thiểu 14 ngày dữ liệu |
+| | `R2-039` | Owner, Manager, Counter (Nhập số cuối ngày) | Tất cả (nuôi dữ liệu) | Nhập trong vòng 48h |
+| | `R2-040..R2-043` | Owner, Manager (Sự kiện, MAE, Xu hướng 7d) | **Chỉ Pro / Dùng thử** | Xu hướng cần 28 ngày |
+| **Định giá động Pro** | `R2-044..R2-048` | Owner, Manager (Đề xuất, Duyệt, Lịch sử) | **Chỉ Pro / Dùng thử** | Hết hạn 15p; max 3 lần đổi |
+| **Đơn & Quầy** | `R2-049..R2-051` | Owner, Manager (Toàn bộ); Counter (Hôm nay) | Tất cả | Che họ tên; cấm xem SĐT |
+| | `R2-052` | **Owner, Manager, Counter** (Quét QR/PIN 6 số) | Tất cả | WebRTC + Numpad |
+| | `R2-053` | Owner, Manager (Hủy đơn quán hoàn 100%) | Tất cả | Hoàn 100% không hoa hồng |
+| **Khiếu nại & Đánh giá**| `R2-054..R2-056` | Owner, Manager (Xem, Chấp nhận, Từ chối) | Tất cả | Phản hồi trong 48h |
+| | `R2-057..R2-058` | Owner, Manager (Phản hồi đánh giá 24h) | Tất cả | 1 phản hồi công khai/đánh giá |
+| | `R2-059..R2-060` | Gia hạn 24h & Tự động hoàn tiền 48h | Tất cả | Hoàn 100% tự động |
+| **Báo cáo & Đối soát** | `R2-061` | Owner, Manager, Counter (Dashboard hôm nay) | Tất cả | Thời gian thực |
+| | `R2-062` | Owner, Manager (Báo cáo hao hụt) | 7 ngày CB / 365 ngày Pro | Báo cáo cuốn chiếu |
+| | `R2-063, R2-066..067`| Owner, Manager (Đối soát & Sao kê tuần) | Tất cả | Hoa hồng cố định 10% |
+| | `R2-064` | Owner, Manager (Xuất CSV/PDF) | 3 lần/tháng CB / 30 lần Pro | Không chứa PII khách |
+| | `R2-068..R2-073` | Owner, Manager (Doanh thu, Món, Giờ, Môi trường) | Tất cả | Đầy đủ biểu đồ phân tích |
+| **Nhân viên (Phân quyền)**| `R2-076..R2-081` | **Chỉ Owner** (Mời, Đổi quyền, Khóa, Gỡ) | 1 NV ở CB / 5 NV ở Pro | Link mời 72h |
+| **Khách hàng & Ưu đãi**| `R2-082..R2-087` | Owner, Manager (Xem khách ẩn danh, Ghi chú) | Phân nhóm: **Chỉ Pro** | ≥ 20 khách |
+| | `R2-088..R2-094` | Owner, Manager (Ưu đãi, Túi bất ngờ, Chiến dịch) | 2 ưu đãi, 4 chiến dịch CB / 10 ưu đãi, 30 chiến dịch Pro | Không gửi 22:00-07:00 |
+| **Lịch & Vận hành** | `R2-095..R2-098` | Owner, Manager (Việc cần làm, Ngày nghỉ); Counter (Lịch hẹn) | Tất cả | Mốc 15 phút |
+| | `R2-099..R2-100` | Owner, Manager (Kiểm tra dữ liệu, Sửa loạt) | Tất cả | Max 100 món/lần |
+| | `R2-101..R2-103` | **Chỉ Owner** (Quy tắc quán, Audit log, Xuất data) | Tất cả | Link xuất data 24h |
+| **Mô phỏng chính sách**| `R2-104..R2-105` | Owner, Manager (Chạy & So sánh mô phỏng) | **Chỉ Pro / Dùng thử** | 14-90 ngày dữ liệu |
+| **Hỗ trợ nền tảng** | `R2-106..R2-107` | Owner, Manager (Gửi & Trao đổi hỗ trợ) | Tất cả | Max 10 yêu cầu mở |
+| **Trợ lý AI & Quản trị**| `R2-021, R2-119..120`| Owner, Manager (AI đọc ảnh món, OCR nhãn) | 20 lượt CB / 300 lượt Pro | Timeout 10s fallback |
+| | `R2-108..R2-110` | Owner, Manager (Hỏi đáp dữ liệu, Chat trợ lý) | 10 lượt CB / 300 lượt Pro | Không suy đoán số liệu |
+| | `R2-111, R2-113` | Owner, Manager (Tóm tắt tuần, Phân tích biến động) | **Chỉ Pro / Dùng thử** | 1 bản/tuần |
+| | `R2-112` | Phát hiện biến động bất thường (MAD > 2.5) | **Chỉ Pro / Dùng thử** | Thống kê thuần, không LLM |
+| | `R2-114..R2-115` | Owner, Manager (Thẻ đề xuất hành động) | **Chỉ Pro / Dùng thử** | 20 thẻ/tháng, theo dõi 7d |
+| | `R2-116..R2-118` | Owner, Manager (Giải thích quyết định, Soạn nội dung) | 10 lượt CB / 200 lượt Pro | Duyệt trước khi đăng |
+| | `R2-121` | Owner, Manager (Gợi ý tặng từ thiện suất ế) | Tất cả | Quy tắc thuần ≥ 3 suất |
+| | `R2-122..R2-125` | **Chỉ Owner** (Cấu hình AI, Xem mức dùng, Audit AI) | Tất cả | Lưu log 90 ngày |
+| | `R2-126` | Owner, Manager (AI đề xuất ưu đãi/chiến dịch) | **Chỉ Pro / Dùng thử** | 20 đề xuất/tháng |
+
