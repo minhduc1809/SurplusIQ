@@ -1,20 +1,22 @@
-# 00 — TỔNG QUAN LỘ TRÌNH TRIỂN KHAI SURPLUSIQ
-
-> **Nguồn sự thật nghiệp vụ:** [BRD_Full_SurplusIQ.md](../BRD_Full_SurplusIQ.md) v1.0 (220 UC, 99 quy tắc BR-001..BR-099, 11 quy tắc vòng đời gói VC-01..VC-11, 13 quyết định chốt ở chương 13).
-> **Quy trình bắt buộc:** [rule.md](../../rule.md) — nhánh chức năng, commit `type(scope): ...`, ESLint pass, pull `main` trước khi push.
+> **Nguồn sự thật nghiệp vụ:**
+> - [BRD_Full_SurplusIQ.md](../BRD_Full_SurplusIQ.md) v1.0 (220 UC, 99 quy tắc BR-001..BR-099, 13 quyết định chốt ở chương 13).
+> - [01_features_khach_hang.md](../01_features_khach_hang.md): Đặc tả chi tiết 94 tính năng App Khách hàng (R1-001 đến R1-094).
+> - [02_features_chu_cua_hang.md](../02_features_chu_cua_hang.md): Đặc tả chi tiết 126 tính năng Web Quản trị Tiệm bánh (R2-001 đến R2-126).
+> - [03_service_packages.md](../03_service_packages.md): Ma trận 4 gói dịch vụ (`GOI-CB`, `GOI-DT`, `GOI-PRO`, `GOI-KH`) và 11 quy tắc vòng đời gói (`VC-01` đến `VC-11`).
+> **Quy trình bắt buộc:** [rule.md](../../rule.md) — nhánh chức năng từ `development`, commit `type(scope): ...`, merge `--no-ff`.
 > **Nguyên tắc viết plan:** mọi con số trong plan phải trích được về một mã BR / UC / VC / mục chương 13. Chỗ nào BRD không nói, plan ghi rõ nhãn **[Đề xuất kỹ thuật]**.
 
 ## Mục lục bộ plan
 
 | File | Nội dung |
 |---|---|
-| `00_TONG_QUAN_LO_TRINH.md` | Hiện trạng code, phân kỳ, mốc, DoD, câu hỏi mở (file này) |
-| [01_BACKEND_VA_CSDL.md](01_BACKEND_VA_CSDL.md) | Bảng tham số, schema chi tiết, máy trạng thái, danh mục API, tác vụ nền, phân quyền |
+| `00_TONG_QUAN_LO_TRINH.md` | Hiện trạng code, phân kỳ, mốc, DoD, ma trận bao phủ R1 (94 UC), R2 (126 UC), VC (11 quy tắc) (file này) |
+| [01_BACKEND_VA_CSDL.md](01_BACKEND_VA_CSDL.md) | Bảng tham số, schema chi tiết hỗ trợ R1/R2, máy trạng thái, danh mục API, tác vụ nền, phân quyền & hạn mức gói |
 | [02_CORE_PACKAGE.md](02_CORE_PACKAGE.md) | Đặc tả lại các engine theo BR, hàm thuần mới (hạn mức, đối soát, phân nhóm, bất thường) |
-| [03_WEB_ADMIN_DASHBOARD.md](03_WEB_ADMIN_DASHBOARD.md) | Màn hình web theo UC, quyền, khóa gói, trạng thái rỗng/lỗi |
-| [04_ANDROID_KHACH_HANG.md](04_ANDROID_KHACH_HANG.md) | Màn hình app theo UC, luồng giữ suất – thanh toán – QR |
-| [05_KIEM_THU_VA_BENCHMARK.md](05_KIEM_THU_VA_BENCHMARK.md) | Ma trận kiểm thử từ chương 12, kiểm thử đồng thời, sửa bộ mô phỏng |
-| [06_BACKLOG_TASKS.md](06_BACKLOG_TASKS.md) | Backlog từng task: nhánh, commit mẫu, phụ thuộc, tiêu chí xong |
+| [03_WEB_ADMIN_DASHBOARD.md](03_WEB_ADMIN_DASHBOARD.md) | Màn hình web theo 126 UC R2, quyền 3 vai trò (Owner/Manager/Counter), khóa gói Pro/Cơ bản |
+| [04_ANDROID_KHACH_HANG.md](04_ANDROID_KHACH_HANG.md) | Màn hình app theo 94 UC R1, luồng giữ suất 10p – thanh toán – QR offline – khiếu nại – AI |
+| [05_KIEM_THU_VA_BENCHMARK.md](05_KIEM_THU_VA_BENCHMARK.md) | Ma trận kiểm thử từ chương 12, kiểm thử đồng thời chống bán vượt tồn, sửa bộ mô phỏng |
+| [06_BACKLOG_TASKS.md](06_BACKLOG_TASKS.md) | Backlog từng task M0-M8: nhánh, commit mẫu, mã UC/BR phụ thuộc, tiêu chí xong |
 
 ---
 
@@ -68,34 +70,35 @@
 
 ---
 
-## 2. Phân kỳ phạm vi (P0 / P1 / P2)
+## 2. Phân kỳ phạm vi (P0 / P1 / P2) bao phủ 220 Use Cases (94 R1 + 126 R2)
 
-> **[Đề xuất kỹ thuật]** BRD không có độ ưu tiên UC. Phân kỳ dưới đây dựa trên chuỗi phụ thuộc ở 4.2: không có P0 thì không UC nào khác chạy được. Cần PO xác nhận (câu hỏi Q1).
+> **Cơ sở phân kỳ:** Dựa trên chuỗi phụ thuộc nghiệp vụ và tài liệu đặc tả [01_features_khach_hang.md](../01_features_khach_hang.md), [02_features_chu_cua_hang.md](../02_features_chu_cua_hang.md), [03_service_packages.md](../03_service_packages.md).
 
-### P0 — Vòng giao dịch lõi (demo được end-to-end)
-Mục tiêu: chủ đăng suất → khách giữ suất → thanh toán giả lập → QR → chủ quét → đối soát tuần.
+### P0 — Vòng giao dịch lõi (Demo End-to-End không lỗi) — 52 UC
+Mục tiêu: Đăng ký/Xác thực → Chủ tạo suất → Khách tìm deal & giữ suất 10p → Thanh toán giả lập → Sinh QR HMAC & PIN 6 số → Quét nhận hàng tại quầy → Đối soát tuần 10% hoa hồng.
 
-| Phân hệ | UC |
+| Phân hệ | Danh mục Use Cases cụ thể |
 |---|---|
-| 5.1 Tài khoản khách | R1-001, 002, 003, 004, 009 |
-| 5.2 Khám phá deal | R1-020, 023, 024, 025, 026, 027 |
-| 5.3 Đặt hàng | R1-040, 041, 042, 043, 044, 046, 047, 048, 055 |
-| 5.4 Nhận hàng | R1-057, 058, 059 |
-| 5.9 Tài khoản cửa hàng | R2-001, 002, 003, 005, 006, 007, 011 (xem gói), 016 |
-| 5.10 Danh mục | R2-017, 019, 020, 022, 023, 024 |
-| 5.11 Suất | R2-026, 028, 030, 031, 032, 033, 034, 035 |
-| 5.14 Đơn cửa hàng | R2-049, 051, 052, 053 |
-| 5.16 Đối soát | R2-061, 063, 066, 067 |
-| 5.17 Nhật ký | R2-075 |
-| **Tổng** | **50 UC** |
+| **App Khách hàng (R1)** (24 UC) | • **Tài khoản**: `R1-001` (Đăng ký), `R1-002` (Xác minh OTP 6 số), `R1-003` (Đăng nhập), `R1-004` (Đăng xuất), `R1-009` (Bán kính vị trí).<br>• **Khám phá deal**: `R1-020` (Danh sách gần), `R1-023` (Lọc), `R1-024` (Sắp xếp), `R1-025` (Cursor pagination 20), `R1-026` (Chi tiết deal), `R1-027` (Chi tiết quán).<br>• **Đặt & Thanh toán**: `R1-040` (Giữ suất 10p trừ tồn nguyên tử), `R1-041` (VietQR/Cổng giả lập), `R1-042` (Nhả suất BullMQ 10p), `R1-043` (Hủy đơn trước 60p), `R1-044` (Đơn của tôi), `R1-046` (Chi tiết đơn & mã thanh toán), `R1-047` (Tự hoàn tiền khi trả muộn sau 10p), `R1-048` (Xem trạng thái khóa đặt 7 ngày noshow), `R1-055` (Tiếp tục thanh toán đơn đang giữ), `R1-056` (Kiểm tra lại trạng thái thanh toán cổng).<br>• **Nhận hàng**: `R1-057` (Xem mã QR HMAC & PIN dự phòng 6 số), `R1-058` (Xác nhận nhận hàng chủ quét QR), `R1-059` (Tự động noshow khi quá hạn nhận + 15p trễ). |
+| **Web Cửa hàng (R2)** (28 UC) | • **Cửa hàng & Gói**: `R2-001` (Đăng ký web & kích hoạt dùng thử Pro), `R2-002` (Đăng nhập), `R2-003` (Đăng xuất), `R2-005` (Hồ sơ quán), `R2-006` (Sửa hồ sơ), `R2-007` (Khung giờ & giá sàn 40%), `R2-011` (Xem gói & quyền lợi dùng thử), `R2-016` (Xem hạn mức gói).<br>• **Danh mục món**: `R2-017` (Danh sách món), `R2-018` (Tìm/lọc/sắp xếp món), `R2-019` (Chi tiết món), `R2-020` (Tạo món mới giá sàn), `R2-022` (Sửa món), `R2-023` (Lưu trữ món), `R2-024` (Khôi phục món).<br>• **Suất bán & Tồn**: `R2-026` (Suất trong ngày), `R2-027` (Lọc suất), `R2-028` (Tạo suất bội 500đ, giá sàn 40%, max 20 CB / 100 Pro), `R2-030` (Sửa suất chưa bán hết), `R2-031` (Điều chỉnh tồn có lý do), `R2-032` (Đóng suất sớm), `R2-033` (Hủy suất hoàn tiền), `R2-034` (Tự động đóng hết giờ nhận BullMQ), `R2-035` (Lịch sử thay đổi suất).<br>• **Đơn & Quét quầy**: `R2-049` (Danh sách đơn thực tế), `R2-051` (Chi tiết đơn), `R2-052` (Quét QR camera / nhập PIN 6 số), `R2-053` (Hủy đơn do cửa hàng hoàn 100%). |
 
-### P1 — Đủ để vận hành thật với cửa hàng thí điểm
-Hậu mãi (R1-061..068, R2-054..060), thông báo (R1-073..077, R2-074), nhân viên & phân quyền (R2-076..081), gói & vòng đời (R2-008..015, VC-01..11), dự báo (R2-036..043), định giá động (R2-044..048), báo cáo (R2-062, 064, 065, 068, 069), tài khoản khách còn lại (R1-005..008, 010..019), deal còn lại (R1-021, 022, 028, 029), đặt hàng còn lại (R1-045, 049, 050, 054, 056), R1-060, CSV R2-025, R2-018, R2-027, R2-029, R2-050, lịch & việc (R2-095..098), cấu hình (R2-101..103).
+### P1 — Vận hành thực tế & Tính năng Pro (Core Thống kê thuần) — 98 UC
+Mục tiêu: Đủ để mở rộng chạy thí điểm tại các tiệm bánh thật với đầy đủ quy trình hậu mãi, nhân viên, dự báo WMA, định giá động, phân quyền 3 lớp và quản lý gói theo 11 quy tắc VC.
 
-### P2 — Tăng trưởng & AI
-Ưu đãi/chiến dịch (R1-078..081, R2-088..094, R1-053), khách của cửa hàng (R2-082..087), deal nâng cao (R1-030..039), R1-051, 052, R1-069..072, R2-070..073, chất lượng dữ liệu (R2-099..100), mô phỏng (R2-104..105), hỗ trợ (R2-106..107), toàn bộ AI (R1-082..094, R2-021, R2-108..126).
+| Phân hệ | Danh mục Use Cases cụ thể |
+|---|---|
+| **App Khách hàng (R1)** (38 UC) | • **Hồ sơ & Bảo mật**: `R1-005` (Xem hồ sơ), `R1-006` (Sửa hồ sơ), `R1-007` (Đổi mật khẩu), `R1-008` (Quên mật khẩu OTP), `R1-010` (Bật/tắt nhóm thông báo), `R1-013` (2FA thiết bị lạ), `R1-014` (Đăng xuất từ xa), `R1-015` (Lưu 5 địa điểm).<br>• **Khám phá nâng cao**: `R1-021` (Bản đồ Google Maps Compose), `R1-022` (Tìm kiếm từ khóa tiếng Việt), `R1-028`/`R1-029` (Yêu thích max 50), `R1-038` (Chỉ đường bản đồ ngoài).<br>• **Đơn & Nhận nâng cao**: `R1-045` (Lọc & tìm đơn), `R1-049` (Chọn giờ hẹn nhận 15p), `R1-050` (Gửi ghi chú khi đặt), `R1-051` (Đặt lại món cũ), `R1-054` (Tải biên nhận PDF), `R1-060` (Báo quán là sắp đến).<br>• **Đánh giá & Khiếu nại**: `R1-061` (Gửi khiếu nại trong 24h kèm max 3 ảnh), `R1-062` (Tiến độ khiếu nại 48h), `R1-063` (Rút khiếu nại), `R1-064` (Đánh giá 1-5 sao), `R1-065` (Sửa đánh giá trong 24h), `R1-067` (Lịch sử khiếu nại), `R1-068` (Bổ sung bằng chứng max 2 lần), `R1-069` (Báo cáo vi phạm).<br>• **Hỗ trợ & Thông báo**: `R1-070` (Gửi yêu cầu hỗ trợ người thật max 5), `R1-071` (Trao đổi luồng hỗ trợ), `R1-072` (FAQ & hướng dẫn), `R1-073` (Xem thông báo 90 ngày), `R1-074` (Đánh dấu đã đọc), `R1-075` (Tự động nhắc giờ nhận trước 30p), `R1-077` (Lịch sử thanh toán & hoàn tiền).<br>• **Ưu đãi**: `R1-078` (Xem ví ưu đãi), `R1-079` (Nhận ưu đãi từ cửa hàng), `R1-080` (Lịch sử dùng ưu đãi). |
+| **Web Cửa hàng (R2)** (60 UC) | • **Tài khoản, Gói & Vòng đời**: `R2-004` (Đổi/quên MK link 30p), `R2-008` (Chế độ giá duyệt tay/tự động Pro), `R2-009` (Tạm ngưng), `R2-010` (Mở lại quán), `R2-012` (Nâng/hạ gói), `R2-013` (Gia hạn Pro), `R2-014` (Hủy Pro), `R2-015` (Xem hóa đơn bất biến), `VC-01..VC-11` (11 quy tắc vòng đời gói Pro/Basic).<br>• **Nhập CSV & Nhân bản**: `R2-025` (Nhập CSV 100 CB / 500 Pro dòng), `R2-029` (Nhân bản suất hôm qua).<br>• **Dự báo Pro (Thống kê thuần)**: `R2-036` (Dự báo số lượng ngày mai), `R2-037` (Giải thích template), `R2-038` (Chấp nhận/ghi đè), `R2-039` (Nhập số thực tế 48h), `R2-040` (Khai báo sự kiện), `R2-041` (Độ chính xác MAE), `R2-042` (Độ tin cậy & fallback < 14 ngày), `R2-043` (Xu hướng 7 ngày ≥ 28 ngày).<br>• **Định giá động Pro**: `R2-044` (Đề xuất giá theo giờ), `R2-045` (Giải thích template), `R2-046` (Duyệt giá 15p), `R2-047` (Từ chối/đặt giá thủ công), `R2-048` (Lịch sử quyết định giá).<br>• **Đơn & Hậu mãi**: `R2-050` (Lọc/tìm/xuất CSV đơn), `R2-054` (Danh sách & chi tiết khiếu nại), `R2-055` (Chấp nhận hoàn tiền), `R2-056` (Từ chối khiếu nại kèm lý do 10-300 ký tự), `R2-057` (Phản hồi đánh giá trong 24h), `R2-058` (Báo cáo đánh giá vi phạm), `R2-059` (Gia hạn thời gian phản hồi khiếu nại 24h), `R2-060` (Tự động hoàn tiền quá hạn phản hồi 48h BullMQ).<br>• **Báo cáo & Đối soát tuần**: `R2-061` (Dashboard hôm nay), `R2-062` (Báo cáo hao hụt 7d CB / 365d Pro), `R2-063` (Đối soát doanh thu & hoa hồng 10%), `R2-064` (Xuất báo cáo CSV/PDF), `R2-066` (Chốt đối soát tuần BullMQ thứ Hai 00:05), `R2-067` (Xem sao kê tuần đã chốt), `R2-068` (Doanh thu & đơn theo kỳ), `R2-069` (Báo cáo theo món), `R2-070` (Bản đồ nhiệt giờ & thứ), `R2-071` (Đo hiệu quả giá), `R2-072` (So sánh 2 kỳ), `R2-073` (Báo cáo tác động môi trường).<br>• **Thông báo, Nhật ký & Vận hành**: `R2-074` (Xem thông báo 90 ngày), `R2-075` (Nhật ký hoạt động 12 tháng), `R2-095` (Bảng việc cần làm hôm nay), `R2-096` (Cấu hình nhắc việc), `R2-097` (Khai báo ngày nghỉ & giờ mở cửa đặc biệt), `R2-098` (Lịch hẹn nhận hàng mốc 15p), `R2-101` (Quy tắc kinh doanh quán), `R2-102` (Lịch sử cấu hình), `R2-106` (Gửi hỗ trợ nền tảng), `R2-107` (Trao đổi hỗ trợ), `R2-121` (Gợi ý tặng từ thiện suất ế thuần quy tắc).<br>• **Nhân viên (3 vai trò Owner/Manager/Counter)**: `R2-076` (Mời nhân viên 72h, max 1 CB / 5 Pro), `R2-077` (Danh sách NV), `R2-078` (Đổi nhóm quyền), `R2-079` (Tạm khóa NV), `R2-080` (Gỡ NV), `R2-081` (Giám sát hoạt động NV). |
 
-> AI để cuối là có chủ đích: BRD yêu cầu lõi chạy đầy đủ khi AI tắt (2.4, 12.27.3), nên AI là lớp thêm vào, không phải nền.
+### P2 — Tăng trưởng, Sống xanh & Trợ lý AI (Lớp bổ trợ) — 70 UC
+Mục tiêu: Đột phá trải nghiệm người dùng với Trợ lý AI có kiểm soát (Gemini fallback an toàn), phân nhóm khách, phát hiện bất thường và mạng lưới thiện nguyện.
+
+| Phân hệ | Danh mục Use Cases cụ thể |
+|---|---|
+| **App Khách hàng (R1)** (32 UC) | • **Quyền riêng tư & Ăn uống**: `R1-011` (Yêu cầu xóa tài khoản chờ 7 ngày), `R1-012` (Quản lý đồng ý điều khoản & vị trí), `R1-016` (Hồ sơ ăn uống & cảnh báo dị ứng), `R1-017` (Cờ đồng ý ưu đãi/cá nhân hóa/AI), `R1-018` (Xuất dữ liệu cá nhân JSON/CSV), `R1-019` (Hủy yêu cầu xóa trong 7 ngày).<br>• **Tiện ích deal thông minh**: `R1-030` (Thông báo khu vực max 3/ngày), `R1-031`/`R1-032` (Cảnh báo deal theo điều kiện max 10), `R1-033` (Lưu 10 bộ lọc), `R1-034` (Lưu 50 deal xem sau), `R1-035` (Xem lịch sử 20 deal 30 ngày), `R1-036` (So sánh 2-3 deal), `R1-037` (Chia sẻ link deal), `R1-039` (Xem deal vị trí khác), `R1-052` (Tạo mã nhận hộ 8 ký tự), `R1-053` (Áp dụng ưu đãi vào đơn).<br>• **Đánh giá & Tác động**: `R1-066` (Ẩn đánh giá công khai), `R1-076` (Thống kê cá nhân kg thực phẩm cứu được), `R1-081` (Xem huy hiệu & chia sẻ ảnh thành tích).<br>• **Trợ lý AI Khách hàng (13 UC)**: `R1-082` ([AI] Tìm deal bằng câu hỏi tự nhiên), `R1-083` ([AI] Trò chuyện với trợ lý Cứu Món), `R1-084` ([AI] Gợi ý deal cá nhân hóa có lý do), `R1-085` ([AI] Xem lý do gợi ý & chỉnh sở thích), `R1-086` ([AI] Tóm tắt & so sánh deal), `R1-087` ([AI] Hỏi thành phần & dị ứng), `R1-088` ([AI] Hướng dẫn nhận hàng theo dõi đơn), `R1-089` ([AI] Soạn khiếu nại từ ảnh 10 lượt/ngày), `R1-090` ([AI] Chuyển tiếp người hỗ trợ), `R1-091` ([AI] Xem & xóa lịch sử chat AI 90 ngày), `R1-092` ([AI] Đánh giá chất lượng câu trả lời AI), `R1-093` (Nhận thông báo giờ hay mua - thống kê), `R1-094` ([AI] Tóm tắt đánh giá quán ≥ 10 đánh giá). |
+| **Web Cửa hàng (R2)** (38 UC) | • **Khách hàng & Phân nhóm**: `R2-082` (Danh sách khách ẩn danh), `R2-083` (Lịch sử mua 1 khách), `R2-084` (Phân nhóm 4 tệp quy tắc ≥ 20 khách: Mới, Thân thiết, Nguy cơ rời, Hay noshow), `R2-085` (Ghi chú nội bộ về khách), `R2-086` (Số khách yêu thích quán), `R2-087` (Khách thường không đến nhận).<br>• **Ưu đãi, Túi bất ngờ & Chiến dịch**: `R2-088` (Tạo ưu đãi max 2 CB / 10 Pro), `R2-089` (Hiệu quả ưu đãi), `R2-090` (Sửa/dừng/kết thúc ưu đãi), `R2-091` (Tạo túi bất ngờ giá ≤ 60%), `R2-092` (Tạo chiến dịch thông báo max 4 CB / 30 Pro), `R2-093` (Hủy/đổi lịch chiến dịch), `R2-094` (Hiệu quả chiến dịch).<br>• **Dữ liệu & Mô phỏng & Demo**: `R2-065` (Chế độ demo tua nhanh 1 ngày = 2 phút), `R2-099` (Cảnh báo dữ liệu thiếu/bất thường), `R2-100` (Cập nhật hàng loạt món max 100 món), `R2-103` (Xuất toàn bộ data CSV/JSON), `R2-104` (Mô phỏng chính sách giá trên dữ liệu 14-90 ngày), `R2-105` (Xem & so sánh kết quả mô phỏng).<br>• **Trợ lý AI Chủ tiệm (19 UC)**: `R2-021` ([AI] Đọc ảnh món gợi ý tên/dinh dưỡng), `R2-108` ([AI] Hỏi đáp dữ liệu kinh doanh 10 CB / 300 Pro), `R2-109` ([AI] Trò chuyện trợ lý nhiều lượt), `R2-110` ([AI] Xem/xóa lịch sử chat AI 90 ngày), `R2-111` ([AI] Tóm tắt báo cáo tuần Pro 1/tuần), `R2-112` (Phát hiện biến động MAD > 2.5 không dùng LLM), `R2-113` ([AI] Phân tích nguyên nhân biến động), `R2-114` ([AI] Đề xuất hành động 20 thẻ/tháng), `R2-115` ([AI] Đo kết quả đề xuất 7 ngày), `R2-116` ([AI] Giải thích đề xuất số lượng/giá), `R2-117` ([AI] Soạn mô tả món & thông báo 10 CB / 200 Pro), `R2-118` ([AI] Gợi ý phản hồi khiếu nại/đánh giá), `R2-119` ([AI] Kiểm tra ảnh món trước khi đăng), `R2-120` ([AI] Đọc hạn dùng từ nhãn ảnh OCR), `R2-122` (Cấu hình bật tắt AI & giọng điệu), `R2-123` (Xem mức dùng & hạn mức AI), `R2-124` (Xem nhật ký AI 90 ngày), `R2-125` ([AI] Đánh giá chất lượng kết quả AI), `R2-126` ([AI] Đề xuất ưu đãi/chiến dịch 20/tháng). |
+
+> **Tổng cộng**: 52 (P0) + 98 (P1) + 70 (P2) = **220 Use Cases** hoàn chỉnh. Mọi tính năng đều hoạt động độc lập ngay cả khi ngắt kết nối Gemini AI.
 
 ---
 
@@ -123,9 +126,9 @@ flowchart LR
 | **M3** | Suất, giữ suất, thanh toán giả lập, nhả suất, QR, quét, hết hạn nhận, khóa đặt, hủy, hoàn tiền, chốt sao kê | Pass toàn bộ kịch bản 12.3, 12.4, 12.11, 12.14, 12.16.1 + kiểm thử đồng thời ở 05 |
 | **M4** | Web P0: đăng nhập, danh mục, suất, đơn, quét QR, sao kê | Chủ làm trọn luồng trên web với backend thật, không dữ liệu mock |
 | **M5** | Android P0: đăng ký/OTP, danh sách deal theo vị trí, giữ suất, thanh toán, QR | Khách làm trọn luồng trên thiết bị/emulator với backend thật |
-| **M6** | P1 | Pass các mục 12.1, 12.5, 12.6, 12.9, 12.10, 12.12, 12.13, 12.15, 12.17, 12.18, 12.21, 12.23 |
+| **M6** | P1 vận hành | Pass các mục 12.1, 12.5, 12.6, 12.9, 12.10, 12.12, 12.13, 12.15, 12.17, 12.18, 12.21, 12.23 |
 | **M7** | P2 phi AI | Pass 12.7, 12.19, 12.20, 12.22, 12.24, 12.25 |
-| **M8** | AI | Pass 12.8, 12.26, 12.27.3 (tắt AI vẫn chạy đủ luồng) |
+| **M8** | AI có kiểm soát | Pass 12.8, 12.26, 12.27.3 (tắt AI vẫn chạy đủ luồng) |
 
 > BRD không cho số liệu năng lực đội và ngưỡng hiệu năng (chương 13 #8), nên plan **không đặt ngày**. Ước lượng theo task nằm ở [06_BACKLOG_TASKS.md](06_BACKLOG_TASKS.md) dưới dạng cỡ S/M/L.
 
@@ -133,13 +136,13 @@ flowchart LR
 
 ## 4. Definition of Done (áp cho mọi task)
 
-1. Làm trên nhánh `feature/<scope>-...` hoặc `fix/<scope>-...` tách từ `main` mới nhất.
+1. Làm trên nhánh `feature/<scope>-...` hoặc `fix/<scope>-...` tách từ `development` mới nhất.
 2. Commit theo `type(scope): mô tả` (`feat|update|fix|refactor|test|docs|chore`, scope `back|web|app|core|simulation|infra|docs`).
 3. `npm run lint` 0 error, `npm run build` pass, test liên quan pass.
-4. Mỗi quy tắc BR mà task chạm tới có test tương ứng; tên test chứa mã BR (ví dụ `BR-014: không bán vượt tồn`).
+4. Mỗi quy tắc BR/VC mà task chạm tới có test tương ứng; tên test chứa mã BR/VC (ví dụ `BR-014: không bán vượt tồn`, `VC-06: hạ cấp về Basic lúc 00:00`).
 5. Không có secret trong code; tham số nghiệp vụ đọc từ bảng cấu hình (xem 01 §1), không hard-code.
 6. Không dùng `any`, không `catch {}` rỗng nuốt lỗi tiền/tồn.
-7. Trước khi push: `git fetch origin && git merge origin/main`, chạy lại lint + test.
+7. Trước khi tạo PR/merge: `git fetch origin && git merge origin/development`, chạy lại lint + test; merge vào `development` dùng `--no-ff`.
 8. Cập nhật trạng thái task trong `06_BACKLOG_TASKS.md`.
 
 ---
