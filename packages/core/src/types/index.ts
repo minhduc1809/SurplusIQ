@@ -1,5 +1,6 @@
 export * from './pricing.types';
 export * from './forecast.types';
+export * from './qr.types';
 
 export type UserRole = 'BUYER' | 'STORE_OWNER' | 'ADMIN';
 
