@@ -251,5 +251,73 @@ describe('ForecastingEngine (BRD 5.12 R2-036..043, BR-060..063, Ch.13 #10)', () 
       expect(result.high).toBeGreaterThanOrEqual(result.recommended);
       expect(result.low).toBeGreaterThanOrEqual(1);
     });
+
+    it('xử lý sự kiện CLOSURE và ngày lễ/sự kiện trong calculateForecast', () => {
+      const history = generateHistory(14, 30);
+      const resClosure = ForecastingEngine.generateForecast({
+        itemId: 'item-01',
+        targetDate: '2026-10-12',
+        targetDayOfWeek: 1,
+        history,
+        specialEvent: { type: 'CLOSURE', impactLevel: 'HIGH' },
+      });
+      expect(resClosure.recommended).toBe(0);
+
+      // Test calculateForecast với isSpecialEvent = true
+      const resSpecial = ForecastingEngine.calculateForecast(
+        'item-01',
+        history.map((h) => ({
+          date: h.date,
+          dayOfWeek: h.dayOfWeek,
+          weather: 'SUNNY',
+          isHoliday: false,
+          quantityProduced: h.produced,
+          quantitySold: h.soldApp + h.soldOffline,
+          quantityWasted: 0,
+        })),
+        {
+          dayOfWeek: 1,
+          weather: 'SUNNY',
+          isHoliday: false,
+          isSpecialEvent: true,
+        },
+      );
+      expect(resSpecial.recommendedProduction).toBeGreaterThan(0);
+
+      // Test calculateForecast với isHoliday = true
+      const resHoliday = ForecastingEngine.calculateForecast(
+        'item-01',
+        history.map((h) => ({
+          date: h.date,
+          dayOfWeek: h.dayOfWeek,
+          weather: 'SUNNY',
+          isHoliday: false,
+          quantityProduced: h.produced,
+          quantitySold: h.soldApp + h.soldOffline,
+          quantityWasted: 0,
+        })),
+        {
+          dayOfWeek: 1,
+          weather: 'SUNNY',
+          isHoliday: true,
+          isSpecialEvent: false,
+        },
+      );
+      expect(resHoliday.recommendedProduction).toBeGreaterThan(0);
+
+      // Test lịch sử có biến động lớn hoặc mẫu ít dẫn đến confidence LOW
+      const fluctuatingHistory = generateHistory(14, 50).map((h, i) => ({
+        ...h,
+        soldApp: i % 2 === 0 ? 5 : 45,
+        produced: 50,
+      }));
+      const resLowConf = ForecastingEngine.generateForecast({
+        itemId: 'item-01',
+        targetDate: '2026-10-12',
+        targetDayOfWeek: 1,
+        history: fluctuatingHistory,
+      });
+      expect(['LOW', 'MEDIUM']).toContain(resLowConf.confidence);
+    });
   });
 });
