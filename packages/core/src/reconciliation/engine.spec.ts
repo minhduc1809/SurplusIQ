@@ -25,7 +25,7 @@ describe('ReconciliationEngine', () => {
     const statement = ReconciliationEngine.calculate(input);
 
     expect(statement.grossSales).toBe(100000);
-    expect(statement.commissionRate).toBe(0.10);
+    expect(statement.commissionRate).toBe(0.1);
     expect(statement.commissionAmount).toBe(10000); // 10% of 100,000
     expect(statement.netPayout).toBe(90000); // 100,000 - 10,000
     expect(statement.orderSummary.pickedUpCount).toBe(3);
@@ -36,7 +36,13 @@ describe('ReconciliationEngine', () => {
   it('tính cả đơn khách không đến nhận (PICKUP_EXPIRED) vào doanh thu gộp và thu hoa hồng', () => {
     const orders: ReconciliationOrder[] = [
       { orderId: 'ord-1', amount: 40000, status: 'PICKED_UP', completedAt: '2026-10-12' },
-      { orderId: 'ord-2', amount: 60000, status: 'PICKUP_EXPIRED', completedAt: '2026-10-13', noShowByBuyer: true },
+      {
+        orderId: 'ord-2',
+        amount: 60000,
+        status: 'PICKUP_EXPIRED',
+        completedAt: '2026-10-13',
+        noShowByBuyer: true,
+      },
     ];
 
     const input: ReconciliationInput = {
@@ -182,15 +188,15 @@ describe('ReconciliationEngine', () => {
         storeId: '',
         period: mockPeriod,
         orders: [],
-      })
+      }),
     ).toThrow('storeId không được để trống');
 
     expect(() =>
       ReconciliationEngine.calculate({
         storeId: 'store-101',
-        period: null as any,
+        period: null as unknown as ReconciliationPeriod,
         orders: [],
-      })
+      }),
     ).toThrow('Thông tin kỳ đối soát');
   });
 

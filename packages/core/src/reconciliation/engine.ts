@@ -1,8 +1,6 @@
 import * as crypto from 'crypto';
-import {
-  ReconciliationAdjustment,
+import type {
   ReconciliationInput,
-  ReconciliationOrder,
   ReconciliationOrderSummary,
   ReconciliationPeriod,
   ReconciliationStatement,
@@ -10,7 +8,7 @@ import {
 
 export class ReconciliationEngine {
   /** Tỷ lệ hoa hồng mặc định 10% theo BRD Chương 13 #2 và VC-10 */
-  public static readonly DEFAULT_COMMISSION_RATE = 0.10;
+  public static readonly DEFAULT_COMMISSION_RATE = 0.1;
 
   /**
    * Tính toán sao kê đối soát tuần bất biến cho cửa hàng
@@ -95,11 +93,7 @@ export class ReconciliationEngine {
     }
 
     const netPayout =
-      eligibleGrossSales -
-      commissionAmount -
-      refundsDeduction -
-      subscriptionFee +
-      totalAdjustments;
+      eligibleGrossSales - commissionAmount - refundsDeduction - subscriptionFee + totalAdjustments;
 
     const periodStart = new Date(input.period.startDate);
     const periodEnd = new Date(input.period.endDate);
@@ -127,11 +121,9 @@ export class ReconciliationEngine {
       (refundsDeduction > 0
         ? `Khấu trừ hoàn tiền khiếu nại: ${refundsDeduction.toLocaleString('vi-VN')} đ. `
         : '') +
-      (subscriptionFee > 0
-        ? `Phí thuê bao: ${subscriptionFee.toLocaleString('vi-VN')} đ. `
-        : '') +
+      (subscriptionFee > 0 ? `Phí thuê bao: ${subscriptionFee.toLocaleString('vi-VN')} đ. ` : '') +
       (totalAdjustments !== 0
-        ? `Điều chỉnh sổ kỳ trước: ${(totalAdjustments > 0 ? '+' : '')}${totalAdjustments.toLocaleString('vi-VN')} đ. `
+        ? `Điều chỉnh sổ kỳ trước: ${totalAdjustments > 0 ? '+' : ''}${totalAdjustments.toLocaleString('vi-VN')} đ. `
         : '') +
       `Thực nhận chuyển khoản (Net Payout): ${netPayout.toLocaleString('vi-VN')} đ.`;
 
