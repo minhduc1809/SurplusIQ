@@ -118,13 +118,18 @@ export class ForecastingEngine {
     // Hệ số sự kiện đặc biệt (Special Event Factor - R2-040, BR-063)
     const eventFactor = this.calculateEventFactor(specialEvent);
 
-    // Số lượng khuyến nghị (làm tròn nguyên dương)
-    const recommended = Math.max(1, Math.round(baseDowAverage * eventFactor));
+    // Số lượng khuyến nghị (nếu đóng cửa thì 0, ngược lại làm tròn nguyên dương)
+    const recommended =
+      eventFactor === 0 ? 0 : Math.max(1, Math.round(baseDowAverage * eventFactor));
 
     // Khoảng tin cậy [Low, High] dựa trên 1.28 * stdDev (khoảng ~80%)
     const margin = 1.28 * stdDev * eventFactor;
-    const low = Math.max(1, Math.round(baseDowAverage * eventFactor - margin));
-    const high = Math.max(recommended, Math.round(baseDowAverage * eventFactor + margin));
+    const low =
+      eventFactor === 0 ? 0 : Math.max(1, Math.round(baseDowAverage * eventFactor - margin));
+    const high =
+      eventFactor === 0
+        ? 0
+        : Math.max(recommended, Math.round(baseDowAverage * eventFactor + margin));
 
     // Đánh giá độ tin cậy và sai số MAPE 7 ngày gần nhất
     const mape7Days = this.calculateRecentMape(history.slice(-7));

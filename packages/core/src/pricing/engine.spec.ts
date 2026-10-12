@@ -246,5 +246,26 @@ describe('DynamicPricingEngine (BRD 5.13 R2-044..048 & BR-064..067)', () => {
       expect(legacyResult.estimatedSellOutProbability).toBeGreaterThan(0);
       expect(legacyResult.explanation).toBeDefined();
     });
+
+    it('chủ động giảm 500đ nếu timeElapsedRatio >= 0.25 mà mức giảm tự nhiên < 500đ', () => {
+      const pStart = new Date('2026-10-12T18:00:00Z');
+      const pEnd = new Date('2026-10-12T20:00:00Z');
+      const pNow = new Date('2026-10-12T18:35:00Z'); // 35 / 120 = 29% >= 25%
+      const res = DynamicPricingEngine.proposeDynamicPrice({
+        offerId: 'offer-500step',
+        originalPrice: 100000,
+        currentPrice: 99500,
+        floorPrice: 40000,
+        initialQuantity: 100,
+        remainingQuantity: 1,
+        pickupStart: pStart,
+        pickupEnd: pEnd,
+        now: pNow,
+        priceChangeCount: 0,
+      });
+
+      expect(res.canPropose).toBe(true);
+      expect(res.proposedPrice).toBeLessThanOrEqual(99000);
+    });
   });
 });
