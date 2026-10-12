@@ -1,6 +1,4 @@
 import type {
-  CustomerOrderStats,
-  CustomerSegmentationConfig,
   CustomerSegmentationInput,
   CustomerSegmentationResult,
   CustomerSegmentType,
@@ -42,26 +40,19 @@ export class CustomerSegmentationEngine {
    * Phân nhóm khách hàng theo quy tắc thống kê xác định
    * Tuân thủ R2-084, R2-087, BR-083, 12.19.1
    */
-  public static segment(
-    input: CustomerSegmentationInput
-  ): CustomerSegmentationResult {
+  public static segment(input: CustomerSegmentationInput): CustomerSegmentationResult {
     if (!input.storeId || input.storeId.trim() === '') {
       throw new Error('storeId không được để trống khi phân nhóm khách hàng');
     }
 
     const now = input.now ? new Date(input.now) : new Date();
     const config = input.config || {};
-    const minThreshold =
-      config.minCustomersThreshold ?? this.DEFAULT_MIN_CUSTOMERS_THRESHOLD;
-    const loyalMinOrders =
-      config.loyalMinOrders ?? this.DEFAULT_LOYAL_MIN_ORDERS;
-    const loyalMaxDays =
-      config.loyalMaxDaysSinceLastOrder ?? this.DEFAULT_LOYAL_MAX_DAYS;
-    const atRiskMinOrders =
-      config.atRiskMinOrders ?? this.DEFAULT_AT_RISK_MIN_ORDERS;
+    const minThreshold = config.minCustomersThreshold ?? this.DEFAULT_MIN_CUSTOMERS_THRESHOLD;
+    const loyalMinOrders = config.loyalMinOrders ?? this.DEFAULT_LOYAL_MIN_ORDERS;
+    const loyalMaxDays = config.loyalMaxDaysSinceLastOrder ?? this.DEFAULT_LOYAL_MAX_DAYS;
+    const atRiskMinOrders = config.atRiskMinOrders ?? this.DEFAULT_AT_RISK_MIN_ORDERS;
     const atRiskDays = config.atRiskDaysThreshold ?? this.DEFAULT_AT_RISK_DAYS;
-    const highNoShowRatio =
-      config.highNoShowRatioThreshold ?? this.DEFAULT_HIGH_NOSHOW_RATIO;
+    const highNoShowRatio = config.highNoShowRatioThreshold ?? this.DEFAULT_HIGH_NOSHOW_RATIO;
 
     const customersList = input.customers || [];
     const totalCustomers = customersList.length;
@@ -115,15 +106,13 @@ export class CustomerSegmentationEngine {
       }
 
       // 2. Nguy cơ rời bỏ (AT_RISK): Đã từng có >= 2 đơn nhưng không mua lại trong > 30 ngày
-      const isAtRisk =
-        totalOrders >= atRiskMinOrders && daysSinceLastOrder > atRiskDays;
+      const isAtRisk = totalOrders >= atRiskMinOrders && daysSinceLastOrder > atRiskDays;
       if (isAtRisk) {
         segments.push('AT_RISK');
       }
 
       // 3. Khách thân thiết (LOYAL): Có >= 3 đơn và lần mua gần nhất <= 14 ngày
-      const isLoyal =
-        totalOrders >= loyalMinOrders && daysSinceLastOrder <= loyalMaxDays;
+      const isLoyal = totalOrders >= loyalMinOrders && daysSinceLastOrder <= loyalMaxDays;
       if (isLoyal) {
         segments.push('LOYAL');
       }

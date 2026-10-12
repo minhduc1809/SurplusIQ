@@ -3,12 +3,7 @@
  * Tuân thủ BRD 5.19 (R2-084, R2-087), BR-083, 12.19.1
  */
 
-export type CustomerSegmentType =
-  | 'NEW'
-  | 'LOYAL'
-  | 'AT_RISK'
-  | 'HIGH_NOSHOW'
-  | 'REGULAR';
+export type CustomerSegmentType = 'NEW' | 'LOYAL' | 'AT_RISK' | 'HIGH_NOSHOW' | 'REGULAR';
 
 export interface CustomerOrderStats {
   customerId: string;
