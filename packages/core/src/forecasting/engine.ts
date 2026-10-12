@@ -7,15 +7,7 @@ import {
 } from '../types/forecast.types';
 import { DayContext, ForecastResult, HistoricalSalesRecord } from '../types';
 
-const DAY_NAMES = [
-  'Chủ Nhật',
-  'Thứ Hai',
-  'Thứ Ba',
-  'Thứ Tư',
-  'Thứ Năm',
-  'Thứ Sáu',
-  'Thứ Bảy',
-];
+const DAY_NAMES = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 
 export class ForecastingEngine {
   /**
@@ -131,8 +123,8 @@ export class ForecastingEngine {
 
     // Khoảng tin cậy [Low, High] dựa trên 1.28 * stdDev (khoảng ~80%)
     const margin = 1.28 * stdDev * eventFactor;
-    const low = Math.max(1, Math.round((baseDowAverage * eventFactor) - margin));
-    const high = Math.max(recommended, Math.round((baseDowAverage * eventFactor) + margin));
+    const low = Math.max(1, Math.round(baseDowAverage * eventFactor - margin));
+    const high = Math.max(recommended, Math.round(baseDowAverage * eventFactor + margin));
 
     // Đánh giá độ tin cậy và sai số MAPE 7 ngày gần nhất
     const mape7Days = this.calculateRecentMape(history.slice(-7));
@@ -270,10 +262,7 @@ export class ForecastingEngine {
   /**
    * Đánh giá độ tin cậy dựa trên số mẫu cùng thứ và độ ổn định MAPE
    */
-  private static evaluateConfidence(
-    dowSampleCount: number,
-    mape: number,
-  ): ForecastConfidence {
+  private static evaluateConfidence(dowSampleCount: number, mape: number): ForecastConfidence {
     if (dowSampleCount >= 4 && mape <= 0.2) {
       return 'HIGH';
     }

@@ -123,10 +123,7 @@ export class DynamicPricingEngine {
 
     // 7. Tính tỷ lệ thời gian & tỷ lệ tồn kho
     const timeElapsedRatio = Math.min(1.0, Math.max(0.0, (nowMs - startMs) / totalWindowMs));
-    const stockRemainingRatio = Math.min(
-      1.0,
-      Math.max(0.0, remainingQuantity / initialQuantity),
-    );
+    const stockRemainingRatio = Math.min(1.0, Math.max(0.0, remainingQuantity / initialQuantity));
 
     // 8. Thuật toán định giá động (Đề xuất kỹ thuật minh bạch BRD 5.13)
     // Biên giảm tối đa khả dĩ
