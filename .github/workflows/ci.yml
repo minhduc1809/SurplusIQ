@@ -53,6 +53,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Build Core
+        run: npm run build:core
+
       - name: Run Unit Tests (Core & Backend)
         run: npm run test
 

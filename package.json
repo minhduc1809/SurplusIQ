@@ -23,7 +23,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm --workspace=@surplusiq/core run test && npm --workspace=@surplusiq/backend run test",
+    "test": "npm run build:core && npm --workspace=@surplusiq/core run test && npm --workspace=@surplusiq/backend run test",
     "test:core": "npm --workspace=@surplusiq/core run test",
     "test:backend": "npm --workspace=@surplusiq/backend run test"
   },

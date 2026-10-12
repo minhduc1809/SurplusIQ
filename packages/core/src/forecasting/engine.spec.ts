@@ -10,7 +10,7 @@ describe('ForecastingEngine (BRD 5.12 R2-036..043, BR-060..063, Ch.13 #10)', () 
       const dayOfWeek = i % 7; // 0..6
       const dateStr = `2026-09-${String(i + 1).padStart(2, '0')}`;
       // Doanh số dao động nhẹ
-      const variance = (i % 3 === 0 ? 2 : -2);
+      const variance = i % 3 === 0 ? 2 : -2;
       const sold = baseSales + variance;
       list.push({
         date: dateStr,
