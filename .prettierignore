@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.git
+.githooks
+package-lock.json
+*.log
+apps/android
+docs/**
+*.md
+powershell.cmd

@@ -6,7 +6,7 @@ commit_msg_file="$1"
 commit_msg=$(head -n 1 "$commit_msg_file")
 
 # Bỏ qua merge commit hoặc fixup commit
-if echo "$commit_msg" | grep -qE "^(Merge branch|Revert |fixup!|squash!)"; then
+if echo "$commit_msg" | grep -qE "^(Merge |merge\(|merge:|Revert |fixup!|squash!)"; then
   exit 0
 fi
 

@@ -8,12 +8,16 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-surplus_secret_pass}
       POSTGRES_DB: ${POSTGRES_DB:-surplusiq_db}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-surplus_admin} -d ${POSTGRES_DB:-surplusiq_db}"]
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-surplus_admin} -d ${POSTGRES_DB:-surplusiq_db}',
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,11 +27,11 @@ services:
     container_name: surplusiq_redis
     restart: always
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5

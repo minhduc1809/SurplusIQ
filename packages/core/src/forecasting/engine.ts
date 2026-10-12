@@ -8,7 +8,7 @@ export class ForecastingEngine {
   public static calculateForecast(
     productId: string,
     history: HistoricalSalesRecord[],
-    targetDay: DayContext
+    targetDay: DayContext,
   ): ForecastResult {
     if (!history || history.length === 0) {
       return {
@@ -21,7 +21,8 @@ export class ForecastingEngine {
           weatherFactor: 1.0,
           eventFactor: 1.0,
         },
-        explanation: 'Chưa có đủ lịch sử bán hàng, áp dụng số lượng khởi đầu mặc định (20 sản phẩm).',
+        explanation:
+          'Chưa có đủ lịch sử bán hàng, áp dụng số lượng khởi đầu mặc định (20 sản phẩm).',
       };
     }
 
@@ -34,7 +35,8 @@ export class ForecastingEngine {
     const sameDayRecords = recentHistory.filter((item) => item.dayOfWeek === targetDay.dayOfWeek);
     let dayOfWeekFactor = 1.0;
     if (sameDayRecords.length > 0) {
-      const avgSameDay = sameDayRecords.reduce((sum, item) => sum + item.quantitySold, 0) / sameDayRecords.length;
+      const avgSameDay =
+        sameDayRecords.reduce((sum, item) => sum + item.quantitySold, 0) / sameDayRecords.length;
       dayOfWeekFactor = baseAverage > 0 ? avgSameDay / baseAverage : 1.0;
     }
 

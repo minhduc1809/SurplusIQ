@@ -12,7 +12,7 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    })
+    }),
   );
 
   // Enable CORS for Web Dashboard & Android App
@@ -28,7 +28,9 @@ async function bootstrap() {
   // Swagger Documentation
   const config = new DocumentBuilder()
     .setTitle('SurplusIQ Engine API')
-    .setDescription('Hệ thống ra quyết định chống lãng phí thực phẩm: Dự báo, Định giá động, Cứu Món')
+    .setDescription(
+      'Hệ thống ra quyết định chống lãng phí thực phẩm: Dự báo, Định giá động, Cứu Món',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();

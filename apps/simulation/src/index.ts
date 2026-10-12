@@ -1,4 +1,10 @@
-import { ForecastingEngine, DynamicPricingEngine, HistoricalSalesRecord, DayContext, WeatherType } from '@surplusiq/core';
+import {
+  ForecastingEngine,
+  DynamicPricingEngine,
+  HistoricalSalesRecord,
+  DayContext,
+  WeatherType,
+} from '@surplusiq/core';
 
 interface SimulationMetrics {
   totalWastedUnits: number;
@@ -31,7 +37,7 @@ export function runStoreSimulation(numStores = 50, days = 30) {
       const isHoliday = d % 14 === 0;
 
       // Nhu cầu thực tế có biến động ngẫu nhiên +/- 20%
-      const noise = (Math.random() * 0.4 - 0.2);
+      const noise = Math.random() * 0.4 - 0.2;
       const actualDemand = Math.max(10, Math.round(baselineDemand * (1 + noise)));
 
       // Tạo lịch sử mẫu cho cửa hàng
@@ -62,7 +68,7 @@ export function runStoreSimulation(numStores = 50, days = 30) {
       const prodB = baselineDemand + 8;
       const unsoldInitialB = prodB - Math.min(prodB, actualDemand);
       const salvagedB = Math.round(unsoldInitialB * 0.4);
-      modes.B.totalWastedUnits += (unsoldInitialB - salvagedB);
+      modes.B.totalWastedUnits += unsoldInitialB - salvagedB;
       modes.B.totalSalvagedRevenue += salvagedB * (unitPrice * 0.7);
 
       // 3. Chế độ C: Có dự báo từ SurplusIQ, không định giá động
