@@ -1,10 +1,10 @@
 #!/bin/sh
 # SurplusIQ Git Pre-Push Hook (rule.md)
-# Nhắc nhở và kiểm tra kéo cập nhật mới nhất từ origin/main trước khi push
+# Nhắc nhở và kiểm tra kéo cập nhật mới nhất từ origin/development hoặc origin/main trước khi push
 
 current_branch=$(git symbolic-ref --short HEAD 2>/dev/null)
 
-# Bỏ qua nếu không có remote hoặc đang push tag
+# Bỏ qua nếu không có branch hoặc đang push tag
 if [ -z "$current_branch" ]; then
   exit 0
 fi
@@ -14,29 +14,34 @@ if [ "$ALLOW_UNSYNCED_PUSH" = "1" ]; then
   exit 0
 fi
 
-echo "======================================================================"
-echo "🔍 [GIT HOOK PRE-PUSH] Đang kiểm tra đồng bộ với origin/main..."
-echo "======================================================================"
+# Xác định nhánh cơ sở để so sánh (ưu tiên origin/development, nếu chưa có thì origin/main)
+BASE_REMOTE_BRANCH=""
+if git rev-parse --verify origin/development >/dev/null 2>&1; then
+  BASE_REMOTE_BRANCH="origin/development"
+elif git rev-parse --verify origin/main >/dev/null 2>&1; then
+  BASE_REMOTE_BRANCH="origin/main"
+fi
 
-# Kiểm tra nếu remote origin/main tồn tại
-if git rev-parse --verify origin/main >/dev/null 2>&1; then
-  # Kiểm tra xem nhánh hiện tại có chứa commit mới nhất của origin/main không
-  BEHIND_COUNT=$(git rev-list --count ${current_branch}..origin/main 2>/dev/null || echo "0")
+if [ -n "$BASE_REMOTE_BRANCH" ] && [ "$current_branch" != "main" ] && [ "$current_branch" != "development" ]; then
+  echo "======================================================================"
+  echo "🔍 [GIT HOOK PRE-PUSH] Đang kiểm tra đồng bộ với $BASE_REMOTE_BRANCH..."
+  echo "======================================================================"
+
+  BEHIND_COUNT=$(git rev-list --count ${current_branch}..${BASE_REMOTE_BRANCH} 2>/dev/null || echo "0")
   if [ "$BEHIND_COUNT" -gt 0 ]; then
-    echo "⚠️  CẢNH BÁO: Nhánh '$current_branch' đang bị chậm $BEHIND_COUNT commit so với origin/main!"
-    echo "Theo quy định rule.md mục 3: Bạn cần kéo (pull) origin/main về trước khi push:"
+    echo "⚠️  CẢNH BÁO: Nhánh '$current_branch' đang bị chậm $BEHIND_COUNT commit so với $BASE_REMOTE_BRANCH!"
+    echo "Theo quy định rule.md: Bạn cần kéo (pull) $BASE_REMOTE_BRANCH về trước khi push:"
     echo ""
     echo "   git fetch origin"
-    echo "   git merge origin/main"
-    echo "   # hoặc: git rebase origin/main"
+    echo "   git merge $BASE_REMOTE_BRANCH"
     echo ""
     echo "Vui lòng đồng bộ và giải quyết xung đột cục bộ trước khi push."
     echo "Nếu bạn chắc chắn muốn bỏ qua lần này: ALLOW_UNSYNCED_PUSH=1 git push"
     echo "======================================================================"
     exit 1
   fi
+  echo "✅ Kiểm tra pre-push hợp lệ! Tiến hành đẩy code lên remote."
+  echo "======================================================================"
 fi
 
-echo "✅ Kiểm tra pre-push hợp lệ! Tiến hành đẩy code lên remote."
-echo "======================================================================"
 exit 0

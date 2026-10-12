@@ -1,21 +1,26 @@
 #!/bin/sh
 # SurplusIQ Git Pre-Commit Hook (rule.md)
-# Ngăn chặn commit trực tiếp lên nhánh main / master
+# Ngăn chặn commit trực tiếp lên nhánh main / development
 
 branch=$(git symbolic-ref --short HEAD 2>/dev/null)
 
-# Cho phép bỏ qua khi biến môi trường ALLOW_MAIN_COMMIT=1
-if [ "$ALLOW_MAIN_COMMIT" = "1" ]; then
+# Cho phép bỏ qua khi biến môi trường ALLOW_PROTECTED_COMMIT=1
+if [ "$ALLOW_PROTECTED_COMMIT" = "1" ] || [ "$ALLOW_MAIN_COMMIT" = "1" ]; then
   exit 0
 fi
 
-if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+# Cho phép merge commit
+if [ -f .git/MERGE_HEAD ] || [ -f "$(git rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]; then
+  exit 0
+fi
+
+if [ "$branch" = "main" ] || [ "$branch" = "master" ] || [ "$branch" = "development" ] || [ "$branch" = "develop" ]; then
   echo ""
   echo "======================================================================"
   echo "❌ [GIT HOOK LỖI] KHÔNG ĐƯỢC PHÉP COMMIT TRỰC TIẾP LÊN NHÁNH $branch!"
   echo "======================================================================"
   echo "Theo quy chuẩn rule.md của SurplusIQ:"
-  echo "1. Nhánh $branch là nhánh nguồn sự thật (Single Source of Truth), chỉ nhận PR/Merge."
+  echo "1. Nhánh $branch là nhánh được bảo vệ, chỉ nhận Merge / PR từ nhánh chức năng."
   echo "2. Bạn bắt buộc phải tạo nhánh chức năng trước khi commit code:"
   echo ""
   echo "   git checkout -b feature/<scope>-<ten-chuc-nang>"
@@ -23,7 +28,7 @@ if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
   echo "   git checkout -b fix/<scope>-<ten-loi>"
   echo "   git checkout -b docs/<ten-tai-lieu>"
   echo ""
-  echo "Sau đó thực hiện commit trên nhánh chức năng đó."
+  echo "Sau đó thực hiện commit trên nhánh chức năng và merge vào development."
   echo "======================================================================"
   echo ""
   exit 1

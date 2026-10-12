@@ -6,13 +6,15 @@
 
 ## 1. Quy Trình Phân Nhánh Git (Branching Workflow)
 
-1. **Tuyệt đối không commit trực tiếp lên nhánh `main`**:
-   - Nhánh `main` là nhánh nguồn sự thật (Single Source of Truth), luôn ở trạng thái sẵn sàng deploy và ổn định (production-ready).
+1. **Nhánh `main` & Nhánh `development`**:
+   - `main`: Nhánh Production, chỉ nhận code ổn định từ `development` khi release.
+   - `development`: Nhánh tích hợp chính (Integration Branch) cho toàn bộ quá trình phát triển.
+   - **Tuyệt đối không commit trực tiếp lên `main` và `development`**.
 2. **Trước khi bắt đầu code bất kỳ tính năng/sửa lỗi nào**:
-   - Bắt buộc phải checkout ra một **nhánh chức năng (feature branch)** hoặc **nhánh sửa lỗi (fix branch)** mới từ `main` mới nhất:
+   - Bắt buộc phải checkout ra một **nhánh chức năng (feature branch)** hoặc **nhánh sửa lỗi (fix branch)** mới từ `development` mới nhất:
      ```bash
-     git checkout main
-     git pull origin main
+     git checkout development
+     git pull origin development
      git checkout -b feature/<scope>-<ten-chuc-nang>
      # hoặc
      git checkout -b fix/<scope>-<ten-loi>
@@ -73,12 +75,12 @@ Trước khi đẩy code (push) lên remote repository hoặc tạo Pull Request
    ```bash
    git status
    ```
-2. **Kéo cập nhật mới nhất từ nhánh `main` về**:
-   - Bắt buộc phải pull `main` về nhánh chức năng hiện tại để phát hiện và xử lý xung đột (conflict) ngay tại máy cục bộ:
+2. **Kéo cập nhật mới nhất từ nhánh `development` về**:
+   - Bắt buộc phải pull `development` về nhánh chức năng hiện tại để phát hiện và xử lý xung đột (conflict) ngay tại máy cục bộ:
      ```bash
      git fetch origin
-     git merge origin/main
-     # hoặc: git rebase origin/main
+     git merge origin/development
+     # hoặc: git rebase origin/development
      ```
 3. **Xử lý triệt để mọi xung đột (nếu có)** và chạy kiểm thử/linter cục bộ thành công.
 4. **Push nhánh chức năng lên remote**:
@@ -131,9 +133,9 @@ Trước khi đẩy code (push) lên remote repository hoặc tạo Pull Request
 
 | STT | Hạng mục kiểm tra | Lệnh xác thực | Trạng thái bắt buộc |
 |---|---|---|---|
-| 1 | Đang đứng trên nhánh chức năng (không phải `main`) | `git branch --show-current` | `feature/*` hoặc `fix/*` |
+| 1 | Đang đứng trên nhánh chức năng (không phải `main` / `development`) | `git branch --show-current` | `feature/*` hoặc `fix/*` hoặc `docs/*` |
 | 2 | Đã chuẩn hóa code bằng ESLint / Linter | `npm run lint` | Pass (0 error) |
 | 3 | Biên dịch Typescript không có lỗi | `npm run build` | Thành công |
 | 4 | Chạy Unit Test kiểm thử logic | `npm run test` | Pass |
-| 5 | Đã kéo cập nhật mới nhất từ `main` về | `git pull origin main` | Already up to date / Đã merge |
+| 5 | Đã kéo cập nhật mới nhất từ `development` về | `git pull origin development` | Already up to date / Đã merge |
 | 6 | Định dạng commit đúng `feat:`, `update:`, `fix:` kèm `[scope]` | `git log -1` | Hợp lệ theo mục 2 |
