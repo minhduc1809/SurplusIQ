@@ -3,11 +3,7 @@
  * Tuân thủ BRD 5.26 (R2-099, R2-112), BR-096
  */
 
-export type AnomalyMetricType =
-  | 'REVENUE'
-  | 'WASTE_QUANTITY'
-  | 'ORDERS_COUNT'
-  | 'NOSHOW_RATE';
+export type AnomalyMetricType = 'REVENUE' | 'WASTE_QUANTITY' | 'ORDERS_COUNT' | 'NOSHOW_RATE';
 
 export type AnomalySensitivity = 'LOW' | 'MEDIUM' | 'HIGH';
 

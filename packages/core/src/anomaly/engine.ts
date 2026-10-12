@@ -57,15 +57,14 @@ export class AnomalyDetectionEngine {
    */
   public static calculateMAD(numbers: number[], medianVal?: number): number {
     if (!numbers || numbers.length <= 1) return 0;
-    const median =
-      typeof medianVal === 'number' ? medianVal : this.calculateMedian(numbers);
+    const median = typeof medianVal === 'number' ? medianVal : this.calculateMedian(numbers);
     const deviations = numbers.map((x) => Math.abs(x - median));
     return this.calculateMedian(deviations);
   }
 
   private static getMetricValue(
     record: DailyMetricRecord,
-    metric: AnomalyMetricType
+    metric: AnomalyMetricType,
   ): number | undefined {
     switch (metric) {
       case 'REVENUE':
@@ -95,19 +94,14 @@ export class AnomalyDetectionEngine {
         ? input.targetDate
         : input.targetDate.toISOString().split('T')[0];
 
-    const targetRecord =
-      input.targetMetrics ||
-      input.history.find((h) => h.date === targetDateStr);
+    const targetRecord = input.targetMetrics || input.history.find((h) => h.date === targetDateStr);
 
     if (!targetRecord) {
-      throw new Error(
-        `Không tìm thấy dữ liệu chỉ số cho ngày mục tiêu ${targetDateStr}`
-      );
+      throw new Error(`Không tìm thấy dữ liệu chỉ số cho ngày mục tiêu ${targetDateStr}`);
     }
 
     const config = input.config || {};
-    const minHistoryDays =
-      config.minHistoryDays ?? this.DEFAULT_MIN_HISTORY_DAYS;
+    const minHistoryDays = config.minHistoryDays ?? this.DEFAULT_MIN_HISTORY_DAYS;
 
     let madMultiplier = this.DEFAULT_MAD_MULTIPLIER;
     if (config.sensitivity && this.SENSITIVITY_MAP[config.sensitivity]) {
@@ -150,8 +144,7 @@ export class AnomalyDetectionEngine {
     ];
 
     const dayName =
-      this.DAY_OF_WEEK_NAMES[targetRecord.dayOfWeek] ||
-      `Thứ ${targetRecord.dayOfWeek}`;
+      this.DAY_OF_WEEK_NAMES[targetRecord.dayOfWeek] || `Thứ ${targetRecord.dayOfWeek}`;
 
     for (const metric of metricsToCheck) {
       const actualVal = this.getMetricValue(targetRecord, metric);
@@ -179,24 +172,18 @@ export class AnomalyDetectionEngine {
         }
       } else {
         // Trường hợp tất cả các ngày baseline đều cùng một giá trị (MAD = 0)
-        if (
-          deviation > 0 &&
-          deviation >= Math.max(1, Math.abs(expectedMedian) * 0.2)
-        ) {
+        if (deviation > 0 && deviation >= Math.max(1, Math.abs(expectedMedian) * 0.2)) {
           isAnomaly = true;
           madScore = 9.99; // Giá trị tượng trưng khi MAD = 0
         }
       }
 
       if (isAnomaly) {
-        const direction: AnomalyDirection =
-          actualVal >= expectedMedian ? 'SURGE' : 'DROP';
-        const severity =
-          madScore >= madMultiplier * 1.5 ? 'CRITICAL' : 'WARNING';
+        const direction: AnomalyDirection = actualVal >= expectedMedian ? 'SURGE' : 'DROP';
+        const severity = madScore >= madMultiplier * 1.5 ? 'CRITICAL' : 'WARNING';
         const metricInfo = this.METRIC_LABELS[metric];
 
-        const directionText =
-          direction === 'SURGE' ? 'tăng bất thường' : 'sụt giảm bất thường';
+        const directionText = direction === 'SURGE' ? 'tăng bất thường' : 'sụt giảm bất thường';
         const formattedActual = actualVal.toLocaleString('vi-VN');
         const formattedExpected = expectedMedian.toLocaleString('vi-VN');
 
