@@ -1,3 +1,5 @@
+export * from './pricing.types';
+
 export type UserRole = 'BUYER' | 'STORE_OWNER' | 'ADMIN';
 
 export interface Location {
