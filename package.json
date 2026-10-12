@@ -10,7 +10,7 @@
     "infra:up": "docker compose --env-file .env -f docker/docker-compose.yml up -d",
     "infra:down": "docker compose --env-file .env -f docker/docker-compose.yml down",
     "infra:logs": "docker compose --env-file .env -f docker/docker-compose.yml logs -f",
-    "build": "npm run build:core && npm --workspace=@surplusiq/backend run build && npm --workspace=@surplusiq/web run build",
+    "build": "npm run build:core && npm --workspace=@surplusiq/backend run build && npm --workspace=@surplusiq/web run build && npm --workspace=@surplusiq/simulation run build",
     "build:core": "npm --workspace=@surplusiq/core run build",
     "migration:run": "npm --workspace=@surplusiq/backend run migration:run",
     "migration:revert": "npm --workspace=@surplusiq/backend run migration:revert",
