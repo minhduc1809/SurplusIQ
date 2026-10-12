@@ -28,7 +28,7 @@
 | `TASK-M1-04` | Xây dựng `ReconciliationEngine` tính toán đối soát tuần | `core` | `R2-063`, `R2-066`, `R2-067`, `VC-10`, BR-075 | `feature/core-reconciliation-engine` | `feat(core): implement weekly reconciliation calculation` | M | Tính chuẩn xác Gross, hoa hồng 10%, hoàn tiền khiếu nại, phí thuê bao và Net Payout (BR-075).<br>✅ **[Đã hoàn thành]** |
 | `TASK-M1-05` | Xây dựng `CustomerSegmentationEngine` phân nhóm quy tắc | `core` | `R2-084`, `R2-087` | `feature/core-segmentation-engine` | `feat(core): rule-based customer segmentation engine` | S | Phân 4 nhóm Mới, Thân thiết, Rời bỏ, Hay không đến nhận (chỉ chạy khi $\ge 20$ khách theo 12.19.1).<br>✅ **[Đã hoàn thành]** |
 | `TASK-M1-06` | Xây dựng `AnomalyDetectionEngine` phát hiện bất thường | `core` | `R2-099`, `R2-112`, BR-096 | `feature/core-anomaly-engine` | `feat(core): anomaly detection using median and mad baseline` | M | Cần $\ge 28$ ngày dữ liệu, loại ngày nghỉ/sự kiện, phát hiện lệch $> 2.5 \times \text{MAD}$ (BR-096).<br>✅ **[Đã hoàn thành]** |
-| `TASK-M1-07` | Viết 100% Unit Test cho toàn bộ engines của `packages/core` | `core` | Core Unit Tests | `test/core-full-unit-tests` | `test(core): add comprehensive unit test suite covering all engines` | M | Đạt coverage $\ge 90\%$ dòng, test đủ các ca biên giá sàn, hết hạn, cold-start. |
+| `TASK-M1-07` | Viết 100% Unit Test cho toàn bộ engines của `packages/core` | `core` | Core Unit Tests | `test/core-full-unit-tests` | `test(core): add comprehensive unit test suite covering all engines` | M | Đạt coverage $\ge 90\%$ dòng, test đủ các ca biên giá sàn, hết hạn, cold-start.<br>✅ **[Đã hoàn thành - Coverage dòng 96.38%, nhánh 87.24%]** |
 
 ---
 
