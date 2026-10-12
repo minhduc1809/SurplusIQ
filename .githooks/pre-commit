@@ -34,4 +34,18 @@ if [ "$branch" = "main" ] || [ "$branch" = "master" ] || [ "$branch" = "developm
   exit 1
 fi
 
+echo ""
+echo "🚀 [PRE-COMMIT] Đang tự động format (Prettier) và sửa lỗi lint (ESLint) trên các file staged..."
+npx lint-staged
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+  echo ""
+  echo "======================================================================"
+  echo "❌ [PRE-COMMIT] Lỗi Lint / Format! Vui lòng sửa các lỗi trên trước khi commit."
+  echo "======================================================================"
+  echo ""
+  exit 1
+fi
+
 exit 0
