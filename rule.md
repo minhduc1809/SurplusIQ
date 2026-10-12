@@ -24,6 +24,15 @@
    - Sửa lỗi: `fix/back-<ten-loi>`, `fix/web-<ten-loi>`, `fix/app-<ten-loi>`
    - Tối ưu/Tái cấu trúc: `refactor/<scope>-<noi-dung>`
    - Tài liệu/Kế hoạch: `docs/<noi-dung>`
+4. **Quy tắc Merge bắt buộc có Merge Commit (`--no-ff`)**:
+   - Khi merge bất kỳ nhánh chức năng nào vào `development` (hoặc `development` vào `main`):
+   - **Tuyệt đối không dùng Fast-Forward** để tránh làm thẳng đồ thị commit (git graph).
+   - Bắt buộc tạo **Merge Commit** rõ ràng bằng cờ `--no-ff`:
+     ```bash
+     git checkout development
+     git merge --no-ff <ten-nhanh-chuc-nang> -m "Merge branch '<ten-nhanh-chuc-nang>' into development"
+     ```
+   - Trên GitHub: Khi duyệt Pull Request, bắt buộc chọn **"Create a merge commit"** (nghiêm cấm dùng *Squash and merge* hoặc *Rebase and merge* làm mất nhánh đồ thị).
 
 ---
 

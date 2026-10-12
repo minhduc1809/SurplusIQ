@@ -48,7 +48,7 @@ export class OrdersService {
           buyerId,
           expiresAt,
         },
-        this.jwtSecret
+        this.jwtSecret,
       );
 
       // 4. Lưu đơn hàng
@@ -79,7 +79,9 @@ export class OrdersService {
 
     const { orderId } = verification.payload;
 
-    const order = await this.dataSource.getRepository(OrderEntity).findOne({ where: { id: orderId } });
+    const order = await this.dataSource
+      .getRepository(OrderEntity)
+      .findOne({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException('Đơn hàng không tồn tại');
     }

@@ -12,10 +12,10 @@ export class DecisionEntity {
   decisionType: string; // FORECAST, DYNAMIC_PRICING, DONATION
 
   @Column({ type: 'jsonb' })
-  inputSnapshot: Record<string, any>;
+  inputSnapshot: Record<string, unknown>;
 
   @Column({ type: 'jsonb' })
-  outputRecommendation: Record<string, any>;
+  outputRecommendation: Record<string, unknown>;
 
   @Column({ type: 'text' })
   rationale: string;
