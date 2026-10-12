@@ -13,7 +13,9 @@
     "build:core": "npm --workspace=@surplusiq/core run build",
     "dev:backend": "npm --workspace=@surplusiq/backend run start:dev",
     "dev:web": "npm --workspace=@surplusiq/web run dev",
-    "dev:simulation": "npm --workspace=@surplusiq/simulation run start"
+    "dev:simulation": "npm --workspace=@surplusiq/simulation run start",
+    "setup:hooks": "git config core.hooksPath .githooks",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "typescript": "^5.4.5"
