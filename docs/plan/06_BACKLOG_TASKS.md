@@ -8,12 +8,13 @@
 
 ## Mốc M0: Thiết lập Nền móng Kỹ thuật & Chuẩn hóa Công cụ (Tooling)
 
-| Mã Task | Tên công việc | Scope | UCs & Quy tắc | Nhánh Git | Commit mẫu | Size | Tiêu chí hoàn thành (DoD) |
+| Mã Task | Tên công việc | Scope | UCs & Quy tắc | Nhánh Git | Commit mẫu | Size | Tiêu chí hoàn thành (DoD) & Trạng thái |
 |---|---|---|---|---|---|---|---|
-| `TASK-M0-01` | Cấu hình ESLint Flat Config, Prettier & script lint ở Root | `infra` | N/A (Infra) | `feature/infra-eslint-setup` | `chore(infra): setup eslint flat config and prettier for monorepo` | S | Chạy `npm run lint` ở root kiểm tra được toàn bộ `packages/*` và `apps/*`. |
-| `TASK-M0-02` | Cấu hình Husky & Commitlint kiểm soát thông điệp commit | `infra` | N/A (Infra) | `feature/infra-commitlint-husky` | `chore(infra): enforce conventional commit format with husky` | S | Commit sai định dạng `feat:`, `update:`, `fix:` kèm scope bị chặn tại máy cục bộ. |
-| `TASK-M0-03` | Sửa lỗi biên dịch Backend & Cấu hình TypeORM Migration | `back` | N/A (Infra) | `fix/back-compilation-and-migrations` | `fix(back): fix missing entity imports and setup typeorm migrations` | M | Sửa các import lỗi trong `app.module.ts`, tắt `synchronize: true`, chạy được `npm run build`. |
-| `TASK-M0-04` | Thiết lập bộ khung kiểm thử Jest / Vitest cho Core và Backend | `infra` | N/A (Infra) | `feature/infra-testing-setup` | `chore(infra): configure jest and vitest runners` | S | Chạy `npm run test` thành công trên cả `packages/core` và `apps/backend`. |
+| `TASK-M0-01` | Cấu hình ESLint Flat Config, Prettier & script lint ở Root | `infra` | N/A (Infra) | `feature/infra-eslint-setup` | `chore(infra): setup eslint flat config and prettier for monorepo` | S | Chạy `npm run lint` ở root kiểm tra sạch toàn bộ `packages/*` và `apps/*`.<br>✅ **[Đã hoàn thành]** (Commit `bad7caa`, merge `77d46d3`) |
+| `TASK-M0-02` | Cấu hình Git Hooks (`.githooks/`) & Commitlint kiểm soát thông điệp commit | `infra` | N/A (Infra) | `feature/infra-commitlint-husky` | `chore(infra): enforce conventional commit format with husky` | S | Chặn commit sai cú pháp `type(scope): ...` và chặn commit trực tiếp lên `main`/`development`.<br>✅ **[Đã hoàn thành]** (Commit `60a2fa4`, `af696fe`, `5d3a5b4`) |
+| `TASK-M0-03` | Sửa lỗi biên dịch Backend & Cấu hình TypeORM Migration | `back` | N/A (Infra) | `fix/back-compilation-and-migrations` | `fix(back): fix missing entity imports and setup typeorm migrations` | M | Sửa import entity, tắt `synchronize: true`, tách riêng `data-source.ts`, `nest build` pass.<br>✅ **[Đã hoàn thành]** (Commit `39ee326`, merge `a05e6d7`) |
+| `TASK-M0-04` | Thiết lập bộ khung kiểm thử Jest / Vitest cho Core và Backend | `infra` | N/A (Infra) | `feature/infra-testing-setup` | `chore(infra): configure jest and vitest runners` | S | Chạy `npm run test` thành công trên cả `packages/core` (Vitest) và `apps/backend` (Jest).<br>✅ **[Đã hoàn thành]** (Commit `2ac7335`, merge `0c16e18` & `690cce8`, merge `65cb259`) |
+| `TASK-M0-05` | Thiết lập GitHub Actions CI Pipeline (`.github/workflows/ci.yml`) | `infra` | N/A (Infra) | `feature/infra-ci-and-m0-status` | `chore(infra): add github actions ci workflow and mark m0 completed` | S | Tự động chạy `lint`, `test`, `build` mỗi khi push / mở PR vào `main` hoặc `development`.<br>✅ **[Đã hoàn thành]** |
 
 ---
 
