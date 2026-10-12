@@ -25,7 +25,9 @@ import { OrdersService } from './modules/orders/orders.service';
         password: config.get<string>('POSTGRES_PASSWORD', 'surplus_secret_pass'),
         database: config.get<string>('POSTGRES_DB', 'surplusiq_db'),
         entities: [StoreEntity, OfferEntity, OrderEntity, DecisionEntity],
-        synchronize: true, // Auto-schema sync in development
+        synchronize: false, // Turn off auto-sync, enforce migrations per DoD TASK-M0-03
+        migrations: [__dirname + '/migrations/*{.ts,.js}'],
+        migrationsRun: config.get<string>('DB_MIGRATIONS_RUN') === 'true',
       }),
     }),
     TypeOrmModule.forFeature([StoreEntity, OfferEntity, OrderEntity, DecisionEntity]),
