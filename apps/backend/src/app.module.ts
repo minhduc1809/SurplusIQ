@@ -8,6 +8,7 @@ import { DecisionEntity } from './modules/decisions/decision.entity';
 import { OffersService } from './modules/offers/offers.service';
 import { OrdersService } from './modules/orders/orders.service';
 import { ALL_ENTITIES } from './entities';
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ALL_ENTITIES } from './entities';
       isGlobal: true,
       envFilePath: '../../.env',
     }),
+    SettingsModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
