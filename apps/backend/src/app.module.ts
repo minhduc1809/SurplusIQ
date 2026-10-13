@@ -14,6 +14,9 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { PickupsModule } from './modules/pickups/pickups.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
+import { CustomerProfileModule } from './modules/customer-profile/customer-profile.module';
+import { CustomerInteractionsModule } from './modules/customer-interactions/customer-interactions.module';
 
 @Module({
   imports: [
@@ -31,6 +34,9 @@ import { PickupsModule } from './modules/pickups/pickups.module';
     PaymentsModule,
     JobsModule,
     PickupsModule,
+    DiscoveryModule,
+    CustomerProfileModule,
+    CustomerInteractionsModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
