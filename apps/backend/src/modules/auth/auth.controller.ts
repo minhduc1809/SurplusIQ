@@ -27,7 +27,7 @@ import {
 } from './dto';
 
 @ApiTags('Authentication')
-@Controller('api/v1')
+@Controller()
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
