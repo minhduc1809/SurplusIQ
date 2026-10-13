@@ -12,6 +12,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { OffersModule } from './modules/offers/offers.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     OffersModule,
     OrdersModule,
     PaymentsModule,
+    JobsModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

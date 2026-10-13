@@ -9,7 +9,7 @@ import {
   PaymentStatus,
 } from '../../entities/orders/payment-transaction.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
-import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
+import { PickupTokenEntity } from '../../entities/orders/pickup-token.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 
