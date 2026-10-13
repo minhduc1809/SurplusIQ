@@ -16,6 +16,28 @@ export class SubscriptionsService {
     private readonly quotaService: QuotaService,
   ) {}
 
+  private async formatSubscription(sub: SubscriptionEntity) {
+    const effectivePlan = await this.quotaService.getEffectivePlan(sub.storeId);
+    const now = new Date();
+    const periodEnd = sub.periodEnd ? new Date(sub.periodEnd) : null;
+    const msRemaining = periodEnd ? Math.max(0, periodEnd.getTime() - now.getTime()) : 0;
+    const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+
+    return {
+      storeId: sub.storeId,
+      plan: sub.plan,
+      effectivePlan,
+      status: sub.status,
+      periodStart: sub.periodStart,
+      periodEnd: sub.periodEnd,
+      daysRemaining,
+      trialUsed: sub.trialUsed,
+      cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+      downgradeAtPeriodEnd: sub.downgradeAtPeriodEnd,
+      isTrial: sub.plan === SubscriptionPlan.TRIAL,
+    };
+  }
+
   /**
    * Lấy thông tin gói dịch vụ hiện tại và quyền lợi của cửa hàng (R2-011, VC-01..VC-06)
    */
@@ -37,25 +59,7 @@ export class SubscriptionsService {
       await this.subRepo.save(sub);
     }
 
-    const effectivePlan = await this.quotaService.getEffectivePlan(storeId);
-    const now = new Date();
-    const periodEnd = sub.periodEnd ? new Date(sub.periodEnd) : null;
-    const msRemaining = periodEnd ? Math.max(0, periodEnd.getTime() - now.getTime()) : 0;
-    const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
-
-    return {
-      storeId,
-      plan: sub.plan,
-      effectivePlan,
-      status: sub.status,
-      periodStart: sub.periodStart,
-      periodEnd: sub.periodEnd,
-      daysRemaining,
-      trialUsed: sub.trialUsed,
-      cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
-      downgradeAtPeriodEnd: sub.downgradeAtPeriodEnd,
-      isTrial: sub.plan === SubscriptionPlan.TRIAL,
-    };
+    return this.formatSubscription(sub);
   }
 
   /**
@@ -87,8 +91,8 @@ export class SubscriptionsService {
       sub.downgradeAtPeriodEnd = false;
     }
 
-    await this.subRepo.save(sub);
-    return this.getCurrentSubscription(storeId);
+    const saved = await this.subRepo.save(sub);
+    return this.formatSubscription(saved);
   }
 
   /**
@@ -113,7 +117,7 @@ export class SubscriptionsService {
       sub.cancelAtPeriodEnd = true;
     }
 
-    await this.subRepo.save(sub);
-    return this.getCurrentSubscription(storeId);
+    const saved = await this.subRepo.save(sub);
+    return this.formatSubscription(saved);
   }
 }
