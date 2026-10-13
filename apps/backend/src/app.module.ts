@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { StoreEntity } from './modules/stores/store.entity';
-import { OfferEntity } from './modules/offers/offer.entity';
-import { OrderEntity } from './modules/orders/order.entity';
+import { StoreEntity as LegacyStoreEntity } from './modules/stores/store.entity';
+import { OfferEntity as LegacyOfferEntity } from './modules/offers/offer.entity';
+import { OrderEntity as LegacyOrderEntity } from './modules/orders/order.entity';
 import { DecisionEntity } from './modules/decisions/decision.entity';
 import { OffersService } from './modules/offers/offers.service';
 import { OrdersService } from './modules/orders/orders.service';
+import { ALL_ENTITIES } from './entities';
 
 @Module({
   imports: [
@@ -24,13 +25,25 @@ import { OrdersService } from './modules/orders/orders.service';
         username: config.get<string>('POSTGRES_USER', 'surplus_admin'),
         password: config.get<string>('POSTGRES_PASSWORD', 'surplus_secret_pass'),
         database: config.get<string>('POSTGRES_DB', 'surplusiq_db'),
-        entities: [StoreEntity, OfferEntity, OrderEntity, DecisionEntity],
+        entities: [
+          ...ALL_ENTITIES,
+          LegacyStoreEntity,
+          LegacyOfferEntity,
+          LegacyOrderEntity,
+          DecisionEntity,
+        ],
         synchronize: false, // Turn off auto-sync, enforce migrations per DoD TASK-M0-03
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
         migrationsRun: config.get<string>('DB_MIGRATIONS_RUN') === 'true',
       }),
     }),
-    TypeOrmModule.forFeature([StoreEntity, OfferEntity, OrderEntity, DecisionEntity]),
+    TypeOrmModule.forFeature([
+      LegacyStoreEntity,
+      LegacyOfferEntity,
+      LegacyOrderEntity,
+      DecisionEntity,
+      ...ALL_ENTITIES,
+    ]),
   ],
   providers: [OffersService, OrdersService],
 })
