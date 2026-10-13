@@ -1,0 +1,565 @@
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DataSource } from 'typeorm';
+import {
+  PaymentTransactionEntity,
+  PaymentKind,
+  PaymentMethod,
+  PaymentStatus,
+} from '../../entities/orders/payment-transaction.entity';
+import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
+import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
+import { OfferEntity } from '../../entities/catalog/offer.entity';
+import { AuditLogService } from '../audit/audit-log.service';
+import { QrTokenEngine, BackupPinEngine } from '@surplusiq/core';
+import { CreatePaymentDto, PaymentWebhookDto, ConfirmPaymentDto } from './dto';
+import { PAYMENTS_CONSTANTS } from './payments.constants';
+
+export interface PaymentInitiationResult {
+  transactionId: string;
+  gatewayTxnId: string;
+  orderId: string;
+  orderCode: string;
+  amount: number;
+  transferSyntax: string;
+  bankAccount: string;
+  bankBin: string;
+  bankName: string;
+  accountName: string;
+  qrUrl: string;
+  holdExpiresAt: Date;
+  status: PaymentStatus;
+}
+
+export interface PaymentConfirmationResult {
+  success: boolean;
+  orderId: string;
+  orderCode: string;
+  orderStatus: OrderStatus;
+  transactionId?: string;
+  gatewayTxnId?: string;
+  amount?: number;
+  paidAt?: Date;
+  pickupToken?: string;
+  backupCode?: string;
+  latePaymentRefunded?: boolean;
+  refundTxnId?: string;
+  idempotent?: boolean;
+  message: string;
+}
+
+@Injectable()
+export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+  private readonly jwtSecret = process.env.JWT_SECRET || 'surplusiq_super_secret_jwt_key_2026';
+
+  constructor(
+    @InjectRepository(PaymentTransactionEntity)
+    private readonly paymentTxnRepo: Repository<PaymentTransactionEntity>,
+    @InjectRepository(OrderEntity)
+    private readonly orderRepo: Repository<OrderEntity>,
+    @InjectRepository(PickupTokenEntity)
+    private readonly pickupTokenRepo: Repository<PickupTokenEntity>,
+    @InjectRepository(OfferEntity)
+    private readonly offerRepo: Repository<OfferEntity>,
+    private readonly auditLogService: AuditLogService,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  /**
+   * Khởi tạo giao dịch thanh toán VietQR / Giả lập cho đơn hàng (R1-041, BR-016)
+   */
+  async createPayment(
+    customerId: string,
+    orderId: string,
+    dto?: CreatePaymentDto,
+  ): Promise<PaymentInitiationResult> {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    if (order.status !== OrderStatus.PENDING_PAYMENT) {
+      throw new BadRequestException(
+        `Chỉ có thể tạo thanh toán cho đơn đang chờ thanh toán (Trạng thái hiện tại: ${order.status}).`,
+      );
+    }
+
+    const now = new Date();
+    if (new Date(order.holdExpiresAt) <= now) {
+      throw new BadRequestException(
+        'Đơn hàng đã hết thời gian giữ suất 10 phút (BR-017). Vui lòng đặt lại đơn mới.',
+      );
+    }
+
+    // Kiểm tra xem đã có giao dịch chờ thanh toán cho đơn này chưa (Idempotency)
+    let paymentTxn = await this.paymentTxnRepo.findOne({
+      where: {
+        orderId: order.id,
+        kind: PaymentKind.ORDER_PAYMENT,
+        status: PaymentStatus.PENDING_CONFIRM,
+      },
+    });
+
+    if (!paymentTxn) {
+      const gatewayTxnId = `TXN_SUQ_${order.code}_${Date.now()}`;
+      paymentTxn = this.paymentTxnRepo.create({
+        orderId: order.id,
+        storeId: order.storeId,
+        kind: PaymentKind.ORDER_PAYMENT,
+        amount: order.totalAmount, // Giá chốt vào đơn tại thời điểm giữ suất (BR-016)
+        method: dto?.method || PaymentMethod.VIETQR,
+        gatewayTxnId,
+        status: PaymentStatus.PENDING_CONFIRM,
+        retryCount: 0,
+      });
+      paymentTxn = await this.paymentTxnRepo.save(paymentTxn);
+
+      await this.auditLogService.log({
+        storeId: order.storeId,
+        actorId: customerId,
+        actorRole: 'CUSTOMER',
+        action: 'PAYMENT_INITIATED',
+        targetType: 'PAYMENT_TRANSACTION',
+        targetId: paymentTxn.id,
+        newValue: {
+          gatewayTxnId,
+          amount: paymentTxn.amount,
+          method: paymentTxn.method,
+        },
+      });
+    }
+
+    const transferSyntax = `${PAYMENTS_CONSTANTS.VIETQR.SYNTAX_PREFIX}${order.code}`;
+    const qrUrl = `https://img.vietqr.io/image/${PAYMENTS_CONSTANTS.VIETQR.BANK_BIN}-${
+      PAYMENTS_CONSTANTS.VIETQR.ACCOUNT_NO
+    }-compact2.png?amount=${order.totalAmount}&addInfo=${transferSyntax}&accountName=${encodeURIComponent(
+      PAYMENTS_CONSTANTS.VIETQR.ACCOUNT_NAME,
+    )}`;
+
+    return {
+      transactionId: paymentTxn.id,
+      gatewayTxnId: paymentTxn.gatewayTxnId,
+      orderId: order.id,
+      orderCode: order.code,
+      amount: paymentTxn.amount,
+      transferSyntax,
+      bankAccount: PAYMENTS_CONSTANTS.VIETQR.ACCOUNT_NO,
+      bankBin: PAYMENTS_CONSTANTS.VIETQR.BANK_BIN,
+      bankName: PAYMENTS_CONSTANTS.VIETQR.BANK_NAME,
+      accountName: PAYMENTS_CONSTANTS.VIETQR.ACCOUNT_NAME,
+      qrUrl,
+      holdExpiresAt: order.holdExpiresAt,
+      status: paymentTxn.status,
+    };
+  }
+
+  /**
+   * Xử lý xác nhận thanh toán / Webhook từ cổng thanh toán (R1-041, R1-047, BR-015, BR-016, VC-10)
+   * Đảm bảo Idempotent theo gateway_txn_id, khớp số tiền, hoàn tiền nếu đến muộn.
+   */
+  async processPaymentWebhook(dto: PaymentWebhookDto): Promise<PaymentConfirmationResult> {
+    // 1. Kiểm tra tính Idempotency theo gateway_txn_id (BR-015, VC-10)
+    const existingTxn = await this.paymentTxnRepo.findOne({
+      where: { gatewayTxnId: dto.gatewayTxnId },
+    });
+
+    if (existingTxn && existingTxn.status === PaymentStatus.SUCCEEDED) {
+      this.logger.log(
+        `[IDEMPOTENT_PAYMENT] Giao dịch ${dto.gatewayTxnId} đã được xử lý trước đó. Bỏ qua ghi nhận lặp.`,
+      );
+      const existingOrder = await this.orderRepo.findOne({
+        where: { id: existingTxn.orderId || '' },
+      });
+
+      return {
+        success: true,
+        idempotent: true,
+        orderId: existingOrder ? existingOrder.id : '',
+        orderCode: existingOrder ? existingOrder.code : '',
+        orderStatus: existingOrder ? existingOrder.status : OrderStatus.PAID,
+        transactionId: existingTxn.id,
+        gatewayTxnId: existingTxn.gatewayTxnId,
+        amount: existingTxn.amount,
+        message: 'Giao dịch đã được ghi nhận trước đó (Idempotent - BR-015, VC-10).',
+      };
+    }
+
+    // 2. Tìm đơn hàng tương ứng
+    let order: OrderEntity | null = null;
+
+    if (existingTxn?.orderId) {
+      order = await this.orderRepo.findOne({ where: { id: existingTxn.orderId } });
+    } else if (dto.orderId) {
+      order = await this.orderRepo.findOne({ where: { id: dto.orderId } });
+    } else if (dto.orderCode) {
+      order = await this.orderRepo.findOne({ where: { code: dto.orderCode } });
+    } else if (dto.transferMessage) {
+      // Bóc tách cú pháp SUQ<ORDER_CODE>
+      const match = dto.transferMessage.match(/SUQ([A-Za-z0-9]+)/i);
+      if (match && match[1]) {
+        order = await this.orderRepo.findOne({ where: { code: match[1].toUpperCase() } });
+      }
+    }
+
+    if (!order) {
+      throw new NotFoundException(
+        'Không tìm thấy đơn hàng tương ứng với thông tin thanh toán được cung cấp.',
+      );
+    }
+
+    // 3. Thực hiện Transaction khóa bi quan (pessimistic_write) trên OrderEntity
+    return this.dataSource.transaction(async (manager) => {
+      const lockedOrder = await manager
+        .createQueryBuilder(OrderEntity, 'order')
+        .setLock('pessimistic_write')
+        .where('order.id = :id', { id: order.id })
+        .getOne();
+
+      if (!lockedOrder) {
+        throw new NotFoundException(`Không tìm thấy đơn hàng [${order.id}].`);
+      }
+
+      // Khởi tạo hoặc cập nhật bản ghi giao dịch
+      let txn = await manager.findOne(PaymentTransactionEntity, {
+        where: { gatewayTxnId: dto.gatewayTxnId },
+      });
+
+      if (!txn) {
+        txn = manager.create(PaymentTransactionEntity, {
+          orderId: lockedOrder.id,
+          storeId: lockedOrder.storeId,
+          kind: PaymentKind.ORDER_PAYMENT,
+          amount: dto.amount,
+          method: PaymentMethod.VIETQR,
+          gatewayTxnId: dto.gatewayTxnId,
+          status: PaymentStatus.PENDING_CONFIRM,
+          retryCount: 0,
+        });
+      } else {
+        txn.orderId = lockedOrder.id;
+        txn.storeId = lockedOrder.storeId;
+        txn.amount = dto.amount;
+      }
+
+      // 4. Kiểm tra khớp số tiền chính xác (BR-016)
+      if (dto.amount !== lockedOrder.totalAmount) {
+        txn.status = PaymentStatus.MANUAL_REVIEW;
+        await manager.save(txn);
+
+        await this.auditLogService.log({
+          storeId: lockedOrder.storeId,
+          actorId: 'PAYMENT_GATEWAY',
+          actorRole: 'SYSTEM',
+          action: 'PAYMENT_AMOUNT_MISMATCH',
+          targetType: 'PAYMENT_TRANSACTION',
+          targetId: txn.id,
+          newValue: {
+            expected: lockedOrder.totalAmount,
+            received: dto.amount,
+            status: PaymentStatus.MANUAL_REVIEW,
+          },
+        });
+
+        throw new BadRequestException(
+          `Số tiền thanh toán [${dto.amount}] không khớp chính xác đơn giá chốt [${lockedOrder.totalAmount}] (BR-016). Đã đưa vào đối soát thủ công.`,
+        );
+      }
+
+      const now = new Date();
+      const isHoldExpired =
+        lockedOrder.status === OrderStatus.HOLD_EXPIRED ||
+        new Date(lockedOrder.holdExpiresAt) < now;
+
+      // 5. TRƯỜNG HỢP THANH TOÁN ĐẾN MUỘN (R1-047, BR-015, TEST-ORDER-04)
+      if (isHoldExpired) {
+        this.logger.warn(
+          `[LATE_PAYMENT] Đơn ${lockedOrder.code} đã hết hạn giữ suất (${lockedOrder.holdExpiresAt.toISOString()}). Tự động kích hoạt hoàn tiền 100% (R1-047).`,
+        );
+
+        // Đơn giữ nguyên trạng thái HOLD_EXPIRED (R1-047 BR 3)
+        lockedOrder.status = OrderStatus.HOLD_EXPIRED;
+        await manager.save(lockedOrder);
+
+        // Đánh dấu giao dịch thu tiền thành công
+        txn.status = PaymentStatus.SUCCEEDED;
+        await manager.save(txn);
+
+        // Tạo lệnh hoàn tiền 100% tự động, chống hoàn trùng (R1-047 BR 1, BR 2)
+        const refundTxnId = `REFUND_${txn.gatewayTxnId}`;
+        let refundTxn = await manager.findOne(PaymentTransactionEntity, {
+          where: { gatewayTxnId: refundTxnId },
+        });
+
+        if (!refundTxn) {
+          refundTxn = manager.create(PaymentTransactionEntity, {
+            orderId: lockedOrder.id,
+            storeId: lockedOrder.storeId,
+            kind: PaymentKind.ORDER_REFUND,
+            amount: txn.amount, // Hoàn 100% số tiền đã nhận, không trừ hoa hồng (R1-047)
+            method: txn.method,
+            gatewayTxnId: refundTxnId,
+            parentTxnId: txn.gatewayTxnId,
+            status: PaymentStatus.SUCCEEDED,
+            retryCount: 0,
+          });
+          await manager.save(refundTxn);
+        }
+
+        await this.auditLogService.log({
+          storeId: lockedOrder.storeId,
+          actorId: 'SYSTEM',
+          actorRole: 'SYSTEM',
+          action: 'ORDER_LATE_PAYMENT_REFUNDED',
+          targetType: 'ORDER',
+          targetId: lockedOrder.id,
+          newValue: {
+            orderCode: lockedOrder.code,
+            amount: txn.amount,
+            parentTxnId: txn.gatewayTxnId,
+            refundTxnId: refundTxn.gatewayTxnId,
+          },
+        });
+
+        return {
+          success: true,
+          latePaymentRefunded: true,
+          orderId: lockedOrder.id,
+          orderCode: lockedOrder.code,
+          orderStatus: OrderStatus.HOLD_EXPIRED,
+          transactionId: txn.id,
+          gatewayTxnId: txn.gatewayTxnId,
+          amount: txn.amount,
+          refundTxnId: refundTxn.gatewayTxnId,
+          message:
+            'Đơn hàng đã hết hạn giữ suất 10 phút. Tiền đã được tự động hoàn 100% về tài khoản của bạn (R1-047).',
+        };
+      }
+
+      // 6. TRƯỜNG HỢP THANH TOÁN ĐÚNG HẠN BÌNH THƯỜNG (R1-041, BR-022)
+      txn.status = PaymentStatus.SUCCEEDED;
+      await manager.save(txn);
+
+      lockedOrder.status = OrderStatus.PAID;
+      lockedOrder.paidAt = new Date();
+      await manager.save(lockedOrder);
+
+      // 7. Sinh mã QR nhận hàng HMAC-SHA256 & Mã dự phòng 6 số (R1-041, R1-057, BR-022)
+      const backupCode = BackupPinEngine.generate();
+
+      // Hạn của vé nhận hàng lấy theo khung giờ nhận của món hoặc 24 giờ
+      const offer = await manager.findOne(OfferEntity, { where: { id: lockedOrder.offerId } });
+      const expiryHours = PAYMENTS_CONSTANTS.DEFAULT_PICKUP_TOKEN_EXPIRY_HOURS;
+      let expiresAt = new Date(now.getTime() + expiryHours * 60 * 60 * 1000);
+
+      if (offer && offer.pickupEnd) {
+        // Tối thiểu là thời điểm kết thúc khung nhận hàng
+        expiresAt = new Date(offer.pickupEnd);
+      } else if (lockedOrder.pickupSlot) {
+        expiresAt = new Date(new Date(lockedOrder.pickupSlot).getTime() + 2 * 60 * 60 * 1000);
+      }
+
+      const pickupTokenRecord = manager.create(PickupTokenEntity, {
+        orderId: lockedOrder.id,
+        backupCode,
+        expiresAt,
+        status: PickupTokenStatus.UNUSED,
+      });
+      const savedToken = await manager.save(pickupTokenRecord);
+
+      // Ký token QR an toàn HMAC-SHA256 không chứa PII (BR-022)
+      const signedQrToken = QrTokenEngine.sign(
+        {
+          jti: savedToken.id,
+          orderId: lockedOrder.id,
+          storeId: lockedOrder.storeId,
+          exp: expiresAt.getTime(),
+        },
+        this.jwtSecret,
+      );
+
+      await this.auditLogService.log({
+        storeId: lockedOrder.storeId,
+        actorId: 'PAYMENT_GATEWAY',
+        actorRole: 'SYSTEM',
+        action: 'ORDER_PAYMENT_CONFIRMED',
+        targetType: 'ORDER',
+        targetId: lockedOrder.id,
+        newValue: {
+          status: OrderStatus.PAID,
+          paidAt: lockedOrder.paidAt,
+          gatewayTxnId: txn.gatewayTxnId,
+          amount: txn.amount,
+          backupCode,
+        },
+      });
+
+      return {
+        success: true,
+        orderId: lockedOrder.id,
+        orderCode: lockedOrder.code,
+        orderStatus: OrderStatus.PAID,
+        transactionId: txn.id,
+        gatewayTxnId: txn.gatewayTxnId,
+        amount: txn.amount,
+        paidAt: lockedOrder.paidAt,
+        pickupToken: signedQrToken,
+        backupCode,
+        message: 'Thanh toán thành công! Mã QR nhận hàng đã được kích hoạt.',
+      };
+    });
+  }
+
+  /**
+   * Khách yêu cầu kiểm tra lại trạng thái thanh toán cổng (R1-056, VC-07)
+   * Tần suất: tối đa 1 lần / phút (≥ 60s). Quá 24h đánh dấu FAILED.
+   */
+  async recheckPayment(customerId: string, orderId: string) {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    const txn = await this.paymentTxnRepo.findOne({
+      where: { orderId, kind: PaymentKind.ORDER_PAYMENT },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!txn) {
+      throw new NotFoundException('Không tìm thấy giao dịch thanh toán cho đơn hàng này.');
+    }
+
+    const now = new Date();
+
+    // 1. Kiểm tra giới hạn tần suất gọi: tối đa 1 lần / 60 giây (R1-056)
+    if (txn.lastCheckedAt) {
+      const elapsedSeconds = Math.floor(
+        (now.getTime() - new Date(txn.lastCheckedAt).getTime()) / 1000,
+      );
+      if (elapsedSeconds < PAYMENTS_CONSTANTS.RECHECK_RATE_LIMIT_SECONDS) {
+        const waitSeconds = PAYMENTS_CONSTANTS.RECHECK_RATE_LIMIT_SECONDS - elapsedSeconds;
+        throw new BadRequestException(
+          `Mỗi đơn kiểm tra tối đa 1 lần/phút (R1-056). Vui lòng đợi thêm ${waitSeconds} giây trước khi thử lại.`,
+        );
+      }
+    }
+
+    // 2. Cập nhật lượt kiểm tra
+    txn.lastCheckedAt = now;
+    txn.retryCount += 1;
+
+    // 3. Quá 24 giờ chưa xác nhận -> Đánh dấu FAILED (VC-07)
+    const hoursElapsed = (now.getTime() - new Date(txn.createdAt).getTime()) / (1000 * 60 * 60);
+    if (
+      txn.status === PaymentStatus.PENDING_CONFIRM &&
+      hoursElapsed >= PAYMENTS_CONSTANTS.PENDING_MAX_HOURS
+    ) {
+      txn.status = PaymentStatus.FAILED;
+    }
+
+    const savedTxn = await this.paymentTxnRepo.save(txn);
+
+    return {
+      orderId: order.id,
+      orderCode: order.code,
+      orderStatus: order.status,
+      paymentStatus: savedTxn.status,
+      lastCheckedAt: savedTxn.lastCheckedAt,
+      retryCount: savedTxn.retryCount,
+      message:
+        savedTxn.status === PaymentStatus.SUCCEEDED
+          ? 'Đơn hàng đã thanh toán thành công.'
+          : savedTxn.status === PaymentStatus.FAILED
+            ? 'Giao dịch đã quá hạn 24 giờ và bị hủy.'
+            : 'Giao dịch đang chờ xác nhận từ ngân hàng.',
+    };
+  }
+
+  /**
+   * Endpoint thử nghiệm môi trường phát triển (Chỉ NODE_ENV !== 'production')
+   */
+  async confirmPaymentDev(transactionId: string, dto?: ConfirmPaymentDto) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException(
+        'Endpoint xác nhận thanh toán thử nghiệm không khả dụng trên môi trường Production.',
+      );
+    }
+
+    const txn = await this.paymentTxnRepo.findOne({
+      where: [{ id: transactionId }, { gatewayTxnId: transactionId }],
+    });
+
+    if (!txn) {
+      throw new NotFoundException(`Không tìm thấy giao dịch với mã [${transactionId}].`);
+    }
+
+    const order = await this.orderRepo.findOne({ where: { id: txn.orderId || '' } });
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng tương ứng với giao dịch.');
+    }
+
+    return this.processPaymentWebhook({
+      gatewayTxnId: txn.gatewayTxnId,
+      amount: dto?.amount ?? txn.amount,
+      orderCode: order.code,
+      orderId: order.id,
+      transferMessage: `SUQ${order.code}`,
+    });
+  }
+
+  /**
+   * Lấy lịch sử / trạng thái thanh toán của đơn hàng
+   */
+  async getPaymentByOrderId(customerId: string, orderId: string) {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    const transactions = await this.paymentTxnRepo.find({
+      where: { orderId },
+      order: { createdAt: 'DESC' },
+    });
+
+    let pickupToken: string | null = null;
+    let backupCode: string | null = null;
+
+    if (order.status === OrderStatus.PAID) {
+      const tokenRecord = await this.pickupTokenRepo.findOne({
+        where: { orderId, status: PickupTokenStatus.UNUSED },
+        order: { createdAt: 'DESC' },
+      });
+
+      if (tokenRecord) {
+        backupCode = tokenRecord.backupCode;
+        pickupToken = QrTokenEngine.sign(
+          {
+            jti: tokenRecord.id,
+            orderId: order.id,
+            storeId: order.storeId,
+            exp: new Date(tokenRecord.expiresAt).getTime(),
+          },
+          this.jwtSecret,
+        );
+      }
+    }
+
+    return {
+      orderId: order.id,
+      orderCode: order.code,
+      orderStatus: order.status,
+      transactions,
+      pickupToken,
+      backupCode,
+    };
+  }
+}
