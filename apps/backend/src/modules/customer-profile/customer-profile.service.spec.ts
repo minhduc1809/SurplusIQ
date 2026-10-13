@@ -8,6 +8,7 @@ import { SavedPlaceEntity } from '../../entities/auth/saved-place.entity';
 import { DietaryProfileEntity } from '../../entities/auth/dietary-profile.entity';
 import { NoshowRecordEntity } from '../../entities/orders/noshow-record.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
 
 describe('CustomerProfileService', () => {
   let service: CustomerProfileService;
@@ -17,6 +18,7 @@ describe('CustomerProfileService', () => {
   let dietaryRepo: any;
   let noshowRepo: any;
   let orderLockRepo: any;
+  let fcmTokenRepo: any;
 
   beforeEach(async () => {
     userRepo = {
@@ -61,6 +63,12 @@ describe('CustomerProfileService', () => {
     orderLockRepo = {
       findOne: jest.fn(),
     };
+    fcmTokenRepo = {
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'fcm-1', ...d })),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -71,6 +79,7 @@ describe('CustomerProfileService', () => {
         { provide: getRepositoryToken(DietaryProfileEntity), useValue: dietaryRepo },
         { provide: getRepositoryToken(NoshowRecordEntity), useValue: noshowRepo },
         { provide: getRepositoryToken(OrderLockEntity), useValue: orderLockRepo },
+        { provide: getRepositoryToken(FcmTokenEntity), useValue: fcmTokenRepo },
       ],
     }).compile();
 
@@ -143,6 +152,29 @@ describe('CustomerProfileService', () => {
 
       expect(updated.allergens).toEqual(['gluten', 'trứng']);
       expect(updated.excludedItems).toEqual(['hành lá']);
+    });
+  });
+
+  describe('FCM Token (R1-004, R1-073)', () => {
+    it('đăng ký FCM token mới cho thiết bị thành công', async () => {
+      fcmTokenRepo.findOne.mockResolvedValue(null);
+      const res = await service.registerFcmToken('user-1', {
+        token: 'fcm_token_xyz_123',
+        deviceId: 'device_iphone_15',
+        enabled: true,
+      });
+
+      expect(res.success).toBe(true);
+      expect(fcmTokenRepo.create).toHaveBeenCalled();
+    });
+
+    it('xóa FCM token khi đăng xuất', async () => {
+      const res = await service.deleteFcmToken('user-1', 'device_iphone_15');
+      expect(res.success).toBe(true);
+      expect(fcmTokenRepo.delete).toHaveBeenCalledWith({
+        userId: 'user-1',
+        deviceId: 'device_iphone_15',
+      });
     });
   });
 });

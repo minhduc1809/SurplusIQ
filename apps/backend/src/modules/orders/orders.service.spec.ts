@@ -6,6 +6,14 @@ import { OrdersService } from './orders.service';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus, OfferKind } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import {
+  ProxyPickupCodeEntity,
+  ProxyPickupCodeStatus,
+} from '../../entities/orders/proxy-pickup-code.entity';
+import { PickupTokenEntity } from '../../entities/orders/pickup-token.entity';
+import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
+import { ItemEntity } from '../../entities/catalog/item.entity';
+import { StoreEntity } from '../../entities/stores/store.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { CreateOrderDto, CancelOrderDto, QueryOrdersDto } from './dto';
 
@@ -95,6 +103,32 @@ describe('OrdersService', () => {
     findOne: jest.fn(),
   };
 
+  const mockProxyCodeRepo = {
+    findOne: jest.fn(),
+    create: jest.fn(),
+    save: jest.fn(),
+    update: jest.fn(),
+  };
+
+  const mockPickupTokenRepo = {
+    update: jest.fn(),
+    findOne: jest.fn(),
+  };
+
+  const mockPaymentTxnRepo = {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+  };
+
+  const mockItemRepo = {
+    findOne: jest.fn(),
+  };
+
+  const mockStoreRepo = {
+    findOne: jest.fn(),
+  };
+
   const mockAuditLogService = {
     log: jest.fn().mockResolvedValue({ id: 'audit-1' }),
   };
@@ -113,6 +147,7 @@ describe('OrdersService', () => {
       createQueryBuilder: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
+      update: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -129,6 +164,26 @@ describe('OrdersService', () => {
         {
           provide: getRepositoryToken(OrderLockEntity),
           useValue: mockOrderLockRepo,
+        },
+        {
+          provide: getRepositoryToken(ProxyPickupCodeEntity),
+          useValue: mockProxyCodeRepo,
+        },
+        {
+          provide: getRepositoryToken(PickupTokenEntity),
+          useValue: mockPickupTokenRepo,
+        },
+        {
+          provide: getRepositoryToken(PaymentTransactionEntity),
+          useValue: mockPaymentTxnRepo,
+        },
+        {
+          provide: getRepositoryToken(ItemEntity),
+          useValue: mockItemRepo,
+        },
+        {
+          provide: getRepositoryToken(StoreEntity),
+          useValue: mockStoreRepo,
         },
         {
           provide: AuditLogService,
@@ -236,8 +291,8 @@ describe('OrdersService', () => {
       );
     });
 
-    it('phải ném lỗi BadRequestException nếu đơn không ở trạng thái PENDING_PAYMENT', async () => {
-      const orderQb = createMockQueryBuilder({ ...mockOrder, status: OrderStatus.PAID });
+    it('phải ném lỗi BadRequestException nếu đơn đã ở trạng thái hoàn tất (PICKED_UP)', async () => {
+      const orderQb = createMockQueryBuilder({ ...mockOrder, status: OrderStatus.PICKED_UP });
       mockTransactionManager.createQueryBuilder.mockReturnValue(orderQb);
 
       await expect(service.cancelHoldByCustomer(mockCustomerId, mockOrderId)).rejects.toThrow(
@@ -341,6 +396,131 @@ describe('OrdersService', () => {
           action: 'ORDER_CANCELLED_BY_STORE',
         }),
       );
+    });
+  });
+
+  describe('Proxy Pickup Code (R1-052)', () => {
+    it('phải tạo mã nhận hộ 6 ký tự thành công cho đơn đã thanh toán', async () => {
+      mockOrderRepo.findOne.mockResolvedValue({ ...mockOrder, status: OrderStatus.PAID });
+      mockOfferRepo.findOne.mockResolvedValue(mockOffer);
+      mockProxyCodeRepo.update.mockResolvedValue({ affected: 0 });
+      mockProxyCodeRepo.create.mockImplementation((dto: any) => ({
+        id: 'proxy-1',
+        ...dto,
+      }));
+      mockProxyCodeRepo.save.mockImplementation(async (e: any) => e);
+
+      const result = await service.createProxyPickupCode(mockCustomerId, mockOrderId);
+
+      expect(result.code).toBeDefined();
+      expect(result.code.length).toBe(8);
+      expect(result.status).toBe(ProxyPickupCodeStatus.UNUSED);
+      expect(mockAuditLogService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PROXY_PICKUP_CODE_CREATED',
+        }),
+      );
+    });
+
+    it('phải ném lỗi BadRequestException nếu đơn chưa thanh toán', async () => {
+      mockOrderRepo.findOne.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.PENDING_PAYMENT,
+      });
+
+      await expect(service.createProxyPickupCode(mockCustomerId, mockOrderId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('phải thu hồi mã nhận hộ thành công', async () => {
+      mockOrderRepo.findOne.mockResolvedValue({ ...mockOrder, status: OrderStatus.PAID });
+      mockProxyCodeRepo.findOne.mockResolvedValue({
+        id: 'proxy-1',
+        orderId: mockOrderId,
+        status: ProxyPickupCodeStatus.UNUSED,
+      });
+      mockProxyCodeRepo.save.mockImplementation(async (e: any) => e);
+
+      const result = await service.revokeProxyPickupCode(mockCustomerId, mockOrderId);
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('updatePickupSlot (R1-049)', () => {
+    it('phải cập nhật giờ hẹn nhận hàng thành công khi nằm trong khung giờ của quán', async () => {
+      const now = new Date();
+      const pickupStart = new Date(now.getTime() + 60 * 60 * 1000);
+      const pickupEnd = new Date(now.getTime() + 180 * 60 * 1000);
+      const targetSlot = new Date(now.getTime() + 90 * 60 * 1000);
+
+      mockOrderRepo.findOne.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.PAID,
+        pickupSlot: null,
+      });
+      mockOfferRepo.findOne.mockResolvedValue({
+        ...mockOffer,
+        pickupStart,
+        pickupEnd,
+      });
+      mockOrderRepo.save.mockImplementation(async (e: any) => e);
+
+      const result = await service.updatePickupSlot(
+        mockCustomerId,
+        mockOrderId,
+        targetSlot.toISOString(),
+      );
+
+      expect(result.pickupSlot).toEqual(targetSlot);
+    });
+
+    it('phải ném lỗi nếu giờ hẹn nằm ngoài khung giờ nhận của quán', async () => {
+      const now = new Date();
+      const pickupStart = new Date(now.getTime() + 60 * 60 * 1000);
+      const pickupEnd = new Date(now.getTime() + 180 * 60 * 1000);
+      const targetSlot = new Date(now.getTime() + 300 * 60 * 1000); // Ngoài khung giờ
+
+      mockOrderRepo.findOne.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.PAID,
+      });
+      mockOfferRepo.findOne.mockResolvedValue({
+        ...mockOffer,
+        pickupStart,
+        pickupEnd,
+      });
+
+      await expect(
+        service.updatePickupSlot(mockCustomerId, mockOrderId, targetSlot.toISOString()),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getOrderReceipt (R1-054)', () => {
+    it('phải trả về hóa đơn điện tử đầy đủ', async () => {
+      mockOrderRepo.findOne.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.PICKED_UP,
+        paidAt: new Date(),
+        pickupSlot: new Date(),
+      });
+      mockOfferRepo.findOne.mockResolvedValue(mockOffer);
+      mockItemRepo.findOne.mockResolvedValue({ id: 'item-1', name: 'Bánh Mì Pate' });
+      mockStoreRepo.findOne.mockResolvedValue({
+        id: mockStoreId,
+        name: 'Tiệm Bánh Ngon',
+        address: '123 Cầu Giấy, Hà Nội',
+        phone: '0901234567',
+      });
+
+      const receipt = await service.getOrderReceipt(mockCustomerId, mockOrderId);
+
+      expect(receipt.orderId).toBe(mockOrderId);
+      expect(receipt.storeName).toBe('Tiệm Bánh Ngon');
+      expect(receipt.itemName).toBe('Bánh Mì Pate');
+      expect(receipt.totalAmount).toBe(40000);
     });
   });
 });

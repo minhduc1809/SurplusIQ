@@ -2,7 +2,9 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
+  Body,
   Param,
   Query,
   UseGuards,
@@ -13,6 +15,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagg
 import { DiscoveryService } from './discovery.service';
 import { QueryDealsDto } from './dto/query-deals.dto';
 import { QueryMapDealsDto } from './dto/query-map-deals.dto';
+import { CreateDealAlertDto, UpdateDealAlertDto } from './dto/deal-alert.dto';
+import { CreateSavedFilterDto } from './dto/saved-filter.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -98,5 +102,153 @@ export class CustomerDealsController {
   @ApiResponse({ status: 200, description: 'Danh sách deal đã lưu' })
   async getSavedDeals(@CurrentUser() user: RequestUser) {
     return this.discoveryService.getSavedDeals(user?.userId);
+  }
+
+  // -------------------------------------------------------------------------
+  // CẢNH BÁO DEAL (DEAL ALERTS - R1-031, R1-032)
+  // -------------------------------------------------------------------------
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Post('deal-alerts')
+  @ApiOperation({
+    summary: 'Tạo cảnh báo deal theo tiêu chí mong muốn (tối đa 10 cảnh báo đang bật) (R1-031)',
+  })
+  @ApiResponse({ status: 201, description: 'Tạo cảnh báo deal thành công' })
+  @ApiResponse({ status: 400, description: 'Vượt quá 10 cảnh báo hoặc tiêu chí rỗng' })
+  async createDealAlert(@CurrentUser() user: RequestUser, @Body() dto: CreateDealAlertDto) {
+    return this.discoveryService.createDealAlert(user?.userId, dto);
+  }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Get('deal-alerts')
+  @ApiOperation({
+    summary: 'Xem danh sách các cảnh báo deal của tôi (R1-032)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách cảnh báo deal' })
+  async getDealAlerts(@CurrentUser() user: RequestUser) {
+    return this.discoveryService.getDealAlerts(user?.userId);
+  }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Put('deal-alerts/:id')
+  @ApiOperation({
+    summary: 'Chỉnh sửa hoặc bật/tắt cảnh báo deal (R1-032)',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật cảnh báo thành công' })
+  async updateDealAlert(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateDealAlertDto,
+  ) {
+    return this.discoveryService.updateDealAlert(user?.userId, id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Delete('deal-alerts/:id')
+  @ApiOperation({
+    summary: 'Xóa cảnh báo deal (R1-032)',
+  })
+  @ApiResponse({ status: 200, description: 'Xóa cảnh báo thành công' })
+  async deleteDealAlert(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.discoveryService.deleteDealAlert(user?.userId, id);
+  }
+
+  // -------------------------------------------------------------------------
+  // BỘ LỌC TÌM KIẾM ĐÃ LƯU (SAVED FILTERS - R1-033)
+  // -------------------------------------------------------------------------
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Post('saved-filters')
+  @ApiOperation({
+    summary: 'Lưu bộ lọc tìm kiếm thường dùng (tối đa 10 bộ lọc) (R1-033)',
+  })
+  @ApiResponse({ status: 201, description: 'Lưu bộ lọc thành công' })
+  @ApiResponse({ status: 400, description: 'Trùng tên hoặc vượt quá 10 bộ lọc' })
+  async createSavedFilter(@CurrentUser() user: RequestUser, @Body() dto: CreateSavedFilterDto) {
+    return this.discoveryService.createSavedFilter(user?.userId, dto);
+  }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Get('saved-filters')
+  @ApiOperation({
+    summary: 'Danh sách các bộ lọc tìm kiếm đã lưu (R1-033)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách bộ lọc đã lưu' })
+  async getSavedFilters(@CurrentUser() user: RequestUser) {
+    return this.discoveryService.getSavedFilters(user?.userId);
+  }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Delete('saved-filters/:id')
+  @ApiOperation({
+    summary: 'Xóa bộ lọc tìm kiếm đã lưu (R1-033)',
+  })
+  @ApiResponse({ status: 200, description: 'Xóa bộ lọc thành công' })
+  async deleteSavedFilter(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.discoveryService.deleteSavedFilter(user?.userId, id);
+  }
+
+  // -------------------------------------------------------------------------
+  // LỊCH SỬ XEM DEAL (VIEW HISTORY - R1-035)
+  // -------------------------------------------------------------------------
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Post('view-history/:offerId')
+  @ApiOperation({
+    summary: 'Ghi nhận lịch sử xem chi tiết deal (R1-035)',
+  })
+  @ApiResponse({ status: 201, description: 'Đã ghi nhận lượt xem' })
+  async recordViewHistory(@CurrentUser() user: RequestUser, @Param('offerId') offerId: string) {
+    return this.discoveryService.recordViewHistory(user?.userId, offerId);
+  }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Get('view-history')
+  @ApiOperation({
+    summary: 'Xem danh sách tối đa 20 deal đã xem gần nhất (R1-035)',
+  })
+  @ApiResponse({ status: 200, description: 'Lịch sử xem deal' })
+  async getViewHistory(@CurrentUser() user: RequestUser) {
+    return this.discoveryService.getViewHistory(user?.userId);
+  }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Delete('view-history')
+  @ApiOperation({
+    summary: 'Xóa toàn bộ lịch sử xem deal của tôi (R1-035)',
+  })
+  @ApiResponse({ status: 200, description: 'Xóa lịch sử xem thành công' })
+  async clearViewHistory(@CurrentUser() user: RequestUser) {
+    return this.discoveryService.clearViewHistory(user?.userId);
   }
 }

@@ -7,6 +7,9 @@ import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
 import { SavedDealEntity } from '../../entities/auth/saved-deal.entity';
+import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
+import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
+import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 
 describe('DiscoveryService', () => {
@@ -15,6 +18,9 @@ describe('DiscoveryService', () => {
   let itemRepo: any;
   let storeRepo: any;
   let savedDealRepo: any;
+  let dealAlertRepo: any;
+  let savedFilterRepo: any;
+  let viewHistoryRepo: any;
   let reviewRepo: any;
 
   const mockQueryBuilder = {
@@ -75,6 +81,29 @@ describe('DiscoveryService', () => {
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'saved-1', ...d })),
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
     };
+    dealAlertRepo = {
+      count: jest.fn().mockResolvedValue(0),
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'alert-1', ...d })),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    savedFilterRepo = {
+      count: jest.fn().mockResolvedValue(0),
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'filter-1', ...d })),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    viewHistoryRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'view-1', ...d })),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
     reviewRepo = {
       createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
     };
@@ -86,6 +115,9 @@ describe('DiscoveryService', () => {
         { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
         { provide: getRepositoryToken(StoreEntity), useValue: storeRepo },
         { provide: getRepositoryToken(SavedDealEntity), useValue: savedDealRepo },
+        { provide: getRepositoryToken(DealAlertEntity), useValue: dealAlertRepo },
+        { provide: getRepositoryToken(SavedFilterEntity), useValue: savedFilterRepo },
+        { provide: getRepositoryToken(ViewHistoryEntity), useValue: viewHistoryRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
         { provide: DataSource, useValue: {} },
       ],
@@ -185,6 +217,90 @@ describe('DiscoveryService', () => {
       const savedList = await service.getSavedDeals('user-1');
       expect(savedList).toHaveLength(1);
       expect(savedList[0].isExpired).toBe(true);
+    });
+  });
+
+  describe('dealAlerts (R1-031, R1-032)', () => {
+    it('tạo cảnh báo deal thành công và từ chối nếu quá 10 cảnh báo', async () => {
+      dealAlertRepo.count.mockResolvedValueOnce(2);
+      const res = await service.createDealAlert('user-1', {
+        criteria: { category: 'Bánh mì', maxPrice: 30000 },
+        isActive: true,
+      });
+
+      expect(res.id).toBe('alert-1');
+      expect(dealAlertRepo.create).toHaveBeenCalled();
+
+      // Quá 10 cảnh báo
+      dealAlertRepo.count.mockResolvedValueOnce(10);
+      await expect(
+        service.createDealAlert('user-1', { criteria: { keyword: 'trà sữa' } }),
+      ).rejects.toThrow();
+    });
+
+    it('lấy danh sách cảnh báo của người dùng', async () => {
+      dealAlertRepo.find.mockResolvedValueOnce([
+        { id: 'alert-1', criteria: { category: 'bánh ngọt' } },
+      ]);
+      const alerts = await service.getDealAlerts('user-1');
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0].id).toBe('alert-1');
+    });
+  });
+
+  describe('savedFilters (R1-033)', () => {
+    it('lưu bộ lọc thành công và từ chối nếu trùng tên', async () => {
+      savedFilterRepo.count.mockResolvedValueOnce(1);
+      savedFilterRepo.findOne.mockResolvedValueOnce(null);
+
+      const res = await service.createSavedFilter('user-1', {
+        name: 'Gần tôi giá rẻ',
+        criteria: { maxPrice: 25000, radiusKm: 3 },
+      });
+
+      expect(res.id).toBe('filter-1');
+
+      // Trùng tên
+      savedFilterRepo.count.mockResolvedValueOnce(1);
+      savedFilterRepo.findOne.mockResolvedValueOnce({ id: 'existing' });
+      await expect(
+        service.createSavedFilter('user-1', {
+          name: 'Gần tôi giá rẻ',
+          criteria: {},
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('viewHistory (R1-035)', () => {
+    it('ghi nhận lịch sử xem và trả về danh sách kèm thông tin deal', async () => {
+      offerRepo.findOne.mockResolvedValueOnce({ id: 'off-1', status: OfferStatus.OPEN });
+      viewHistoryRepo.findOne.mockResolvedValueOnce(null);
+      viewHistoryRepo.count = jest.fn().mockResolvedValue(5);
+
+      const res = await service.recordViewHistory('user-1', 'off-1');
+      expect(res.id).toBe('view-1');
+
+      viewHistoryRepo.find.mockResolvedValueOnce([
+        { id: 'view-1', userId: 'user-1', offerId: 'off-1', viewedAt: new Date() },
+      ]);
+      offerRepo.find = jest.fn().mockResolvedValueOnce([
+        {
+          id: 'off-1',
+          itemId: 'item-1',
+          storeId: 'store-1',
+          currentPrice: 20000,
+          originalPrice: 40000,
+          status: OfferStatus.OPEN,
+          remainingQuantity: 3,
+        },
+      ]);
+      itemRepo.find = jest.fn().mockResolvedValueOnce([{ id: 'item-1', name: 'Bánh Mì Pate' }]);
+      storeRepo.find = jest.fn().mockResolvedValueOnce([{ id: 'store-1', name: 'Tiệm Bánh A' }]);
+
+      const history = await service.getViewHistory('user-1');
+      expect(history).toHaveLength(1);
+      expect(history[0].title).toBe('Bánh Mì Pate');
     });
   });
 });

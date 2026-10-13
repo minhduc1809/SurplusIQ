@@ -4,6 +4,19 @@ import { Repository, DataSource, In } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import {
+  ProxyPickupCodeEntity,
+  ProxyPickupCodeStatus,
+} from '../../entities/orders/proxy-pickup-code.entity';
+import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
+import {
+  PaymentTransactionEntity,
+  PaymentKind,
+  PaymentMethod,
+  PaymentStatus,
+} from '../../entities/orders/payment-transaction.entity';
+import { ItemEntity } from '../../entities/catalog/item.entity';
+import { StoreEntity } from '../../entities/stores/store.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QrTokenEngine } from '@surplusiq/core';
 import { CreateOrderDto, CancelOrderDto, QueryOrdersDto } from './dto';
@@ -29,6 +42,16 @@ export class OrdersService {
     private readonly offerRepo: Repository<OfferEntity>,
     @InjectRepository(OrderLockEntity)
     private readonly orderLockRepo: Repository<OrderLockEntity>,
+    @InjectRepository(ProxyPickupCodeEntity)
+    private readonly proxyCodeRepo: Repository<ProxyPickupCodeEntity>,
+    @InjectRepository(PickupTokenEntity)
+    private readonly pickupTokenRepo: Repository<PickupTokenEntity>,
+    @InjectRepository(PaymentTransactionEntity)
+    private readonly paymentTxRepo: Repository<PaymentTransactionEntity>,
+    @InjectRepository(ItemEntity)
+    private readonly itemRepo: Repository<ItemEntity>,
+    @InjectRepository(StoreEntity)
+    private readonly storeRepo: Repository<StoreEntity>,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
   ) {}
@@ -158,8 +181,8 @@ export class OrdersService {
   }
 
   /**
-   * Khách hàng hủy giữ suất chủ động trong vòng 10 phút (R1-043)
-   * Hoàn trả tồn kho nguyên tử ngay lập tức, không ghi nhận noshow hay phạt.
+   * Khách hàng hủy giữ suất chủ động trong vòng 10 phút hoặc hủy đơn đã thanh toán trước khung nhận 60 phút (R1-043)
+   * Hoàn trả tồn kho nguyên tử ngay lập tức, hoàn tiền 100% nếu đã thanh toán, vô hiệu QR và mã nhận hộ.
    */
   async cancelHoldByCustomer(
     customerId: string,
@@ -180,26 +203,69 @@ export class OrdersService {
         throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
       }
 
-      if (order.status !== OrderStatus.PENDING_PAYMENT) {
+      if (order.status !== OrderStatus.PENDING_PAYMENT && order.status !== OrderStatus.PAID) {
         throw new BadRequestException(
-          `Chỉ có thể hủy giữ suất đối với đơn hàng đang chờ thanh toán (hiện tại: ${order.status}) (R1-043).`,
+          `Chỉ có thể hủy đơn hàng đang chờ thanh toán hoặc đã thanh toán trước khung nhận (hiện tại: ${order.status}) (R1-043).`,
         );
       }
 
-      // 1. Cập nhật trạng thái đơn
-      order.status = OrderStatus.CANCELLED;
-      order.cancelledBy = CancelledBy.CUSTOMER;
-      order.cancelReason = dto?.reason || 'Khách hủy giữ suất';
-      order.cancelledAt = new Date();
-      const savedOrder = await manager.save(order);
-
-      // 2. Hoàn trả tồn kho suất bán
       const offer = await manager
         .createQueryBuilder(OfferEntity, 'offer')
         .setLock('pessimistic_write')
         .where('offer.id = :id', { id: order.offerId })
         .getOne();
 
+      const wasPaid = order.status === OrderStatus.PAID;
+
+      // Kiểm tra mốc 60 phút trước giờ nhận nếu đơn đã thanh toán (R1-043)
+      if (wasPaid) {
+        const now = new Date();
+        if (offer) {
+          const pickupStart = new Date(offer.pickupStart);
+          const cutoff = new Date(
+            pickupStart.getTime() - ORDERS_CONSTANTS.CANCEL_CUTOFF_MINUTES * 60 * 1000,
+          );
+          if (now > cutoff) {
+            throw new BadRequestException(
+              `Chỉ có thể hủy đơn đã thanh toán trước giờ bắt đầu nhận hàng ít nhất ${ORDERS_CONSTANTS.CANCEL_CUTOFF_MINUTES} phút (R1-043). Vui lòng gửi khiếu nại nếu bạn gặp sự cố.`,
+            );
+          }
+        }
+
+        // Vô hiệu hóa vé nhận hàng QR và mã nhận hộ
+        await manager.update(
+          PickupTokenEntity,
+          { orderId: order.id, status: PickupTokenStatus.UNUSED },
+          { status: PickupTokenStatus.REVOKED },
+        );
+        await manager.update(
+          ProxyPickupCodeEntity,
+          { orderId: order.id, status: ProxyPickupCodeStatus.UNUSED },
+          { status: ProxyPickupCodeStatus.REVOKED },
+        );
+
+        // Tạo giao dịch hoàn tiền 100% tự động (R1-043)
+        const refundTx = manager.create(PaymentTransactionEntity, {
+          orderId: order.id,
+          storeId: order.storeId,
+          kind: PaymentKind.ORDER_REFUND,
+          amount: order.totalAmount,
+          method: PaymentMethod.VIETQR,
+          gatewayTxnId: `REFUND-${order.code}-${Date.now()}`,
+          status: PaymentStatus.SUCCEEDED,
+        });
+        await manager.save(refundTx);
+      }
+
+      // 1. Cập nhật trạng thái đơn
+      order.status = OrderStatus.CANCELLED;
+      order.cancelledBy = CancelledBy.CUSTOMER;
+      order.cancelReason =
+        dto?.reason || (wasPaid ? 'Khách hủy trước khung nhận 60 phút' : 'Khách hủy giữ suất');
+      order.cancelledAt = new Date();
+      const savedOrder = await manager.save(order);
+
+      // 2. Hoàn trả tồn kho suất bán
       if (offer) {
         offer.remainingQuantity += order.quantity;
         if (offer.status === OfferStatus.SOLD_OUT) {
@@ -213,12 +279,14 @@ export class OrdersService {
         storeId: order.storeId,
         actorId: customerId,
         actorRole: 'CUSTOMER',
-        action: 'ORDER_HOLD_CANCELLED',
+        action: wasPaid ? 'ORDER_PAID_CANCELLED' : 'ORDER_HOLD_CANCELLED',
         targetType: 'ORDER',
         targetId: order.id,
         newValue: {
           status: OrderStatus.CANCELLED,
           reason: order.cancelReason,
+          wasPaid,
+          refundAmount: wasPaid ? order.totalAmount : 0,
         },
       });
 
@@ -552,6 +620,239 @@ export class OrdersService {
       orderId: order.id,
       code: order.code,
       message: 'Xác nhận nhận hàng thành công.',
+    };
+  }
+
+  /**
+   * Sinh mã nhận hộ 8 ký tự ngẫu nhiên gồm chữ in hoa và số, loại bỏ ký tự dễ nhầm lẫn (R1-052)
+   */
+  private generateProxyPickupCode(): string {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
+  /**
+   * Tạo mã nhận hộ 8 ký tự cho người thân nhận thay (R1-052)
+   * Chỉ áp dụng cho đơn đã thanh toán. Mã hết hạn theo khung nhận. Thu hồi mã cũ nếu có.
+   */
+  async createProxyPickupCode(customerId: string, orderId: string): Promise<ProxyPickupCodeEntity> {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    if (order.status !== OrderStatus.PAID) {
+      throw new BadRequestException(
+        `Chỉ có thể tạo mã nhận hộ đối với đơn hàng đã thanh toán (hiện tại: ${order.status}) (R1-052).`,
+      );
+    }
+
+    const offer = await this.offerRepo.findOne({ where: { id: order.offerId } });
+
+    // Thu hồi mọi mã nhận hộ chưa dùng trước đó của đơn hàng (R1-052 rule 1)
+    await this.proxyCodeRepo.update(
+      { orderId: order.id, status: ProxyPickupCodeStatus.UNUSED },
+      { status: ProxyPickupCodeStatus.REVOKED },
+    );
+
+    const code = this.generateProxyPickupCode();
+    const expiresAt = offer
+      ? new Date(offer.pickupEnd)
+      : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const proxyCode = this.proxyCodeRepo.create({
+      orderId: order.id,
+      code,
+      status: ProxyPickupCodeStatus.UNUSED,
+      expiresAt,
+    });
+
+    const saved = await this.proxyCodeRepo.save(proxyCode);
+
+    await this.auditLogService.log({
+      storeId: order.storeId,
+      actorId: customerId,
+      actorRole: 'CUSTOMER',
+      action: 'PROXY_PICKUP_CODE_CREATED',
+      targetType: 'ORDER',
+      targetId: order.id,
+      newValue: { code: saved.code, expiresAt: saved.expiresAt },
+    });
+
+    return saved;
+  }
+
+  /**
+   * Lấy mã nhận hộ đang có hiệu lực của đơn hàng (R1-052)
+   */
+  async getProxyPickupCode(
+    customerId: string,
+    orderId: string,
+  ): Promise<ProxyPickupCodeEntity | null> {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    return this.proxyCodeRepo.findOne({
+      where: { orderId: order.id, status: ProxyPickupCodeStatus.UNUSED },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Thu hồi mã nhận hộ khi chưa sử dụng (R1-052)
+   */
+  async revokeProxyPickupCode(
+    customerId: string,
+    orderId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    const proxyCode = await this.proxyCodeRepo.findOne({
+      where: { orderId: order.id, status: ProxyPickupCodeStatus.UNUSED },
+    });
+
+    if (!proxyCode) {
+      throw new BadRequestException('Không tìm thấy mã nhận hộ hợp lệ để thu hồi.');
+    }
+
+    proxyCode.status = ProxyPickupCodeStatus.REVOKED;
+    await this.proxyCodeRepo.save(proxyCode);
+
+    await this.auditLogService.log({
+      storeId: order.storeId,
+      actorId: customerId,
+      actorRole: 'CUSTOMER',
+      action: 'PROXY_PICKUP_CODE_REVOKED',
+      targetType: 'ORDER',
+      targetId: order.id,
+      newValue: { code: proxyCode.code, status: ProxyPickupCodeStatus.REVOKED },
+    });
+
+    return { success: true, message: 'Đã thu hồi mã nhận hộ thành công.' };
+  }
+
+  /**
+   * Cập nhật mốc giờ hẹn nhận 15 phút trong khung nhận (R1-049)
+   * Sửa được đến 30 phút trước mốc đã chọn.
+   */
+  async updatePickupSlot(
+    customerId: string,
+    orderId: string,
+    pickupSlotStr: string,
+  ): Promise<OrderEntity> {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    if (order.status !== OrderStatus.PENDING_PAYMENT && order.status !== OrderStatus.PAID) {
+      throw new BadRequestException(
+        `Không thể thay đổi giờ hẹn cho đơn hàng ở trạng thái [${order.status}].`,
+      );
+    }
+
+    const offer = await this.offerRepo.findOne({ where: { id: order.offerId } });
+    if (!offer) {
+      throw new NotFoundException('Không tìm thấy thông tin suất bán của đơn hàng.');
+    }
+
+    const slotDate = new Date(pickupSlotStr);
+    const pickupStart = new Date(offer.pickupStart);
+    const pickupEnd = new Date(offer.pickupEnd);
+
+    if (slotDate < pickupStart || slotDate > pickupEnd) {
+      throw new BadRequestException(
+        `Giờ hẹn nhận (${slotDate.toLocaleTimeString('vi-VN')}) phải nằm trong khung giờ nhận của quán (${pickupStart.toLocaleTimeString('vi-VN')} - ${pickupEnd.toLocaleTimeString('vi-VN')}) (R1-049).`,
+      );
+    }
+
+    if (order.pickupSlot) {
+      const currentSlot = new Date(order.pickupSlot);
+      const cutoff = new Date(currentSlot.getTime() - 30 * 60 * 1000);
+      if (new Date() > cutoff) {
+        throw new BadRequestException(
+          'Chỉ được phép sửa giờ hẹn nhận trước mốc giờ hẹn đã chọn ít nhất 30 phút (R1-049).',
+        );
+      }
+    }
+
+    order.pickupSlot = slotDate;
+    const saved = await this.orderRepo.save(order);
+
+    await this.auditLogService.log({
+      storeId: order.storeId,
+      actorId: customerId,
+      actorRole: 'CUSTOMER',
+      action: 'ORDER_PICKUP_SLOT_UPDATED',
+      targetType: 'ORDER',
+      targetId: order.id,
+      newValue: { pickupSlot: order.pickupSlot },
+    });
+
+    return saved;
+  }
+
+  /**
+   * Xem và lấy biên nhận của đơn hàng đã thanh toán (R1-054)
+   */
+  async getOrderReceipt(customerId: string, orderId: string) {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    if (order.status !== OrderStatus.PAID && order.status !== OrderStatus.PICKED_UP) {
+      throw new BadRequestException(
+        `Biên nhận chỉ khả dụng đối với đơn hàng đã thanh toán thành công (R1-054). Trạng thái hiện tại: [${order.status}].`,
+      );
+    }
+
+    const offer = await this.offerRepo.findOne({ where: { id: order.offerId } });
+    const item = offer ? await this.itemRepo.findOne({ where: { id: offer.itemId } }) : null;
+    const store = await this.storeRepo.findOne({ where: { id: order.storeId } });
+    const paymentTx = await this.paymentTxRepo.findOne({
+      where: { orderId: order.id, status: PaymentStatus.SUCCEEDED },
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      orderId: order.id,
+      orderCode: order.code,
+      status: order.status,
+      itemName: item?.name || 'Suất cứu món',
+      quantity: order.quantity,
+      unitPrice: order.unitPrice,
+      discountAmount: order.discountAmount,
+      totalAmount: order.totalAmount,
+      paidAt: paymentTx?.createdAt || order.updatedAt,
+      transactionCode: paymentTx?.gatewayTxnId || null,
+      storeName: store?.name || 'Cửa hàng đối tác',
+      storeAddress: store?.address || '',
+      createdAt: order.createdAt,
     };
   }
 }

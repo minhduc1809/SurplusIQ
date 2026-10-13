@@ -15,6 +15,7 @@ import { CustomerProfileService } from './customer-profile.service';
 import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
 import { CreateSavedPlaceDto } from './dto/saved-place.dto';
 import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
+import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -99,5 +100,23 @@ export class CustomerProfileController {
     @Body() dto: UpdateDietaryProfileDto,
   ) {
     return this.profileService.updateDietaryProfile(user?.userId, dto);
+  }
+
+  @Post('fcm-token')
+  @ApiOperation({
+    summary: 'Đăng ký hoặc cập nhật FCM Device Token để nhận Push Notification (R1-004, R1-073)',
+  })
+  @ApiResponse({ status: 201, description: 'Đăng ký FCM Token thành công' })
+  async registerFcmToken(@CurrentUser() user: RequestUser, @Body() dto: RegisterFcmTokenDto) {
+    return this.profileService.registerFcmToken(user?.userId, dto);
+  }
+
+  @Delete('fcm-token/:deviceId')
+  @ApiOperation({
+    summary: 'Hủy đăng ký FCM Token trên thiết bị khi đăng xuất (R1-004)',
+  })
+  @ApiResponse({ status: 200, description: 'Hủy đăng ký thành công' })
+  async deleteFcmToken(@CurrentUser() user: RequestUser, @Param('deviceId') deviceId: string) {
+    return this.profileService.deleteFcmToken(user?.userId, deviceId);
   }
 }

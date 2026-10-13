@@ -8,6 +8,7 @@ import { SavedPlaceEntity } from '../../entities/auth/saved-place.entity';
 import { DietaryProfileEntity } from '../../entities/auth/dietary-profile.entity';
 import { NoshowRecordEntity } from '../../entities/orders/noshow-record.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
       DietaryProfileEntity,
       NoshowRecordEntity,
       OrderLockEntity,
+      FcmTokenEntity,
     ]),
   ],
   controllers: [CustomerProfileController],

@@ -3,12 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
+import {
+  ProxyPickupCodeEntity,
+  ProxyPickupCodeStatus,
+} from '../../entities/orders/proxy-pickup-code.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QrTokenEngine, BackupPinEngine } from '@surplusiq/core';
-import { VerifyPickupDto } from './dto';
+import { VerifyPickupDto, VerifyProxyCodeDto } from './dto';
 
 export interface PickupVerificationResult {
   success: boolean;
@@ -49,6 +53,8 @@ export class PickupsService {
     private readonly orderRepo: Repository<OrderEntity>,
     @InjectRepository(PickupTokenEntity)
     private readonly pickupTokenRepo: Repository<PickupTokenEntity>,
+    @InjectRepository(ProxyPickupCodeEntity)
+    private readonly proxyCodeRepo: Repository<ProxyPickupCodeEntity>,
     @InjectRepository(OfferEntity)
     private readonly offerRepo: Repository<OfferEntity>,
     @InjectRepository(ItemEntity)
@@ -335,5 +341,110 @@ export class PickupsService {
       totalAmount: order.totalAmount,
       note: order.note,
     };
+  }
+
+  /**
+   * Cửa hàng xác nhận giao hàng thông qua Mã Nhận Hộ 8 ký tự do người thân khách cung cấp (R1-052)
+   */
+  async verifyProxyPickup(
+    storeId: string,
+    actorId: string,
+    dto: VerifyProxyCodeDto,
+  ): Promise<PickupVerificationResult> {
+    const code = dto.code.trim().toUpperCase();
+    const proxyRecord = await this.proxyCodeRepo.findOne({
+      where: { code, status: ProxyPickupCodeStatus.UNUSED },
+    });
+
+    if (!proxyRecord) {
+      throw new NotFoundException(
+        'Mã nhận hộ không tồn tại hoặc đã được sử dụng trước đó (R1-052).',
+      );
+    }
+
+    const now = new Date();
+    if (new Date(proxyRecord.expiresAt) <= now) {
+      throw new BadRequestException('Mã nhận hộ này đã hết hạn nhận hàng.');
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const order = await manager
+        .createQueryBuilder(OrderEntity, 'order')
+        .setLock('pessimistic_write')
+        .where('order.id = :id', { id: proxyRecord.orderId })
+        .getOne();
+
+      if (!order) {
+        throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${proxyRecord.orderId}].`);
+      }
+
+      if (order.storeId !== storeId) {
+        throw new BadRequestException('Mã nhận hộ này thuộc về đơn hàng của cửa hàng khác.');
+      }
+
+      if (order.status === OrderStatus.PICKED_UP) {
+        throw new BadRequestException('Đơn hàng này đã được xác nhận nhận hàng trước đó rồi.');
+      }
+
+      if (order.status !== OrderStatus.PAID) {
+        throw new BadRequestException(
+          `Chỉ có thể giao đơn hàng đã thanh toán thành công (Trạng thái hiện tại: ${order.status}).`,
+        );
+      }
+
+      // 1. Cập nhật mã nhận hộ thành USED
+      proxyRecord.status = ProxyPickupCodeStatus.USED;
+      await manager.save(proxyRecord);
+
+      // 2. Vô hiệu hóa mã QR gốc nếu có
+      await manager.update(
+        PickupTokenEntity,
+        { orderId: order.id, status: PickupTokenStatus.UNUSED },
+        { status: PickupTokenStatus.USED },
+      );
+
+      // 3. Đánh dấu đơn hàng là PICKED_UP
+      order.status = OrderStatus.PICKED_UP;
+      order.pickedUpAt = now;
+      order.pickedUpBy = actorId;
+      const savedOrder = await manager.save(order);
+
+      // 4. Lấy chi tiết món ăn & khách hàng để trả về cho quầy
+      const offer = await manager.findOne(OfferEntity, { where: { id: order.offerId } });
+      const item = offer
+        ? await manager.findOne(ItemEntity, { where: { id: offer.itemId } })
+        : null;
+      const customer = await manager.findOne(UserEntity, { where: { id: order.customerId } });
+
+      await this.auditLogService.log({
+        storeId,
+        actorId,
+        actorRole: 'STORE_STAFF',
+        action: 'PICKUP_VERIFIED_VIA_PROXY_CODE',
+        targetType: 'ORDER',
+        targetId: order.id,
+        newValue: {
+          orderCode: order.code,
+          pickedUpAt: savedOrder.pickedUpAt,
+          proxyCode: proxyRecord.code,
+        },
+      });
+
+      return {
+        success: true,
+        orderId: savedOrder.id,
+        orderCode: savedOrder.code,
+        status: savedOrder.status,
+        pickedUpAt: savedOrder.pickedUpAt!,
+        itemName: item?.name || 'Món ăn',
+        quantity: savedOrder.quantity,
+        unitPrice: savedOrder.unitPrice,
+        totalAmount: savedOrder.totalAmount,
+        pickupSlot: savedOrder.pickupSlot,
+        note: savedOrder.note,
+        customerMasked: `${this.maskContact(customer?.phone || customer?.email || null)} (Nhận hộ)`,
+        message: 'Xác nhận nhận hàng qua mã nhận hộ thành công.',
+      };
+    });
   }
 }

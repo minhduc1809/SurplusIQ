@@ -9,6 +9,9 @@ import { OrderEntity } from '../../entities/orders/order.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { ViolationReportEntity } from '../../entities/complaints/violation-report.entity';
+import { SupportTicketEntity } from '../../entities/complaints/support-ticket.entity';
+import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { StoreEntity } from '../../entities/stores/store.entity';
       OfferEntity,
       ItemEntity,
       StoreEntity,
+      ViolationReportEntity,
+      SupportTicketEntity,
+      SupportMessageEntity,
     ]),
   ],
   controllers: [CustomerInteractionsController],
