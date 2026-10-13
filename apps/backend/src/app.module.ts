@@ -12,6 +12,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuditModule } from './modules/audit/audit.module';
     AuthModule,
     SubscriptionsModule,
     AuditModule,
+    CatalogModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
