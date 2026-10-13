@@ -9,6 +9,7 @@ import { OffersService } from './modules/offers/offers.service';
 import { OrdersService } from './modules/orders/orders.service';
 import { ALL_ENTITIES } from './entities';
 import { SettingsModule } from './modules/settings/settings.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { SettingsModule } from './modules/settings/settings.module';
       envFilePath: '../../.env',
     }),
     SettingsModule,
+    AuthModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
