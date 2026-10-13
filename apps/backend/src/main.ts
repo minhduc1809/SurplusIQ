@@ -35,7 +35,14 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'list',
+      filter: true,
+    },
+    customSiteTitle: 'SurplusIQ API Docs',
+  });
 
   const port = process.env.PORT || 4000;
   await app.listen(port);
