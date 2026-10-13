@@ -10,6 +10,7 @@ import { OrdersService } from './modules/orders/orders.service';
 import { ALL_ENTITIES } from './entities';
 import { SettingsModule } from './modules/settings/settings.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AuthModule } from './modules/auth/auth.module';
     }),
     SettingsModule,
     AuthModule,
+    SubscriptionsModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
