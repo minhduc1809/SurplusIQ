@@ -1,0 +1,106 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { AuditLogEntity } from '../../entities/stores/audit-log.entity';
+
+export interface CreateAuditLogParams {
+  storeId?: string | null;
+  actorId: string;
+  actorRole: string;
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  oldValue?: Record<string, unknown> | null;
+  newValue?: Record<string, unknown> | null;
+  ip?: string | null;
+  userAgent?: string | null;
+}
+
+export interface GetStoreAuditLogsQuery {
+  action?: string;
+  targetType?: string;
+  from?: string | Date;
+  to?: string | Date;
+  page?: number;
+  limit?: number;
+}
+
+@Injectable()
+export class AuditLogService {
+  private readonly logger = new Logger(AuditLogService.name);
+
+  constructor(
+    @InjectRepository(AuditLogEntity)
+    private readonly auditRepo: Repository<AuditLogEntity>,
+  ) {}
+
+  /**
+   * Ghi vết kiểm toán nhạy cảm (Append-only, không sửa, không xóa - BR-080, R2-075)
+   */
+  async log(params: CreateAuditLogParams): Promise<AuditLogEntity> {
+    const audit = this.auditRepo.create({
+      storeId: params.storeId || null,
+      actorId: params.actorId,
+      actorRole: params.actorRole,
+      action: params.action,
+      targetType: params.targetType,
+      targetId: params.targetId || null,
+      oldValue: params.oldValue || null,
+      newValue: params.newValue || null,
+      ip: params.ip || null,
+      userAgent: params.userAgent || null,
+    });
+
+    const saved = await this.auditRepo.save(audit);
+    this.logger.log(
+      `[AUDIT_LOG] Action: ${params.action}, Target: ${params.targetType}#${params.targetId}, Actor: ${params.actorId}`,
+    );
+    return saved;
+  }
+
+  /**
+   * Truy vấn nhật ký hoạt động cửa hàng (R2-075 - Giữ 12 tháng, chỉ đọc BR-080)
+   */
+  async getStoreAuditLogs(storeId: string, query: GetStoreAuditLogsQuery = {}) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    // Quy tắc 7.4 & BR-080: Giới hạn tối đa 12 tháng lưu trữ (audit_months = 12)
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+
+    const fromDate = query.from
+      ? new Date(Math.max(new Date(query.from).getTime(), twelveMonthsAgo.getTime()))
+      : twelveMonthsAgo;
+
+    const toDate = query.to ? new Date(query.to) : new Date();
+
+    const qb = this.auditRepo
+      .createQueryBuilder('audit')
+      .where('audit.store_id = :storeId', { storeId })
+      .andWhere('audit.created_at >= :fromDate', { fromDate })
+      .andWhere('audit.created_at <= :toDate', { toDate });
+
+    if (query.action) {
+      qb.andWhere('audit.action = :action', { action: query.action });
+    }
+
+    if (query.targetType) {
+      qb.andWhere('audit.target_type = :targetType', { targetType: query.targetType });
+    }
+
+    qb.orderBy('audit.created_at', 'DESC').skip(skip).take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      retentionMonths: 12,
+    };
+  }
+}
