@@ -14,6 +14,6 @@ export const AppDataSource = new DataSource({
   password: process.env.POSTGRES_PASSWORD || 'surplus_secret_pass',
   database: process.env.POSTGRES_DB || 'surplusiq_db',
   entities: [...ALL_ENTITIES, DecisionEntity],
-  migrations: [path.join(__dirname, 'migrations/*{.ts,.js}')],
+  migrations: [path.join(__dirname, 'migrations/*-*{.ts,.js}')],
   synchronize: false,
 });

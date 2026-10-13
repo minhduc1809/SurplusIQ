@@ -41,7 +41,7 @@ import { AuditModule } from './modules/audit/audit.module';
           DecisionEntity,
         ],
         synchronize: false, // Turn off auto-sync, enforce migrations per DoD TASK-M0-03
-        migrations: [__dirname + '/migrations/*{.ts,.js}'],
+        migrations: [__dirname + '/migrations/*-*{.ts,.js}'],
         migrationsRun: config.get<string>('DB_MIGRATIONS_RUN') === 'true',
       }),
     }),
