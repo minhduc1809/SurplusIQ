@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { OrderEntity } from './order.entity';
-import { OfferEntity } from '../offers/offer.entity';
+import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { QrTokenEngine } from '@surplusiq/core';
 
 @Injectable()
@@ -26,14 +26,17 @@ export class OrdersService {
         throw new NotFoundException('Suất cứu món không tồn tại');
       }
 
-      if (offer.status !== 'ACTIVE' || offer.remainingQuantity < quantity) {
+      if (
+        (offer.status !== OfferStatus.OPEN && (offer.status as string) !== 'ACTIVE') ||
+        offer.remainingQuantity < quantity
+      ) {
         throw new BadRequestException('Món này đã hết suất hoặc không còn đủ số lượng yêu cầu');
       }
 
       // 2. Trừ tồn kho nguyên tử
       offer.remainingQuantity -= quantity;
       if (offer.remainingQuantity === 0) {
-        offer.status = 'SOLD_OUT';
+        offer.status = OfferStatus.SOLD_OUT;
       }
       await manager.save(offer);
 
@@ -58,7 +61,7 @@ export class OrdersService {
         storeId: offer.storeId,
         buyerId,
         quantity,
-        totalPrice: offer.discountPrice * quantity,
+        totalPrice: ((offer as any).discountPrice ?? offer.currentPrice ?? 0) * quantity,
         status: 'PAID',
         qrToken,
         qrTokenExpiresAt: new Date(expiresAt),
