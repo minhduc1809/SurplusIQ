@@ -22,8 +22,10 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Global API Prefix
-  app.setGlobalPrefix('api/v1');
+  // Global API Prefix (mặc định chạy trực tiếp tại root '/', hoặc theo API_PREFIX nếu có)
+  if (process.env.API_PREFIX) {
+    app.setGlobalPrefix(process.env.API_PREFIX);
+  }
 
   // Swagger Documentation
   const config = new DocumentBuilder()
@@ -35,7 +37,7 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document, {
+  SwaggerModule.setup('api', app, document, {
     swaggerOptions: {
       persistAuthorization: true,
       docExpansion: 'list',
@@ -46,7 +48,8 @@ async function bootstrap() {
 
   const port = process.env.PORT || 4000;
   await app.listen(port);
-  console.log(`[SurplusIQ Backend] Server running on: http://localhost:${port}/api/v1`);
-  console.log(`[SurplusIQ Swagger] API Docs at: http://localhost:${port}/docs`);
+  const rootUrl = `http://localhost:${port}`;
+  console.log(`[SurplusIQ Backend] Server running on: ${rootUrl}`);
+  console.log(`[SurplusIQ Swagger] API Docs at: ${rootUrl}/api`);
 }
 bootstrap();
