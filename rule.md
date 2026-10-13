@@ -10,11 +10,22 @@
    - `main`: Nhánh Production, chỉ nhận code ổn định từ `development` khi release.
    - `development`: Nhánh tích hợp chính (Integration Branch) cho toàn bộ quá trình phát triển.
    - **Tuyệt đối không commit trực tiếp lên `main` và `development`**.
-2. **Trước khi bắt đầu code bất kỳ tính năng/sửa lỗi nào**:
-   - Bắt buộc phải checkout ra một **nhánh chức năng (feature branch)** hoặc **nhánh sửa lỗi (fix branch)** mới từ `development` mới nhất:
+2. **Quy trình đồng bộ bắt buộc trước khi bắt đầu code (Sync `main` & `development`)**:
+   - Để tránh rủi ro sót hotfix trên production hoặc bị lệch nhánh (divergence), trước khi tạo bất kỳ nhánh nào bắt buộc phải đồng bộ cả `main` và `development`:
      ```bash
+     # Bước 1: Kéo toàn bộ metadata mới nhất từ remote
+     git fetch origin --prune
+
+     # Bước 2: Đồng bộ nhánh main mới nhất từ remote (bảo đảm nhận đủ hotfix production)
+     git checkout main
+     git pull origin main
+
+     # Bước 3: Đồng bộ nhánh development và tích hợp thay đổi từ main (nếu có)
      git checkout development
      git pull origin development
+     git merge main
+
+     # Bước 4: Tạo nhánh chức năng (feature) hoặc sửa lỗi (fix) mới từ development
      git checkout -b feature/<scope>-<ten-chuc-nang>
      # hoặc
      git checkout -b fix/<scope>-<ten-loi>
@@ -142,9 +153,10 @@ Trước khi đẩy code (push) lên remote repository hoặc tạo Pull Request
 
 | STT | Hạng mục kiểm tra | Lệnh xác thực | Trạng thái bắt buộc |
 |---|---|---|---|
-| 1 | Đang đứng trên nhánh chức năng (không phải `main` / `development`) | `git branch --show-current` | `feature/*` hoặc `fix/*` hoặc `docs/*` |
-| 2 | Đã chuẩn hóa code bằng ESLint / Linter | `npm run lint` | Pass (0 error) |
-| 3 | Biên dịch Typescript không có lỗi | `npm run build` | Thành công |
-| 4 | Chạy Unit Test kiểm thử logic | `npm run test` | Pass |
-| 5 | Đã kéo cập nhật mới nhất từ `development` về | `git pull origin development` | Already up to date / Đã merge |
-| 6 | Định dạng commit đúng `feat:`, `update:`, `fix:` kèm `[scope]` | `git log -1` | Hợp lệ theo mục 2 |
+| 1 | Đã đồng bộ `main` và `development` từ remote trước khi phân nhánh | `git fetch origin --prune; git pull origin main; git pull origin development` | Hoàn tất trước khi code |
+| 2 | Đang đứng trên nhánh chức năng (không phải `main` / `development`) | `git branch --show-current` | `feature/*` hoặc `fix/*` hoặc `docs/*` |
+| 3 | Đã chuẩn hóa code bằng ESLint / Linter | `npm run lint` | Pass (0 error) |
+| 4 | Biên dịch Typescript không có lỗi | `npm run build` | Thành công |
+| 5 | Chạy Unit Test kiểm thử logic | `npm run test` | Pass |
+| 6 | Đã kéo cập nhật mới nhất từ `development` về trước khi push | `git pull origin development` | Already up to date / Đã merge |
+| 7 | Định dạng commit đúng `feat:`, `update:`, `fix:` kèm `[scope]` | `git log -1` | Hợp lệ theo mục 2 |
