@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ReconciliationEngine } from './engine';
-import { ReconciliationInput, ReconciliationOrder } from '../types/reconciliation.types';
-
+import {
+  ReconciliationInput,
+  ReconciliationOrder,
+  ReconciliationPeriod,
+} from '../types/reconciliation.types';
 describe('ReconciliationEngine', () => {
   const mockPeriod = {
     cycleId: '2026-W42',
