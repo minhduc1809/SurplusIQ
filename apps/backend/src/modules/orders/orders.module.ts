@@ -8,6 +8,11 @@ import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
 import { NoshowRecordEntity } from '../../entities/orders/noshow-record.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
+import { ProxyPickupCodeEntity } from '../../entities/orders/proxy-pickup-code.entity';
+import { PickupTokenEntity } from '../../entities/orders/pickup-token.entity';
+import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
+import { ItemEntity } from '../../entities/catalog/item.entity';
+import { StoreEntity } from '../../entities/stores/store.entity';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
@@ -18,6 +23,11 @@ import { AuditModule } from '../audit/audit.module';
       OrderLockEntity,
       NoshowRecordEntity,
       StoreMemberEntity,
+      ProxyPickupCodeEntity,
+      PickupTokenEntity,
+      PaymentTransactionEntity,
+      ItemEntity,
+      StoreEntity,
     ]),
     AuditModule,
   ],

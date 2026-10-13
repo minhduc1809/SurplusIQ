@@ -6,6 +6,11 @@ import { OrdersService } from './orders.service';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { ProxyPickupCodeEntity } from '../../entities/orders/proxy-pickup-code.entity';
+import { PickupTokenEntity } from '../../entities/orders/pickup-token.entity';
+import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
+import { ItemEntity } from '../../entities/catalog/item.entity';
+import { StoreEntity } from '../../entities/stores/store.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 
 /**
@@ -63,6 +68,26 @@ describe('Concurrency Race Condition: Anti-Overselling Verification', () => {
         {
           provide: getRepositoryToken(OrderLockEntity),
           useValue: orderLockRepo,
+        },
+        {
+          provide: getRepositoryToken(ProxyPickupCodeEntity),
+          useValue: {},
+        },
+        {
+          provide: getRepositoryToken(PickupTokenEntity),
+          useValue: {},
+        },
+        {
+          provide: getRepositoryToken(PaymentTransactionEntity),
+          useValue: {},
+        },
+        {
+          provide: getRepositoryToken(ItemEntity),
+          useValue: {},
+        },
+        {
+          provide: getRepositoryToken(StoreEntity),
+          useValue: {},
         },
         {
           provide: AuditLogService,

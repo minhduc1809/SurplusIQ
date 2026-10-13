@@ -5,6 +5,10 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PickupsService } from './pickups.service';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
+import {
+  ProxyPickupCodeEntity,
+  ProxyPickupCodeStatus,
+} from '../../entities/orders/proxy-pickup-code.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
@@ -15,6 +19,7 @@ describe('PickupsService', () => {
   let service: PickupsService;
   let orderRepo: jest.Mocked<Repository<OrderEntity>>;
   let pickupTokenRepo: jest.Mocked<Repository<PickupTokenEntity>>;
+  let proxyCodeRepo: jest.Mocked<Repository<ProxyPickupCodeEntity>>;
   let offerRepo: jest.Mocked<Repository<OfferEntity>>;
   let itemRepo: jest.Mocked<Repository<ItemEntity>>;
   let userRepo: jest.Mocked<Repository<UserEntity>>;
@@ -56,6 +61,12 @@ describe('PickupsService', () => {
       update: jest.fn(),
     } as any;
 
+    proxyCodeRepo = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+      update: jest.fn(),
+    } as any;
+
     offerRepo = {
       findOne: jest.fn(),
     } as any;
@@ -87,6 +98,10 @@ describe('PickupsService', () => {
         {
           provide: getRepositoryToken(PickupTokenEntity),
           useValue: pickupTokenRepo,
+        },
+        {
+          provide: getRepositoryToken(ProxyPickupCodeEntity),
+          useValue: proxyCodeRepo,
         },
         {
           provide: getRepositoryToken(OfferEntity),
@@ -354,6 +369,61 @@ describe('PickupsService', () => {
       await expect(service.getPickupPass(mockCustomerId, 'nonexistent-id')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('verifyProxyPickup (R1-052)', () => {
+    it('xác thực mã nhận hộ hợp lệ: đơn chuyển PICKED_UP và mã chuyển USED', async () => {
+      const mockOrder = { ...baseOrder };
+      const mockProxy = {
+        id: 'proxy-1',
+        orderId: mockOrderId,
+        code: 'A2B3C4D5',
+        status: ProxyPickupCodeStatus.UNUSED,
+        expiresAt: new Date(Date.now() + 3600 * 1000),
+      };
+
+      const mockManager = {
+        createQueryBuilder: jest.fn().mockReturnValue({
+          setLock: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue(mockOrder),
+        }),
+        findOne: jest.fn().mockImplementation((entity: any) => {
+          if (entity === UserEntity)
+            return Promise.resolve({ id: mockCustomerId, phone: '0988776655' });
+          if (entity === ItemEntity)
+            return Promise.resolve({ id: mockItemId, name: 'Cơm Gà Xối Mỡ' });
+          return null;
+        }),
+        save: jest.fn().mockImplementation((e: any) => Promise.resolve(e)),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+
+      dataSource.transaction.mockImplementation(async (cb: any) => cb(mockManager));
+      proxyCodeRepo.findOne.mockResolvedValue(mockProxy as any);
+      orderRepo.findOne.mockResolvedValue(mockOrder as any);
+
+      const result = await service.verifyProxyPickup(mockStoreId, 'staff-1', {
+        code: 'A2B3C4D5',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe(OrderStatus.PICKED_UP);
+      expect(result.customerMasked).toContain('(Nhận hộ)');
+      expect(auditLogService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PICKUP_VERIFIED_VIA_PROXY_CODE',
+        }),
+      );
+    });
+
+    it('từ chối nếu mã nhận hộ không tồn tại hoặc đã sử dụng', async () => {
+      proxyCodeRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.verifyProxyPickup(mockStoreId, 'staff-1', { code: 'INVALID' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
