@@ -13,7 +13,7 @@ import { SettingsService } from './settings.service';
 import { UpdateStoreSettingsDto } from './dto/update-store-settings.dto';
 
 @ApiTags('Settings')
-@Controller('api/v1')
+@Controller()
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
