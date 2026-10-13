@@ -6,3 +6,4 @@ export * from './staff-invite.entity';
 export * from './store-closure.entity';
 export * from './customer-segment.entity';
 export * from './customer-note.entity';
+export * from './audit-log.entity';

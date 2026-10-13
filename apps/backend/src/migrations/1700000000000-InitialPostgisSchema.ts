@@ -362,6 +362,25 @@ export class InitialPostgisSchema1700000000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "audit_logs" (
+        "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        "store_id" uuid,
+        "actor_id" uuid NOT NULL,
+        "actor_role" varchar(50) NOT NULL,
+        "action" varchar(100) NOT NULL,
+        "target_type" varchar(50) NOT NULL,
+        "target_id" varchar(255),
+        "old_value" jsonb,
+        "new_value" jsonb,
+        "ip" varchar(45),
+        "user_agent" varchar(255),
+        "created_at" timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS "IDX_audit_logs_store_id_created_at" ON "audit_logs" ("store_id", "created_at");
+      CREATE INDEX IF NOT EXISTS "IDX_audit_logs_actor_id" ON "audit_logs" ("actor_id");
+    `);
+
+    await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "store_members" (
         "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         "store_id" uuid NOT NULL,
@@ -1113,6 +1132,7 @@ export class InitialPostgisSchema1700000000000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS "store_closures" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "staff_invites" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "store_members" CASCADE;`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "audit_logs" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "store_settings_history" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "store_settings" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "stores" CASCADE;`);

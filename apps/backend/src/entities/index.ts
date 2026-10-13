@@ -23,6 +23,7 @@ import {
   StoreClosureEntity,
   CustomerSegmentEntity,
   CustomerNoteEntity,
+  AuditLogEntity,
 } from './stores';
 
 import {
@@ -117,6 +118,7 @@ export const ALL_ENTITIES = [
   StoreClosureEntity,
   CustomerSegmentEntity,
   CustomerNoteEntity,
+  AuditLogEntity,
 
   // Subscriptions (4)
   SubscriptionEntity,
