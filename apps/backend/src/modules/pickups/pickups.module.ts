@@ -5,6 +5,7 @@ import { StorePickupsController } from './store-pickups.controller';
 import { CustomerPickupsController } from './customer-pickups.controller';
 import { OrderEntity } from '../../entities/orders/order.entity';
 import { PickupTokenEntity } from '../../entities/orders/pickup-token.entity';
+import { ProxyPickupCodeEntity } from '../../entities/orders/proxy-pickup-code.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
@@ -12,7 +13,14 @@ import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OrderEntity, PickupTokenEntity, OfferEntity, ItemEntity, UserEntity]),
+    TypeOrmModule.forFeature([
+      OrderEntity,
+      PickupTokenEntity,
+      ProxyPickupCodeEntity,
+      OfferEntity,
+      ItemEntity,
+      UserEntity,
+    ]),
     AuditModule,
   ],
   controllers: [StorePickupsController, CustomerPickupsController],

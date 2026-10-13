@@ -1,13 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
 import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
 import { SavedDealEntity } from '../../entities/auth/saved-deal.entity';
+import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
+import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
+import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { QueryDealsDto, DealSortBy } from './dto/query-deals.dto';
 import { QueryMapDealsDto } from './dto/query-map-deals.dto';
+import { CreateDealAlertDto, UpdateDealAlertDto } from './dto/deal-alert.dto';
+import { CreateSavedFilterDto } from './dto/saved-filter.dto';
 
 export interface DealResponseItem {
   id: string;
@@ -43,6 +48,12 @@ export class DiscoveryService {
     private readonly storeRepo: Repository<StoreEntity>,
     @InjectRepository(SavedDealEntity)
     private readonly savedDealRepo: Repository<SavedDealEntity>,
+    @InjectRepository(DealAlertEntity)
+    private readonly dealAlertRepo: Repository<DealAlertEntity>,
+    @InjectRepository(SavedFilterEntity)
+    private readonly savedFilterRepo: Repository<SavedFilterEntity>,
+    @InjectRepository(ViewHistoryEntity)
+    private readonly viewHistoryRepo: Repository<ViewHistoryEntity>,
     @InjectRepository(ReviewEntity)
     private readonly reviewRepo: Repository<ReviewEntity>,
     private readonly dataSource: DataSource,
@@ -544,5 +555,203 @@ export class DiscoveryService {
         },
       };
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // CẢNH BÁO DEAL THEO ĐIỀU KIỆN (DEAL ALERTS - R1-031, R1-032)
+  // -------------------------------------------------------------------------
+
+  async createDealAlert(userId: string, dto: CreateDealAlertDto): Promise<DealAlertEntity> {
+    const activeCount = await this.dealAlertRepo.count({
+      where: { userId, isActive: true },
+    });
+    if (activeCount >= 10) {
+      throw new BadRequestException(
+        'Mỗi khách hàng chỉ được bật tối đa 10 cảnh báo deal đồng thời (R1-031).',
+      );
+    }
+    if (!dto.criteria || Object.keys(dto.criteria).length === 0) {
+      throw new BadRequestException('Tiêu chí cảnh báo không được rỗng (R1-031).');
+    }
+    const alert = this.dealAlertRepo.create({
+      userId,
+      criteria: dto.criteria,
+      isActive: dto.isActive !== undefined ? dto.isActive : true,
+    });
+    return this.dealAlertRepo.save(alert);
+  }
+
+  async getDealAlerts(userId: string): Promise<DealAlertEntity[]> {
+    return this.dealAlertRepo.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async updateDealAlert(
+    userId: string,
+    id: string,
+    dto: UpdateDealAlertDto,
+  ): Promise<DealAlertEntity> {
+    const alert = await this.dealAlertRepo.findOne({ where: { id, userId } });
+    if (!alert) {
+      throw new NotFoundException(`Không tìm thấy cảnh báo deal với ID [${id}].`);
+    }
+    if (dto.criteria) {
+      if (Object.keys(dto.criteria).length === 0) {
+        throw new BadRequestException('Tiêu chí cảnh báo không được rỗng.');
+      }
+      alert.criteria = dto.criteria;
+    }
+    if (dto.isActive !== undefined) {
+      if (dto.isActive && !alert.isActive) {
+        const activeCount = await this.dealAlertRepo.count({
+          where: { userId, isActive: true },
+        });
+        if (activeCount >= 10) {
+          throw new BadRequestException(
+            'Mỗi khách hàng chỉ được bật tối đa 10 cảnh báo deal đồng thời (R1-031).',
+          );
+        }
+      }
+      alert.isActive = dto.isActive;
+    }
+    return this.dealAlertRepo.save(alert);
+  }
+
+  async deleteDealAlert(
+    userId: string,
+    id: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const alert = await this.dealAlertRepo.findOne({ where: { id, userId } });
+    if (!alert) {
+      throw new NotFoundException(`Không tìm thấy cảnh báo deal với ID [${id}].`);
+    }
+    await this.dealAlertRepo.remove(alert);
+    return { success: true, message: 'Đã xóa cảnh báo deal thành công.' };
+  }
+
+  // -------------------------------------------------------------------------
+  // BỘ LỌC TÌM KIẾM ĐÃ LƯU (SAVED FILTERS - R1-033)
+  // -------------------------------------------------------------------------
+
+  async createSavedFilter(userId: string, dto: CreateSavedFilterDto): Promise<SavedFilterEntity> {
+    const count = await this.savedFilterRepo.count({ where: { userId } });
+    if (count >= 10) {
+      throw new BadRequestException(
+        'Mỗi khách hàng chỉ được lưu tối đa 10 bộ lọc tìm kiếm (R1-033).',
+      );
+    }
+    const existing = await this.savedFilterRepo.findOne({
+      where: { userId, name: dto.name.trim() },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        `Tên bộ lọc [${dto.name}] đã tồn tại. Vui lòng chọn tên khác (R1-033).`,
+      );
+    }
+    const filter = this.savedFilterRepo.create({
+      userId,
+      name: dto.name.trim(),
+      criteria: dto.criteria,
+    });
+    return this.savedFilterRepo.save(filter);
+  }
+
+  async getSavedFilters(userId: string): Promise<SavedFilterEntity[]> {
+    return this.savedFilterRepo.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async deleteSavedFilter(
+    userId: string,
+    id: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const filter = await this.savedFilterRepo.findOne({ where: { id, userId } });
+    if (!filter) {
+      throw new NotFoundException(`Không tìm thấy bộ lọc đã lưu với ID [${id}].`);
+    }
+    await this.savedFilterRepo.remove(filter);
+    return { success: true, message: 'Đã xóa bộ lọc tìm kiếm đã lưu thành công.' };
+  }
+
+  // -------------------------------------------------------------------------
+  // LỊCH SỬ XEM DEAL GẦN ĐÂY (VIEW HISTORY - R1-035)
+  // -------------------------------------------------------------------------
+
+  async recordViewHistory(userId: string, offerId: string): Promise<ViewHistoryEntity> {
+    const offer = await this.offerRepo.findOne({ where: { id: offerId } });
+    if (!offer) {
+      throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
+    }
+
+    // Xóa bản ghi cũ cùng offerId nếu đã có
+    await this.viewHistoryRepo.delete({ userId, offerId });
+
+    // Tạo bản ghi mới
+    const record = this.viewHistoryRepo.create({
+      userId,
+      offerId,
+      viewedAt: new Date(),
+    });
+    const saved = await this.viewHistoryRepo.save(record);
+
+    // Giữ tối đa 20 mục gần nhất
+    const all = await this.viewHistoryRepo.find({
+      where: { userId },
+      order: { viewedAt: 'DESC' },
+    });
+    if (all.length > 20) {
+      const toDelete = all.slice(20).map((r) => r.id);
+      await this.viewHistoryRepo.delete(toDelete);
+    }
+
+    return saved;
+  }
+
+  async getViewHistory(userId: string) {
+    const records = await this.viewHistoryRepo.find({
+      where: { userId },
+      order: { viewedAt: 'DESC' },
+      take: 20,
+    });
+    if (records.length === 0) return [];
+
+    const offerIds = records.map((r) => r.offerId);
+    const offers = await this.offerRepo.find({ where: { id: In(offerIds) } });
+    const itemIds = offers.map((o) => o.itemId).filter(Boolean) as string[];
+    const items =
+      itemIds.length > 0 ? await this.itemRepo.find({ where: { id: In(itemIds) } }) : [];
+    const storeIds = offers.map((o) => o.storeId);
+    const stores =
+      storeIds.length > 0 ? await this.storeRepo.find({ where: { id: In(storeIds) } }) : [];
+
+    const offersMap = new Map(offers.map((o) => [o.id, o]));
+    const itemsMap = new Map(items.map((i) => [i.id, i]));
+    const storesMap = new Map(stores.map((s) => [s.id, s]));
+
+    return records.map((r) => {
+      const offer = offersMap.get(r.offerId);
+      const item = offer && offer.itemId ? itemsMap.get(offer.itemId) : null;
+      const store = offer ? storesMap.get(offer.storeId) : null;
+      return {
+        id: r.id,
+        offerId: r.offerId,
+        viewedAt: r.viewedAt,
+        title: item?.name || 'Suất cứu món',
+        storeName: store?.name || '',
+        currentPrice: offer?.currentPrice || 0,
+        originalPrice: offer?.originalPrice || 0,
+        status: offer ? offer.status : 'EXPIRED',
+        remainingQuantity: offer ? offer.remainingQuantity : 0,
+      };
+    });
+  }
+
+  async clearViewHistory(userId: string): Promise<{ success: boolean; message: string }> {
+    await this.viewHistoryRepo.delete({ userId });
+    return { success: true, message: 'Đã xóa toàn bộ lịch sử xem deal thành công.' };
   }
 }

@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { ComplaintAttachmentEntity } from '../../entities/complaints/complaint-attachment.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
@@ -14,8 +14,18 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { ViolationReportEntity } from '../../entities/complaints/violation-report.entity';
+import { SupportTicketEntity, TicketStatus } from '../../entities/complaints/support-ticket.entity';
+import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
+import {
+  UpdateReviewDto,
+  AddComplaintAttachmentsDto,
+  CreateViolationReportDto,
+  CreateSupportTicketDto,
+  SendSupportMessageDto,
+} from './dto/interaction-extras.dto';
 
 @Injectable()
 export class CustomerInteractionsService {
@@ -36,6 +46,12 @@ export class CustomerInteractionsService {
     private readonly itemRepo: Repository<ItemEntity>,
     @InjectRepository(StoreEntity)
     private readonly storeRepo: Repository<StoreEntity>,
+    @InjectRepository(ViolationReportEntity)
+    private readonly violationRepo: Repository<ViolationReportEntity>,
+    @InjectRepository(SupportTicketEntity)
+    private readonly ticketRepo: Repository<SupportTicketEntity>,
+    @InjectRepository(SupportMessageEntity)
+    private readonly messageRepo: Repository<SupportMessageEntity>,
   ) {}
 
   /**
@@ -295,5 +311,238 @@ export class CustomerInteractionsService {
       totalSavingsVnd,
       totalFoodSavedKg,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // RÚT & BỔ SUNG BẰNG CHỨNG KHIẾU NẠI (R1-063, R1-068)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Khách hàng tự nguyện rút khiếu nại khi chưa xử lý (R1-063)
+   */
+  async withdrawComplaint(customerId: string, complaintId: string) {
+    const complaint = await this.complaintRepo.findOne({
+      where: { id: complaintId, customerId },
+    });
+    if (!complaint) {
+      throw new NotFoundException('Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu.');
+    }
+    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
+      throw new BadRequestException(
+        `Chỉ có thể rút khiếu nại đang ở trạng thái chờ cửa hàng xử lý (hiện tại: ${complaint.status}) (R1-063).`,
+      );
+    }
+    complaint.status = ComplaintStatus.CLOSED;
+    complaint.rejectReason = 'Khách hàng tự nguyện rút khiếu nại';
+    await this.complaintRepo.save(complaint);
+    return { success: true, message: 'Đã rút khiếu nại thành công.' };
+  }
+
+  /**
+   * Bổ sung bằng chứng ảnh cho khiếu nại đang mở (R1-068)
+   */
+  async addComplaintAttachments(
+    customerId: string,
+    complaintId: string,
+    dto: AddComplaintAttachmentsDto,
+  ) {
+    const complaint = await this.complaintRepo.findOne({
+      where: { id: complaintId, customerId },
+    });
+    if (!complaint) {
+      throw new NotFoundException('Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu.');
+    }
+    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
+      throw new BadRequestException(
+        'Chỉ có thể bổ sung bằng chứng khi khiếu nại đang chờ xử lý (R1-068).',
+      );
+    }
+    const currentCount = await this.attachmentRepo.count({ where: { complaintId } });
+    if (currentCount + dto.photoUrls.length > 5) {
+      throw new BadRequestException('Tổng số ảnh bằng chứng tối đa là 5 ảnh.');
+    }
+
+    const newAttachments = dto.photoUrls.map((url) =>
+      this.attachmentRepo.create({
+        complaintId,
+        url,
+      }),
+    );
+    await this.attachmentRepo.save(newAttachments);
+    return { success: true, message: 'Đã bổ sung bằng chứng thành công.' };
+  }
+
+  // -------------------------------------------------------------------------
+  // SỬA VÀ ẨN ĐÁNH GIÁ (R1-065, R1-066)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Sửa đánh giá trong vòng 24 giờ sau khi gửi (R1-065)
+   */
+  async updateReview(customerId: string, reviewId: string, dto: UpdateReviewDto) {
+    const review = await this.reviewRepo.findOne({
+      where: { id: reviewId, customerId },
+    });
+    if (!review) {
+      throw new NotFoundException('Đánh giá không tồn tại hoặc không thuộc quyền sở hữu.');
+    }
+    const diffHours = (Date.now() - new Date(review.createdAt).getTime()) / (1000 * 60 * 60);
+    if (diffHours > 24) {
+      throw new BadRequestException('Đã quá thời hạn 24 giờ cho phép chỉnh sửa đánh giá (R1-065).');
+    }
+
+    review.rating = dto.rating;
+    if (dto.comment !== undefined) {
+      review.comment = dto.comment ? dto.comment.trim() : null;
+    }
+    const saved = await this.reviewRepo.save(review);
+    return saved;
+  }
+
+  /**
+   * Khách hàng ẩn đánh giá của mình (R1-066)
+   */
+  async hideReview(customerId: string, reviewId: string) {
+    const review = await this.reviewRepo.findOne({
+      where: { id: reviewId, customerId },
+    });
+    if (!review) {
+      throw new NotFoundException('Đánh giá không tồn tại hoặc không thuộc quyền sở hữu.');
+    }
+    review.status = ReviewStatus.HIDDEN;
+    await this.reviewRepo.save(review);
+    return { success: true, message: 'Đã ẩn đánh giá thành công (R1-066).' };
+  }
+
+  // -------------------------------------------------------------------------
+  // BÁO CÁO VI PHẠM (VIOLATION REPORTS - R1-069)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Báo cáo cửa hàng hoặc nội dung vi phạm (R1-069)
+   */
+  async createViolationReport(customerId: string, dto: CreateViolationReportDto) {
+    const existing = await this.violationRepo.findOne({
+      where: {
+        reporterId: customerId,
+        targetType: dto.targetType,
+        targetId: dto.targetId,
+      },
+    });
+    if (existing) {
+      throw new ConflictException('Bạn đã gửi báo cáo vi phạm cho đối tượng này rồi (R1-069).');
+    }
+
+    const report = this.violationRepo.create({
+      reporterId: customerId,
+      targetType: dto.targetType,
+      targetId: dto.targetId,
+      reason: dto.reason,
+    });
+    const saved = await this.violationRepo.save(report);
+    return saved;
+  }
+
+  // -------------------------------------------------------------------------
+  // YÊU CẦU HỖ TRỢ NGƯỜI THẬT (SUPPORT TICKETS - R1-070, R1-071)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Gửi yêu cầu hỗ trợ cho người thật (R1-070)
+   */
+  async createSupportTicket(customerId: string, dto: CreateSupportTicketDto) {
+    const activeCount = await this.ticketRepo.count({
+      where: {
+        userId: customerId,
+        status: Not(TicketStatus.CLOSED),
+      },
+    });
+    if (activeCount >= 5) {
+      throw new BadRequestException(
+        'Mỗi khách hàng chỉ được mở tối đa 5 yêu cầu hỗ trợ đồng thời (R1-070).',
+      );
+    }
+
+    const ticket = this.ticketRepo.create({
+      userId: customerId,
+      subject: dto.subject,
+      status: TicketStatus.OPEN,
+    });
+    const savedTicket = await this.ticketRepo.save(ticket);
+
+    const message = this.messageRepo.create({
+      ticketId: savedTicket.id,
+      senderId: customerId,
+      message: dto.message,
+      isInternal: false,
+    });
+    await this.messageRepo.save(message);
+
+    return savedTicket;
+  }
+
+  async getCustomerSupportTickets(customerId: string) {
+    return this.ticketRepo.find({
+      where: { userId: customerId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getSupportTicketDetail(customerId: string, ticketId: string) {
+    const ticket = await this.ticketRepo.findOne({
+      where: { id: ticketId, userId: customerId },
+    });
+    if (!ticket) {
+      throw new NotFoundException('Yêu cầu hỗ trợ không tồn tại hoặc không thuộc quyền sở hữu.');
+    }
+    const messages = await this.messageRepo.find({
+      where: { ticketId, isInternal: false },
+      order: { createdAt: 'ASC' },
+    });
+    return {
+      ticket,
+      messages,
+    };
+  }
+
+  async sendSupportMessage(customerId: string, ticketId: string, dto: SendSupportMessageDto) {
+    const ticket = await this.ticketRepo.findOne({
+      where: { id: ticketId, userId: customerId },
+    });
+    if (!ticket) {
+      throw new NotFoundException('Yêu cầu hỗ trợ không tồn tại hoặc không thuộc quyền sở hữu.');
+    }
+    if (ticket.status === TicketStatus.CLOSED) {
+      throw new BadRequestException(
+        'Yêu cầu hỗ trợ này đã đóng, không thể gửi thêm tin nhắn (R1-071).',
+      );
+    }
+
+    const msg = this.messageRepo.create({
+      ticketId,
+      senderId: customerId,
+      message: dto.message,
+      isInternal: false,
+    });
+    const saved = await this.messageRepo.save(msg);
+
+    if (ticket.status === TicketStatus.ANSWERED) {
+      ticket.status = TicketStatus.IN_PROGRESS;
+      await this.ticketRepo.save(ticket);
+    }
+
+    return saved;
+  }
+
+  async closeSupportTicket(customerId: string, ticketId: string) {
+    const ticket = await this.ticketRepo.findOne({
+      where: { id: ticketId, userId: customerId },
+    });
+    if (!ticket) {
+      throw new NotFoundException('Yêu cầu hỗ trợ không tồn tại hoặc không thuộc quyền sở hữu.');
+    }
+    ticket.status = TicketStatus.CLOSED;
+    await this.ticketRepo.save(ticket);
+    return { success: true, message: 'Đã đóng yêu cầu hỗ trợ thành công.' };
   }
 }

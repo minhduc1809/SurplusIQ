@@ -7,9 +7,11 @@ import { SavedPlaceEntity } from '../../entities/auth/saved-place.entity';
 import { DietaryProfileEntity } from '../../entities/auth/dietary-profile.entity';
 import { NoshowRecordEntity } from '../../entities/orders/noshow-record.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
 import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
 import { CreateSavedPlaceDto } from './dto/saved-place.dto';
 import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
+import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
 
 function maskEmail(email: string | null): string | null {
   if (!email) return null;
@@ -44,6 +46,8 @@ export class CustomerProfileService {
     private readonly noshowRepo: Repository<NoshowRecordEntity>,
     @InjectRepository(OrderLockEntity)
     private readonly orderLockRepo: Repository<OrderLockEntity>,
+    @InjectRepository(FcmTokenEntity)
+    private readonly fcmRepo: Repository<FcmTokenEntity>,
   ) {}
 
   /**
@@ -232,5 +236,39 @@ export class CustomerProfileService {
       allergens: saved.allergens,
       excludedItems: saved.excludedItems,
     };
+  }
+
+  /**
+   * Đăng ký hoặc cập nhật FCM Token của thiết bị (R1-004, R1-073)
+   */
+  async registerFcmToken(userId: string, dto: RegisterFcmTokenDto) {
+    let fcm = await this.fcmRepo.findOne({
+      where: { userId, deviceId: dto.deviceId },
+    });
+
+    if (!fcm) {
+      fcm = this.fcmRepo.create({
+        userId,
+        deviceId: dto.deviceId,
+        token: dto.token,
+        enabled: dto.enabled !== undefined ? dto.enabled : true,
+      });
+    } else {
+      fcm.token = dto.token;
+      if (dto.enabled !== undefined) {
+        fcm.enabled = dto.enabled;
+      }
+    }
+
+    await this.fcmRepo.save(fcm);
+    return { success: true, message: 'Đăng ký FCM Token thành công.' };
+  }
+
+  /**
+   * Hủy đăng ký FCM Token khi đăng xuất khỏi thiết bị (R1-004)
+   */
+  async deleteFcmToken(userId: string, deviceId: string) {
+    await this.fcmRepo.delete({ userId, deviceId });
+    return { success: true, message: 'Hủy đăng ký FCM Token trên thiết bị thành công.' };
   }
 }

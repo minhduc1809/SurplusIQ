@@ -5,6 +5,10 @@ import { CustomerInteractionsService } from './customer-interactions.service';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { ComplaintAttachmentEntity } from '../../entities/complaints/complaint-attachment.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
+import { ViolationReportEntity } from '../../entities/complaints/violation-report.entity';
+import { SupportTicketEntity, TicketStatus } from '../../entities/complaints/support-ticket.entity';
+import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
+import { ViolationTargetType } from './dto/interaction-extras.dto';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
@@ -15,6 +19,9 @@ describe('CustomerInteractionsService', () => {
   let complaintRepo: any;
   let attachmentRepo: any;
   let reviewRepo: any;
+  let violationReportRepo: any;
+  let supportTicketRepo: any;
+  let supportMessageRepo: any;
   let orderRepo: any;
   let offerRepo: any;
   let itemRepo: any;
@@ -60,6 +67,23 @@ describe('CustomerInteractionsService', () => {
         ]),
       }),
     };
+    violationReportRepo = {
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => ({ id: 'rep-1', ...d })),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'rep-1', ...d })),
+    };
+    supportTicketRepo = {
+      count: jest.fn().mockResolvedValue(0),
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => ({ id: 'tick-1', ...d })),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'tick-1', ...d })),
+    };
+    supportMessageRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockImplementation((d) => ({ id: 'msg-1', ...d })),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'msg-1', ...d })),
+    };
     offerRepo = {};
     itemRepo = {};
     storeRepo = {
@@ -72,6 +96,9 @@ describe('CustomerInteractionsService', () => {
         { provide: getRepositoryToken(ComplaintEntity), useValue: complaintRepo },
         { provide: getRepositoryToken(ComplaintAttachmentEntity), useValue: attachmentRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
+        { provide: getRepositoryToken(ViolationReportEntity), useValue: violationReportRepo },
+        { provide: getRepositoryToken(SupportTicketEntity), useValue: supportTicketRepo },
+        { provide: getRepositoryToken(SupportMessageEntity), useValue: supportMessageRepo },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
         { provide: getRepositoryToken(OfferEntity), useValue: offerRepo },
         { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
@@ -180,6 +207,110 @@ describe('CustomerInteractionsService', () => {
       expect(impact.totalSavingsVnd).toBe(50000);
       // 2 suất * 400g = 800g = 0.8 kg
       expect(impact.totalFoodSavedKg).toBe(0.8);
+    });
+  });
+
+  describe('withdrawComplaint & addAttachments (R1-063, R1-068)', () => {
+    it('cho phép rút khiếu nại đang chờ xử lý', async () => {
+      complaintRepo.findOne.mockResolvedValue({
+        id: 'comp-1',
+        customerId: 'user-1',
+        status: ComplaintStatus.PENDING_STORE,
+      });
+
+      const res = await service.withdrawComplaint('user-1', 'comp-1');
+      expect(res.success).toBe(true);
+      expect(complaintRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ComplaintStatus.CLOSED,
+        }),
+      );
+    });
+
+    it('từ chối rút khiếu nại nếu đã được chấp nhận hoặc đóng', async () => {
+      complaintRepo.findOne.mockResolvedValue({
+        id: 'comp-1',
+        customerId: 'user-1',
+        status: ComplaintStatus.ACCEPTED,
+      });
+
+      await expect(service.withdrawComplaint('user-1', 'comp-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('updateReview & hideReview (R1-065, R1-066)', () => {
+    it('cho phép chỉnh sửa đánh giá trong vòng 24 giờ', async () => {
+      reviewRepo.findOne.mockResolvedValue({
+        id: 'rev-1',
+        customerId: 'user-1',
+        rating: 4,
+        comment: 'Ngon',
+        createdAt: new Date(),
+      });
+
+      const res = await service.updateReview('user-1', 'rev-1', {
+        rating: 5,
+        comment: 'Rất ngon!',
+      });
+
+      expect(res.rating).toBe(5);
+      expect(res.comment).toBe('Rất ngon!');
+    });
+
+    it('cho phép ẩn đánh giá', async () => {
+      reviewRepo.findOne.mockResolvedValue({
+        id: 'rev-1',
+        customerId: 'user-1',
+        status: ReviewStatus.VISIBLE,
+      });
+
+      const res = await service.hideReview('user-1', 'rev-1');
+      expect(res.success).toBe(true);
+    });
+  });
+
+  describe('createViolationReport (R1-069)', () => {
+    it('tạo báo cáo vi phạm thành công', async () => {
+      violationReportRepo.findOne.mockResolvedValue(null);
+
+      const res = await service.createViolationReport('user-1', {
+        targetType: ViolationTargetType.STORE,
+        targetId: 'store-1',
+        reason: 'Quán không phục vụ đúng món',
+      });
+
+      expect(res.id).toBe('rep-1');
+      expect(violationReportRepo.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('supportTickets (R1-070, R1-071)', () => {
+    it('tạo ticket hỗ trợ mới thành công kèm tin nhắn đầu tiên', async () => {
+      supportTicketRepo.count.mockResolvedValue(1);
+
+      const res = await service.createSupportTicket('user-1', {
+        subject: 'Hỏi về đơn hàng',
+        message: 'Đơn hàng của tôi chưa có món',
+      });
+
+      expect(res.id).toBe('tick-1');
+      expect(supportMessageRepo.create).toHaveBeenCalled();
+    });
+
+    it('gửi thêm tin nhắn trong ticket đang mở', async () => {
+      supportTicketRepo.findOne.mockResolvedValue({
+        id: 'tick-1',
+        customerId: 'user-1',
+        status: TicketStatus.OPEN,
+      });
+
+      const res = await service.sendSupportMessage('user-1', 'tick-1', {
+        message: 'Tôi đã kiểm tra lại, cảm ơn!',
+      });
+
+      expect(res.id).toBe('msg-1');
     });
   });
 });
