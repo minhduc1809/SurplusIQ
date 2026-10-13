@@ -11,6 +11,7 @@ import { ALL_ENTITIES } from './entities';
 import { SettingsModule } from './modules/settings/settings.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     SettingsModule,
     AuthModule,
     SubscriptionsModule,
+    AuditModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
