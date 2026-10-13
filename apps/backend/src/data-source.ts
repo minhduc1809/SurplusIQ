@@ -1,9 +1,7 @@
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { StoreEntity } from './modules/stores/store.entity';
-import { OfferEntity } from './modules/offers/offer.entity';
-import { OrderEntity } from './modules/orders/order.entity';
+import { ALL_ENTITIES } from './entities';
 import { DecisionEntity } from './modules/decisions/decision.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
@@ -15,7 +13,7 @@ export const AppDataSource = new DataSource({
   username: process.env.POSTGRES_USER || 'surplus_admin',
   password: process.env.POSTGRES_PASSWORD || 'surplus_secret_pass',
   database: process.env.POSTGRES_DB || 'surplusiq_db',
-  entities: [StoreEntity, OfferEntity, OrderEntity, DecisionEntity],
+  entities: [...ALL_ENTITIES, DecisionEntity],
   migrations: [path.join(__dirname, 'migrations/*{.ts,.js}')],
   synchronize: false,
 });
