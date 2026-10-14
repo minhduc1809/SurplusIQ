@@ -9,6 +9,7 @@ import { SurpriseBagItemEntity } from '../../entities/catalog/surprise-bag-item.
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { OrderEntity } from '../../entities/orders/order.entity';
+import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       OfferEntity,
       ItemEntity,
       OrderEntity,
+      StoreMemberEntity,
     ]),
     SubscriptionsModule,
   ],

@@ -13,6 +13,7 @@ import { SpecialEventEntity } from '../../entities/reconciliation/special-event.
 import { ActionCardEntity } from '../../entities/ai/action-card.entity';
 import { DonationRecordEntity } from '../../entities/ai/donation-record.entity';
 import { OrderEntity } from '../../entities/orders/order.entity';
+import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { OrderEntity } from '../../entities/orders/order.entity';
       ActionCardEntity,
       DonationRecordEntity,
       OrderEntity,
+      StoreMemberEntity,
     ]),
   ],
   controllers: [DecisionsController],

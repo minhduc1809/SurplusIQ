@@ -14,6 +14,7 @@ import { ViolationReportEntity } from '../../entities/complaints/violation-repor
 import { SupportTicketEntity } from '../../entities/complaints/support-ticket.entity';
 import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
 import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
+import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { PaymentTransactionEntity } from '../../entities/orders/payment-transact
       OfferEntity,
       ItemEntity,
       StoreEntity,
+      StoreMemberEntity,
       ViolationReportEntity,
       SupportTicketEntity,
       SupportMessageEntity,
