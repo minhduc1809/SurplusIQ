@@ -7,6 +7,7 @@ import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { PromotionEntity } from '../../entities/marketing/promotion.entity';
 import { SubscriptionInvoiceEntity } from '../../entities/subscriptions/subscription-invoice.entity';
 import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { StoreEntity } from '../../entities/stores/store.entity';
 import { QuotaService } from './quota.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
