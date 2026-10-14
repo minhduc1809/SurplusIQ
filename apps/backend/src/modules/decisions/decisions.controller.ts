@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -11,7 +12,15 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { DecisionsService } from './decisions.service';
-import { OverrideForecastDto, LogDailyActualDto, QueryForecastDto } from './dto/decisions.dto';
+import {
+  OverrideForecastDto,
+  LogDailyActualDto,
+  QueryForecastDto,
+  CreateSpecialEventDto,
+  SimulatePolicyDto,
+  CreateDonationRecordDto,
+  QueryAnomalyDto,
+} from './dto/decisions.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -103,5 +112,102 @@ export class DecisionsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.decisionsService.rejectPriceProposal(storeId, id, user.userId);
+  }
+
+  @Get('special-events')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Danh sách sự kiện đặc biệt tác động dự báo (R2-040)' })
+  @ApiResponse({ status: 200, description: 'Danh sách sự kiện' })
+  async getSpecialEvents(@CurrentStore() storeId: string) {
+    return this.decisionsService.getSpecialEvents(storeId);
+  }
+
+  @Post('special-events')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Tạo mới sự kiện đặc biệt (R2-040)' })
+  @ApiResponse({ status: 201, description: 'Đã tạo sự kiện đặc biệt' })
+  async createSpecialEvent(@CurrentStore() storeId: string, @Body() dto: CreateSpecialEventDto) {
+    return this.decisionsService.createSpecialEvent(storeId, dto);
+  }
+
+  @Delete('special-events/:id')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xóa sự kiện đặc biệt (R2-040)' })
+  @ApiResponse({ status: 200, description: 'Đã xóa sự kiện thành công' })
+  async deleteSpecialEvent(@CurrentStore() storeId: string, @Param('id') id: string) {
+    return this.decisionsService.deleteSpecialEvent(storeId, id);
+  }
+
+  @Get('anomalies')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary:
+      'Phát hiện bất thường doanh thu/hao hụt bằng thuật toán MAD > 2.5 không dùng LLM (R2-112)',
+  })
+  @ApiResponse({ status: 200, description: 'Kết quả phát hiện bất thường' })
+  async getAnomalies(@CurrentStore() storeId: string, @Query() query: QueryAnomalyDto) {
+    return this.decisionsService.detectAnomalies(storeId, query.sensitivity);
+  }
+
+  @Get('action-cards')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xem các thẻ hành động AI thông minh gợi ý cho quán (R2-114, R2-115)' })
+  @ApiResponse({ status: 200, description: 'Danh sách thẻ hành động' })
+  async getActionCards(@CurrentStore() storeId: string) {
+    return this.decisionsService.getActionCards(storeId);
+  }
+
+  @Post('action-cards/:id/apply')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Chấp nhận và áp dụng thẻ hành động (R2-114)' })
+  @ApiResponse({ status: 200, description: 'Đã áp dụng thẻ hành động' })
+  async applyActionCard(@CurrentStore() storeId: string, @Param('id') id: string) {
+    return this.decisionsService.applyActionCard(storeId, id);
+  }
+
+  @Post('action-cards/:id/dismiss')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Bỏ qua thẻ hành động (R2-114)' })
+  @ApiResponse({ status: 200, description: 'Đã bỏ qua thẻ hành động' })
+  async dismissActionCard(@CurrentStore() storeId: string, @Param('id') id: string) {
+    return this.decisionsService.dismissActionCard(storeId, id);
+  }
+
+  @Post('simulation/policy')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary:
+      'Mô phỏng chính sách giá và giảm hao hụt trên dữ liệu 14-90 ngày (R2-099, R2-104..105)',
+  })
+  @ApiResponse({ status: 200, description: 'Kết quả mô phỏng chính sách' })
+  async simulatePolicy(@CurrentStore() storeId: string, @Body() dto: SimulatePolicyDto) {
+    return this.decisionsService.simulatePolicy(storeId, dto);
+  }
+
+  @Get('donations/suggestions')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER, StorePermission.COUNTER)
+  @ApiOperation({ summary: 'Gợi ý quyên góp từ thiện cho món surplus sắp hết hạn (R2-121)' })
+  @ApiResponse({ status: 200, description: 'Danh sách món và tổ chức từ thiện' })
+  async getDonationSuggestions(@CurrentStore() storeId: string) {
+    return this.decisionsService.getDonationSuggestions(storeId);
+  }
+
+  @Post('donations')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Ghi nhận suất ăn đã quyên góp từ thiện (R2-121)' })
+  @ApiResponse({ status: 201, description: 'Đã ghi nhận quyên góp' })
+  async createDonationRecord(
+    @CurrentStore() storeId: string,
+    @Body() dto: CreateDonationRecordDto,
+  ) {
+    return this.decisionsService.createDonationRecord(storeId, dto);
+  }
+
+  @Get('donations')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xem lịch sử các đợt quyên góp từ thiện của quán (R2-121)' })
+  @ApiResponse({ status: 200, description: 'Lịch sử quyên góp' })
+  async getDonationRecords(@CurrentStore() storeId: string) {
+    return this.decisionsService.getDonationRecords(storeId);
   }
 }
