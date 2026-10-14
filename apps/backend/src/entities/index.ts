@@ -12,6 +12,7 @@ import {
   SavedDealEntity,
   ViewHistoryEntity,
   FcmTokenEntity,
+  FavoriteStoreEntity,
 } from './auth';
 
 import {
@@ -108,6 +109,7 @@ export const ALL_ENTITIES = [
   SavedDealEntity,
   ViewHistoryEntity,
   FcmTokenEntity,
+  FavoriteStoreEntity,
 
   // Stores (8)
   StoreEntity,

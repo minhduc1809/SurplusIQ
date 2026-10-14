@@ -14,6 +14,9 @@ import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { WeeklyStatementEntity } from '../../entities/reconciliation/weekly-statement.entity';
+import { StatementLineEntity } from '../../entities/reconciliation/statement-line.entity';
+import { CustomerNoteEntity } from '../../entities/stores/customer-note.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -30,6 +33,9 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       ComplaintEntity,
       ReviewEntity,
       WeeklyStatementEntity,
+      StatementLineEntity,
+      CustomerNoteEntity,
+      CustomerProfileEntity,
       UserEntity,
     ]),
     SubscriptionsModule,

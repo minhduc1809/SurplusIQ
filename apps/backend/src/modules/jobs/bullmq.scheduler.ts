@@ -48,6 +48,24 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
               return this.jobsService.expireUnclaimedPickups();
             case JOBS_CONSTANTS.JOB_NAMES.OFFERS_AUTO_CLOSE:
               return this.jobsService.autoCloseExpiredOffers();
+            case JOBS_CONSTANTS.JOB_NAMES.COMPLAINTS_AUTO_ACCEPT:
+              return this.jobsService.autoAcceptExpiredComplaints();
+            case JOBS_CONSTANTS.JOB_NAMES.STATEMENTS_CLOSE_WEEK:
+              return this.jobsService.closeWeeklyStatements();
+            case JOBS_CONSTANTS.JOB_NAMES.SUBSCRIPTION_LIFECYCLE:
+              return this.jobsService.processSubscriptionLifecycles();
+            case JOBS_CONSTANTS.JOB_NAMES.PAYMENTS_RECHECK:
+              return this.jobsService.recheckPendingPayments();
+            case JOBS_CONSTANTS.JOB_NAMES.FORECAST_DAILY:
+              return this.jobsService.generateDailyForecasts();
+            case JOBS_CONSTANTS.JOB_NAMES.PRICE_PROPOSALS:
+              return this.jobsService.generateHourlyPriceProposals();
+            case JOBS_CONSTANTS.JOB_NAMES.NOTIFY_PICKUP_REMINDER:
+              return this.jobsService.sendPickupReminders();
+            case JOBS_CONSTANTS.JOB_NAMES.RETENTION_CLEANUP:
+              return this.jobsService.cleanupExpiredRetentionData();
+            case JOBS_CONSTANTS.JOB_NAMES.ACCOUNT_ANONYMIZE:
+              return this.jobsService.anonymizePendingDeleteAccounts();
             default:
               return this.jobsService.processAllBackgroundJobs();
           }
@@ -59,7 +77,7 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
         this.logger.error(`[BULLMQ_JOB_FAILED] Tác vụ [${job?.name}] thất bại: ${err.message}`);
       });
 
-      // Đăng ký lặp lại mỗi 60 giây (1 phút)
+      // 1 phút: Nhả suất, quá hạn nhận, tự đóng suất, gửi nhắc nhở
       await this.queue.add(
         JOBS_CONSTANTS.JOB_NAMES.RELEASE_HOLDS,
         {},
@@ -74,6 +92,30 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
         JOBS_CONSTANTS.JOB_NAMES.OFFERS_AUTO_CLOSE,
         {},
         { repeat: { every: 60 * 1000 } },
+      );
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.NOTIFY_PICKUP_REMINDER,
+        {},
+        { repeat: { every: 60 * 1000 } },
+      );
+
+      // 5 phút: Tự chấp nhận khiếu nại quá hạn
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.COMPLAINTS_AUTO_ACCEPT,
+        {},
+        { repeat: { every: 5 * 60 * 1000 } },
+      );
+
+      // 15 phút: Đề xuất giá động, recheck thanh toán
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.PRICE_PROPOSALS,
+        {},
+        { repeat: { every: 15 * 60 * 1000 } },
+      );
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.PAYMENTS_RECHECK,
+        {},
+        { repeat: { every: 15 * 60 * 1000 } },
       );
 
       this.logger.log(`[BULLMQ] Đã kết nối Redis (${redisHost}:${redisPort}) và khởi chạy worker.`);

@@ -9,8 +9,17 @@ import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { WeeklyStatementEntity } from '../../entities/reconciliation/weekly-statement.entity';
-import { UpdateStoreProfileDto, StoreReportsQueryDto } from './dto/store-operations.dto';
-import { ReconciliationEngine } from '@surplusiq/core';
+import { StatementLineEntity } from '../../entities/reconciliation/statement-line.entity';
+import { CustomerNoteEntity } from '../../entities/stores/customer-note.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
+import {
+  UpdateStoreProfileDto,
+  StoreReportsQueryDto,
+  CustomerNoteDto,
+  VirtualClockDto,
+  ExportDataQueryDto,
+} from './dto/store-operations.dto';
+import { ReconciliationEngine, type ReconciliationOrderStatus } from '@surplusiq/core';
 
 @Injectable()
 export class StoresService {
@@ -33,6 +42,12 @@ export class StoresService {
     private readonly reviewRepo: Repository<ReviewEntity>,
     @InjectRepository(WeeklyStatementEntity)
     private readonly statementRepo: Repository<WeeklyStatementEntity>,
+    @InjectRepository(StatementLineEntity)
+    private readonly statementLineRepo: Repository<StatementLineEntity>,
+    @InjectRepository(CustomerNoteEntity)
+    private readonly customerNoteRepo: Repository<CustomerNoteEntity>,
+    @InjectRepository(CustomerProfileEntity)
+    private readonly customerProfileRepo: Repository<CustomerProfileEntity>,
   ) {}
 
   /**
@@ -344,13 +359,23 @@ export class StoresService {
 
     const refundDeductions = complaints.reduce((sum, c) => sum + (c.refundAmount || 0), 0);
 
-    const coreOrders = currentCycleOrders.map((o) => ({
-      orderId: o.id,
-      amount: o.totalAmount,
-      status: o.status as any,
-      completedAt: o.updatedAt || new Date(),
-      storeFault: false,
-    }));
+    const coreOrders = currentCycleOrders.map((o) => {
+      let reconStatus: ReconciliationOrderStatus = 'CANCELLED';
+      if (o.status === OrderStatus.PICKED_UP) {
+        reconStatus = 'PICKED_UP';
+      } else if (o.status === OrderStatus.PICKUP_EXPIRED) {
+        reconStatus = 'PICKUP_EXPIRED';
+      } else if (o.status === OrderStatus.REFUNDED) {
+        reconStatus = 'REFUNDED';
+      }
+      return {
+        orderId: o.id,
+        amount: o.totalAmount,
+        status: reconStatus,
+        completedAt: o.updatedAt || new Date(),
+        storeFault: false,
+      };
+    });
 
     const currentStatement = ReconciliationEngine.calculate({
       storeId,
@@ -367,6 +392,308 @@ export class StoresService {
         checksumValid: ReconciliationEngine.verifyChecksum(currentStatement),
       },
       history: historyStatements,
+    };
+  }
+
+  /**
+   * Xem danh sách sao kê đối soát tuần đã chốt (R2-067)
+   */
+  async getStatements(storeId: string) {
+    return this.statementRepo.find({
+      where: { storeId },
+      order: { weekStart: 'DESC' },
+    });
+  }
+
+  /**
+   * Xem chi tiết một bản sao kê kèm các dòng chi tiết (R2-067)
+   */
+  async getStatementById(storeId: string, statementId: string) {
+    const statement = await this.statementRepo.findOne({
+      where: { id: statementId, storeId },
+    });
+    if (!statement) {
+      throw new NotFoundException(
+        'Bản sao kê không tồn tại hoặc không thuộc quyền sở hữu của bạn.',
+      );
+    }
+    const lines = await this.statementLineRepo.find({
+      where: { statementId },
+      order: { createdAt: 'ASC' },
+    });
+    return { statement, lines };
+  }
+
+  /**
+   * Tải sao kê định dạng PDF (R2-067)
+   */
+  async getStatementPdf(storeId: string, statementId: string) {
+    const { statement, lines } = await this.getStatementById(storeId, statementId);
+    const pdfContent = [
+      '%PDF-1.4',
+      '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+      '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+      '3 0 obj << /Type /Page /Parent 2 0 R /Resources <<>> /MediaBox [0 0 612 792] /Contents 4 0 R >> endobj',
+      '4 0 obj << /Length 200 >> stream',
+      `BT /F1 14 Tf 50 720 Td (SURPLUSIQ WEEKLY STATEMENT: ${statement.id}) Tj ET`,
+      `BT /F1 11 Tf 50 690 Td (Store: ${storeId} | Period: ${statement.weekStart} to ${statement.weekEnd}) Tj ET`,
+      `BT /F1 11 Tf 50 660 Td (Gross: ${statement.gross} VND | Commission: ${statement.commission} VND) Tj ET`,
+      `BT /F1 11 Tf 50 630 Td (Refunds: ${statement.refunds} VND | Net Payable: ${statement.netPayable} VND) Tj ET`,
+      `BT /F1 10 Tf 50 600 Td (Status: ${statement.status} | Total Lines: ${lines.length}) Tj ET`,
+      `BT /F1 9 Tf 50 570 Td (Checksum: ${statement.checksum || 'N/A'}) Tj ET`,
+      'endstream endobj',
+      'xref',
+      '0 5',
+      '0000000000 65535 f ',
+      '0000000010 00000 n ',
+      '0000000060 00000 n ',
+      '0000000115 00000 n ',
+      '0000000215 00000 n ',
+      'trailer << /Size 5 /Root 1 0 R >>',
+      'startxref',
+      '400',
+      '%%EOF',
+    ].join('\n');
+
+    return {
+      statementId: statement.id,
+      filename: `statement-${statement.weekStart}.pdf`,
+      contentType: 'application/pdf',
+      dataBase64: Buffer.from(pdfContent).toString('base64'),
+    };
+  }
+
+  /**
+   * Tải sao kê định dạng CSV (R2-067)
+   */
+  async getStatementCsv(storeId: string, statementId: string) {
+    const { statement, lines } = await this.getStatementById(storeId, statementId);
+    const header = '\uFEFFMã dòng,Mã đơn,Loại bút toán,Số tiền (VNĐ),Hoa hồng (VNĐ),Thời gian\n';
+    const rows = lines
+      .map(
+        (l) =>
+          `"${l.id}","${l.orderId || ''}","${l.type}",${l.amount},${l.commission},"${l.createdAt.toISOString()}"`,
+      )
+      .join('\n');
+    const summary = `\n"TỔNG KẾT",,"Doanh số: ${statement.gross}",,"Thực nhận: ${statement.netPayable}","Checksum: ${statement.checksum || ''}"\n`;
+
+    return {
+      statementId: statement.id,
+      filename: `statement-${statement.weekStart}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      content: header + rows + summary,
+    };
+  }
+
+  /**
+   * Xuất toàn bộ dữ liệu đơn hàng CSV/JSON (R2-103)
+   */
+  async exportOrders(storeId: string, query: ExportDataQueryDto) {
+    const where: any = { storeId };
+    if (query.fromDate && query.toDate) {
+      where.createdAt = Between(new Date(query.fromDate), new Date(query.toDate));
+    }
+    const orders = await this.orderRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+    });
+
+    const header = '\uFEFFMã đơn,Khách hàng,Tổng tiền (VNĐ),Trạng thái,Thời gian tạo,Hạn lấy\n';
+    const rows = orders
+      .map(
+        (o) =>
+          `"${o.code}","${o.customerId}",${o.totalAmount},"${o.status}","${o.createdAt.toISOString()}","${o.pickupSlot ? o.pickupSlot.toISOString() : ''}"`,
+      )
+      .join('\n');
+
+    return {
+      storeId,
+      totalOrders: orders.length,
+      filename: `store-orders-${Date.now()}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      content: header + rows,
+      data: orders,
+    };
+  }
+
+  /**
+   * Xuất dữ liệu đối soát kế toán (R2-104..105)
+   */
+  async exportAccounting(storeId: string, query: ExportDataQueryDto) {
+    const where: any = { storeId };
+    if (query.fromDate && query.toDate) {
+      where.weekStart = Between(query.fromDate, query.toDate);
+    }
+    const statements = await this.statementRepo.find({
+      where,
+      order: { weekStart: 'DESC' },
+    });
+
+    const header =
+      '\uFEFFMã sao kê,Kỳ bắt đầu,Kỳ kết thúc,Doanh thu,Hoa hồng,Khấu trừ hoàn,Thực trả,Trạng thái,Checksum\n';
+    const rows = statements
+      .map(
+        (s) =>
+          `"${s.id}","${s.weekStart}","${s.weekEnd}",${s.gross},${s.commission},${s.refunds},${s.netPayable},"${s.status}","${s.checksum || ''}"`,
+      )
+      .join('\n');
+
+    return {
+      storeId,
+      totalStatements: statements.length,
+      filename: `store-accounting-${Date.now()}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      content: header + rows,
+      statements,
+    };
+  }
+
+  /**
+   * Xem trạng thái bộ điều khiển demo / VirtualClock (R2-065)
+   */
+  async getVirtualClock(storeId: string) {
+    const store = await this.storeRepo.findOne({ where: { id: storeId } });
+    if (!store) {
+      throw new NotFoundException('Cửa hàng không tồn tại.');
+    }
+    return {
+      storeId,
+      isDemo: store.isDemo,
+      virtualDayDurationSeconds: 120, // 1 ngày = 2 phút (R2-065)
+      speedMultiplier: 720,
+      simulatedTime: new Date().toISOString(),
+      label: store.isDemo ? 'DEMO_RUNNING' : 'REALTIME_NORMAL',
+    };
+  }
+
+  /**
+   * Bật/tắt chế độ demo VirtualClock (R2-065)
+   */
+  async toggleVirtualClock(storeId: string, dto: VirtualClockDto) {
+    const store = await this.storeRepo.findOne({ where: { id: storeId } });
+    if (!store) {
+      throw new NotFoundException('Cửa hàng không tồn tại.');
+    }
+    store.isDemo = Boolean(dto.enabled);
+    await this.storeRepo.save(store);
+    return {
+      storeId,
+      isDemo: store.isDemo,
+      message: store.isDemo
+        ? 'Đã kích hoạt chế độ demo tua nhanh (1 ngày = 120s) trên dữ liệu mẫu.'
+        : 'Đã tắt chế độ demo, quay lại vận hành dữ liệu thực tế.',
+    };
+  }
+
+  /**
+   * Lấy danh sách khách hàng của quán kèm lịch sử mua (R2-082, R2-083)
+   */
+  async getStoreCustomers(storeId: string) {
+    const orders = await this.orderRepo.find({
+      where: { storeId },
+      order: { createdAt: 'DESC' },
+    });
+
+    const customerMap = new Map<
+      string,
+      {
+        customerId: string;
+        totalOrders: number;
+        completedOrders: number;
+        totalSpend: number;
+        lastOrderDate: Date;
+      }
+    >();
+
+    for (const o of orders) {
+      const existing = customerMap.get(o.customerId) || {
+        customerId: o.customerId,
+        totalOrders: 0,
+        completedOrders: 0,
+        totalSpend: 0,
+        lastOrderDate: o.createdAt,
+      };
+
+      existing.totalOrders += 1;
+      if (o.status === OrderStatus.PICKED_UP) {
+        existing.completedOrders += 1;
+        existing.totalSpend += o.totalAmount;
+      }
+      if (o.createdAt > existing.lastOrderDate) {
+        existing.lastOrderDate = o.createdAt;
+      }
+      customerMap.set(o.customerId, existing);
+    }
+
+    const customerIds = Array.from(customerMap.keys());
+    const notes =
+      customerIds.length > 0
+        ? await this.customerNoteRepo.find({ where: { storeId, customerId: In(customerIds) } })
+        : [];
+    const noteMap = new Map(notes.map((n) => [n.customerId, n.note]));
+
+    const profiles =
+      customerIds.length > 0
+        ? await this.customerProfileRepo.find({ where: { userId: In(customerIds) } })
+        : [];
+    const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+    return Array.from(customerMap.values()).map((c) => {
+      const p = profileMap.get(c.customerId);
+      const name = p?.fullName || 'Khách hàng';
+      const maskedName =
+        name.length > 2 ? `${name.substring(0, 1)}***${name.substring(name.length - 1)}` : 'K***';
+      return {
+        customerId: c.customerId,
+        customerName: maskedName,
+        totalOrders: c.totalOrders,
+        completedOrders: c.completedOrders,
+        totalSpend: c.totalSpend,
+        lastOrderDate: c.lastOrderDate,
+        internalNote: noteMap.get(c.customerId) || null,
+      };
+    });
+  }
+
+  /**
+   * Lấy ghi chú nội bộ của một khách hàng (R2-085)
+   */
+  async getCustomerNotes(storeId: string, customerId: string) {
+    const note = await this.customerNoteRepo.findOne({
+      where: { storeId, customerId },
+    });
+    return {
+      storeId,
+      customerId,
+      note: note ? note.note : null,
+      updatedAt: note ? note.updatedAt : null,
+    };
+  }
+
+  /**
+   * Thêm hoặc cập nhật ghi chú nội bộ về khách hàng (tối đa 200 ký tự) (R2-085)
+   */
+  async saveCustomerNote(storeId: string, customerId: string, dto: CustomerNoteDto) {
+    let noteEntity = await this.customerNoteRepo.findOne({
+      where: { storeId, customerId },
+    });
+
+    if (!noteEntity) {
+      noteEntity = this.customerNoteRepo.create({
+        storeId,
+        customerId,
+        note: dto.note,
+      });
+    } else {
+      noteEntity.note = dto.note;
+    }
+
+    const saved = await this.customerNoteRepo.save(noteEntity);
+    return {
+      storeId: saved.storeId,
+      customerId: saved.customerId,
+      note: saved.note,
+      updatedAt: saved.updatedAt,
     };
   }
 }

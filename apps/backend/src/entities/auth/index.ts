@@ -11,3 +11,4 @@ export * from './deal-alert.entity';
 export * from './saved-deal.entity';
 export * from './view-history.entity';
 export * from './fcm-token.entity';
+export * from './favorite-store.entity';

@@ -93,3 +93,103 @@ export class QueryForecastDto {
   @IsDateString()
   targetDate?: string;
 }
+
+export class CreateSpecialEventDto {
+  @ApiProperty({
+    description: 'Ngày diễn ra sự kiện (YYYY-MM-DD) (R2-040)',
+    example: '2026-10-20',
+  })
+  @IsNotEmpty()
+  @IsDateString()
+  date: string;
+
+  @ApiProperty({
+    description: 'Loại sự kiện (ví dụ: LỄ HỘI, NGÀY MƯA, KHUYẾN MÃI) (R2-040)',
+    example: 'LỄ HỘI',
+  })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(100)
+  type: string;
+
+  @ApiProperty({
+    description: 'Hệ số tác động dự báo (ví dụ 1.25 = tăng 25%, 0.8 = giảm 20%)',
+    example: 1.25,
+  })
+  @IsNotEmpty()
+  impactFactor: number;
+}
+
+export class SimulatePolicyDto {
+  @ApiProperty({
+    description: 'Khoảng thời gian mô phỏng dữ liệu quá khứ (14 đến 90 ngày) (R2-099, R2-104..105)',
+    example: 30,
+    minimum: 14,
+    maximum: 90,
+  })
+  @IsNotEmpty()
+  @IsInt()
+  @Min(14)
+  days: number;
+
+  @ApiPropertyOptional({
+    description: 'Tỷ lệ giảm giá giả định (0.2 đến 0.7)',
+    example: 0.5,
+  })
+  @IsOptional()
+  discountRatio?: number;
+
+  @ApiPropertyOptional({
+    description: 'Bật định giá động tự động trong mô phỏng',
+    example: true,
+  })
+  @IsOptional()
+  dynamicPricing?: boolean;
+}
+
+export class CreateDonationRecordDto {
+  @ApiProperty({
+    description: 'ID của suất/món ăn surplus cần quyên góp (R2-121)',
+    example: '00000000-0000-0000-0000-000000000001',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  offerId: string;
+
+  @ApiProperty({
+    description: 'Số lượng phần quà/suất ăn quyên góp',
+    example: 10,
+    minimum: 1,
+  })
+  @IsNotEmpty()
+  @IsInt()
+  @Min(1)
+  quantity: number;
+
+  @ApiProperty({
+    description: 'Tên tổ chức/bếp ăn từ thiện tiếp nhận',
+    example: 'Mái ấm Ánh Sáng / Bếp cơm Nụ Cười',
+  })
+  @IsNotEmpty()
+  @IsString()
+  recipientName: string;
+
+  @ApiPropertyOptional({
+    description: 'Ghi chú bàn giao hoặc thông tin liên hệ',
+    example: 'Bàn giao lúc 21:30 cho đại diện mái ấm',
+  })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class QueryAnomalyDto {
+  @ApiPropertyOptional({
+    description: 'Độ nhạy phát hiện bất thường (LOW, MEDIUM, HIGH) (R2-112)',
+    example: 'MEDIUM',
+    enum: ['LOW', 'MEDIUM', 'HIGH'],
+  })
+  @IsOptional()
+  @IsString()
+  sensitivity?: 'LOW' | 'MEDIUM' | 'HIGH';
+}

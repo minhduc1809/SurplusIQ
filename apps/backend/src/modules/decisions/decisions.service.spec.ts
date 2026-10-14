@@ -12,8 +12,12 @@ import {
 } from '../../entities/reconciliation/price-proposal.entity';
 import { DecisionEntity } from './decision.entity';
 import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { SpecialEventEntity } from '../../entities/reconciliation/special-event.entity';
+import { ActionCardEntity, ActionCardStatus } from '../../entities/ai/action-card.entity';
+import { DonationRecordEntity } from '../../entities/ai/donation-record.entity';
+import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 
-describe('DecisionsService Unit Tests (R2-036..R2-048)', () => {
+describe('DecisionsService Unit Tests (R2-036..R2-048, R2-040, R2-099, R2-112..115, R2-121)', () => {
   let service: DecisionsService;
   let itemRepo: any;
   let offerRepo: any;
@@ -22,6 +26,10 @@ describe('DecisionsService Unit Tests (R2-036..R2-048)', () => {
   let proposalRepo: any;
   let decisionRepo: any;
   let settingsRepo: any;
+  let specialEventRepo: any;
+  let actionCardRepo: any;
+  let donationRecordRepo: any;
+  let orderRepo: any;
 
   beforeEach(async () => {
     itemRepo = {
@@ -57,6 +65,27 @@ describe('DecisionsService Unit Tests (R2-036..R2-048)', () => {
     settingsRepo = {
       findOne: jest.fn().mockResolvedValue({ floorRatio: 0.4 }),
     };
+    specialEventRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => ({ id: 'ev-1', ...d })),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'ev-1', ...d })),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    actionCardRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => ({ id: 'ac-1', ...d })),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'ac-1', ...d })),
+    };
+    donationRecordRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockImplementation((d) => ({ id: 'don-1', ...d })),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'don-1', ...d })),
+    };
+    orderRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -68,6 +97,10 @@ describe('DecisionsService Unit Tests (R2-036..R2-048)', () => {
         { provide: getRepositoryToken(PriceProposalEntity), useValue: proposalRepo },
         { provide: getRepositoryToken(DecisionEntity), useValue: decisionRepo },
         { provide: getRepositoryToken(StoreSettingsEntity), useValue: settingsRepo },
+        { provide: getRepositoryToken(SpecialEventEntity), useValue: specialEventRepo },
+        { provide: getRepositoryToken(ActionCardEntity), useValue: actionCardRepo },
+        { provide: getRepositoryToken(DonationRecordEntity), useValue: donationRecordRepo },
+        { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
       ],
     }).compile();
 
@@ -231,6 +264,68 @@ describe('DecisionsService Unit Tests (R2-036..R2-048)', () => {
       const res = await service.rejectPriceProposal('store-1', 'prop-1', 'user-1');
       expect(res.success).toBe(true);
       expect(proposalRepo.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('special events & anomalies & action cards (R2-040, R2-112..115)', () => {
+    it('quản lý sự kiện đặc biệt thành công (R2-040)', async () => {
+      specialEventRepo.find.mockResolvedValue([{ id: 'ev-1', type: 'LỄ HỘI', impactFactor: 1.3 }]);
+      const list = await service.getSpecialEvents('store-1');
+      expect(list.length).toBe(1);
+
+      const created = await service.createSpecialEvent('store-1', {
+        date: '2026-10-20',
+        type: 'LỄ HỘI',
+        impactFactor: 1.3,
+      });
+      expect(created.id).toBe('ev-1');
+
+      specialEventRepo.findOne.mockResolvedValue({ id: 'ev-1', storeId: 'store-1' });
+      const del = await service.deleteSpecialEvent('store-1', 'ev-1');
+      expect(del.success).toBe(true);
+    });
+
+    it('phát hiện bất thường và thẻ hành động AI (R2-112..115)', async () => {
+      dailyActualRepo.find.mockResolvedValue([
+        { date: '2026-10-14', produced: 50, soldOffline: 10, soldApp: 5 },
+      ]);
+      orderRepo.find.mockResolvedValue([
+        { createdAt: new Date('2026-10-14T10:00:00Z'), totalAmount: 150000 },
+      ]);
+
+      const anomalies = await service.detectAnomalies('store-1');
+      expect(anomalies).toBeDefined();
+
+      const cards = await service.getActionCards('store-1');
+      expect(cards.length).toBeGreaterThan(0);
+
+      actionCardRepo.findOne.mockResolvedValue({
+        id: 'ac-1',
+        storeId: 'store-1',
+        status: ActionCardStatus.PENDING,
+      });
+      const applied = await service.applyActionCard('store-1', 'ac-1');
+      expect(applied.status).toBe(ActionCardStatus.ACCEPTED);
+    });
+
+    it('mô phỏng chính sách và ghi nhận quyên góp (R2-099, R2-121)', async () => {
+      orderRepo.find.mockResolvedValue([{ createdAt: new Date(), totalAmount: 200000 }]);
+      const sim = await service.simulatePolicy('store-1', {
+        days: 30,
+        discountRatio: 0.5,
+        dynamicPricing: true,
+      });
+      expect(sim.simulated.revenue).toBeGreaterThan(0);
+
+      const donSuggest = await service.getDonationSuggestions('store-1');
+      expect(donSuggest.verifiedCharities.length).toBeGreaterThan(0);
+
+      const donRec = await service.createDonationRecord('store-1', {
+        offerId: '00000000-0000-0000-0000-000000000001',
+        quantity: 5,
+        recipientName: 'Mái ấm Ánh Sáng',
+      });
+      expect(donRec.success).toBe(true);
     });
   });
 });

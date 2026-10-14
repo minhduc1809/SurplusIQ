@@ -9,6 +9,12 @@ import { DietaryProfileEntity } from '../../entities/auth/dietary-profile.entity
 import { NoshowRecordEntity } from '../../entities/orders/noshow-record.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
 import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
+import { ConsentEntity } from '../../entities/auth/consent.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
+import { OrderEntity } from '../../entities/orders/order.entity';
+import { PromotionWalletEntity } from '../../entities/marketing/promotion-wallet.entity';
+import { PromotionEntity } from '../../entities/marketing/promotion.entity';
 
 @Module({
   imports: [
@@ -20,6 +26,12 @@ import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
       NoshowRecordEntity,
       OrderLockEntity,
       FcmTokenEntity,
+      ConsentEntity,
+      FavoriteStoreEntity,
+      PaymentTransactionEntity,
+      OrderEntity,
+      PromotionWalletEntity,
+      PromotionEntity,
     ]),
   ],
   controllers: [CustomerProfileController],
