@@ -154,4 +154,24 @@ export class AuthController {
   async toggle2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
     return this.authService.toggle2fa(userId || '00000000-0000-0000-0000-000000000001', dto);
   }
+
+  @Post('me/2fa/enable')
+  @ApiOperation({ summary: 'Kích hoạt xác thực 2 bước (2FA) (R1-013)' })
+  @ApiHeader({ name: 'x-user-id' })
+  async enable2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
+    return this.authService.toggle2fa(userId || '00000000-0000-0000-0000-000000000001', {
+      ...dto,
+      enabled: true,
+    });
+  }
+
+  @Post('me/2fa/disable')
+  @ApiOperation({ summary: 'Hủy kích hoạt xác thực 2 bước (2FA) (R1-013)' })
+  @ApiHeader({ name: 'x-user-id' })
+  async disable2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
+    return this.authService.toggle2fa(userId || '00000000-0000-0000-0000-000000000001', {
+      ...dto,
+      enabled: false,
+    });
+  }
 }
