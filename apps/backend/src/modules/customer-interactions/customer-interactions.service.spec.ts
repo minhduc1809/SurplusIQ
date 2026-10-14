@@ -13,6 +13,7 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
 
 describe('CustomerInteractionsService', () => {
   let service: CustomerInteractionsService;
@@ -50,6 +51,8 @@ describe('CustomerInteractionsService', () => {
     };
     orderRepo = {
       findOne: jest.fn(),
+      find: jest.fn(),
+      save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
       createQueryBuilder: jest.fn().mockReturnValue({
         innerJoin: jest.fn().mockReturnThis(),
         leftJoin: jest.fn().mockReturnThis(),
@@ -89,6 +92,10 @@ describe('CustomerInteractionsService', () => {
     storeRepo = {
       findOne: jest.fn(),
     };
+    const paymentTxnRepo = {
+      create: jest.fn().mockImplementation((d) => ({ id: 'pt-1', ...d })),
+      save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'pt-1', ...d })),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -103,6 +110,7 @@ describe('CustomerInteractionsService', () => {
         { provide: getRepositoryToken(OfferEntity), useValue: offerRepo },
         { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
         { provide: getRepositoryToken(StoreEntity), useValue: storeRepo },
+        { provide: getRepositoryToken(PaymentTransactionEntity), useValue: paymentTxnRepo },
       ],
     }).compile();
 
@@ -311,6 +319,165 @@ describe('CustomerInteractionsService', () => {
       });
 
       expect(res.id).toBe('msg-1');
+    });
+  });
+
+  describe('Store Complaints & Reviews Management (R2-054..R2-060)', () => {
+    describe('getStoreComplaints', () => {
+      it('lấy danh sách khiếu nại của cửa hàng thành công', async () => {
+        complaintRepo.find.mockResolvedValue([
+          { id: 'comp-1', storeId: 'store-1', orderId: 'ord-1' },
+        ]);
+        orderRepo.find.mockResolvedValue([
+          { id: 'ord-1', totalAmount: 50000, status: OrderStatus.PICKED_UP },
+        ]);
+
+        const result = await service.getStoreComplaints('store-1');
+        expect(result).toHaveLength(1);
+        expect(result[0].order?.id).toBe('ord-1');
+      });
+    });
+
+    describe('getStoreComplaintDetail', () => {
+      it('xem chi tiết khiếu nại kèm attachments và order', async () => {
+        complaintRepo.findOne.mockResolvedValue({
+          id: 'comp-1',
+          storeId: 'store-1',
+          orderId: 'ord-1',
+        });
+        attachmentRepo.find.mockResolvedValue([{ id: 'att-1', photoUrl: 'https://img.com/1.jpg' }]);
+        orderRepo.findOne.mockResolvedValue({ id: 'ord-1' });
+
+        const detail = await service.getStoreComplaintDetail('store-1', 'comp-1');
+        expect(detail.complaint.id).toBe('comp-1');
+        expect(detail.attachments).toHaveLength(1);
+        expect(detail.order.id).toBe('ord-1');
+      });
+
+      it('ném lỗi NotFoundException nếu khiếu nại không thuộc quán', async () => {
+        complaintRepo.findOne.mockResolvedValue(null);
+        await expect(service.getStoreComplaintDetail('store-1', 'comp-99')).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+    });
+
+    describe('resolveComplaint', () => {
+      it('giải quyết khiếu nại và hoàn tiền thành công', async () => {
+        complaintRepo.findOne.mockResolvedValue({
+          id: 'comp-1',
+          storeId: 'store-1',
+          orderId: 'ord-1',
+          status: ComplaintStatus.PENDING_STORE,
+        });
+        orderRepo.findOne.mockResolvedValue({
+          id: 'ord-1',
+          totalAmount: 50000,
+          status: OrderStatus.PICKED_UP,
+        });
+
+        const res = await service.resolveComplaint('store-1', 'comp-1', {
+          refundAmount: 50000,
+          note: 'Hoàn 100% tiền đơn bánh',
+        });
+
+        expect(res.success).toBe(true);
+        expect(complaintRepo.save).toHaveBeenCalled();
+      });
+
+      it('ném lỗi nếu số tiền hoàn vượt quá giá trị đơn hàng', async () => {
+        complaintRepo.findOne.mockResolvedValue({
+          id: 'comp-1',
+          storeId: 'store-1',
+          orderId: 'ord-1',
+          status: ComplaintStatus.PENDING_STORE,
+        });
+        orderRepo.findOne.mockResolvedValue({
+          id: 'ord-1',
+          totalAmount: 30000,
+        });
+
+        await expect(
+          service.resolveComplaint('store-1', 'comp-1', { refundAmount: 50000 }),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
+
+    describe('rejectComplaint', () => {
+      it('từ chối khiếu nại thành công kèm lý do', async () => {
+        complaintRepo.findOne.mockResolvedValue({
+          id: 'comp-1',
+          storeId: 'store-1',
+          status: ComplaintStatus.PENDING_STORE,
+        });
+
+        const res = await service.rejectComplaint('store-1', 'comp-1', {
+          reason: 'Bánh đúng chất lượng tiêu chuẩn tại quầy',
+        });
+
+        expect(res.success).toBe(true);
+        expect(res.complaint.status).toBe(ComplaintStatus.REJECTED);
+      });
+    });
+
+    describe('extendComplaint', () => {
+      it('gia hạn thêm 24 giờ thành công lần đầu', async () => {
+        const now = new Date();
+        complaintRepo.findOne.mockResolvedValue({
+          id: 'comp-1',
+          storeId: 'store-1',
+          status: ComplaintStatus.PENDING_STORE,
+          extended: false,
+          responseDueAt: now,
+        });
+
+        const res = await service.extendComplaint('store-1', 'comp-1');
+        expect(res.success).toBe(true);
+        expect(res.complaint.extended).toBe(true);
+      });
+
+      it('ném lỗi nếu khiếu nại đã từng được gia hạn trước đó', async () => {
+        complaintRepo.findOne.mockResolvedValue({
+          id: 'comp-1',
+          storeId: 'store-1',
+          status: ComplaintStatus.PENDING_STORE,
+          extended: true,
+          responseDueAt: new Date(),
+        });
+
+        await expect(service.extendComplaint('store-1', 'comp-1')).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+    });
+
+    describe('replyReview', () => {
+      it('phản hồi đánh giá thành công lần đầu', async () => {
+        reviewRepo.findOne.mockResolvedValue({
+          id: 'rev-1',
+          storeId: 'store-1',
+          storeReply: null,
+        });
+
+        const res = await service.replyReview('store-1', 'rev-1', {
+          reply: 'Cảm ơn quý khách đã ủng hộ tiệm bánh!',
+        });
+
+        expect(res.success).toBe(true);
+        expect(res.review.storeReply).toBe('Cảm ơn quý khách đã ủng hộ tiệm bánh!');
+      });
+
+      it('ném lỗi nếu đánh giá đã từng được phản hồi trước đó', async () => {
+        reviewRepo.findOne.mockResolvedValue({
+          id: 'rev-1',
+          storeId: 'store-1',
+          storeReply: 'Phản hồi cũ',
+        });
+
+        await expect(
+          service.replyReview('store-1', 'rev-1', { reply: 'Phản hồi mới' }),
+        ).rejects.toThrow(BadRequestException);
+      });
     });
   });
 });

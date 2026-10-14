@@ -25,7 +25,16 @@ import {
   CreateViolationReportDto,
   CreateSupportTicketDto,
   SendSupportMessageDto,
+  ResolveComplaintDto,
+  RejectComplaintDto,
+  ReplyReviewDto,
 } from './dto/interaction-extras.dto';
+import {
+  PaymentTransactionEntity,
+  PaymentKind,
+  PaymentMethod,
+  PaymentStatus,
+} from '../../entities/orders/payment-transaction.entity';
 
 @Injectable()
 export class CustomerInteractionsService {
@@ -52,6 +61,8 @@ export class CustomerInteractionsService {
     private readonly ticketRepo: Repository<SupportTicketEntity>,
     @InjectRepository(SupportMessageEntity)
     private readonly messageRepo: Repository<SupportMessageEntity>,
+    @InjectRepository(PaymentTransactionEntity)
+    private readonly paymentTxnRepo: Repository<PaymentTransactionEntity>,
   ) {}
 
   /**
@@ -544,5 +555,242 @@ export class CustomerInteractionsService {
     ticket.status = TicketStatus.CLOSED;
     await this.ticketRepo.save(ticket);
     return { success: true, message: 'Đã đóng yêu cầu hỗ trợ thành công.' };
+  }
+
+  // ==========================================
+  // STORE COMPLAINTS & REVIEWS (R2-054..R2-060)
+  // ==========================================
+
+  /**
+   * Lấy danh sách khiếu nại của quán (R2-054)
+   */
+  async getStoreComplaints(storeId: string, status?: ComplaintStatus) {
+    const where: any = { storeId };
+    if (status) {
+      where.status = status;
+    }
+    const complaints = await this.complaintRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+    });
+
+    const orderIds = complaints.map((c) => c.orderId);
+    let orders: OrderEntity[] = [];
+    if (orderIds.length > 0) {
+      orders = await this.orderRepo.find({
+        where: orderIds.map((id) => ({ id })),
+      });
+    }
+    const orderMap = new Map(orders.map((o) => [o.id, o]));
+
+    return complaints.map((c) => ({
+      ...c,
+      order: orderMap.get(c.orderId) || null,
+    }));
+  }
+
+  /**
+   * Xem chi tiết khiếu nại phía cửa hàng kèm ảnh bằng chứng và đơn hàng (R2-054)
+   */
+  async getStoreComplaintDetail(storeId: string, complaintId: string) {
+    const complaint = await this.complaintRepo.findOne({
+      where: { id: complaintId, storeId },
+    });
+    if (!complaint) {
+      throw new NotFoundException(
+        'Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu của quán.',
+      );
+    }
+    const attachments = await this.attachmentRepo.find({
+      where: { complaintId },
+      order: { createdAt: 'ASC' },
+    });
+    const order = await this.orderRepo.findOne({
+      where: { id: complaint.orderId },
+    });
+    return {
+      complaint,
+      attachments,
+      order,
+    };
+  }
+
+  /**
+   * Cửa hàng chấp nhận khiếu nại và hoàn tiền cho khách (R2-055, BR-054)
+   */
+  async resolveComplaint(storeId: string, complaintId: string, dto: ResolveComplaintDto) {
+    const complaint = await this.complaintRepo.findOne({
+      where: { id: complaintId, storeId },
+    });
+    if (!complaint) {
+      throw new NotFoundException(
+        'Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu của quán.',
+      );
+    }
+    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
+      throw new BadRequestException(
+        'Chỉ có thể giải quyết khiếu nại đang ở trạng thái chờ xử lý (PENDING_STORE).',
+      );
+    }
+    const order = await this.orderRepo.findOne({
+      where: { id: complaint.orderId },
+    });
+    if (!order) {
+      throw new NotFoundException('Đơn hàng liên quan không tồn tại.');
+    }
+
+    const orderAmount = order.totalAmount || 0;
+    const refundAmount = dto.refundAmount !== undefined ? dto.refundAmount : orderAmount;
+    if (refundAmount > orderAmount) {
+      throw new BadRequestException(
+        `Số tiền hoàn không được vượt quá số tiền khách đã thanh toán (${orderAmount} VND).`,
+      );
+    }
+
+    complaint.status = ComplaintStatus.ACCEPTED;
+    complaint.refundAmount = refundAmount;
+    await this.complaintRepo.save(complaint);
+
+    if (refundAmount > 0) {
+      const refundTxn = this.paymentTxnRepo.create({
+        orderId: order.id,
+        storeId,
+        kind: PaymentKind.ORDER_REFUND,
+        amount: refundAmount,
+        method: PaymentMethod.SIMULATED,
+        status: PaymentStatus.SUCCEEDED,
+        gatewayTxnId: `REFUND_${complaint.id}_${Date.now()}`,
+      });
+      await this.paymentTxnRepo.save(refundTxn);
+    }
+
+    if (refundAmount >= orderAmount && order.status === OrderStatus.PICKED_UP) {
+      order.status = OrderStatus.REFUNDED;
+      await this.orderRepo.save(order);
+    }
+
+    return {
+      success: true,
+      message: 'Giải quyết khiếu nại thành công.',
+      complaint,
+    };
+  }
+
+  /**
+   * Cửa hàng từ chối khiếu nại với lý do bắt buộc (R2-056, BR-056)
+   */
+  async rejectComplaint(storeId: string, complaintId: string, dto: RejectComplaintDto) {
+    const complaint = await this.complaintRepo.findOne({
+      where: { id: complaintId, storeId },
+    });
+    if (!complaint) {
+      throw new NotFoundException(
+        'Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu của quán.',
+      );
+    }
+    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
+      throw new BadRequestException(
+        'Chỉ có thể từ chối khiếu nại đang ở trạng thái chờ xử lý (PENDING_STORE).',
+      );
+    }
+    complaint.status = ComplaintStatus.REJECTED;
+    complaint.rejectReason = dto.reason;
+    await this.complaintRepo.save(complaint);
+
+    return {
+      success: true,
+      message: 'Đã từ chối khiếu nại.',
+      complaint,
+    };
+  }
+
+  /**
+   * Cửa hàng gia hạn thời gian xử lý khiếu nại thêm 24 giờ (R2-055, BR-055)
+   */
+  async extendComplaint(storeId: string, complaintId: string) {
+    const complaint = await this.complaintRepo.findOne({
+      where: { id: complaintId, storeId },
+    });
+    if (!complaint) {
+      throw new NotFoundException(
+        'Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu của quán.',
+      );
+    }
+    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
+      throw new BadRequestException(
+        'Chỉ có thể gia hạn khiếu nại đang ở trạng thái chờ xử lý (PENDING_STORE).',
+      );
+    }
+    if (complaint.extended) {
+      throw new BadRequestException(
+        'Khiếu nại này đã được gia hạn trước đó. Cửa hàng chỉ được gia hạn tối đa 1 lần (+24 giờ) (BR-055).',
+      );
+    }
+    complaint.extended = true;
+    complaint.responseDueAt = new Date(
+      new Date(complaint.responseDueAt).getTime() + 24 * 60 * 60 * 1000,
+    );
+    await this.complaintRepo.save(complaint);
+
+    return {
+      success: true,
+      message: 'Đã gia hạn thời gian phản hồi thêm 24 giờ thành công (BR-055).',
+      complaint,
+    };
+  }
+
+  /**
+   * Lấy danh sách đánh giá của quán có bộ lọc (R2-057, R2-058)
+   */
+  async getStoreReviews(
+    storeId: string,
+    query?: { rating?: number; status?: ReviewStatus; hasReply?: boolean },
+  ) {
+    const qb = this.reviewRepo
+      .createQueryBuilder('review')
+      .where('review.store_id = :storeId', { storeId });
+
+    if (query?.rating) {
+      qb.andWhere('review.rating = :rating', { rating: query.rating });
+    }
+    if (query?.status) {
+      qb.andWhere('review.status = :status', { status: query.status });
+    }
+    if (query?.hasReply !== undefined) {
+      if (query.hasReply) {
+        qb.andWhere('review.store_reply IS NOT NULL');
+      } else {
+        qb.andWhere('review.store_reply IS NULL');
+      }
+    }
+
+    qb.orderBy('review.created_at', 'DESC');
+    return qb.getMany();
+  }
+
+  /**
+   * Phản hồi đánh giá của khách hàng (R2-057, BR-057)
+   */
+  async replyReview(storeId: string, reviewId: string, dto: ReplyReviewDto) {
+    const review = await this.reviewRepo.findOne({
+      where: { id: reviewId, storeId },
+    });
+    if (!review) {
+      throw new NotFoundException('Đánh giá không tồn tại hoặc không thuộc quyền sở hữu của quán.');
+    }
+    if (review.storeReply) {
+      throw new BadRequestException(
+        'Đánh giá này đã được phản hồi trước đó. Cửa hàng chỉ được phản hồi 1 lần duy nhất (BR-057).',
+      );
+    }
+    review.storeReply = dto.reply;
+    review.storeReplyAt = new Date();
+    await this.reviewRepo.save(review);
+
+    return {
+      success: true,
+      message: 'Đã phản hồi đánh giá thành công.',
+      review,
+    };
   }
 }

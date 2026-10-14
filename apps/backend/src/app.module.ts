@@ -17,6 +17,10 @@ import { PickupsModule } from './modules/pickups/pickups.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { CustomerProfileModule } from './modules/customer-profile/customer-profile.module';
 import { CustomerInteractionsModule } from './modules/customer-interactions/customer-interactions.module';
+import { StoresModule } from './modules/stores/stores.module';
+import { DecisionsModule } from './modules/decisions/decisions.module';
+import { MarketingModule } from './modules/marketing/marketing.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -37,6 +41,10 @@ import { CustomerInteractionsModule } from './modules/customer-interactions/cust
     DiscoveryModule,
     CustomerProfileModule,
     CustomerInteractionsModule,
+    StoresModule,
+    DecisionsModule,
+    MarketingModule,
+    AiModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
