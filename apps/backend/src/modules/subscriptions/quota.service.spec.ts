@@ -52,7 +52,25 @@ describe('QuotaService & SubscriptionsService Unit Tests (VC-01..VC-11, R2-016)'
       mockPromotionRepo,
     );
 
-    subscriptionsService = new SubscriptionsService(mockSubRepo, quotaService);
+    const mockInvoiceRepo = {
+      create: jest.fn().mockImplementation((dto) => ({ ...dto })),
+      save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+    };
+
+    const mockStoreSettingsRepo = {
+      findOne: jest.fn(),
+      save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
+    };
+
+    subscriptionsService = new SubscriptionsService(
+      mockSubRepo,
+      mockInvoiceRepo as any,
+      mockStoreSettingsRepo as any,
+      mockStoreMemberRepo,
+      quotaService,
+    );
   });
 
   // =========================================================================

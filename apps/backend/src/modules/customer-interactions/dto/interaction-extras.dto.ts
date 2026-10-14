@@ -116,3 +116,46 @@ export class SendSupportMessageDto {
   @IsString()
   message: string;
 }
+
+export class ResolveComplaintDto {
+  @ApiPropertyOptional({
+    description: 'Số tiền hoàn lại cho khách (VND). Nếu để trống sẽ hoàn 100% giá trị đơn hàng',
+    example: 35000,
+  })
+  @IsOptional()
+  @IsInt({ message: 'Số tiền hoàn phải là số nguyên.' })
+  @Min(0, { message: 'Số tiền hoàn không được âm.' })
+  refundAmount?: number;
+
+  @ApiPropertyOptional({
+    description: 'Ghi chú giải quyết khiếu nại của cửa hàng',
+    example: 'Quán xin lỗi khách và đồng ý hoàn 100% tiền đơn bánh.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  note?: string;
+}
+
+export class RejectComplaintDto {
+  @ApiProperty({
+    description: 'Lý do từ chối khiếu nại (bắt buộc theo BRD R2-056)',
+    example: 'Khách hàng nhận đơn đúng giờ và bánh được bảo quản đạt chuẩn tại quầy.',
+  })
+  @IsNotEmpty({ message: 'Lý do từ chối không được để trống.' })
+  @IsString()
+  @MaxLength(500)
+  reason: string;
+}
+
+export class ReplyReviewDto {
+  @ApiProperty({
+    description:
+      'Phản hồi công khai của cửa hàng về đánh giá của khách (tối đa 500 ký tự) (R2-057)',
+    example: 'Cảm ơn bạn đã ủng hộ tiệm bánh! Quán sẽ tiếp tục nâng cao chất lượng phục vụ.',
+  })
+  @IsNotEmpty({ message: 'Nội dung phản hồi không được để trống.' })
+  @IsString()
+  @MaxLength(500)
+  reply: string;
+}

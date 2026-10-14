@@ -158,9 +158,9 @@ describe('DiscoveryService', () => {
         floorPrice: 20000,
         remainingQuantity: 5,
         totalQuantity: 10,
-        pickupStart: new Date('2026-10-13T10:00:00Z'),
-        pickupEnd: new Date('2026-10-13T23:59:59Z'),
-        expiresAt: new Date('2026-10-14T02:00:00Z'),
+        pickupStart: new Date(Date.now() - 3600000),
+        pickupEnd: new Date(Date.now() + 7200000),
+        expiresAt: new Date(Date.now() + 7200000),
       });
       itemRepo.findOne.mockResolvedValue({
         id: 'item-1',

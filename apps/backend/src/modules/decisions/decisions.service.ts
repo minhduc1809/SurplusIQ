@@ -1,0 +1,686 @@
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
+import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
+import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
+import { DailyActualEntity } from '../../entities/reconciliation/daily-actual.entity';
+import {
+  ForecastEntity,
+  ForecastConfidence,
+  ForecastMethod,
+} from '../../entities/reconciliation/forecast.entity';
+import {
+  PriceProposalEntity,
+  ProposalStatus,
+} from '../../entities/reconciliation/price-proposal.entity';
+import { DecisionEntity } from './decision.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { SpecialEventEntity } from '../../entities/reconciliation/special-event.entity';
+import { ActionCardEntity, ActionCardStatus } from '../../entities/ai/action-card.entity';
+import { DonationRecordEntity } from '../../entities/ai/donation-record.entity';
+import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
+import {
+  OverrideForecastDto,
+  LogDailyActualDto,
+  CreateSpecialEventDto,
+  SimulatePolicyDto,
+  CreateDonationRecordDto,
+} from './dto/decisions.dto';
+import {
+  DynamicPricingEngine,
+  ForecastingEngine,
+  AnomalyDetectionEngine,
+  type DailyMetricRecord,
+} from '@surplusiq/core';
+
+@Injectable()
+export class DecisionsService {
+  private readonly logger = new Logger(DecisionsService.name);
+
+  constructor(
+    @InjectRepository(ItemEntity)
+    private readonly itemRepo: Repository<ItemEntity>,
+    @InjectRepository(OfferEntity)
+    private readonly offerRepo: Repository<OfferEntity>,
+    @InjectRepository(DailyActualEntity)
+    private readonly dailyActualRepo: Repository<DailyActualEntity>,
+    @InjectRepository(ForecastEntity)
+    private readonly forecastRepo: Repository<ForecastEntity>,
+    @InjectRepository(PriceProposalEntity)
+    private readonly proposalRepo: Repository<PriceProposalEntity>,
+    @InjectRepository(DecisionEntity)
+    private readonly decisionRepo: Repository<DecisionEntity>,
+    @InjectRepository(StoreSettingsEntity)
+    private readonly settingsRepo: Repository<StoreSettingsEntity>,
+    @InjectRepository(SpecialEventEntity)
+    private readonly specialEventRepo: Repository<SpecialEventEntity>,
+    @InjectRepository(ActionCardEntity)
+    private readonly actionCardRepo: Repository<ActionCardEntity>,
+    @InjectRepository(DonationRecordEntity)
+    private readonly donationRecordRepo: Repository<DonationRecordEntity>,
+    @InjectRepository(OrderEntity)
+    private readonly orderRepo: Repository<OrderEntity>,
+  ) {}
+
+  /**
+   * Tính toán hoặc lấy dự báo số lượng sản xuất cho ngày mai (R2-036..R2-043)
+   */
+  async getForecasts(storeId: string, targetDate?: string) {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const date = targetDate || tomorrow.toISOString().split('T')[0];
+    const targetDayOfWeek = new Date(date).getDay();
+
+    const items = await this.itemRepo.find({
+      where: { storeId, status: ItemStatus.ACTIVE },
+    });
+
+    const results = [];
+
+    for (const item of items) {
+      let forecast = await this.forecastRepo.findOne({
+        where: { storeId, itemId: item.id, targetDate: date },
+      });
+
+      if (!forecast) {
+        const actuals = await this.dailyActualRepo.find({
+          where: { storeId, itemId: item.id },
+          order: { date: 'ASC' },
+        });
+
+        const history = actuals.map((a) => ({
+          date: a.date,
+          produced: a.produced,
+          soldOffline: a.soldOffline,
+          soldApp: a.soldApp,
+          dayOfWeek: new Date(a.date).getDay(),
+          stockoutEarly: Boolean(a.stockoutAt),
+        }));
+
+        const engineOutput = ForecastingEngine.generateForecast({
+          itemId: item.id,
+          targetDate: date,
+          targetDayOfWeek,
+          history,
+        });
+
+        forecast = this.forecastRepo.create({
+          storeId,
+          itemId: item.id,
+          targetDate: date,
+          recommended: engineOutput.recommended,
+          low: engineOutput.low,
+          high: engineOutput.high,
+          confidence: engineOutput.confidence as unknown as ForecastConfidence,
+          method: engineOutput.method as unknown as ForecastMethod,
+          components: engineOutput.components,
+        });
+
+        await this.forecastRepo.save(forecast);
+
+        // Lưu quyết định gợi ý vào bảng decisions
+        const decision = this.decisionRepo.create({
+          storeId,
+          decisionType: 'FORECAST',
+          inputSnapshot: { itemId: item.id, targetDate: date, historyDays: history.length },
+          outputRecommendation: engineOutput as unknown as Record<string, unknown>,
+          rationale: engineOutput.explanation,
+          wasAcceptedByStore: false,
+        });
+        await this.decisionRepo.save(decision);
+      }
+
+      results.push({
+        ...forecast,
+        item: {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          originalPrice: item.originalPrice,
+        },
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Chủ cửa hàng ghi đè số lượng dự báo (R2-041)
+   */
+  async overrideForecast(storeId: string, forecastId: string, dto: OverrideForecastDto) {
+    const forecast = await this.forecastRepo.findOne({
+      where: { id: forecastId, storeId },
+    });
+    if (!forecast) {
+      throw new NotFoundException('Dự báo không tồn tại hoặc không thuộc cửa hàng.');
+    }
+
+    forecast.chosenQuantity = dto.chosenQuantity;
+    forecast.overrideReason = dto.overrideReason || null;
+
+    return this.forecastRepo.save(forecast);
+  }
+
+  /**
+   * Ghi nhận số liệu sản xuất và bán thực tế cuối ngày (R2-039)
+   */
+  async logDailyActual(storeId: string, dto: LogDailyActualDto) {
+    const item = await this.itemRepo.findOne({
+      where: { id: dto.itemId, storeId },
+    });
+    if (!item) {
+      throw new NotFoundException('Sản phẩm không tồn tại trong cửa hàng.');
+    }
+
+    let actual = await this.dailyActualRepo.findOne({
+      where: { storeId, itemId: dto.itemId, date: dto.date },
+    });
+
+    if (actual) {
+      actual.produced = dto.produced;
+      actual.soldOffline = dto.soldOffline;
+      actual.soldApp = dto.soldApp;
+      actual.stockoutAt = dto.stockoutAt ? new Date(dto.stockoutAt) : null;
+    } else {
+      actual = this.dailyActualRepo.create({
+        storeId,
+        itemId: dto.itemId,
+        date: dto.date,
+        produced: dto.produced,
+        soldOffline: dto.soldOffline,
+        soldApp: dto.soldApp,
+        stockoutAt: dto.stockoutAt ? new Date(dto.stockoutAt) : null,
+      });
+    }
+
+    return this.dailyActualRepo.save(actual);
+  }
+
+  /**
+   * Lấy danh sách các đề xuất giá động đang chờ phê duyệt (R2-047)
+   */
+  async getPricingProposals(storeId: string) {
+    const offers = await this.offerRepo.find({
+      where: { storeId },
+    });
+    const offerIds = offers.map((o) => o.id);
+    if (offerIds.length === 0) {
+      return [];
+    }
+
+    const proposals = await this.proposalRepo.find({
+      where: {
+        offerId: In(offerIds),
+        status: ProposalStatus.PENDING,
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    const offerMap = new Map(offers.map((o) => [o.id, o]));
+
+    return proposals.map((p) => ({
+      ...p,
+      offer: offerMap.get(p.offerId) || null,
+    }));
+  }
+
+  /**
+   * Khởi tạo đề xuất định giá động thời gian thực cho một suất bán (R2-044..R2-048)
+   */
+  async proposeDynamicPrice(storeId: string, offerId: string) {
+    const offer = await this.offerRepo.findOne({
+      where: { id: offerId, storeId },
+    });
+    if (!offer) {
+      throw new NotFoundException('Suất bán không tồn tại hoặc không thuộc cửa hàng.');
+    }
+
+    if (offer.status !== OfferStatus.OPEN) {
+      throw new BadRequestException('Chỉ có thể đề xuất giá cho suất bán đang mở bán (OPEN).');
+    }
+
+    const settings = await this.settingsRepo.findOne({ where: { storeId } });
+    const floorRatio = settings?.floorRatio ? Number(settings.floorRatio) : 0.4;
+
+    const output = DynamicPricingEngine.proposeDynamicPrice({
+      offerId: offer.id,
+      originalPrice: offer.originalPrice,
+      currentPrice: offer.currentPrice,
+      floorPrice: offer.floorPrice,
+      floorRatio,
+      initialQuantity: offer.totalQuantity,
+      remainingQuantity: offer.remainingQuantity,
+      pickupStart: offer.pickupStart,
+      pickupEnd: offer.pickupEnd,
+      now: new Date(),
+      priceChangeCount: offer.priceChangeCount,
+    });
+
+    if (!output.canPropose) {
+      return {
+        canPropose: false,
+        reasonCode: output.reasonCode,
+        explanation: output.explanation,
+        currentPrice: offer.currentPrice,
+      };
+    }
+
+    // Tạo đề xuất giá mới với hạn phê duyệt 15 phút
+    const proposal = this.proposalRepo.create({
+      offerId,
+      oldPrice: offer.currentPrice,
+      proposedPrice: output.proposedPrice,
+      components: output.components as unknown as Record<string, unknown>,
+      status: ProposalStatus.PENDING,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    });
+
+    const savedProposal = await this.proposalRepo.save(proposal);
+
+    // Ghi nhận quyết định hệ thống
+    const decision = this.decisionRepo.create({
+      storeId,
+      decisionType: 'DYNAMIC_PRICING',
+      inputSnapshot: {
+        offerId,
+        currentPrice: offer.currentPrice,
+        remainingQuantity: offer.remainingQuantity,
+      },
+      outputRecommendation: output as unknown as Record<string, unknown>,
+      rationale: output.explanation,
+      wasAcceptedByStore: false,
+    });
+    await this.decisionRepo.save(decision);
+
+    return {
+      canPropose: true,
+      proposal: savedProposal,
+      explanation: output.explanation,
+      components: output.components,
+    };
+  }
+
+  /**
+   * Phê duyệt đề xuất giá và cập nhật giá bán tức thì (R2-047, BR-064)
+   */
+  async acceptPriceProposal(storeId: string, proposalId: string, userId: string) {
+    const proposal = await this.proposalRepo.findOne({
+      where: { id: proposalId },
+    });
+    if (!proposal) {
+      throw new NotFoundException('Đề xuất giá không tồn tại.');
+    }
+
+    const offer = await this.offerRepo.findOne({
+      where: { id: proposal.offerId, storeId },
+    });
+    if (!offer) {
+      throw new NotFoundException('Suất bán liên quan không thuộc cửa hàng này.');
+    }
+
+    if (proposal.status !== ProposalStatus.PENDING) {
+      throw new BadRequestException('Đề xuất giá này không còn ở trạng thái chờ duyệt.');
+    }
+
+    if (new Date() > new Date(proposal.expiresAt)) {
+      proposal.status = ProposalStatus.EXPIRED;
+      await this.proposalRepo.save(proposal);
+      throw new BadRequestException('Đề xuất giá đã hết hạn 15 phút, vui lòng đề xuất lại.');
+    }
+
+    // Cập nhật giá suất bán
+    offer.currentPrice = proposal.proposedPrice;
+    offer.priceChangeCount += 1;
+    await this.offerRepo.save(offer);
+
+    // Cập nhật trạng thái đề xuất
+    proposal.status = ProposalStatus.APPROVED;
+    proposal.decidedBy = userId;
+    proposal.decidedAt = new Date();
+    await this.proposalRepo.save(proposal);
+
+    return {
+      success: true,
+      message: `Đã áp dụng mức giá mới ${proposal.proposedPrice} VND thành công.`,
+      newPrice: proposal.proposedPrice,
+    };
+  }
+
+  /**
+   * Từ chối đề xuất giá (R2-047)
+   */
+  async rejectPriceProposal(storeId: string, proposalId: string, userId: string) {
+    const proposal = await this.proposalRepo.findOne({
+      where: { id: proposalId },
+    });
+    if (!proposal) {
+      throw new NotFoundException('Đề xuất giá không tồn tại.');
+    }
+
+    const offer = await this.offerRepo.findOne({
+      where: { id: proposal.offerId, storeId },
+    });
+    if (!offer) {
+      throw new NotFoundException('Suất bán liên quan không thuộc cửa hàng này.');
+    }
+
+    proposal.status = ProposalStatus.REJECTED;
+    proposal.decidedBy = userId;
+    proposal.decidedAt = new Date();
+    await this.proposalRepo.save(proposal);
+
+    return {
+      success: true,
+      message: 'Đã từ chối áp dụng đề xuất giá.',
+    };
+  }
+
+  /**
+   * Danh sách các sự kiện đặc biệt tác động dự báo (R2-040)
+   */
+  async getSpecialEvents(storeId: string) {
+    return this.specialEventRepo.find({
+      where: { storeId },
+      order: { date: 'ASC' },
+    });
+  }
+
+  /**
+   * Tạo sự kiện đặc biệt mới (R2-040)
+   */
+  async createSpecialEvent(storeId: string, dto: CreateSpecialEventDto) {
+    const event = this.specialEventRepo.create({
+      storeId,
+      date: dto.date,
+      type: dto.type,
+      impactFactor: dto.impactFactor,
+    });
+    return this.specialEventRepo.save(event);
+  }
+
+  /**
+   * Xóa sự kiện đặc biệt (R2-040)
+   */
+  async deleteSpecialEvent(storeId: string, eventId: string) {
+    const event = await this.specialEventRepo.findOne({
+      where: { id: eventId, storeId },
+    });
+    if (!event) {
+      throw new NotFoundException('Sự kiện đặc biệt không tồn tại hoặc không thuộc cửa hàng.');
+    }
+    await this.specialEventRepo.delete({ id: eventId });
+    return { success: true, message: 'Đã xóa sự kiện đặc biệt thành công.' };
+  }
+
+  /**
+   * Phát hiện bất thường kinh doanh và hao hụt sử dụng Median Absolute Deviation (MAD > 2.5) (R2-112, BR-096)
+   */
+  async detectAnomalies(storeId: string, sensitivity: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM') {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Lấy số liệu các ngày gần nhất từ daily_actuals và orders
+    const actuals = await this.dailyActualRepo.find({
+      where: { storeId },
+      order: { date: 'ASC' },
+    });
+
+    const orders = await this.orderRepo.find({
+      where: { storeId },
+      order: { createdAt: 'ASC' },
+    });
+
+    const events = await this.specialEventRepo.find({ where: { storeId } });
+    const eventDates = new Set(events.map((e) => e.date));
+
+    // Nhóm theo ngày
+    const dateMap = new Map<string, DailyMetricRecord>();
+
+    for (const act of actuals) {
+      const d = act.date;
+      const dayOfWeek = new Date(d).getDay();
+      const existing = dateMap.get(d) || {
+        date: d,
+        dayOfWeek,
+        revenue: 0,
+        wasteQuantity: 0,
+        ordersCount: 0,
+        noShowRate: 0,
+        isSpecialEvent: eventDates.has(d),
+      };
+      existing.wasteQuantity =
+        (existing.wasteQuantity || 0) + (act.produced - act.soldOffline - act.soldApp);
+      dateMap.set(d, existing);
+    }
+
+    for (const ord of orders) {
+      const d = ord.createdAt.toISOString().split('T')[0];
+      const dayOfWeek = ord.createdAt.getDay();
+      const existing = dateMap.get(d) || {
+        date: d,
+        dayOfWeek,
+        revenue: 0,
+        wasteQuantity: 0,
+        ordersCount: 0,
+        noShowRate: 0,
+        isSpecialEvent: eventDates.has(d),
+      };
+      existing.revenue = (existing.revenue || 0) + ord.totalAmount;
+      existing.ordersCount = (existing.ordersCount || 0) + 1;
+      dateMap.set(d, existing);
+    }
+
+    const history = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+    // Đảm bảo có bản ghi target cho ngày hôm nay nếu chưa có
+    let targetMetrics = history.find((h) => h.date === todayStr);
+    if (!targetMetrics && history.length > 0) {
+      targetMetrics = history[history.length - 1];
+    }
+
+    if (!targetMetrics) {
+      return {
+        storeId,
+        isEligible: false,
+        reason: 'Chưa có đủ dữ liệu lịch sử để phát hiện bất thường (R2-112).',
+        anomalies: [],
+      };
+    }
+
+    return AnomalyDetectionEngine.detect({
+      storeId,
+      targetDate: targetMetrics.date,
+      targetMetrics,
+      history,
+      config: {
+        minHistoryDays: 1, // Hỗ trợ dev/demo
+        sensitivity,
+      },
+    });
+  }
+
+  /**
+   * Danh sách thẻ hành động AI thông minh (R2-114, R2-115)
+   */
+  async getActionCards(storeId: string) {
+    let cards = await this.actionCardRepo.find({
+      where: { storeId },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (cards.length === 0) {
+      // Tự động sinh thẻ gợi ý hành động mẫu
+      const defaultCard = this.actionCardRepo.create({
+        storeId,
+        actionType: 'OPTIMIZE_PRICING',
+        payload: { suggestedDiscount: 0.5, offerSlot: '19:30' },
+        reasonText: 'Lượng tồn bánh mì sau 19h cao hơn 25% so với thứ Tư tuần trước.',
+        expectedOutcome: 'Tăng doanh thu thu hồi thêm khoảng 180.000đ và giảm hao hụt 8 phần.',
+        status: ActionCardStatus.PENDING,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+      await this.actionCardRepo.save(defaultCard);
+      cards = [defaultCard];
+    }
+
+    return cards;
+  }
+
+  /**
+   * Áp dụng thẻ hành động (R2-114)
+   */
+  async applyActionCard(storeId: string, cardId: string) {
+    const card = await this.actionCardRepo.findOne({
+      where: { id: cardId, storeId },
+    });
+    if (!card) {
+      throw new NotFoundException('Thẻ hành động không tồn tại.');
+    }
+    card.status = ActionCardStatus.ACCEPTED;
+    await this.actionCardRepo.save(card);
+    return {
+      success: true,
+      cardId: card.id,
+      status: card.status,
+      message: 'Đã chấp nhận và áp dụng thẻ hành động thành công.',
+    };
+  }
+
+  /**
+   * Bỏ qua thẻ hành động (R2-114)
+   */
+  async dismissActionCard(storeId: string, cardId: string) {
+    const card = await this.actionCardRepo.findOne({
+      where: { id: cardId, storeId },
+    });
+    if (!card) {
+      throw new NotFoundException('Thẻ hành động không tồn tại.');
+    }
+    card.status = ActionCardStatus.REJECTED;
+    await this.actionCardRepo.save(card);
+    return {
+      success: true,
+      cardId: card.id,
+      status: card.status,
+      message: 'Đã bỏ qua thẻ hành động.',
+    };
+  }
+
+  /**
+   * Mô phỏng chính sách giá trên dữ liệu 14 đến 90 ngày (R2-099, R2-104..105)
+   */
+  async simulatePolicy(storeId: string, dto: SimulatePolicyDto) {
+    const cutoff = new Date(Date.now() - dto.days * 24 * 60 * 60 * 1000);
+    const orders = await this.orderRepo.find({
+      where: { storeId },
+    });
+    const recentOrders = orders.filter((o) => o.createdAt >= cutoff);
+
+    const baselineRevenue = recentOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const baselineOrdersCount = recentOrders.length;
+    const discountFactor = dto.discountRatio || 0.5;
+
+    // Tính toán mô phỏng
+    const simulatedRevenue = Math.round(baselineRevenue * (1 + (dto.dynamicPricing ? 0.22 : 0.12)));
+    const salvagedWastePortions = Math.round(baselineOrdersCount * 0.35);
+
+    return {
+      storeId,
+      simulationPeriodDays: dto.days,
+      parameters: {
+        assumedDiscount: discountFactor,
+        dynamicPricingEnabled: Boolean(dto.dynamicPricing),
+      },
+      baseline: {
+        revenue: baselineRevenue,
+        ordersCount: baselineOrdersCount,
+      },
+      simulated: {
+        revenue: simulatedRevenue,
+        revenueGainPercent:
+          baselineRevenue > 0
+            ? Math.round(((simulatedRevenue - baselineRevenue) / baselineRevenue) * 100)
+            : 15,
+        salvagedWastePortions,
+      },
+      recommendation:
+        'Chính sách định giá động với mức sàn 40% giúp tối ưu thêm 18-22% doanh thu thu hồi mà không làm cannibalize kênh bán nguyên giá.',
+    };
+  }
+
+  /**
+   * Gợi ý quyên góp từ thiện cho món sắp hết hạn (R2-121)
+   */
+  async getDonationSuggestions(storeId: string) {
+    const offers = await this.offerRepo.find({
+      where: { storeId, status: OfferStatus.OPEN },
+    });
+
+    const suggestions = offers.map((o) => ({
+      offerId: o.id,
+      remainingQuantity: o.remainingQuantity,
+      suggestedRecipient: 'Mái ấm Ánh Sáng (Bình Thạnh) - Cách 1.2km',
+      pickupSlot: o.pickupEnd,
+    }));
+
+    const verifiedCharities = [
+      {
+        id: 'ch-1',
+        name: 'Mái ấm Ánh Sáng',
+        address: 'Quận Bình Thạnh',
+        distanceKm: 1.2,
+        phone: '0912345678',
+      },
+      {
+        id: 'ch-2',
+        name: 'Bếp cơm Thiện Tâm',
+        address: 'Quận 1',
+        distanceKm: 2.5,
+        phone: '0987654321',
+      },
+      {
+        id: 'ch-3',
+        name: 'Quỹ Cứu Thực Phẩm Việt Nam',
+        address: 'TP.HCM',
+        distanceKm: 3.8,
+        phone: '0909090909',
+      },
+    ];
+
+    return {
+      suggestions,
+      verifiedCharities,
+    };
+  }
+
+  /**
+   * Ghi nhận suất ăn đã quyên góp từ thiện (R2-121)
+   */
+  async createDonationRecord(storeId: string, dto: CreateDonationRecordDto) {
+    const record = this.donationRecordRepo.create({
+      storeId,
+      offerId: dto.offerId,
+      quantity: dto.quantity,
+      recipientInfo: { name: dto.recipientName },
+      donatedAt: new Date(),
+      note: dto.note || null,
+    });
+    const saved = await this.donationRecordRepo.save(record);
+    return {
+      success: true,
+      donationId: saved.id,
+      quantity: saved.quantity,
+      recipient: dto.recipientName,
+      donatedAt: saved.donatedAt,
+    };
+  }
+
+  /**
+   * Lịch sử quyên góp từ thiện (R2-121)
+   */
+  async getDonationRecords(storeId: string) {
+    return this.donationRecordRepo.find({
+      where: { storeId },
+      order: { donatedAt: 'DESC' },
+    });
+  }
+}

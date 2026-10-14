@@ -23,6 +23,7 @@ import { Channel } from '../../common/decorators/channel.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
+import { ConsentType } from '../../entities/auth/consent.entity';
 
 @ApiTags('Customer - Profile & Settings')
 @ApiBearerAuth()
@@ -118,5 +119,88 @@ export class CustomerProfileController {
   @ApiResponse({ status: 200, description: 'Hủy đăng ký thành công' })
   async deleteFcmToken(@CurrentUser() user: RequestUser, @Param('deviceId') deviceId: string) {
     return this.profileService.deleteFcmToken(user?.userId, deviceId);
+  }
+
+  @Get('consents')
+  @ApiOperation({ summary: 'Xem lịch sử chấp thuận điều khoản & chính sách (R1-012, R1-017)' })
+  async getConsents(@CurrentUser() user: RequestUser) {
+    return this.profileService.getConsents(user?.userId);
+  }
+
+  @Post('consents')
+  @ApiOperation({ summary: 'Ghi nhận chấp thuận điều khoản (R1-012, R1-017, BR-005)' })
+  async recordConsent(
+    @CurrentUser() user: RequestUser,
+    @Body('type') type: ConsentType,
+    @Body('granted') granted: boolean,
+    @Body('version') version?: string,
+  ) {
+    return this.profileService.recordConsent(user?.userId, type, granted, version);
+  }
+
+  @Get('notification-settings')
+  @ApiOperation({ summary: 'Xem cài đặt nhận thông báo (R1-010)' })
+  async getNotificationSettings(@CurrentUser() user: RequestUser) {
+    return this.profileService.getNotificationSettings(user?.userId);
+  }
+
+  @Post('delete-request')
+  @ApiOperation({ summary: 'Yêu cầu xóa tài khoản cá nhân (R1-011, R1-019, BR-007)' })
+  async requestAccountDelete(@CurrentUser() user: RequestUser) {
+    return this.profileService.requestAccountDelete(user?.userId);
+  }
+
+  @Delete('delete-request')
+  @ApiOperation({ summary: 'Hủy yêu cầu xóa tài khoản trong 7 ngày ân hạn (R1-019)' })
+  async cancelAccountDelete(@CurrentUser() user: RequestUser) {
+    return this.profileService.cancelAccountDelete(user?.userId);
+  }
+
+  @Post('data-export')
+  @ApiOperation({ summary: 'Xuất toàn bộ dữ liệu cá nhân (R1-018 - link 24h)' })
+  async exportUserData(@CurrentUser() user: RequestUser) {
+    return this.profileService.exportUserData(user?.userId);
+  }
+
+  @Get('favorites')
+  @ApiOperation({ summary: 'Danh sách cửa hàng yêu thích (R1-028)' })
+  async getFavorites(@CurrentUser() user: RequestUser) {
+    return this.profileService.getFavoriteStores(user?.userId);
+  }
+
+  @Post('favorites/:storeId')
+  @ApiOperation({ summary: 'Thêm cửa hàng vào danh sách yêu thích (tối đa 50) (R1-028)' })
+  async addFavorite(@CurrentUser() user: RequestUser, @Param('storeId') storeId: string) {
+    return this.profileService.addFavoriteStore(user?.userId, storeId);
+  }
+
+  @Delete('favorites/:storeId')
+  @ApiOperation({ summary: 'Xóa cửa hàng khỏi danh sách yêu thích (R1-029)' })
+  async removeFavorite(@CurrentUser() user: RequestUser, @Param('storeId') storeId: string) {
+    return this.profileService.removeFavoriteStore(user?.userId, storeId);
+  }
+
+  @Get('transactions')
+  @ApiOperation({ summary: 'Lịch sử giao dịch thanh toán và hoàn tiền (R1-077)' })
+  async getTransactions(@CurrentUser() user: RequestUser) {
+    return this.profileService.getCustomerTransactions(user?.userId);
+  }
+
+  @Get('order-lock')
+  @ApiOperation({ summary: 'Xem trạng thái khóa đặt hàng và lịch sử noshow (R1-048, BR-020)' })
+  async getOrderLock(@CurrentUser() user: RequestUser) {
+    return this.profileService.getOrderLockStatus(user?.userId);
+  }
+
+  @Get('promotions/wallet')
+  @ApiOperation({ summary: 'Xem danh sách ưu đãi trong ví cá nhân (R1-078)' })
+  async getPromotionWallet(@CurrentUser() user: RequestUser) {
+    return this.profileService.getPromotionWallet(user?.userId);
+  }
+
+  @Post('promotions/:id/claim')
+  @ApiOperation({ summary: 'Thu thập mã ưu đãi vào ví (R1-079)' })
+  async claimPromotion(@CurrentUser() user: RequestUser, @Param('id') promoId: string) {
+    return this.profileService.claimPromotion(user?.userId, promoId);
   }
 }

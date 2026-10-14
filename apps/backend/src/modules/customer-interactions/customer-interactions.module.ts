@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomerInteractionsService } from './customer-interactions.service';
 import { CustomerInteractionsController } from './customer-interactions.controller';
+import { StoreInteractionsController } from './store-interactions.controller';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { ComplaintAttachmentEntity } from '../../entities/complaints/complaint-attachment.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
@@ -12,6 +13,8 @@ import { StoreEntity } from '../../entities/stores/store.entity';
 import { ViolationReportEntity } from '../../entities/complaints/violation-report.entity';
 import { SupportTicketEntity } from '../../entities/complaints/support-ticket.entity';
 import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
+import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
+import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 
 @Module({
   imports: [
@@ -23,12 +26,14 @@ import { SupportMessageEntity } from '../../entities/complaints/support-message.
       OfferEntity,
       ItemEntity,
       StoreEntity,
+      StoreMemberEntity,
       ViolationReportEntity,
       SupportTicketEntity,
       SupportMessageEntity,
+      PaymentTransactionEntity,
     ]),
   ],
-  controllers: [CustomerInteractionsController],
+  controllers: [CustomerInteractionsController, StoreInteractionsController],
   providers: [CustomerInteractionsService],
   exports: [CustomerInteractionsService],
 })

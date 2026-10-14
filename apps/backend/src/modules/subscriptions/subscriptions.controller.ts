@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
 import { QuotaService } from './quota.service';
@@ -51,13 +51,37 @@ export class SubscriptionsController {
     return this.subscriptionsService.upgradeToPro(storeId);
   }
 
-  @Post('cancel')
+  @Post('renew')
+  @Permissions(StorePermission.OWNER)
+  @ApiOperation({ summary: 'Gia hạn gói Pro thêm 30 ngày (VC-03)' })
+  @ApiResponse({ status: 200, description: 'Gia hạn thành công gói Pro' })
+  async renewPro(@CurrentStore() storeId: string) {
+    return this.subscriptionsService.renewPro(storeId);
+  }
+
+  @Post('downgrade')
   @Permissions(StorePermission.OWNER)
   @ApiOperation({
-    summary: 'Hủy gói Pro (VC-08 - giữ quyền lợi tới cuối kỳ hoặc hủy ngay nếu dùng thử)',
+    summary: 'Hạ cấp về gói Basic (VC-05 - hiệu lực cuối kỳ hoặc dừng ngay nếu dùng thử)',
   })
-  @ApiResponse({ status: 200, description: 'Đã cập nhật trạng thái hủy gói' })
-  async cancelPro(@CurrentStore() storeId: string) {
-    return this.subscriptionsService.cancelPro(storeId);
+  @ApiResponse({ status: 200, description: 'Đã đăng ký hạ cấp về Basic' })
+  async downgradeToBasic(@CurrentStore() storeId: string) {
+    return this.subscriptionsService.downgradeToBasic(storeId);
+  }
+
+  @Get('invoices')
+  @Permissions(StorePermission.OWNER)
+  @ApiOperation({ summary: 'Lịch sử hóa đơn thuê bao gói dịch vụ (R2-015)' })
+  @ApiResponse({ status: 200, description: 'Danh sách hóa đơn bất biến' })
+  async getInvoices(@CurrentStore() storeId: string) {
+    return this.subscriptionsService.getInvoices(storeId);
+  }
+
+  @Get('invoices/:id/pdf')
+  @Permissions(StorePermission.OWNER)
+  @ApiOperation({ summary: 'Tải hóa đơn thuê bao định dạng PDF (R2-015)' })
+  @ApiResponse({ status: 200, description: 'Tệp hóa đơn PDF tải về' })
+  async getInvoicePdf(@CurrentStore() storeId: string, @Param('id') invoiceId: string) {
+    return this.subscriptionsService.getInvoicePdf(storeId, invoiceId);
   }
 }

@@ -28,4 +28,20 @@ export class UpdateCustomerProfileDto {
   @Min(0.5, { message: 'Bán kính tối thiểu là 0.5 km.' })
   @Max(10, { message: 'Bán kính tối đa là 10 km.' })
   searchRadiusKm?: number;
+
+  @ApiPropertyOptional({
+    description: 'Vĩ độ vị trí hiện tại của khách hàng',
+    example: 10.7769,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'lastLat phải là số thực.' })
+  lastLat?: number;
+
+  @ApiPropertyOptional({
+    description: 'Kinh độ vị trí hiện tại của khách hàng',
+    example: 106.7009,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'lastLng phải là số thực.' })
+  lastLng?: number;
 }

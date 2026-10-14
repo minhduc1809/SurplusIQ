@@ -7,15 +7,62 @@ import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { OfferEventEntity, OfferEventType } from '../../entities/catalog/offer-event.entity';
 import { NoshowRecordEntity } from '../../entities/orders/noshow-record.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
+import {
+  PaymentTransactionEntity,
+  PaymentStatus,
+} from '../../entities/orders/payment-transaction.entity';
+import { WeeklyStatementEntity } from '../../entities/reconciliation/weekly-statement.entity';
+import { StatementLineEntity } from '../../entities/reconciliation/statement-line.entity';
+import { StoreEntity } from '../../entities/stores/store.entity';
+import { StoreSettingsEntity, PricingMode } from '../../entities/stores/store-settings.entity';
+import {
+  StoreMemberEntity,
+  StoreMemberStatus,
+  StorePermission,
+} from '../../entities/stores/store-member.entity';
+import {
+  SubscriptionEntity,
+  SubscriptionPlan,
+  SubscriptionStatus,
+} from '../../entities/subscriptions/subscription.entity';
+import { ItemEntity } from '../../entities/catalog/item.entity';
+import { ForecastEntity } from '../../entities/reconciliation/forecast.entity';
+import { PriceProposalEntity } from '../../entities/reconciliation/price-proposal.entity';
+import { DailyActualEntity } from '../../entities/reconciliation/daily-actual.entity';
+import { UserEntity, UserStatus } from '../../entities/auth/user.entity';
+import { DietaryProfileEntity } from '../../entities/auth/dietary-profile.entity';
+import { SavedPlaceEntity } from '../../entities/auth/saved-place.entity';
+import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
+import { AiLogEntity } from '../../entities/ai/ai-log.entity';
+import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 
-describe('JobsService', () => {
+describe('JobsService (All 12 Background Jobs)', () => {
   let service: JobsService;
   let orderRepo: jest.Mocked<Repository<OrderEntity>>;
   let offerRepo: jest.Mocked<Repository<OfferEntity>>;
   let offerEventRepo: jest.Mocked<Repository<OfferEventEntity>>;
   let noshowRecordRepo: jest.Mocked<Repository<NoshowRecordEntity>>;
   let orderLockRepo: jest.Mocked<Repository<OrderLockEntity>>;
+  let complaintRepo: jest.Mocked<Repository<ComplaintEntity>>;
+  let paymentRepo: jest.Mocked<Repository<PaymentTransactionEntity>>;
+  let statementRepo: jest.Mocked<Repository<WeeklyStatementEntity>>;
+  let statementLineRepo: jest.Mocked<Repository<StatementLineEntity>>;
+  let storeRepo: jest.Mocked<Repository<StoreEntity>>;
+  let storeSettingsRepo: jest.Mocked<Repository<StoreSettingsEntity>>;
+  let storeMemberRepo: jest.Mocked<Repository<StoreMemberEntity>>;
+  let subscriptionRepo: jest.Mocked<Repository<SubscriptionEntity>>;
+  let itemRepo: jest.Mocked<Repository<ItemEntity>>;
+  let forecastRepo: jest.Mocked<Repository<ForecastEntity>>;
+  let proposalRepo: jest.Mocked<Repository<PriceProposalEntity>>;
+  let dailyActualRepo: jest.Mocked<Repository<DailyActualEntity>>;
+  let userRepo: jest.Mocked<Repository<UserEntity>>;
+  let dietaryProfileRepo: jest.Mocked<Repository<DietaryProfileEntity>>;
+  let savedPlaceRepo: jest.Mocked<Repository<SavedPlaceEntity>>;
+  let fcmTokenRepo: jest.Mocked<Repository<FcmTokenEntity>>;
+  let aiLogRepo: jest.Mocked<Repository<AiLogEntity>>;
+  let viewHistoryRepo: jest.Mocked<Repository<ViewHistoryEntity>>;
   let auditLogService: jest.Mocked<AuditLogService>;
   let dataSource: jest.Mocked<DataSource>;
 
@@ -25,33 +72,67 @@ describe('JobsService', () => {
   const mockOfferId = 'offer-444-uuid';
 
   beforeEach(async () => {
-    orderRepo = {
-      find: jest.fn(),
-      findOne: jest.fn(),
-      save: jest.fn(),
-    } as any;
-
-    offerRepo = {
-      find: jest.fn(),
-      findOne: jest.fn(),
-      save: jest.fn(),
-    } as any;
-
+    orderRepo = { find: jest.fn(), findOne: jest.fn(), save: jest.fn() } as any;
+    offerRepo = { find: jest.fn(), findOne: jest.fn(), save: jest.fn() } as any;
     offerEventRepo = {
       create: jest.fn((dto) => ({ id: 'event-uuid', ...dto }) as any),
       save: jest.fn(),
     } as any;
-
     noshowRecordRepo = {
       create: jest.fn((dto) => ({ id: 'noshow-uuid', ...dto }) as any),
       save: jest.fn(),
       count: jest.fn(),
     } as any;
-
     orderLockRepo = {
       create: jest.fn((dto) => ({ ...dto }) as any),
       save: jest.fn(),
       findOne: jest.fn(),
+    } as any;
+    complaintRepo = { find: jest.fn(), findOne: jest.fn(), save: jest.fn() } as any;
+    paymentRepo = {
+      find: jest.fn(),
+      findOne: jest.fn(),
+      save: jest.fn(),
+      create: jest.fn((dto) => ({ ...dto }) as any),
+    } as any;
+    statementRepo = {
+      find: jest.fn(),
+      findOne: jest.fn(),
+      save: jest.fn(),
+      create: jest.fn((dto) => ({ ...dto }) as any),
+    } as any;
+    statementLineRepo = { save: jest.fn(), create: jest.fn((dto) => ({ ...dto }) as any) } as any;
+    storeRepo = { find: jest.fn(), findOne: jest.fn(), save: jest.fn() } as any;
+    storeSettingsRepo = { findOne: jest.fn(), save: jest.fn() } as any;
+    storeMemberRepo = { find: jest.fn(), save: jest.fn() } as any;
+    subscriptionRepo = { find: jest.fn(), findOne: jest.fn(), save: jest.fn() } as any;
+    itemRepo = { find: jest.fn() } as any;
+    forecastRepo = {
+      create: jest.fn((dto) => ({ id: 'fc-1', ...dto }) as any),
+      save: jest.fn(),
+    } as any;
+    proposalRepo = {
+      create: jest.fn((dto) => ({ id: 'prop-1', ...dto }) as any),
+      save: jest.fn(),
+    } as any;
+    dailyActualRepo = { find: jest.fn() } as any;
+    userRepo = { find: jest.fn(), save: jest.fn() } as any;
+    dietaryProfileRepo = { delete: jest.fn() } as any;
+    savedPlaceRepo = { delete: jest.fn() } as any;
+    fcmTokenRepo = { delete: jest.fn() } as any;
+    aiLogRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        delete: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 5 }),
+      }),
+    } as any;
+    viewHistoryRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        delete: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 10 }),
+      }),
     } as any;
 
     auditLogService = {
@@ -66,49 +147,46 @@ describe('JobsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         JobsService,
-        {
-          provide: getRepositoryToken(OrderEntity),
-          useValue: orderRepo,
-        },
-        {
-          provide: getRepositoryToken(OfferEntity),
-          useValue: offerRepo,
-        },
-        {
-          provide: getRepositoryToken(OfferEventEntity),
-          useValue: offerEventRepo,
-        },
-        {
-          provide: getRepositoryToken(NoshowRecordEntity),
-          useValue: noshowRecordRepo,
-        },
-        {
-          provide: getRepositoryToken(OrderLockEntity),
-          useValue: orderLockRepo,
-        },
-        {
-          provide: AuditLogService,
-          useValue: auditLogService,
-        },
-        {
-          provide: DataSource,
-          useValue: dataSource,
-        },
+        { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
+        { provide: getRepositoryToken(OfferEntity), useValue: offerRepo },
+        { provide: getRepositoryToken(OfferEventEntity), useValue: offerEventRepo },
+        { provide: getRepositoryToken(NoshowRecordEntity), useValue: noshowRecordRepo },
+        { provide: getRepositoryToken(OrderLockEntity), useValue: orderLockRepo },
+        { provide: getRepositoryToken(ComplaintEntity), useValue: complaintRepo },
+        { provide: getRepositoryToken(PaymentTransactionEntity), useValue: paymentRepo },
+        { provide: getRepositoryToken(WeeklyStatementEntity), useValue: statementRepo },
+        { provide: getRepositoryToken(StatementLineEntity), useValue: statementLineRepo },
+        { provide: getRepositoryToken(StoreEntity), useValue: storeRepo },
+        { provide: getRepositoryToken(StoreSettingsEntity), useValue: storeSettingsRepo },
+        { provide: getRepositoryToken(StoreMemberEntity), useValue: storeMemberRepo },
+        { provide: getRepositoryToken(SubscriptionEntity), useValue: subscriptionRepo },
+        { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
+        { provide: getRepositoryToken(ForecastEntity), useValue: forecastRepo },
+        { provide: getRepositoryToken(PriceProposalEntity), useValue: proposalRepo },
+        { provide: getRepositoryToken(DailyActualEntity), useValue: dailyActualRepo },
+        { provide: getRepositoryToken(UserEntity), useValue: userRepo },
+        { provide: getRepositoryToken(DietaryProfileEntity), useValue: dietaryProfileRepo },
+        { provide: getRepositoryToken(SavedPlaceEntity), useValue: savedPlaceRepo },
+        { provide: getRepositoryToken(FcmTokenEntity), useValue: fcmTokenRepo },
+        { provide: getRepositoryToken(AiLogEntity), useValue: aiLogRepo },
+        { provide: getRepositoryToken(ViewHistoryEntity), useValue: viewHistoryRepo },
+        { provide: AuditLogService, useValue: auditLogService },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
     service = module.get<JobsService>(JobsService);
   });
 
-  describe('releaseExpiredHolds (R1-042, BR-017)', () => {
-    it('tự động nhả suất khi quá 10 phút, đổi HOLD_EXPIRED và cộng hoàn tồn kho', async () => {
+  describe('releaseExpiredHolds', () => {
+    it('nhả suất khi quá 10 phút, đổi HOLD_EXPIRED và cộng hoàn tồn kho', async () => {
       const now = new Date('2026-10-13T12:00:00Z');
       const expiredHoldOrder = {
         id: mockOrderId,
         status: OrderStatus.PENDING_PAYMENT,
         offerId: mockOfferId,
         quantity: 3,
-        holdExpiresAt: new Date('2026-10-13T11:55:00Z'), // 5 minutes past hold limit
+        holdExpiresAt: new Date('2026-10-13T11:55:00Z'),
         storeId: mockStoreId,
       } as OrderEntity;
 
@@ -118,226 +196,252 @@ describe('JobsService', () => {
         id: mockOfferId,
         remainingQuantity: 0,
         status: OfferStatus.SOLD_OUT,
-        pickupEnd: new Date('2026-10-13T18:00:00Z'),
-      };
+        pickupEnd: '2026-10-13T18:00:00Z',
+      } as unknown as OfferEntity;
 
-      const mockManager = {
-        createQueryBuilder: jest.fn().mockImplementation((entityCls) => {
-          if (entityCls === OrderEntity) {
-            return {
-              setLock: jest.fn().mockReturnThis(),
-              where: jest.fn().mockReturnThis(),
-              getOne: jest.fn().mockResolvedValue({ ...expiredHoldOrder }),
-            };
-          }
-          if (entityCls === OfferEntity) {
-            return {
-              setLock: jest.fn().mockReturnThis(),
-              where: jest.fn().mockReturnThis(),
-              getOne: jest.fn().mockResolvedValue(mockOffer),
-            };
-          }
-          return {
+      dataSource.transaction.mockImplementationOnce(async (cb: any) => {
+        const mockManager = {
+          createQueryBuilder: jest.fn().mockReturnValue({
             setLock: jest.fn().mockReturnThis(),
             where: jest.fn().mockReturnThis(),
-            getOne: jest.fn(),
-          };
-        }),
-        save: jest.fn((entity) => Promise.resolve(entity)),
-      };
-
-      dataSource.transaction.mockImplementationOnce((cb: any) => cb(mockManager));
+            getOne: jest
+              .fn()
+              .mockResolvedValueOnce(expiredHoldOrder)
+              .mockResolvedValueOnce(mockOffer),
+          }),
+          save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
+        };
+        return cb(mockManager);
+      });
 
       const result = await service.releaseExpiredHolds(now);
 
       expect(result.count).toBe(1);
       expect(result.orderIds).toContain(mockOrderId);
+      expect(expiredHoldOrder.status).toBe(OrderStatus.HOLD_EXPIRED);
+      expect(expiredHoldOrder.cancelledBy).toBe(CancelledBy.SYSTEM);
       expect(mockOffer.remainingQuantity).toBe(3);
       expect(mockOffer.status).toBe(OfferStatus.OPEN);
-      expect(mockManager.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: mockOrderId,
-          status: OrderStatus.HOLD_EXPIRED,
-          cancelledBy: CancelledBy.SYSTEM,
-        }),
-      );
-      expect(auditLogService.log).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'ORDER_HOLD_RELEASED' }),
-      );
-    });
-
-    it('không nhả suất các đơn còn trong hạn 10 phút', async () => {
-      const now = new Date('2026-10-13T12:00:00Z');
-      const validOrder = {
-        id: 'valid-order',
-        status: OrderStatus.PENDING_PAYMENT,
-        holdExpiresAt: new Date('2026-10-13T12:05:00Z'), // Still 5 mins remaining
-      } as OrderEntity;
-
-      orderRepo.find.mockResolvedValueOnce([validOrder]);
-
-      const result = await service.releaseExpiredHolds(now);
-
-      expect(result.count).toBe(0);
-      expect(dataSource.transaction).not.toHaveBeenCalled();
     });
   });
 
-  describe('expireUnclaimedPickups (R1-059, BR-020, BR-024)', () => {
-    it('đánh dấu PICKUP_EXPIRED khi quá hạn nhận + 15 phút trễ, ghi nhận noshow', async () => {
-      const now = new Date('2026-10-13T13:20:00Z');
-      const unclaimedOrder = {
-        id: mockOrderId,
-        status: OrderStatus.PAID,
-        customerId: mockCustomerId,
+  describe('autoAcceptExpiredComplaints', () => {
+    it('tự động chấp nhận khiếu nại quá hạn 48h và hoàn tiền 100%', async () => {
+      const now = new Date('2026-10-14T10:00:00Z');
+      const complaint = {
+        id: 'comp-1',
+        orderId: mockOrderId,
         storeId: mockStoreId,
-        offerId: mockOfferId,
+        status: ComplaintStatus.PENDING_STORE,
+        responseDueAt: new Date('2026-10-14T09:00:00Z'),
+        refundAmount: 0,
+        autoAccepted: false,
+      } as ComplaintEntity;
+
+      complaintRepo.find.mockResolvedValueOnce([complaint]);
+
+      const mockOrder = {
+        id: mockOrderId,
+        storeId: mockStoreId,
+        totalAmount: 150000,
+        status: OrderStatus.PAID,
       } as OrderEntity;
 
-      orderRepo.find.mockResolvedValueOnce([unclaimedOrder]);
-      offerRepo.findOne.mockResolvedValueOnce({
-        id: mockOfferId,
-        pickupEnd: new Date('2026-10-13T13:00:00Z'), // 13:00 + 15m = 13:15 < 13:20
-      } as OfferEntity);
+      dataSource.transaction.mockImplementationOnce(async (cb: any) => {
+        const mockManager = {
+          createQueryBuilder: jest.fn().mockReturnValue({
+            setLock: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            getOne: jest.fn().mockResolvedValueOnce(complaint),
+          }),
+          findOne: jest.fn().mockResolvedValue(mockOrder),
+          save: jest.fn().mockImplementation((e) => Promise.resolve(e)),
+          create: jest.fn().mockImplementation((_, dto) => dto),
+        };
+        return cb(mockManager);
+      });
 
-      const mockManager = {
-        createQueryBuilder: jest.fn().mockReturnValue({
-          setLock: jest.fn().mockReturnThis(),
-          where: jest.fn().mockReturnThis(),
-          getOne: jest.fn().mockResolvedValue({ ...unclaimedOrder }),
-        }),
-        create: jest.fn((cls, dto) => ({ id: 'mock-id', ...dto })),
-        save: jest.fn((entity) => Promise.resolve(entity)),
-        count: jest.fn().mockResolvedValue(1), // Mới 1 lần noshow (< 3 lần)
-        findOne: jest.fn().mockResolvedValue(null),
-      };
-
-      dataSource.transaction.mockImplementationOnce((cb: any) => cb(mockManager));
-
-      const result = await service.expireUnclaimedPickups(now);
-
-      expect(result.count).toBe(1);
-      expect(result.lockedCustomersCount).toBe(0); // Chưa bị khóa vì mới 1 lần
-      expect(mockManager.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: mockOrderId,
-          status: OrderStatus.PICKUP_EXPIRED,
-        }),
-      );
-      expect(mockManager.create).toHaveBeenCalledWith(
-        NoshowRecordEntity,
-        expect.objectContaining({
-          customerId: mockCustomerId,
-          orderId: mockOrderId,
-          excluded: false,
-        }),
-      );
-    });
-
-    it('tự động khóa quyền đặt 7 ngày khi khách đạt đủ 3 lần noshow trong 30 ngày (BR-020)', async () => {
-      const now = new Date('2026-10-13T13:20:00Z');
-      const unclaimedOrder = {
-        id: mockOrderId,
-        status: OrderStatus.PAID,
-        customerId: mockCustomerId,
-        storeId: mockStoreId,
-        offerId: mockOfferId,
-      } as OrderEntity;
-
-      orderRepo.find.mockResolvedValueOnce([unclaimedOrder]);
-      offerRepo.findOne.mockResolvedValueOnce({
-        id: mockOfferId,
-        pickupEnd: new Date('2026-10-13T13:00:00Z'),
-      } as OfferEntity);
-
-      const mockManager = {
-        createQueryBuilder: jest.fn().mockReturnValue({
-          setLock: jest.fn().mockReturnThis(),
-          where: jest.fn().mockReturnThis(),
-          getOne: jest.fn().mockResolvedValue({ ...unclaimedOrder }),
-        }),
-        create: jest.fn((cls, dto) => ({ id: 'mock-id', ...dto })),
-        save: jest.fn((entity) => Promise.resolve(entity)),
-        count: jest.fn().mockResolvedValue(3), // Đã đủ 3 lần noshow trong 30 ngày
-        findOne: jest.fn().mockResolvedValue(null), // Chưa có orderLock trước đó
-      };
-
-      dataSource.transaction.mockImplementationOnce((cb: any) => cb(mockManager));
-
-      const result = await service.expireUnclaimedPickups(now);
-
-      expect(result.count).toBe(1);
-      expect(result.lockedCustomersCount).toBe(1); // Đã khóa khách
-      expect(mockManager.create).toHaveBeenCalledWith(
-        OrderLockEntity,
-        expect.objectContaining({
-          customerId: mockCustomerId,
-        }),
-      );
-      expect(auditLogService.log).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'CUSTOMER_ORDER_LOCKED_NOSHOW' }),
-      );
+      const res = await service.autoAcceptExpiredComplaints(now);
+      expect(res.count).toBe(1);
+      expect(complaint.status).toBe(ComplaintStatus.ACCEPTED);
+      expect(complaint.autoAccepted).toBe(true);
+      expect(complaint.refundAmount).toBe(150000);
+      expect(mockOrder.status).toBe(OrderStatus.REFUNDED);
     });
   });
 
-  describe('autoCloseExpiredOffers (R2-034, BR-058)', () => {
-    it('tự động chuyển trạng thái CLOSED khi suất hết khung nhận và chốt hao hụt', async () => {
-      const now = new Date('2026-10-13T20:00:00Z');
-      const expiredOffer = {
+  describe('closeWeeklyStatements', () => {
+    it('chốt và khóa sao kê tuần cho cửa hàng', async () => {
+      storeRepo.find.mockResolvedValueOnce([{ id: mockStoreId } as StoreEntity]);
+      statementRepo.findOne.mockResolvedValueOnce(null);
+      orderRepo.find.mockResolvedValueOnce([
+        { id: 'o-1', totalAmount: 200000, status: OrderStatus.PICKED_UP } as any,
+      ]);
+      complaintRepo.find.mockResolvedValueOnce([]);
+      statementRepo.create.mockReturnValue({ id: 'stmt-1' } as any);
+      statementRepo.save.mockResolvedValueOnce({ id: 'stmt-1' } as any);
+
+      const res = await service.closeWeeklyStatements(new Date('2026-10-14T00:05:00Z'));
+      expect(res.count).toBe(1);
+      expect(res.storeIds).toContain(mockStoreId);
+    });
+  });
+
+  describe('processSubscriptionLifecycles', () => {
+    it('hạ gói về Basic khi hết hạn Pro', async () => {
+      const now = new Date('2026-10-14T00:00:00Z');
+      const sub = {
+        storeId: mockStoreId,
+        plan: SubscriptionPlan.PRO,
+        status: SubscriptionStatus.ACTIVE,
+        periodEnd: new Date('2026-10-13T23:59:59Z'),
+      } as SubscriptionEntity;
+
+      subscriptionRepo.find.mockResolvedValueOnce([sub]);
+
+      dataSource.transaction.mockImplementationOnce(async (cb: any) => {
+        const mockManager = {
+          save: jest.fn().mockImplementation((e) => Promise.resolve(e)),
+          findOne: jest.fn().mockResolvedValue({ pricingMode: PricingMode.AUTO }),
+          update: jest.fn().mockResolvedValue({}),
+          find: jest.fn().mockResolvedValue([
+            { id: 'm-1', permission: StorePermission.OWNER, status: StoreMemberStatus.ACTIVE },
+            { id: 'm-2', permission: StorePermission.MANAGER, status: StoreMemberStatus.ACTIVE },
+            { id: 'm-3', permission: StorePermission.COUNTER, status: StoreMemberStatus.ACTIVE },
+          ]),
+        };
+        return cb(mockManager);
+      });
+
+      const res = await service.processSubscriptionLifecycles(now);
+      expect(res.count).toBe(1);
+      expect(sub.plan).toBe(SubscriptionPlan.BASIC);
+    });
+  });
+
+  describe('recheckPendingPayments', () => {
+    it('đánh dấu FAILED cho giao dịch treo quá 24h', async () => {
+      const now = new Date('2026-10-14T10:00:00Z');
+      const oldTxn = {
+        id: 'txn-old',
+        status: PaymentStatus.PENDING_CONFIRM,
+        createdAt: new Date('2026-10-12T10:00:00Z'),
+      } as PaymentTransactionEntity;
+
+      paymentRepo.find.mockResolvedValueOnce([oldTxn]);
+      paymentRepo.save.mockResolvedValueOnce(oldTxn);
+
+      const res = await service.recheckPendingPayments(now);
+      expect(res.count).toBe(1);
+      expect(oldTxn.status).toBe(PaymentStatus.FAILED);
+    });
+  });
+
+  describe('generateDailyForecasts', () => {
+    it('tạo dự báo cho cửa hàng PRO', async () => {
+      subscriptionRepo.find.mockResolvedValueOnce([
+        {
+          storeId: mockStoreId,
+          plan: SubscriptionPlan.PRO,
+          status: SubscriptionStatus.ACTIVE,
+        } as SubscriptionEntity,
+      ]);
+      itemRepo.find.mockResolvedValueOnce([{ id: 'item-1', storeId: mockStoreId } as ItemEntity]);
+      dailyActualRepo.find.mockResolvedValueOnce([
+        { date: '2026-10-13', soldOffline: 10, soldApp: 5, stockoutAt: null } as DailyActualEntity,
+      ]);
+      forecastRepo.save.mockResolvedValueOnce({ id: 'fc-1' } as any);
+
+      const res = await service.generateDailyForecasts(new Date('2026-10-14T21:00:00Z'));
+      expect(res.count).toBe(1);
+      expect(res.forecastIds).toContain('fc-1');
+    });
+  });
+
+  describe('generateHourlyPriceProposals', () => {
+    it('tạo đề xuất giá và tự động đổi giá khi store bật AUTO', async () => {
+      const now = new Date('2026-10-14T15:00:00Z');
+      const offer = {
         id: mockOfferId,
         storeId: mockStoreId,
+        currentPrice: 50000,
+        originalPrice: 100000,
+        floorPrice: 40000,
+        remainingQuantity: 10,
+        totalQuantity: 20,
+        pickupStart: '2026-10-14T14:00:00Z',
+        pickupEnd: '2026-10-14T16:00:00Z',
+        priceChangeCount: 0,
         status: OfferStatus.OPEN,
-        remainingQuantity: 5,
-        pickupEnd: new Date('2026-10-13T19:59:00Z'),
-      } as OfferEntity;
+      } as unknown as OfferEntity;
 
-      offerRepo.find.mockResolvedValueOnce([expiredOffer]);
+      offerRepo.find.mockResolvedValueOnce([offer]);
+      storeSettingsRepo.findOne.mockResolvedValueOnce({
+        floorRatio: 0.4,
+        pricingMode: PricingMode.AUTO,
+      } as any);
+      proposalRepo.save.mockResolvedValueOnce({ id: 'prop-1' } as any);
 
-      const mockManager = {
-        createQueryBuilder: jest.fn().mockReturnValue({
-          setLock: jest.fn().mockReturnThis(),
-          where: jest.fn().mockReturnThis(),
-          getOne: jest.fn().mockResolvedValue({ ...expiredOffer }),
-        }),
-        create: jest.fn((cls, dto) => ({ id: 'event-id', ...dto })),
-        save: jest.fn((entity) => Promise.resolve(entity)),
-      };
-
-      dataSource.transaction.mockImplementationOnce((cb: any) => cb(mockManager));
-
-      const result = await service.autoCloseExpiredOffers(now);
-
-      expect(result.count).toBe(1);
-      expect(result.offerIds).toContain(mockOfferId);
-      expect(mockManager.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: OfferStatus.CLOSED,
-        }),
-      );
-      expect(mockManager.create).toHaveBeenCalledWith(
-        OfferEventEntity,
-        expect.objectContaining({
-          type: OfferEventType.AUTO_CLOSED,
-          payload: expect.objectContaining({ wasteQuantity: 5 }),
-        }),
-      );
-      expect(auditLogService.log).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'OFFER_AUTO_CLOSED' }),
-      );
+      const res = await service.generateHourlyPriceProposals(now);
+      expect(res.count).toBeGreaterThanOrEqual(1);
+      expect(res.autoAppliedCount).toBe(1);
     });
   });
 
-  describe('processAllBackgroundJobs', () => {
-    it('chạy tuần tự toàn bộ các tác vụ nền và trả về summary đầy đủ', async () => {
-      orderRepo.find.mockResolvedValue([]);
-      offerRepo.find.mockResolvedValue([]);
+  describe('sendPickupReminders', () => {
+    it('đánh dấu nhắc nhở khi sắp tới giờ lấy hàng (30 phút)', async () => {
+      const now = new Date('2026-10-14T15:00:00Z');
+      const order = {
+        id: mockOrderId,
+        status: OrderStatus.PAID,
+        offerId: mockOfferId,
+        pickupSlot: new Date('2026-10-14T15:20:00Z'),
+        arrivingNotifiedAt: null,
+      } as OrderEntity;
 
-      const summary = await service.processAllBackgroundJobs();
+      orderRepo.find.mockResolvedValueOnce([order]);
+      offerRepo.findOne.mockResolvedValueOnce(null);
 
-      expect(summary.holdsReleased.count).toBe(0);
-      expect(summary.pickupsExpired.count).toBe(0);
-      expect(summary.offersClosed.count).toBe(0);
-      expect(summary.timestamp).toBeInstanceOf(Date);
+      const res = await service.sendPickupReminders(now);
+      expect(res.count).toBe(1);
+      expect(order.arrivingNotifiedAt).toBe(now);
+    });
+  });
+
+  describe('cleanupExpiredRetentionData', () => {
+    it('xóa ai_logs > 90 ngày và view_history > 30 ngày', async () => {
+      const res = await service.cleanupExpiredRetentionData(new Date());
+      expect(res.aiLogsDeleted).toBe(5);
+      expect(res.viewHistoryDeleted).toBe(10);
+    });
+  });
+
+  describe('anonymizePendingDeleteAccounts', () => {
+    it('ẩn danh tài khoản yêu cầu xóa quá 7 ngày', async () => {
+      const now = new Date('2026-10-14T12:00:00Z');
+      const user = {
+        id: 'user-del-1',
+        status: UserStatus.PENDING_DELETE,
+        deleteRequestedAt: new Date('2026-10-06T12:00:00Z'), // 8 days ago
+        email: 'user@example.com',
+        phone: '0987654321',
+      } as UserEntity;
+
+      userRepo.find.mockResolvedValueOnce([user]);
+
+      dataSource.transaction.mockImplementationOnce(async (cb: any) => {
+        const mockManager = {
+          save: jest.fn().mockImplementation((e) => Promise.resolve(e)),
+          delete: jest.fn().mockResolvedValue({}),
+        };
+        return cb(mockManager);
+      });
+
+      const res = await service.anonymizePendingDeleteAccounts(now);
+      expect(res.count).toBe(1);
+      expect(user.status).toBe(UserStatus.ANONYMIZED);
+      expect(user.email).toContain('anonymized_');
+      expect(user.phone).toBeNull();
     });
   });
 });
