@@ -127,3 +127,41 @@ export class StoreReportsQueryDto {
   @IsDateString()
   endDate?: string;
 }
+
+export class CustomerNoteDto {
+  @ApiProperty({
+    description: 'Nội dung ghi chú nội bộ về khách hàng (tối đa 200 ký tự) (R2-085)',
+    example: 'Khách hay đến lấy hàng đúng giờ, thích bánh ít ngọt.',
+  })
+  @IsNotEmpty({ message: 'Ghi chú không được để trống.' })
+  @IsString()
+  @MaxLength(200, { message: 'Ghi chú nội bộ tối đa 200 ký tự.' })
+  note: string;
+}
+
+export class VirtualClockDto {
+  @ApiProperty({
+    description: 'Bật/tắt chế độ demo tua nhanh thời gian (R2-065)',
+    example: true,
+  })
+  @IsNotEmpty()
+  enabled: boolean;
+}
+
+export class ExportDataQueryDto {
+  @ApiPropertyOptional({
+    description: 'Từ ngày (định dạng YYYY-MM-DD)',
+    example: '2026-10-01',
+  })
+  @IsOptional()
+  @IsDateString()
+  fromDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Đến ngày (định dạng YYYY-MM-DD)',
+    example: '2026-10-14',
+  })
+  @IsOptional()
+  @IsDateString()
+  toDate?: string;
+}

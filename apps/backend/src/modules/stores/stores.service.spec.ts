@@ -9,9 +9,15 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
-import { WeeklyStatementEntity } from '../../entities/reconciliation/weekly-statement.entity';
+import {
+  WeeklyStatementEntity,
+  StatementStatus,
+} from '../../entities/reconciliation/weekly-statement.entity';
+import { StatementLineEntity } from '../../entities/reconciliation/statement-line.entity';
+import { CustomerNoteEntity } from '../../entities/stores/customer-note.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 
-describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075)', () => {
+describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-082..R2-085, R2-103..R2-105)', () => {
   let service: StoresService;
   let storeRepo: any;
   let closureRepo: any;
@@ -21,6 +27,9 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075)', ()
   let complaintRepo: any;
   let reviewRepo: any;
   let statementRepo: any;
+  let statementLineRepo: any;
+  let customerNoteRepo: any;
+  let customerProfileRepo: any;
 
   beforeEach(async () => {
     storeRepo = {
@@ -52,6 +61,19 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075)', ()
     };
     statementRepo = {
       find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+    };
+    statementLineRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+    customerNoteRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
+    };
+    customerProfileRepo = {
+      find: jest.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -65,6 +87,9 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075)', ()
         { provide: getRepositoryToken(ComplaintEntity), useValue: complaintRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
         { provide: getRepositoryToken(WeeklyStatementEntity), useValue: statementRepo },
+        { provide: getRepositoryToken(StatementLineEntity), useValue: statementLineRepo },
+        { provide: getRepositoryToken(CustomerNoteEntity), useValue: customerNoteRepo },
+        { provide: getRepositoryToken(CustomerProfileEntity), useValue: customerProfileRepo },
       ],
     }).compile();
 
@@ -213,6 +238,125 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075)', ()
       expect(result.currentCycle.commissionAmount).toBe(20000); // 10%
       expect(result.currentCycle.netPayout).toBe(180000);
       expect(result.currentCycle.checksumValid).toBe(true);
+    });
+  });
+
+  describe('statements & export (R2-067, R2-103..105)', () => {
+    it('lấy danh sách và chi tiết sao kê kèm xuất PDF/CSV', async () => {
+      statementRepo.find.mockResolvedValue([
+        { id: 'stmt-1', storeId: 'store-1', weekStart: '2026-10-05', gross: 500000 },
+      ]);
+      statementRepo.findOne.mockResolvedValue({
+        id: 'stmt-1',
+        storeId: 'store-1',
+        weekStart: '2026-10-05',
+        weekEnd: '2026-10-11',
+        gross: 500000,
+        commission: 50000,
+        refunds: 0,
+        netPayable: 450000,
+        status: StatementStatus.LOCKED,
+      });
+      statementLineRepo.find.mockResolvedValue([
+        {
+          id: 'line-1',
+          statementId: 'stmt-1',
+          type: 'SALE',
+          amount: 500000,
+          commission: 50000,
+          createdAt: new Date(),
+        },
+      ]);
+
+      const list = await service.getStatements('store-1');
+      expect(list.length).toBe(1);
+
+      const detail = await service.getStatementById('store-1', 'stmt-1');
+      expect(detail.statement.id).toBe('stmt-1');
+      expect(detail.lines.length).toBe(1);
+
+      const pdf = await service.getStatementPdf('store-1', 'stmt-1');
+      expect(pdf.contentType).toBe('application/pdf');
+      expect(pdf.dataBase64).toBeDefined();
+
+      const csv = await service.getStatementCsv('store-1', 'stmt-1');
+      expect(csv.contentType).toContain('text/csv');
+      expect(csv.content).toContain('line-1');
+    });
+
+    it('xuất toàn bộ dữ liệu đơn hàng và đối soát kế toán', async () => {
+      orderRepo.find.mockResolvedValue([
+        {
+          code: 'ORD001',
+          customerId: 'cust-1',
+          totalAmount: 100000,
+          status: OrderStatus.PICKED_UP,
+          createdAt: new Date(),
+        },
+      ]);
+      statementRepo.find.mockResolvedValue([
+        {
+          id: 'stmt-1',
+          weekStart: '2026-10-05',
+          weekEnd: '2026-10-11',
+          gross: 100000,
+          commission: 10000,
+          refunds: 0,
+          netPayable: 90000,
+          status: StatementStatus.LOCKED,
+        },
+      ]);
+
+      const expOrders = await service.exportOrders('store-1', {});
+      expect(expOrders.totalOrders).toBe(1);
+      expect(expOrders.content).toContain('ORD001');
+
+      const expAcc = await service.exportAccounting('store-1', {});
+      expect(expAcc.totalStatements).toBe(1);
+      expect(expAcc.content).toContain('stmt-1');
+    });
+  });
+
+  describe('demo VirtualClock (R2-065)', () => {
+    it('lấy trạng thái và bật tắt VirtualClock', async () => {
+      storeRepo.findOne.mockResolvedValue({ id: 'store-1', isDemo: false });
+
+      const state = await service.getVirtualClock('store-1');
+      expect(state.virtualDayDurationSeconds).toBe(120);
+      expect(state.isDemo).toBe(false);
+
+      const toggled = await service.toggleVirtualClock('store-1', { enabled: true });
+      expect(toggled.isDemo).toBe(true);
+      expect(storeRepo.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('customer notes & store customers (R2-082, R2-083, R2-085)', () => {
+    it('lấy danh sách khách và ghi chú nội bộ', async () => {
+      orderRepo.find.mockResolvedValue([
+        {
+          customerId: 'cust-1',
+          status: OrderStatus.PICKED_UP,
+          totalAmount: 150000,
+          createdAt: new Date(),
+        },
+      ]);
+      customerNoteRepo.find.mockResolvedValue([
+        { storeId: 'store-1', customerId: 'cust-1', note: 'Khách VIP thân thiết' },
+      ]);
+      customerProfileRepo.find.mockResolvedValue([{ userId: 'cust-1', fullName: 'Trần Văn B' }]);
+
+      const customers = await service.getStoreCustomers('store-1');
+      expect(customers.length).toBe(1);
+      expect(customers[0].customerId).toBe('cust-1');
+      expect(customers[0].totalSpend).toBe(150000);
+      expect(customers[0].internalNote).toBe('Khách VIP thân thiết');
+
+      customerNoteRepo.findOne.mockResolvedValue(null);
+      const saved = await service.saveCustomerNote('store-1', 'cust-1', {
+        note: 'Khách thích ăn mặn',
+      });
+      expect(saved.note).toBe('Khách thích ăn mặn');
     });
   });
 });
