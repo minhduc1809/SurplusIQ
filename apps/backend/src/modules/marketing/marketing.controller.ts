@@ -16,6 +16,7 @@ import {
   UpdatePromotionStatusDto,
   CreateCampaignDto,
   CreateSurpriseBagDto,
+  UpdateCampaignDto,
 } from './dto/marketing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -84,6 +85,36 @@ export class MarketingController {
   @ApiResponse({ status: 201, description: 'Đã lên lịch chiến dịch thành công' })
   async createCampaign(@CurrentStore() storeId: string, @Body() dto: CreateCampaignDto) {
     return this.marketingService.createCampaign(storeId, dto);
+  }
+
+  @Patch('campaigns/:id')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary:
+      'Chỉnh sửa lịch hoặc hủy chiến dịch thông báo (chỉ cho phép trước giờ gửi >= 15 phút) (R2-093)',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật chiến dịch thành công' })
+  @ApiResponse({
+    status: 400,
+    description: 'Không thể sửa/hủy khi còn ít hơn 15 phút trước giờ gửi',
+  })
+  async updateCampaign(
+    @CurrentStore() storeId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateCampaignDto,
+  ) {
+    return this.marketingService.updateCampaign(storeId, id, dto);
+  }
+
+  @Get('campaigns/:id/analytics')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary:
+      'Xem phân tích hiệu quả chiến dịch (người nhận, tỷ lệ mở, đơn hàng trong 24h) (R2-094)',
+  })
+  @ApiResponse({ status: 200, description: 'Thống kê kết quả chiến dịch' })
+  async getCampaignAnalytics(@CurrentStore() storeId: string, @Param('id') id: string) {
+    return this.marketingService.getCampaignAnalytics(storeId, id);
   }
 
   @Get('segments')
