@@ -12,7 +12,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CatalogService } from './catalog.service';
-import { CreateItemDto, UpdateItemDto, QueryItemsDto, ImportCsvItemsDto } from './dto';
+import {
+  CreateItemDto,
+  UpdateItemDto,
+  QueryItemsDto,
+  ImportCsvItemsDto,
+  BatchUpdateItemsDto,
+} from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -49,6 +55,30 @@ export class CatalogController {
   })
   async getItems(@CurrentStore() storeId: string, @Query() query: QueryItemsDto) {
     return this.catalogService.getItems(storeId, query);
+  }
+
+  @Get('data-quality-warnings')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'Xem cảnh báo chất lượng dữ liệu món: thiếu trọng lượng, giá vốn, dị ứng (R2-099)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách cảnh báo và điểm hoàn thiện dữ liệu' })
+  async getDataQualityWarnings(@CurrentStore() storeId: string) {
+    return this.catalogService.getDataQualityWarnings(storeId);
+  }
+
+  @Post('batch-update')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'Cập nhật hàng loạt danh mục, hạn dùng, trọng lượng cho tối đa 100 món (R2-100)',
+  })
+  @ApiResponse({ status: 200, description: 'Báo cáo số món cập nhật thành công' })
+  async batchUpdate(
+    @CurrentStore() storeId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: BatchUpdateItemsDto,
+  ) {
+    return this.catalogService.batchUpdateItems(storeId, dto, user?.userId);
   }
 
   @Get(':id')

@@ -232,4 +232,62 @@ describe('MarketingService Unit Tests (R2-082..R2-094, R1-026, R2-091, BR-085, B
       ).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('updateCampaign & getCampaignAnalytics (R2-093, R2-094)', () => {
+    it('cho phép hủy hoặc sửa chiến dịch nếu còn hơn 15 phút trước giờ gửi (R2-093)', async () => {
+      const futureTime = new Date(Date.now() + 60 * 60 * 1000); // 60 phút nữa
+      campaignRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'cam-1',
+        storeId: 'store-1',
+        title: 'Tiêu đề cũ',
+        status: CampaignStatus.SCHEDULED,
+        scheduledAt: futureTime,
+      });
+
+      const updated = await service.updateCampaign('store-1', 'cam-1', {
+        title: 'Tiêu đề mới',
+        status: CampaignStatus.CANCELLED,
+      });
+
+      expect(updated.title).toBe('Tiêu đề mới');
+      expect(updated.status).toBe(CampaignStatus.CANCELLED);
+    });
+
+    it('từ chối sửa chiến dịch nếu còn ít hơn 15 phút trước giờ gửi (R2-093)', async () => {
+      const soonTime = new Date(Date.now() + 5 * 60 * 1000); // chỉ còn 5 phút
+      campaignRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'cam-1',
+        storeId: 'store-1',
+        status: CampaignStatus.SCHEDULED,
+        scheduledAt: soonTime,
+      });
+
+      await expect(
+        service.updateCampaign('store-1', 'cam-1', { title: 'Sửa gấp' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('thống kê phân tích hiệu quả chiến dịch (R2-094)', async () => {
+      const scheduledDate = new Date('2026-10-15T14:00:00Z');
+      campaignRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'cam-1',
+        storeId: 'store-1',
+        title: 'Khuyến mãi chiều',
+        target: 'ALL',
+        scheduledAt: scheduledDate,
+        status: CampaignStatus.SENT,
+      });
+
+      orderRepo.find.mockResolvedValueOnce([
+        { id: 'ord-1', unitPrice: 30000, quantity: 2, status: OrderStatus.PICKED_UP },
+        { id: 'ord-2', unitPrice: 20000, quantity: 1, status: OrderStatus.PAID },
+      ]);
+
+      const analytics = await service.getCampaignAnalytics('store-1', 'cam-1');
+      expect(analytics.campaignId).toBe('cam-1');
+      expect(analytics.metrics.ordersWithin24h).toBe(2);
+      expect(analytics.metrics.revenueGeneratedVnd).toBe(80000);
+      expect(analytics.metrics.recipientsCount).toBe(120);
+    });
+  });
 });

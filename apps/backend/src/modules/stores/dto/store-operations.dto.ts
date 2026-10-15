@@ -165,3 +165,66 @@ export class ExportDataQueryDto {
   @IsDateString()
   toDate?: string;
 }
+
+export class CreateStoreClosureDto {
+  @ApiProperty({
+    description: 'Ngày tạm nghỉ hoặc áp dụng giờ đặc biệt (YYYY-MM-DD)',
+    example: '2026-11-20',
+  })
+  @IsNotEmpty()
+  @IsDateString()
+  date: string;
+
+  @ApiPropertyOptional({
+    description: 'Loại đóng cửa (CLOSED hoặc SPECIAL_HOURS)',
+    example: 'CLOSED',
+  })
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @ApiPropertyOptional({
+    description: 'Khung giờ đặc biệt nếu type là SPECIAL_HOURS',
+    example: { open: '08:00', close: '12:00' },
+  })
+  @IsOptional()
+  @IsObject()
+  openHours?: Record<string, unknown>;
+}
+
+export class UpdateTaskRemindersDto {
+  @ApiPropertyOptional({ description: 'Nhắc nhở nhập số thực tế cuối ngày', example: true })
+  @IsOptional()
+  actualsEntryReminder?: boolean;
+
+  @ApiPropertyOptional({ description: 'Nhắc nhở duyệt đề xuất giá', example: true })
+  @IsOptional()
+  priceReviewReminder?: boolean;
+
+  @ApiPropertyOptional({ description: 'Giờ nhắc nhở mặc định (HH:mm)', example: '21:30' })
+  @IsOptional()
+  @IsString()
+  reminderTime?: string;
+}
+
+export class ComparePeriodsDto {
+  @ApiProperty({ description: 'Kỳ A: Từ ngày (YYYY-MM-DD)', example: '2026-10-01' })
+  @IsNotEmpty()
+  @IsDateString()
+  periodAFrom: string;
+
+  @ApiProperty({ description: 'Kỳ A: Đến ngày (YYYY-MM-DD)', example: '2026-10-07' })
+  @IsNotEmpty()
+  @IsDateString()
+  periodATo: string;
+
+  @ApiProperty({ description: 'Kỳ B: Từ ngày (YYYY-MM-DD)', example: '2026-10-08' })
+  @IsNotEmpty()
+  @IsDateString()
+  periodBFrom: string;
+
+  @ApiProperty({ description: 'Kỳ B: Đến ngày (YYYY-MM-DD)', example: '2026-10-14' })
+  @IsNotEmpty()
+  @IsDateString()
+  periodBTo: string;
+}

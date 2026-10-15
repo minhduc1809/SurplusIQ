@@ -17,7 +17,10 @@ import { WeeklyStatementEntity } from '../../entities/reconciliation/weekly-stat
 import { StatementLineEntity } from '../../entities/reconciliation/statement-line.entity';
 import { CustomerNoteEntity } from '../../entities/stores/customer-note.entity';
 import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
+import { ItemEntity } from '../../entities/catalog/item.entity';
+import { PriceProposalEntity } from '../../entities/reconciliation/price-proposal.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
@@ -30,12 +33,15 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       StoreSettingsEntity,
       OrderEntity,
       OfferEntity,
+      ItemEntity,
+      PriceProposalEntity,
       ComplaintEntity,
       ReviewEntity,
       WeeklyStatementEntity,
       StatementLineEntity,
       CustomerNoteEntity,
       CustomerProfileEntity,
+      FavoriteStoreEntity,
       UserEntity,
     ]),
     SubscriptionsModule,

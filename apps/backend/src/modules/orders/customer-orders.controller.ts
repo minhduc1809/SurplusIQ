@@ -151,4 +151,14 @@ export class CustomerOrdersController {
   async getOrderReceipt(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.ordersService.getOrderReceipt(user?.userId, id);
   }
+
+  @Post('reorder/:oldOrderId')
+  @ApiOperation({
+    summary: 'Đặt lại nhanh từ đơn hàng cũ nếu món còn mở suất hôm nay (R1-051)',
+  })
+  @ApiResponse({ status: 200, description: 'Tìm thấy suất khả dụng và thông tin checkout' })
+  @ApiResponse({ status: 400, description: 'Món đã hết suất hoặc chưa mở suất hôm nay' })
+  async reorderShortcut(@CurrentUser() user: RequestUser, @Param('oldOrderId') oldOrderId: string) {
+    return this.ordersService.reorderShortcut(user?.userId, oldOrderId);
+  }
 }

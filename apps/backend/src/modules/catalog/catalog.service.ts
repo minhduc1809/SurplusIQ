@@ -15,6 +15,7 @@ import {
   QueryItemsDto,
   QueryItemStatus,
   ImportCsvItemsDto,
+  BatchUpdateItemsDto,
 } from './dto';
 import { CATALOG_CONSTANTS } from './catalog.constants';
 import { AuditLogService } from '../audit/audit-log.service';
@@ -535,5 +536,111 @@ export class CatalogService {
     }
 
     return summary;
+  }
+
+  /**
+   * Xem cảnh báo chất lượng dữ liệu món ăn (R2-099)
+   */
+  async getDataQualityWarnings(storeId: string) {
+    const items = await this.itemRepo.find({
+      where: { storeId, status: ItemStatus.ACTIVE },
+    });
+
+    const warnings: Array<{
+      itemId: string;
+      itemName: string;
+      type: 'MISSING_WEIGHT' | 'MISSING_COST' | 'MISSING_ALLERGENS';
+      severity: 'MEDIUM' | 'LOW';
+      suggestion: string;
+    }> = [];
+
+    let fullyConfigured = 0;
+
+    for (const item of items) {
+      let isFull = true;
+      if (!item.weightGrams) {
+        isFull = false;
+        warnings.push({
+          itemId: item.id,
+          itemName: item.name,
+          type: 'MISSING_WEIGHT',
+          severity: 'MEDIUM',
+          suggestion:
+            'Khai báo trọng lượng ước tính để hệ thống tính chính xác số kg thực phẩm cứu được.',
+        });
+      }
+      if (!item.costPrice) {
+        isFull = false;
+        warnings.push({
+          itemId: item.id,
+          itemName: item.name,
+          type: 'MISSING_COST',
+          severity: 'LOW',
+          suggestion:
+            'Khai báo giá vốn giúp thuật toán định giá không bao giờ giảm dưới mức hòa vốn.',
+        });
+      }
+      if (!item.allergens || item.allergens.length === 0) {
+        isFull = false;
+        warnings.push({
+          itemId: item.id,
+          itemName: item.name,
+          type: 'MISSING_ALLERGENS',
+          severity: 'MEDIUM',
+          suggestion: 'Khai báo thành phần dị ứng để bảo vệ khách hàng có hồ sơ dị ứng thực phẩm.',
+        });
+      }
+      if (isFull) fullyConfigured++;
+    }
+
+    const completenessScore =
+      items.length > 0 ? Math.round((fullyConfigured / items.length) * 100) : 100;
+
+    return {
+      totalItems: items.length,
+      fullyConfigured,
+      completenessScore,
+      warnings,
+    };
+  }
+
+  /**
+   * Cập nhật hàng loạt thuộc tính món ăn (tối đa 100 món theo R2-100)
+   */
+  async batchUpdateItems(storeId: string, dto: BatchUpdateItemsDto, actorId?: string) {
+    const items = await this.itemRepo.findByIds(dto.itemIds);
+    const storeItems = items.filter((i) => i.storeId === storeId);
+
+    const updatedIds: string[] = [];
+
+    for (const item of storeItems) {
+      if (dto.category !== undefined) item.category = dto.category;
+      if (dto.standardShelfLifeHours !== undefined)
+        item.standardShelfLifeHours = dto.standardShelfLifeHours;
+      if (dto.estimatedWeightGrams !== undefined) item.weightGrams = dto.estimatedWeightGrams;
+      updatedIds.push(item.id);
+    }
+
+    if (storeItems.length > 0) {
+      await this.itemRepo.save(storeItems);
+
+      await this.auditLogService.log({
+        storeId,
+        actorId,
+        actorRole: 'STORE_MEMBER',
+        action: 'ITEMS_BATCH_UPDATED',
+        targetType: 'ITEM_BATCH',
+        newValue: {
+          updatedCount: storeItems.length,
+          itemIds: updatedIds,
+        },
+      });
+    }
+
+    return {
+      successCount: storeItems.length,
+      failedCount: dto.itemIds.length - storeItems.length,
+      updatedItemIds: updatedIds,
+    };
   }
 }

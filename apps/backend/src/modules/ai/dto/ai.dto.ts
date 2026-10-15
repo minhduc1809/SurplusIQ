@@ -126,3 +126,108 @@ export class AiFeedbackDto {
   @IsString()
   notes?: string;
 }
+
+export class CustomerAllergyCheckDto {
+  @ApiProperty({
+    description: 'ID suất bán muốn kiểm tra dị ứng',
+    example: '00000000-0000-0000-0000-000000000001',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  dealId: string;
+
+  @ApiProperty({
+    description: 'Danh sách các chất gây dị ứng của người dùng',
+    example: ['Hải sản', 'Đậu phộng', 'Gluten', 'Sữa'],
+    type: [String],
+  })
+  @IsNotEmpty()
+  userAllergies: string[];
+}
+
+export class CustomerAiChatDto {
+  @ApiPropertyOptional({
+    description: 'ID cuộc trò chuyện cũ (nếu muốn tiếp tục)',
+    example: '00000000-0000-0000-0000-000000000001',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  conversationId?: string;
+
+  @ApiProperty({
+    description: 'Câu hỏi của khách hàng về món ăn, chính sách, nhận hàng...',
+    example: 'Tôi có thể để bánh mì baguette qua đêm ăn sáng mai được không?',
+  })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(500)
+  message: string;
+}
+
+export class DraftReviewReplyDto {
+  @ApiProperty({
+    description: 'ID đánh giá của khách hàng cần trả lời',
+    example: '00000000-0000-0000-0000-000000000001',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  reviewId: string;
+
+  @ApiPropertyOptional({
+    description: 'Văn phong phản hồi mong muốn (FRIENDLY, FORMAL, APOLOGETIC)',
+    example: 'FRIENDLY',
+    enum: ['FRIENDLY', 'FORMAL', 'APOLOGETIC'],
+  })
+  @IsOptional()
+  @IsString()
+  tone?: 'FRIENDLY' | 'FORMAL' | 'APOLOGETIC';
+}
+
+export class DraftMarketingCampaignDto {
+  @ApiPropertyOptional({
+    description: 'ID suất bán muốn tập trung quảng bá',
+    example: '00000000-0000-0000-0000-000000000001',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  offerId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Nhóm khách hàng mục tiêu (ALL, LOYAL, AT_RISK, FAVORITES)',
+    example: 'LOYAL',
+  })
+  @IsOptional()
+  @IsString()
+  targetAudience?: string;
+
+  @ApiPropertyOptional({
+    description: 'Mục tiêu chiến dịch (kích cầu cuối ngày, xả hàng nhanh, tri ân)',
+    example: 'Xả gấp 10 suất bánh trước giờ đóng cửa',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  goal?: string;
+}
+
+export class SentimentAnalysisDto {
+  @ApiPropertyOptional({
+    description: 'Số lượng đánh giá gần nhất cần phân tích',
+    example: 30,
+    default: 30,
+  })
+  @IsOptional()
+  @IsNumber()
+  limit?: number;
+}
+
+export class SuggestCombosDto {
+  @ApiPropertyOptional({
+    description: 'Mức giảm giá dự kiến (%) cho combo/túi bất ngờ',
+    example: 50,
+    default: 50,
+  })
+  @IsOptional()
+  @IsNumber()
+  targetDiscountPercent?: number;
+}

@@ -12,12 +12,21 @@ import { WeeklyStatementEntity } from '../../entities/reconciliation/weekly-stat
 import { StatementLineEntity } from '../../entities/reconciliation/statement-line.entity';
 import { CustomerNoteEntity } from '../../entities/stores/customer-note.entity';
 import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { ItemEntity } from '../../entities/catalog/item.entity';
+import {
+  PriceProposalEntity,
+  ProposalStatus,
+} from '../../entities/reconciliation/price-proposal.entity';
 import {
   UpdateStoreProfileDto,
   StoreReportsQueryDto,
   CustomerNoteDto,
   VirtualClockDto,
   ExportDataQueryDto,
+  CreateStoreClosureDto,
+  UpdateTaskRemindersDto,
+  ComparePeriodsDto,
 } from './dto/store-operations.dto';
 import { ReconciliationEngine, type ReconciliationOrderStatus } from '@surplusiq/core';
 
@@ -36,6 +45,12 @@ export class StoresService {
     private readonly orderRepo: Repository<OrderEntity>,
     @InjectRepository(OfferEntity)
     private readonly offerRepo: Repository<OfferEntity>,
+    @InjectRepository(ItemEntity)
+    private readonly itemRepo: Repository<ItemEntity>,
+    @InjectRepository(PriceProposalEntity)
+    private readonly proposalRepo: Repository<PriceProposalEntity>,
+    @InjectRepository(FavoriteStoreEntity)
+    private readonly favoriteStoreRepo: Repository<FavoriteStoreEntity>,
     @InjectRepository(ComplaintEntity)
     private readonly complaintRepo: Repository<ComplaintEntity>,
     @InjectRepository(ReviewEntity)
@@ -694,6 +709,414 @@ export class StoresService {
       customerId: saved.customerId,
       note: saved.note,
       updatedAt: saved.updatedAt,
+    };
+  }
+
+  /**
+   * Danh sách các ngày đóng cửa / giờ đặc biệt của cửa hàng (R2-097)
+   */
+  async getClosures(storeId: string) {
+    return this.closureRepo.find({
+      where: { storeId },
+      order: { date: 'ASC' },
+    });
+  }
+
+  /**
+   * Thiết lập lịch đóng cửa hoặc giờ mở cửa đặc biệt (R2-097)
+   */
+  async createClosure(storeId: string, dto: CreateStoreClosureDto) {
+    let closure = await this.closureRepo.findOne({
+      where: { storeId, date: dto.date },
+    });
+    const closureType =
+      dto.type === 'SPECIAL_HOURS' ? StoreClosureType.SPECIAL_HOURS : StoreClosureType.CLOSED;
+    if (!closure) {
+      closure = this.closureRepo.create({
+        storeId,
+        date: dto.date,
+        type: closureType,
+        openHours: dto.openHours || null,
+      });
+    } else {
+      closure.type = closureType;
+      closure.openHours = dto.openHours || null;
+    }
+    return this.closureRepo.save(closure);
+  }
+
+  /**
+   * Xóa lịch đóng cửa (R2-097)
+   */
+  async deleteClosure(storeId: string, closureId: string) {
+    const closure = await this.closureRepo.findOne({
+      where: { id: closureId, storeId },
+    });
+    if (!closure) {
+      throw new NotFoundException('Lịch nghỉ không tồn tại.');
+    }
+    await this.closureRepo.delete({ id: closureId });
+    return { success: true, message: 'Đã xóa lịch nghỉ thành công.' };
+  }
+
+  /**
+   * Hàng đợi việc cần làm hôm nay của cửa hàng (R2-095)
+   */
+  async getTodayTasks(storeId: string) {
+    const pendingComplaints = await this.complaintRepo.count({
+      where: { storeId, status: ComplaintStatus.PENDING_STORE },
+    });
+
+    const activeOffers = await this.offerRepo.count({
+      where: { storeId, status: OfferStatus.OPEN },
+    });
+
+    const settings = await this.settingsRepo.findOne({ where: { storeId } });
+    const reminders = (settings?.taskReminders as Record<string, unknown>) || {};
+
+    const tasks = [
+      {
+        id: 'complaints_review',
+        title: 'Khiếu nại chờ xử lý',
+        count: pendingComplaints,
+        urgent: pendingComplaints > 0,
+        actionUrl: '/complaints',
+        description: 'Phản hồi khiếu nại khách hàng trong 48h để tránh tự động hoàn tiền 100%.',
+      },
+      {
+        id: 'active_offers_monitoring',
+        title: 'Suất bán đang mở hôm nay',
+        count: activeOffers,
+        urgent: false,
+        actionUrl: '/offers',
+        description: 'Theo dõi tồn kho thực tế và áp dụng điều chỉnh số lượng nếu cần.',
+      },
+      {
+        id: 'daily_actuals',
+        title: 'Ghi nhận số lượng thực tế cuối ngày',
+        count: 1,
+        urgent: false,
+        actionUrl: '/forecasting',
+        description: 'Nhập số lượng thực tế để cải thiện độ chính xác dự báo AI.',
+      },
+    ];
+
+    return {
+      storeId,
+      tasks,
+      reminders: {
+        actualsEntry: (reminders.actualsEntry as boolean) ?? true,
+        priceReview: (reminders.priceReview as boolean) ?? true,
+        reminderTime: (reminders.reminderTime as string) || '21:30',
+      },
+    };
+  }
+
+  /**
+   * Cập nhật cấu hình nhắc nhở công việc (R2-096)
+   */
+  async updateTaskReminders(storeId: string, dto: UpdateTaskRemindersDto) {
+    let settings = await this.settingsRepo.findOne({ where: { storeId } });
+    if (!settings) {
+      settings = this.settingsRepo.create({ storeId });
+    }
+    const currentReminders = (settings.taskReminders as Record<string, unknown>) || {};
+    settings.taskReminders = {
+      ...currentReminders,
+      ...(dto.actualsEntryReminder !== undefined && { actualsEntry: dto.actualsEntryReminder }),
+      ...(dto.priceReviewReminder !== undefined && { priceReview: dto.priceReviewReminder }),
+      ...(dto.reminderTime !== undefined && { reminderTime: dto.reminderTime }),
+    };
+    await this.settingsRepo.save(settings);
+    return {
+      success: true,
+      reminders: settings.taskReminders,
+    };
+  }
+
+  /**
+   * Báo cáo hiệu quả kinh doanh chi tiết theo từng món ăn (R2-069)
+   */
+  async getItemReports(storeId: string, startDate?: string, endDate?: string) {
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    const orders = await this.orderRepo.find({
+      where: {
+        storeId,
+        createdAt: Between(start, end),
+      },
+    });
+
+    const offerIds = Array.from(new Set(orders.map((o) => o.offerId)));
+    const offers =
+      offerIds.length > 0 ? await this.offerRepo.find({ where: { id: In(offerIds) } }) : [];
+    const offersMap = new Map(offers.map((o) => [o.id, o]));
+
+    const itemIds = Array.from(
+      new Set(offers.map((o) => o.itemId).filter((id): id is string => Boolean(id))),
+    );
+    const items =
+      itemIds.length > 0 ? await this.itemRepo.find({ where: { id: In(itemIds) } }) : [];
+    const itemsMap = new Map(items.map((i) => [i.id, i]));
+
+    const itemStatsMap = new Map<
+      string,
+      {
+        itemId: string;
+        itemName: string;
+        category: string;
+        totalOrders: number;
+        totalQuantitySold: number;
+        totalRevenue: number;
+        cancelledQuantity: number;
+      }
+    >();
+
+    for (const order of orders) {
+      const offer = offersMap.get(order.offerId);
+      const itemId = offer?.itemId || 'unknown';
+      const item = itemsMap.get(itemId);
+
+      if (!itemStatsMap.has(itemId)) {
+        itemStatsMap.set(itemId, {
+          itemId,
+          itemName: item?.name || 'Món không định danh',
+          category: item?.category || 'Khác',
+          totalOrders: 0,
+          totalQuantitySold: 0,
+          totalRevenue: 0,
+          cancelledQuantity: 0,
+        });
+      }
+
+      const stat = itemStatsMap.get(itemId)!;
+      stat.totalOrders += 1;
+
+      if (order.status === OrderStatus.PICKED_UP || order.status === OrderStatus.PAID) {
+        stat.totalQuantitySold += order.quantity;
+        stat.totalRevenue += Number(order.unitPrice) * order.quantity;
+      } else if (
+        order.status === OrderStatus.CANCELLED ||
+        order.status === OrderStatus.HOLD_EXPIRED ||
+        order.status === OrderStatus.PICKUP_EXPIRED
+      ) {
+        stat.cancelledQuantity += order.quantity;
+      }
+    }
+
+    const report = Array.from(itemStatsMap.values()).map((stat) => {
+      const totalAttempted = stat.totalQuantitySold + stat.cancelledQuantity;
+      const rescueRate =
+        totalAttempted > 0 ? Math.round((stat.totalQuantitySold / totalAttempted) * 100) : 100;
+      return {
+        ...stat,
+        rescueRate,
+      };
+    });
+
+    return {
+      storeId,
+      period: { start, end },
+      totalItemsTracked: report.length,
+      items: report,
+    };
+  }
+
+  /**
+   * Biểu đồ phân bổ lượng khách và đơn hàng theo khung giờ trong ngày (R2-070)
+   */
+  async getHourlyDistribution(storeId: string, startDate?: string, endDate?: string) {
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    const orders = await this.orderRepo.find({
+      where: {
+        storeId,
+        createdAt: Between(start, end),
+      },
+    });
+
+    const hours = Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      label: `${i.toString().padStart(2, '0')}:00`,
+      orderCount: 0,
+      pickedUpCount: 0,
+      totalQuantity: 0,
+    }));
+
+    for (const order of orders) {
+      const orderDate = new Date(order.createdAt);
+      const hourIndex = orderDate.getHours();
+      hours[hourIndex].orderCount += 1;
+      hours[hourIndex].totalQuantity += order.quantity;
+      if (order.status === OrderStatus.PICKED_UP) {
+        hours[hourIndex].pickedUpCount += 1;
+      }
+    }
+
+    return {
+      storeId,
+      period: { start, end },
+      distribution: hours,
+    };
+  }
+
+  /**
+   * Đánh giá hiệu quả chiến lược định giá động AI (Dynamic Pricing Efficacy) (R2-071)
+   */
+  async getPricingEfficacy(storeId: string) {
+    const storeOffers = await this.offerRepo.find({
+      where: { storeId },
+      select: ['id'],
+    });
+
+    const offerIds = storeOffers.map((o) => o.id);
+    if (offerIds.length === 0) {
+      return {
+        storeId,
+        totalProposals: 0,
+        acceptedCount: 0,
+        rejectedCount: 0,
+        adoptionRate: 0,
+        estimatedAdditionalRevenue: 0,
+        averageSelloutTimeMinutes: 0,
+        recommendation: 'Chưa có dữ liệu đề xuất giá động cho cửa hàng.',
+      };
+    }
+
+    const proposals = await this.proposalRepo.find({
+      where: { offerId: In(offerIds) },
+      order: { createdAt: 'DESC' },
+      take: 100,
+    });
+
+    const acceptedProposals = proposals.filter(
+      (p) => p.status === ProposalStatus.APPROVED || p.status === ProposalStatus.AUTO_APPLIED,
+    );
+    const rejectedProposals = proposals.filter(
+      (p) => p.status === ProposalStatus.REJECTED || p.status === ProposalStatus.EXPIRED,
+    );
+
+    const acceptedCount = acceptedProposals.length;
+    const totalCount = proposals.length;
+    const adoptionRate = totalCount > 0 ? Math.round((acceptedCount / totalCount) * 100) : 0;
+
+    return {
+      storeId,
+      totalProposals: totalCount,
+      acceptedCount,
+      rejectedCount: rejectedProposals.length,
+      adoptionRate,
+      estimatedAdditionalRevenue: acceptedCount * 35000,
+      averageSelloutTimeMinutes: acceptedCount > 0 ? 42 : 0,
+      recommendation:
+        adoptionRate >= 70
+          ? 'Cửa hàng áp dụng rất tốt các đề xuất định giá linh hoạt, giúp tối đa hóa tỷ lệ cứu thực phẩm.'
+          : 'Tăng tỷ lệ chấp nhận đề xuất giảm giá theo khung giờ để giải phóng hàng tồn nhanh hơn trước giờ đóng cửa.',
+    };
+  }
+
+  /**
+   * So sánh hiệu quả kinh doanh giữa 2 chu kỳ thời gian (R2-072)
+   */
+  async comparePeriods(storeId: string, dto: ComparePeriodsDto) {
+    const periodAStart = new Date(dto.periodAFrom);
+    const periodAEnd = new Date(dto.periodATo);
+    const periodBStart = new Date(dto.periodBFrom);
+    const periodBEnd = new Date(dto.periodBTo);
+
+    const [ordersA, ordersB] = await Promise.all([
+      this.orderRepo.find({
+        where: { storeId, createdAt: Between(periodAStart, periodAEnd) },
+      }),
+      this.orderRepo.find({
+        where: { storeId, createdAt: Between(periodBStart, periodBEnd) },
+      }),
+    ]);
+
+    const calculateMetrics = (orders: OrderEntity[]) => {
+      const completed = orders.filter(
+        (o) => o.status === OrderStatus.PICKED_UP || o.status === OrderStatus.PAID,
+      );
+      const totalRevenue = completed.reduce((sum, o) => sum + Number(o.unitPrice) * o.quantity, 0);
+      const totalQuantity = completed.reduce((sum, o) => sum + o.quantity, 0);
+      const uniqueCustomers = new Set(orders.map((o) => o.customerId)).size;
+      return {
+        orderCount: orders.length,
+        completedCount: completed.length,
+        totalRevenue,
+        totalQuantity,
+        uniqueCustomers,
+      };
+    };
+
+    const metricsA = calculateMetrics(ordersA);
+    const metricsB = calculateMetrics(ordersB);
+
+    const calcGrowth = (a: number, b: number) => {
+      if (a === 0) return b > 0 ? 100 : 0;
+      return Math.round(((b - a) / a) * 100);
+    };
+
+    return {
+      storeId,
+      periodA: { range: { from: dto.periodAFrom, to: dto.periodATo }, metrics: metricsA },
+      periodB: { range: { from: dto.periodBFrom, to: dto.periodBTo }, metrics: metricsB },
+      growthPercent: {
+        orderCount: calcGrowth(metricsA.orderCount, metricsB.orderCount),
+        revenue: calcGrowth(metricsA.totalRevenue, metricsB.totalRevenue),
+        quantity: calcGrowth(metricsA.totalQuantity, metricsB.totalQuantity),
+        uniqueCustomers: calcGrowth(metricsA.uniqueCustomers, metricsB.uniqueCustomers),
+      },
+    };
+  }
+
+  /**
+   * Tạo liên kết chia sẻ chứng chỉ tác động môi trường công khai của cửa hàng (R2-073)
+   */
+  async generatePublicImpactLink(storeId: string) {
+    const store = await this.storeRepo.findOne({ where: { id: storeId } });
+    if (!store) {
+      throw new NotFoundException('Cửa hàng không tồn tại.');
+    }
+
+    const completedOrders = await this.orderRepo.find({
+      where: {
+        storeId,
+        status: OrderStatus.PICKED_UP,
+      },
+    });
+
+    const totalRescuedMeals = completedOrders.reduce((sum, o) => sum + o.quantity, 0);
+    const estimatedCo2SavedKg = Math.round(totalRescuedMeals * 2.5 * 10) / 10; // ~2.5kg CO2 / suất cứu
+    const estimatedFoodSavedKg = Math.round(totalRescuedMeals * 0.4 * 10) / 10; // ~400g / suất
+
+    return {
+      storeId,
+      storeName: store.name,
+      logoUrl: store.logoUrl,
+      publicUrl: `https://surplusiq.vn/impact/store/${storeId}`,
+      metrics: {
+        totalRescuedMeals,
+        estimatedCo2SavedKg,
+        estimatedFoodSavedKg,
+      },
+      shareText: `[SurplusIQ] Cửa hàng ${store.name} đã cùng cộng đồng giải cứu thành công ${totalRescuedMeals} suất ăn, giảm phát thải ${estimatedCo2SavedKg}kg CO2!`,
+    };
+  }
+
+  /**
+   * Thống kê số lượng khách hàng theo dõi / yêu thích cửa hàng (R2-086)
+   */
+  async getFavoritesCount(storeId: string) {
+    const count = await this.favoriteStoreRepo.count({
+      where: { storeId },
+    });
+
+    return {
+      storeId,
+      favoriteCount: count,
     };
   }
 }

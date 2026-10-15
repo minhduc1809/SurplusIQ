@@ -754,4 +754,50 @@ export class DiscoveryService {
     await this.viewHistoryRepo.delete({ userId });
     return { success: true, message: 'Đã xóa toàn bộ lịch sử xem deal thành công.' };
   }
+
+  /**
+   * So sánh chi tiết 2 đến 3 suất bán (R1-036)
+   */
+  async compareDeals(dealIds: string[]) {
+    if (!dealIds || dealIds.length < 2 || dealIds.length > 3) {
+      throw new BadRequestException('Chỉ có thể so sánh từ 2 đến 3 suất bán (R1-036).');
+    }
+    const deals = await Promise.all(
+      dealIds.map(async (id) => {
+        try {
+          return await this.getDealDetail(id);
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const validDeals = deals.filter(Boolean);
+    if (validDeals.length < 2) {
+      throw new NotFoundException('Không tìm thấy đủ số lượng suất bán hợp lệ để so sánh.');
+    }
+    return {
+      count: validDeals.length,
+      deals: validDeals,
+    };
+  }
+
+  /**
+   * Lấy thông tin chia sẻ liên kết suất bán không chứa PII (R1-037)
+   */
+  async getShareableDeal(dealId: string) {
+    const deal = await this.getDealDetail(dealId);
+    const title = deal.item?.name || 'Suất cứu món';
+    const storeName = deal.store?.name || '';
+    return {
+      dealId: deal.id,
+      title,
+      storeName,
+      originalPrice: deal.originalPrice,
+      currentPrice: deal.currentPrice,
+      discountPercent: deal.discountPercent,
+      imageUrl: deal.item?.imageUrl,
+      shareUrl: `https://surplusiq.vn/deals/${deal.id}`,
+      shareText: `[SurplusIQ] Cứu món ${title} tại ${storeName} chỉ với ${deal.currentPrice.toLocaleString('vi-VN')}đ (-${deal.discountPercent}%)!`,
+    };
+  }
 }

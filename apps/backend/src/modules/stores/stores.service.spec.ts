@@ -16,6 +16,12 @@ import {
 import { StatementLineEntity } from '../../entities/reconciliation/statement-line.entity';
 import { CustomerNoteEntity } from '../../entities/stores/customer-note.entity';
 import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { ItemEntity } from '../../entities/catalog/item.entity';
+import {
+  PriceProposalEntity,
+  ProposalStatus,
+} from '../../entities/reconciliation/price-proposal.entity';
 
 describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-082..R2-085, R2-103..R2-105)', () => {
   let service: StoresService;
@@ -24,6 +30,9 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
   let settingsRepo: any;
   let orderRepo: any;
   let offerRepo: any;
+  let itemRepo: any;
+  let proposalRepo: any;
+  let favoriteStoreRepo: any;
   let complaintRepo: any;
   let reviewRepo: any;
   let statementRepo: any;
@@ -37,6 +46,7 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
     };
     closureRepo = {
+      find: jest.fn().mockResolvedValue([{ id: 'c-1', date: '2026-11-20', type: 'CLOSED' }]),
       findOne: jest.fn(),
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
@@ -44,13 +54,25 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
     };
     settingsRepo = {
       findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
     };
     orderRepo = {
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
     };
     offerRepo = {
       count: jest.fn().mockResolvedValue(3),
+      find: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue({ affected: 2 }),
+    };
+    itemRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+    proposalRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+    favoriteStoreRepo = {
+      count: jest.fn().mockResolvedValue(12),
     };
     complaintRepo = {
       count: jest.fn().mockResolvedValue(1),
@@ -84,6 +106,9 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
         { provide: getRepositoryToken(StoreSettingsEntity), useValue: settingsRepo },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
         { provide: getRepositoryToken(OfferEntity), useValue: offerRepo },
+        { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
+        { provide: getRepositoryToken(PriceProposalEntity), useValue: proposalRepo },
+        { provide: getRepositoryToken(FavoriteStoreEntity), useValue: favoriteStoreRepo },
         { provide: getRepositoryToken(ComplaintEntity), useValue: complaintRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
         { provide: getRepositoryToken(WeeklyStatementEntity), useValue: statementRepo },
@@ -357,6 +382,156 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
         note: 'Khách thích ăn mặn',
       });
       expect(saved.note).toBe('Khách thích ăn mặn');
+    });
+  });
+
+  describe('closures & task queue (R2-095..R2-097)', () => {
+    it('quản lý lịch đóng cửa: danh sách, tạo và xóa', async () => {
+      const list = await service.getClosures('store-1');
+      expect(list.length).toBe(1);
+
+      closureRepo.findOne.mockResolvedValue(null);
+      const created = await service.createClosure('store-1', {
+        date: '2026-11-20',
+        type: 'CLOSED',
+      });
+      expect(created.date).toBe('2026-11-20');
+
+      closureRepo.findOne.mockResolvedValue({ id: 'c-1', storeId: 'store-1' });
+      const del = await service.deleteClosure('store-1', 'c-1');
+      expect(del.success).toBe(true);
+    });
+
+    it('tổng hợp danh sách việc hôm nay và cập nhật nhắc việc', async () => {
+      settingsRepo.findOne.mockResolvedValue({
+        storeId: 'store-1',
+        taskReminders: { actualsEntry: true, priceReview: true, reminderTime: '21:00' },
+      });
+
+      const tasksResult = await service.getTodayTasks('store-1');
+      expect(tasksResult.tasks.length).toBe(3);
+      expect(tasksResult.reminders.reminderTime).toBe('21:00');
+
+      const updatedReminders = await service.updateTaskReminders('store-1', {
+        actualsEntryReminder: false,
+        reminderTime: '22:00',
+      });
+      expect(updatedReminders.success).toBe(true);
+    });
+  });
+
+  describe('advanced reports & favorites (R2-069..R2-073, R2-086)', () => {
+    it('báo cáo hiệu quả kinh doanh theo từng món ăn (R2-069)', async () => {
+      orderRepo.find.mockResolvedValueOnce([
+        {
+          id: 'ord-1',
+          offerId: 'off-1',
+          quantity: 2,
+          unitPrice: 20000,
+          status: OrderStatus.PICKED_UP,
+        },
+      ]);
+      offerRepo.find.mockResolvedValueOnce([{ id: 'off-1', itemId: 'item-1' }]);
+      itemRepo.find.mockResolvedValueOnce([
+        { id: 'item-1', name: 'Bánh mì thịt', category: 'Bánh mì' },
+      ]);
+
+      const res = await service.getItemReports('store-1');
+      expect(res.totalItemsTracked).toBe(1);
+      expect(res.items[0].itemName).toBe('Bánh mì thịt');
+      expect(res.items[0].totalRevenue).toBe(40000);
+      expect(res.items[0].rescueRate).toBe(100);
+    });
+
+    it('biểu đồ phân bổ lượng khách theo 24 giờ (R2-070)', async () => {
+      orderRepo.find.mockResolvedValueOnce([
+        {
+          id: 'ord-1',
+          createdAt: new Date('2026-10-15T18:30:00Z'),
+          quantity: 3,
+          status: OrderStatus.PICKED_UP,
+        },
+      ]);
+
+      const res = await service.getHourlyDistribution('store-1');
+      expect(res.distribution).toHaveLength(24);
+      expect(res.distribution.some((h) => h.totalQuantity > 0)).toBe(true);
+    });
+
+    it('đánh giá hiệu quả chiến lược định giá động (R2-071)', async () => {
+      offerRepo.find.mockResolvedValueOnce([{ id: 'off-1' }]);
+      proposalRepo.find.mockResolvedValueOnce([
+        { id: 'p-1', status: ProposalStatus.APPROVED },
+        { id: 'p-2', status: ProposalStatus.REJECTED },
+      ]);
+
+      const res = await service.getPricingEfficacy('store-1');
+      expect(res.totalProposals).toBe(2);
+      expect(res.acceptedCount).toBe(1);
+      expect(res.adoptionRate).toBe(50);
+    });
+
+    it('so sánh hiệu quả giữa 2 chu kỳ thời gian (R2-072)', async () => {
+      orderRepo.find
+        .mockResolvedValueOnce([
+          {
+            id: 'ord-a',
+            status: OrderStatus.PICKED_UP,
+            unitPrice: 20000,
+            quantity: 1,
+            customerId: 'c1',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'ord-b1',
+            status: OrderStatus.PICKED_UP,
+            unitPrice: 25000,
+            quantity: 2,
+            customerId: 'c1',
+          },
+          {
+            id: 'ord-b2',
+            status: OrderStatus.PICKED_UP,
+            unitPrice: 30000,
+            quantity: 1,
+            customerId: 'c2',
+          },
+        ]);
+
+      const res = await service.comparePeriods('store-1', {
+        periodAFrom: '2026-10-01',
+        periodATo: '2026-10-07',
+        periodBFrom: '2026-10-08',
+        periodBTo: '2026-10-14',
+      });
+
+      expect(res.periodA.metrics.orderCount).toBe(1);
+      expect(res.periodB.metrics.orderCount).toBe(2);
+      expect(res.growthPercent.revenue).toBeGreaterThan(0);
+    });
+
+    it('tạo link chia sẻ chứng chỉ tác động môi trường (R2-073)', async () => {
+      storeRepo.findOne.mockResolvedValueOnce({
+        id: 'store-1',
+        name: 'Tiệm Bánh ABC',
+        logoUrl: 'https://example.com/logo.png',
+      });
+      orderRepo.find.mockResolvedValueOnce([
+        { id: 'ord-1', quantity: 5, status: OrderStatus.PICKED_UP },
+      ]);
+
+      const res = await service.generatePublicImpactLink('store-1');
+      expect(res.storeName).toBe('Tiệm Bánh ABC');
+      expect(res.metrics.totalRescuedMeals).toBe(5);
+      expect(res.publicUrl).toContain('store-1');
+    });
+
+    it('lấy số lượng khách hàng theo dõi/yêu thích (R2-086)', async () => {
+      favoriteStoreRepo.count.mockResolvedValueOnce(42);
+
+      const res = await service.getFavoritesCount('store-1');
+      expect(res.favoriteCount).toBe(42);
     });
   });
 });

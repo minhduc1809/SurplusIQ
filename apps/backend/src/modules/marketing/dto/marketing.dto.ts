@@ -20,6 +20,7 @@ import {
   PromotionTarget,
   PromotionStatus,
 } from '../../../entities/marketing/promotion.entity';
+import { CampaignStatus } from '../../../entities/marketing/campaign.entity';
 
 export class CreatePromotionDto {
   @ApiProperty({
@@ -240,4 +241,39 @@ export class CreateSurpriseBagDto {
   @ValidateNested({ each: true })
   @Type(() => SurpriseBagItemDto)
   items: SurpriseBagItemDto[];
+}
+
+export class UpdateCampaignDto {
+  @ApiPropertyOptional({
+    description: 'Tiêu đề thông báo push mới',
+    example: 'Giờ vàng cứu bánh mì 50%!',
+  })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiPropertyOptional({
+    description: 'Nội dung thông báo mới',
+    example: 'Chỉ còn 3 suất bánh mì baguette tươi mới nướng, giảm ngay 50%!',
+  })
+  @IsOptional()
+  @IsString()
+  content?: string;
+
+  @ApiPropertyOptional({
+    description: 'Thời điểm lên lịch gửi mới (ISO Date, cách thời điểm hiện tại ít nhất 15 phút)',
+    example: '2026-10-15T19:30:00Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Trạng thái chiến dịch (SCHEDULED hoặc CANCELLED)',
+    enum: CampaignStatus,
+    example: CampaignStatus.CANCELLED,
+  })
+  @IsOptional()
+  @IsEnum(CampaignStatus)
+  status?: CampaignStatus;
 }

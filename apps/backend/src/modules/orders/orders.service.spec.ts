@@ -523,4 +523,46 @@ describe('OrdersService', () => {
       expect(receipt.totalAmount).toBe(40000);
     });
   });
+
+  describe('reorderShortcut (R1-051)', () => {
+    it('đặt lại nhanh từ đơn hàng cũ nếu món còn mở suất hôm nay', async () => {
+      mockOrderRepo.findOne.mockResolvedValueOnce({
+        id: 'old-order-1',
+        customerId: mockCustomerId,
+        offerId: 'old-offer-1',
+      });
+      mockOfferRepo.findOne
+        .mockResolvedValueOnce({ id: 'old-offer-1', itemId: 'item-10' }) // oldOffer
+        .mockResolvedValueOnce({
+          id: 'new-offer-today',
+          storeId: mockStoreId,
+          itemId: 'item-10',
+          status: OfferStatus.OPEN,
+          remainingQuantity: 3,
+          currentPrice: 22000,
+          originalPrice: 45000,
+          pickupStart: new Date(),
+          pickupEnd: new Date(),
+        }); // currentOffer
+
+      const res = await service.reorderShortcut(mockCustomerId, 'old-order-1');
+      expect(res.offerId).toBe('new-offer-today');
+      expect(res.remainingQuantity).toBe(3);
+    });
+
+    it('báo lỗi nếu món cũ không còn suất mở hôm nay', async () => {
+      mockOrderRepo.findOne.mockResolvedValueOnce({
+        id: 'old-order-1',
+        customerId: mockCustomerId,
+        offerId: 'old-offer-1',
+      });
+      mockOfferRepo.findOne
+        .mockResolvedValueOnce({ id: 'old-offer-1', itemId: 'item-10' })
+        .mockResolvedValueOnce(null); // Không có suất mở
+
+      await expect(service.reorderShortcut(mockCustomerId, 'old-order-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
 });

@@ -9,9 +9,9 @@ import { ReviewEntity } from './complaints/review.entity';
 import { UserEntity } from './auth/user.entity';
 
 describe('TypeORM Entities Specification & Integrity', () => {
-  it('should export all 62 domain entities in ALL_ENTITIES', () => {
+  it('should export all 63 domain entities in ALL_ENTITIES', () => {
     expect(ALL_ENTITIES).toBeDefined();
-    expect(ALL_ENTITIES.length).toBe(62);
+    expect(ALL_ENTITIES.length).toBe(63);
   });
 
   it('should register all entities in TypeORM metadata storage', () => {
