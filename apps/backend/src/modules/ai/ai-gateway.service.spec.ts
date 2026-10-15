@@ -9,6 +9,8 @@ import { AiFeedbackEntity, AiRating } from '../../entities/ai/ai-feedback.entity
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
+import { ReviewEntity } from '../../entities/complaints/review.entity';
+import { StoreEntity } from '../../entities/stores/store.entity';
 import { QuotaService } from '../subscriptions/quota.service';
 
 describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
@@ -20,6 +22,8 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
   let offerRepo: any;
   let itemRepo: any;
   let orderRepo: any;
+  let reviewRepo: any;
+  let storeRepo: any;
   let quotaService: any;
 
   beforeEach(async () => {
@@ -43,12 +47,21 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
     };
     offerRepo = {
       find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
     };
     itemRepo = {
       find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
     };
     orderRepo = {
       find: jest.fn().mockResolvedValue([]),
+    };
+    reviewRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+    };
+    storeRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: 'store-1', name: 'Tiệm Bánh Mì Việt' }),
     };
     quotaService = {
       checkQuota: jest.fn().mockResolvedValue({
@@ -69,6 +82,8 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
         { provide: getRepositoryToken(OfferEntity), useValue: offerRepo },
         { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
+        { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
+        { provide: getRepositoryToken(StoreEntity), useValue: storeRepo },
         { provide: QuotaService, useValue: quotaService },
       ],
     }).compile();
@@ -193,6 +208,126 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
           rating: AiRating.UNHELPFUL,
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('Customer SaveBite AI Features (R1-084, R1-085, R1-087, R1-088)', () => {
+    it('tóm tắt thông tin deal dưới 3 gạch đầu dòng (R1-084)', async () => {
+      offerRepo.findOne.mockResolvedValueOnce({
+        id: 'deal-1',
+        storeId: 'store-1',
+        itemId: 'item-1',
+        originalPrice: 60000,
+        currentPrice: 30000,
+        pickupStart: new Date(),
+        pickupEnd: new Date(),
+      });
+      itemRepo.findOne.mockResolvedValueOnce({ id: 'item-1', name: 'Bánh Mì Kẹp Thịt' });
+
+      const res = await service.summarizeDeal('deal-1');
+      expect(res.dealId).toBe('deal-1');
+      expect(res.bullets).toHaveLength(3);
+      expect(res.bullets[1]).toContain('50%');
+    });
+
+    it('kiểm tra và cảnh báo thành phần dị ứng an toàn (R1-085)', async () => {
+      offerRepo.findOne.mockResolvedValueOnce({
+        id: 'deal-1',
+        itemId: 'item-1',
+      });
+      itemRepo.findOne.mockResolvedValueOnce({
+        id: 'item-1',
+        name: 'Bánh Cookie Đậu Phộng',
+        allergens: ['Đậu phộng', 'Trứng'],
+        ingredients: 'Bơ, bột mì, đậu phộng rang',
+      });
+
+      const res = await service.checkAllergies('user-1', {
+        dealId: 'deal-1',
+        userAllergies: ['Đậu phộng', 'Tôm'],
+      });
+
+      expect(res.riskLevel).toBe('DANGER');
+      expect(res.matchedAllergens).toContain('Đậu phộng');
+    });
+
+    it('gợi ý cách hâm nóng và ý tưởng món ăn sáng tạo (R1-087)', async () => {
+      offerRepo.findOne.mockResolvedValueOnce({ id: 'deal-1', itemId: 'item-1' });
+      itemRepo.findOne.mockResolvedValueOnce({
+        id: 'item-1',
+        name: 'Bánh Mì Chuối',
+        category: 'Bánh ngọt',
+      });
+
+      const res = await service.getRecipeIdeas('deal-1');
+      expect(res.reheatingGuide.length).toBeGreaterThan(0);
+      expect(res.creativeRecipes.length).toBeGreaterThan(0);
+    });
+
+    it('trò chuyện tự nhiên với SaveBite AI (R1-088)', async () => {
+      const res = await service.chatWithCustomer('user-1', {
+        message: 'Làm thế nào để nhận hàng tại quán?',
+      });
+
+      expect(res.reply).toContain('mã QR');
+      expect(quotaService.consume).toHaveBeenCalled();
+    });
+  });
+
+  describe('Store AI Copilot Features (R2-116, R2-119, R2-122, R2-124)', () => {
+    it('AI soạn thảo phản hồi đánh giá khách hàng (R2-116)', async () => {
+      reviewRepo.findOne.mockResolvedValueOnce({
+        id: 'rev-1',
+        rating: 5,
+        comment: 'Bánh rất ngon và rẻ!',
+      });
+
+      const res = await service.draftReviewReply('store-1', 'user-1', {
+        reviewId: 'rev-1',
+        tone: 'FRIENDLY',
+      });
+
+      expect(res.draftReply).toContain('cảm ơn');
+      expect(quotaService.consume).toHaveBeenCalled();
+    });
+
+    it('AI đề xuất tiêu đề và nội dung push marketing (R2-122)', async () => {
+      const res = await service.draftMarketingCampaign('store-1', 'user-1', {
+        targetAudience: 'ALL',
+      });
+
+      expect(res.proposals.length).toBeGreaterThan(0);
+      expect(res.proposals[0].title).toBeDefined();
+    });
+
+    it('phân tích cảm xúc và trích xuất điểm cần cải thiện từ đánh giá (R2-119)', async () => {
+      reviewRepo.find.mockResolvedValueOnce([
+        { id: 'r1', rating: 5 },
+        { id: 'r2', rating: 4 },
+        { id: 'r3', rating: 2 },
+      ]);
+
+      const res = await service.analyzeSentiment('store-1', 'user-1', { limit: 10 });
+      expect(res.totalReviewsAnalyzed).toBe(3);
+      expect(res.breakdown.positive).toBe(2);
+      expect(res.breakdown.negative).toBe(1);
+    });
+
+    it('gợi ý ghép combo hoặc túi bất ngờ tối ưu doanh thu (R2-124)', async () => {
+      offerRepo.find.mockResolvedValueOnce([
+        {
+          id: 'o-1',
+          itemId: 'it-1',
+          originalPrice: 50000,
+          currentPrice: 25000,
+          remainingQuantity: 5,
+        },
+      ]);
+      itemRepo.find.mockResolvedValueOnce([{ id: 'it-1', name: 'Bánh Baguette' }]);
+
+      const res = await service.suggestCombos('store-1', 'user-1', { targetDiscountPercent: 50 });
+      expect(res.suggestedCombos.length).toBeGreaterThan(0);
+      expect(res.suggestedCombos[0].type).toBe('SURPRISE_BAG');
     });
   });
 });
