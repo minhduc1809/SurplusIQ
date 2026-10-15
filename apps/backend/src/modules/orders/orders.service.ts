@@ -855,4 +855,47 @@ export class OrdersService {
       createdAt: order.createdAt,
     };
   }
+
+  /**
+   * Đặt lại nhanh từ lịch sử đơn hàng cũ (R1-051)
+   */
+  async reorderShortcut(customerId: string, oldOrderId: string) {
+    const oldOrder = await this.orderRepo.findOne({
+      where: { id: oldOrderId, customerId },
+    });
+    if (!oldOrder) {
+      throw new NotFoundException('Đơn hàng cũ không tồn tại hoặc không thuộc về bạn (R1-051).');
+    }
+
+    const oldOffer = await this.offerRepo.findOne({
+      where: { id: oldOrder.offerId },
+    });
+    if (!oldOffer) {
+      throw new NotFoundException('Không tìm thấy thông tin suất bán gốc của đơn hàng cũ.');
+    }
+
+    const currentOffer = await this.offerRepo.findOne({
+      where: {
+        itemId: oldOffer.itemId,
+        status: OfferStatus.OPEN,
+      },
+    });
+
+    if (!currentOffer || currentOffer.remainingQuantity <= 0) {
+      throw new BadRequestException(
+        'Món này hiện chưa có suất bán mở hoặc đã hết suất trong ngày hôm nay (R1-051).',
+      );
+    }
+
+    return {
+      message: 'Đã tìm thấy suất bán khả dụng hôm nay cho món cũ (R1-051).',
+      offerId: currentOffer.id,
+      storeId: currentOffer.storeId,
+      currentPrice: currentOffer.currentPrice,
+      originalPrice: currentOffer.originalPrice,
+      remainingQuantity: currentOffer.remainingQuantity,
+      pickupStart: currentOffer.pickupStart,
+      pickupEnd: currentOffer.pickupEnd,
+    };
+  }
 }

@@ -303,4 +303,43 @@ describe('DiscoveryService', () => {
       expect(history[0].title).toBe('Bánh Mì Pate');
     });
   });
+
+  describe('compareDeals & getShareableDeal (R1-036, R1-037)', () => {
+    it('so sánh từ 2 đến 3 suất bán thành công', async () => {
+      jest.spyOn(service, 'getDealDetail').mockImplementation(async (id: string) => {
+        return {
+          id,
+          originalPrice: 50000,
+          currentPrice: 25000,
+          discountPercent: 50,
+          item: { name: `Món ${id}` },
+          store: { name: `Quán ${id}` },
+        } as any;
+      });
+
+      const res = await service.compareDeals(['off-1', 'off-2']);
+      expect(res.count).toBe(2);
+      expect(res.deals).toHaveLength(2);
+
+      // Từ chối nếu dưới 2 hoặc quá 3
+      await expect(service.compareDeals(['off-1'])).rejects.toThrow();
+      await expect(service.compareDeals(['1', '2', '3', '4'])).rejects.toThrow();
+    });
+
+    it('tạo link chia sẻ không chứa PII (R1-037)', async () => {
+      jest.spyOn(service, 'getDealDetail').mockResolvedValueOnce({
+        id: 'off-share-1',
+        originalPrice: 60000,
+        currentPrice: 30000,
+        discountPercent: 50,
+        item: { name: 'Cơm tấm sườn' },
+        store: { name: 'Cơm Tấm Ba Ghiền' },
+      } as any);
+
+      const res = await service.getShareableDeal('off-share-1');
+      expect(res.dealId).toBe('off-share-1');
+      expect(res.shareUrl).toContain('off-share-1');
+      expect(res.shareText).toContain('Cơm tấm sườn');
+    });
+  });
 });

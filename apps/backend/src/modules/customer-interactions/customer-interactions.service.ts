@@ -324,6 +324,141 @@ export class CustomerInteractionsService {
     };
   }
 
+  /**
+   * Xem huy hiệu tác động xã hội & danh hiệu giải cứu thực phẩm (R1-081)
+   */
+  async getCustomerImpactBadges(customerId: string) {
+    const impact = await this.getCustomerImpact(customerId);
+    const { totalOrders, totalFoodSavedKg, totalSavingsVnd } = impact;
+
+    const badges = [
+      {
+        id: 'BRONZE_RESCUER',
+        name: 'Người Cứu Món Tập Sự',
+        description: 'Giải cứu thành công suất bánh đầu tiên.',
+        icon: '🥉',
+        isUnlocked: totalOrders >= 1,
+        progress: Math.min(100, Math.round((totalOrders / 1) * 100)),
+      },
+      {
+        id: 'GREEN_PIONEER',
+        name: 'Chiến Binh Xanh',
+        description: 'Giải cứu từ 5 suất ăn hoặc 2kg thực phẩm.',
+        icon: '🌱',
+        isUnlocked: totalOrders >= 5 || totalFoodSavedKg >= 2,
+        progress: Math.min(100, Math.round((totalOrders / 5) * 100)),
+      },
+      {
+        id: 'SILVER_CHAMPION',
+        name: 'Dũng Sĩ Tiết Kiệm',
+        description: 'Giải cứu từ 10 suất ăn và tiết kiệm hơn 200.000đ.',
+        icon: '🥈',
+        isUnlocked: totalOrders >= 10,
+        progress: Math.min(100, Math.round((totalOrders / 10) * 100)),
+      },
+      {
+        id: 'PLANET_HERO',
+        name: 'Anh Hùng Hành Tinh',
+        description: 'Giải cứu từ 25 suất ăn hoặc hơn 10kg thực phẩm.',
+        icon: '🌍',
+        isUnlocked: totalOrders >= 25 || totalFoodSavedKg >= 10,
+        progress: Math.min(100, Math.round((totalOrders / 25) * 100)),
+      },
+      {
+        id: 'ZERO_WASTE_MASTER',
+        name: 'Bậc Thầy Chống Lãng Phí',
+        description: 'Giải cứu trên 50 suất ăn - giảm phát thải rác thải thực phẩm xuất sắc.',
+        icon: '👑',
+        isUnlocked: totalOrders >= 50,
+        progress: Math.min(100, Math.round((totalOrders / 50) * 100)),
+      },
+    ];
+
+    const currentBadge = [...badges].reverse().find((b) => b.isUnlocked) || badges[0];
+
+    return {
+      impact,
+      currentBadgeTitle: currentBadge.name,
+      unlockedCount: badges.filter((b) => b.isUnlocked).length,
+      totalBadges: badges.length,
+      badges,
+      shareCard: {
+        title: `Tôi đã cứu được ${totalFoodSavedKg}kg thực phẩm cùng SurplusIQ!`,
+        statLine: `${totalOrders} đơn hàng hoàn tất • Tiết kiệm ${totalSavingsVnd.toLocaleString('vi-VN')}đ`,
+        shareUrl: `https://surplusiq.vn/impact/${customerId}`,
+        hashtag: '#SurplusIQ #GiaiCuuThucPham #ZeroWasteVietnam',
+      },
+    };
+  }
+
+  /**
+   * Danh mục câu hỏi thường gặp FAQ & Hướng dẫn (R1-072)
+   */
+  async getHelpCenterFaq() {
+    return [
+      {
+        category: 'NHAN_HANG',
+        categoryTitle: 'Nhận hàng & Xác thực',
+        faqs: [
+          {
+            q: 'Làm thế nào để nhận hàng tại cửa hàng?',
+            a: 'Sau khi thanh toán thành công, mở vé nhận hàng trên App, đưa mã QR cho nhân viên quét hoặc đọc mã PIN 6 ký tự hiển thị trên màn hình.',
+          },
+          {
+            q: 'Tôi có thể nhờ người khác đến lấy hộ không?',
+            a: 'Có. Tại chi tiết đơn hàng, chọn "Tạo mã nhận hộ" để sinh mã PIN 8 ký tự gửi cho người thân. Mã này chỉ có hiệu lực một lần.',
+          },
+          {
+            q: 'Khung giờ nhận hàng được quy định thế nào?',
+            a: 'Mỗi suất có khung giờ nhận riêng (thường cuối ngày). Bạn được phép đến trễ tối đa 15 phút. Sau thời gian này đơn có thể bị đánh dấu quá hạn.',
+          },
+        ],
+      },
+      {
+        category: 'THANH_TOAN',
+        categoryTitle: 'Thanh toán & Hoàn tiền',
+        faqs: [
+          {
+            q: 'Thời gian thanh toán giữ suất là bao lâu?',
+            a: 'Hệ thống giữ suất trong đúng 10 phút. Bạn cần hoàn tất quét mã VietQR và xác nhận trước khi hết giờ.',
+          },
+          {
+            q: 'Nếu tôi chuyển khoản muộn hơn 10 phút thì sao?',
+            a: 'Hệ thống sẽ tự động phát hiện giao dịch muộn và tạo yêu cầu hoàn trả 100% số tiền về tài khoản của bạn (VC-07, R1-047).',
+          },
+        ],
+      },
+      {
+        category: 'KHIEU_NAI',
+        categoryTitle: 'Khiếu nại & Chất lượng',
+        faqs: [
+          {
+            q: 'Tôi có thể khiếu nại chất lượng món ăn không?',
+            a: 'Có. Bạn có thể gửi khiếu nại kèm tối đa 3 ảnh chụp thực tế trong vòng 24 giờ kể từ khi nhận hàng.',
+          },
+          {
+            q: 'Thời hạn cửa hàng xử lý khiếu nại là bao lâu?',
+            a: 'Cửa hàng có 48 giờ để phản hồi. Nếu cửa hàng quá hạn không phản hồi, hệ thống sẽ tự động chấp nhận và hoàn tiền 100% cho bạn (BR-071).',
+          },
+        ],
+      },
+      {
+        category: 'QUY_DINH',
+        categoryTitle: 'Quy định & Chính sách',
+        faqs: [
+          {
+            q: 'Giá bán suất cứu món có gì đặc biệt?',
+            a: 'Tất cả các món giảm giá trên SurplusIQ đều có giá bán tối thiểu bằng giá sàn (40% giá gốc) để bảo đảm quyền lợi đôi bên.',
+          },
+          {
+            q: 'Chính sách No-show (không đến nhận)?',
+            a: 'Nếu bạn đặt hàng nhưng không đến nhận quá 3 lần trong vòng 30 ngày, tài khoản sẽ bị tạm ngưng quyền đặt hàng trong 7 ngày (BR-020).',
+          },
+        ],
+      },
+    ];
+  }
+
   // -------------------------------------------------------------------------
   // RÚT & BỔ SUNG BẰNG CHỨNG KHIẾU NẠI (R1-063, R1-068)
   // -------------------------------------------------------------------------

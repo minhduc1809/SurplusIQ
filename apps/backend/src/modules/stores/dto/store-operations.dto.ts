@@ -206,3 +206,25 @@ export class UpdateTaskRemindersDto {
   @IsString()
   reminderTime?: string;
 }
+
+export class ComparePeriodsDto {
+  @ApiProperty({ description: 'Kỳ A: Từ ngày (YYYY-MM-DD)', example: '2026-10-01' })
+  @IsNotEmpty()
+  @IsDateString()
+  periodAFrom: string;
+
+  @ApiProperty({ description: 'Kỳ A: Đến ngày (YYYY-MM-DD)', example: '2026-10-07' })
+  @IsNotEmpty()
+  @IsDateString()
+  periodATo: string;
+
+  @ApiProperty({ description: 'Kỳ B: Từ ngày (YYYY-MM-DD)', example: '2026-10-08' })
+  @IsNotEmpty()
+  @IsDateString()
+  periodBFrom: string;
+
+  @ApiProperty({ description: 'Kỳ B: Đến ngày (YYYY-MM-DD)', example: '2026-10-14' })
+  @IsNotEmpty()
+  @IsDateString()
+  periodBTo: string;
+}
