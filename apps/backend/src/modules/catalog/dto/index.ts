@@ -2,3 +2,4 @@ export * from './create-item.dto';
 export * from './update-item.dto';
 export * from './query-items.dto';
 export * from './import-csv-items.dto';
+export * from './batch-update-items.dto';

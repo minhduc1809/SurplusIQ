@@ -37,6 +37,7 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
     };
     closureRepo = {
+      find: jest.fn().mockResolvedValue([{ id: 'c-1', date: '2026-11-20', type: 'CLOSED' }]),
       findOne: jest.fn(),
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
@@ -44,6 +45,8 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
     };
     settingsRepo = {
       findOne: jest.fn(),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
     };
     orderRepo = {
       find: jest.fn(),
@@ -357,6 +360,41 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
         note: 'Khách thích ăn mặn',
       });
       expect(saved.note).toBe('Khách thích ăn mặn');
+    });
+  });
+
+  describe('closures & task queue (R2-095..R2-097)', () => {
+    it('quản lý lịch đóng cửa: danh sách, tạo và xóa', async () => {
+      const list = await service.getClosures('store-1');
+      expect(list.length).toBe(1);
+
+      closureRepo.findOne.mockResolvedValue(null);
+      const created = await service.createClosure('store-1', {
+        date: '2026-11-20',
+        type: 'CLOSED',
+      });
+      expect(created.date).toBe('2026-11-20');
+
+      closureRepo.findOne.mockResolvedValue({ id: 'c-1', storeId: 'store-1' });
+      const del = await service.deleteClosure('store-1', 'c-1');
+      expect(del.success).toBe(true);
+    });
+
+    it('tổng hợp danh sách việc hôm nay và cập nhật nhắc việc', async () => {
+      settingsRepo.findOne.mockResolvedValue({
+        storeId: 'store-1',
+        taskReminders: { actualsEntry: true, priceReview: true, reminderTime: '21:00' },
+      });
+
+      const tasksResult = await service.getTodayTasks('store-1');
+      expect(tasksResult.tasks.length).toBe(3);
+      expect(tasksResult.reminders.reminderTime).toBe('21:00');
+
+      const updatedReminders = await service.updateTaskReminders('store-1', {
+        actualsEntryReminder: false,
+        reminderTime: '22:00',
+      });
+      expect(updatedReminders.success).toBe(true);
     });
   });
 });
