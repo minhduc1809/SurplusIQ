@@ -1,7 +1,15 @@
 import { Controller, Post, Body, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { AiGatewayService } from './ai-gateway.service';
-import { StoreAiChatDto, DescribeItemDto, AiFeedbackDto } from './dto/ai.dto';
+import {
+  StoreAiChatDto,
+  DescribeItemDto,
+  AiFeedbackDto,
+  DraftReviewReplyDto,
+  DraftMarketingCampaignDto,
+  SentimentAnalysisDto,
+  SuggestCombosDto,
+} from './dto/ai.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -61,6 +69,62 @@ export class StoreAiController {
   @ApiResponse({ status: 200, description: 'Báo cáo tuần AI' })
   async generateWeeklySummary(@CurrentStore() storeId: string, @CurrentUser() user: RequestUser) {
     return this.aiService.generateWeeklySummary(storeId, user.userId);
+  }
+
+  @Post('draft-review-reply')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'AI soạn thảo phản hồi đánh giá khách hàng lịch sự và thông minh (R2-116)',
+  })
+  @ApiResponse({ status: 200, description: 'Bản nháp phản hồi đánh giá khách hàng' })
+  async draftReviewReply(
+    @CurrentStore() storeId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: DraftReviewReplyDto,
+  ) {
+    return this.aiService.draftReviewReply(storeId, user.userId, dto);
+  }
+
+  @Post('draft-marketing-campaign')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'AI đề xuất tiêu đề và nội dung thông báo push marketing kích cầu (R2-122)',
+  })
+  @ApiResponse({ status: 200, description: 'Gợi ý chiến dịch thông báo push' })
+  async draftMarketingCampaign(
+    @CurrentStore() storeId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: DraftMarketingCampaignDto,
+  ) {
+    return this.aiService.draftMarketingCampaign(storeId, user.userId, dto);
+  }
+
+  @Post('sentiment-analysis')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'Phân tích cảm xúc và trích xuất điểm mạnh, điểm cần cải thiện từ đánh giá (R2-119)',
+  })
+  @ApiResponse({ status: 200, description: 'Báo cáo phân tích sắc thái ý kiến khách hàng' })
+  async analyzeSentiment(
+    @CurrentStore() storeId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SentimentAnalysisDto,
+  ) {
+    return this.aiService.analyzeSentiment(storeId, user.userId, dto);
+  }
+
+  @Post('suggest-combos')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'Đề xuất ghép combo hoặc tạo túi bất ngờ từ các món còn tồn kho (R2-124)',
+  })
+  @ApiResponse({ status: 200, description: 'Gợi ý combo và túi bất ngờ tối ưu doanh thu' })
+  async suggestCombos(
+    @CurrentStore() storeId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SuggestCombosDto,
+  ) {
+    return this.aiService.suggestCombos(storeId, user.userId, dto);
   }
 
   @Post('feedback')
