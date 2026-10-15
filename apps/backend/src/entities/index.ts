@@ -82,6 +82,7 @@ import {
 } from './ai';
 
 import { PlatformSettingEntity } from './settings';
+import { NotificationEntity } from './notifications';
 
 export * from './auth';
 export * from './stores';
@@ -93,6 +94,7 @@ export * from './reconciliation';
 export * from './marketing';
 export * from './ai';
 export * from './settings';
+export * from './notifications';
 
 export const ALL_ENTITIES = [
   // Auth & Identity (13)
@@ -176,4 +178,7 @@ export const ALL_ENTITIES = [
 
   // Settings (1)
   PlatformSettingEntity,
+
+  // Notifications (1)
+  NotificationEntity,
 ];

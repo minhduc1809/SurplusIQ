@@ -33,6 +33,9 @@ export class CustomerProfileEntity {
   @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true, name: 'last_lng' })
   lastLng: number | null;
 
+  @Column({ type: 'jsonb', nullable: true, name: 'notification_preferences' })
+  notificationPreferences: Record<string, boolean> | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt: Date;
 

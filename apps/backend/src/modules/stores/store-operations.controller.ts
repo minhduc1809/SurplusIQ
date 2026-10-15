@@ -3,6 +3,7 @@ import {
   Get,
   Put,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -18,6 +19,8 @@ import {
   CustomerNoteDto,
   VirtualClockDto,
   ExportDataQueryDto,
+  CreateStoreClosureDto,
+  UpdateTaskRemindersDto,
 } from './dto/store-operations.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -202,5 +205,45 @@ export class StoreOperationsController {
     @Body() dto: CustomerNoteDto,
   ) {
     return this.storesService.saveCustomerNote(storeId, customerId, dto);
+  }
+
+  @Get('closures')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xem danh sách lịch nghỉ / giờ đặc biệt của quán (R2-097)' })
+  @ApiResponse({ status: 200, description: 'Danh sách ngày đóng cửa' })
+  async getClosures(@CurrentStore() storeId: string) {
+    return this.storesService.getClosures(storeId);
+  }
+
+  @Post('closures')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Thêm hoặc cập nhật ngày đóng cửa / giờ đặc biệt (R2-097)' })
+  @ApiResponse({ status: 201, description: 'Đã tạo/cập nhật ngày đóng cửa' })
+  async createClosure(@CurrentStore() storeId: string, @Body() dto: CreateStoreClosureDto) {
+    return this.storesService.createClosure(storeId, dto);
+  }
+
+  @Delete('closures/:id')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xóa ngày đóng cửa đã thiết lập (R2-097)' })
+  @ApiResponse({ status: 200, description: 'Đã xóa ngày đóng cửa' })
+  async deleteClosure(@CurrentStore() storeId: string, @Param('id') id: string) {
+    return this.storesService.deleteClosure(storeId, id);
+  }
+
+  @Get('tasks/today')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER, StorePermission.COUNTER)
+  @ApiOperation({ summary: 'Hàng đợi danh sách công việc cần làm hôm nay (R2-095)' })
+  @ApiResponse({ status: 200, description: 'Danh sách việc cần làm' })
+  async getTodayTasks(@CurrentStore() storeId: string) {
+    return this.storesService.getTodayTasks(storeId);
+  }
+
+  @Put('tasks/reminders')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Cập nhật cài đặt nhắc nhở công việc (R2-096)' })
+  @ApiResponse({ status: 200, description: 'Đã lưu cấu hình nhắc nhở' })
+  async updateTaskReminders(@CurrentStore() storeId: string, @Body() dto: UpdateTaskRemindersDto) {
+    return this.storesService.updateTaskReminders(storeId, dto);
   }
 }

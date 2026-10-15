@@ -15,6 +15,8 @@ import {
   ResolveComplaintDto,
   RejectComplaintDto,
   ReplyReviewDto,
+  CreateSupportTicketDto,
+  SendSupportMessageDto,
 } from './dto/interaction-extras.dto';
 import { ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { ReviewStatus } from '../../entities/complaints/review.entity';
@@ -25,7 +27,11 @@ import { StorePermissionGuard } from '../../common/guards/store-permission.guard
 import { Channel } from '../../common/decorators/channel.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
-import { CurrentStore } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentStore,
+  CurrentUser,
+  RequestUser,
+} from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
 import { StorePermission } from '../../entities/stores/store-member.entity';
 
@@ -128,5 +134,52 @@ export class StoreInteractionsController {
     @Body() dto: ReplyReviewDto,
   ) {
     return this.service.replyReview(storeId, id, dto);
+  }
+
+  @Post('support-tickets')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Mở yêu cầu hỗ trợ kỹ thuật/nền tảng dành cho cửa hàng (R2-106)' })
+  @ApiResponse({ status: 201, description: 'Đã tạo yêu cầu hỗ trợ' })
+  async createStoreSupportTicket(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateSupportTicketDto,
+  ) {
+    return this.service.createSupportTicket(user.userId, dto);
+  }
+
+  @Get('support-tickets')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xem danh sách các yêu cầu hỗ trợ của cửa hàng (R2-106)' })
+  @ApiResponse({ status: 200, description: 'Danh sách yêu cầu hỗ trợ' })
+  async getStoreSupportTickets(@CurrentUser() user: RequestUser) {
+    return this.service.getCustomerSupportTickets(user.userId);
+  }
+
+  @Get('support-tickets/:id')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xem chi tiết yêu cầu hỗ trợ và trao đổi tin nhắn (R2-107)' })
+  @ApiResponse({ status: 200, description: 'Chi tiết yêu cầu hỗ trợ' })
+  async getStoreSupportTicketDetail(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.service.getSupportTicketDetail(user.userId, id);
+  }
+
+  @Post('support-tickets/:id/messages')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Gửi thêm tin nhắn trong luồng yêu cầu hỗ trợ cửa hàng (R2-107)' })
+  @ApiResponse({ status: 201, description: 'Đã gửi tin nhắn hỗ trợ' })
+  async sendStoreSupportMessage(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: SendSupportMessageDto,
+  ) {
+    return this.service.sendSupportMessage(user.userId, id, dto);
+  }
+
+  @Post('support-tickets/:id/close')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Đóng yêu cầu hỗ trợ cửa hàng khi đã giải quyết xong (R2-107)' })
+  @ApiResponse({ status: 200, description: 'Yêu cầu hỗ trợ đã đóng' })
+  async closeStoreSupportTicket(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.service.closeSupportTicket(user.userId, id);
   }
 }

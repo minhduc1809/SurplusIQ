@@ -55,6 +55,13 @@ export class StoreSettingsEntity {
   })
   fixedDiscountSchedule: Record<string, unknown> | null;
 
+  @Column({
+    type: 'jsonb',
+    nullable: true,
+    name: 'task_reminders',
+  })
+  taskReminders: Record<string, unknown> | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt: Date;
 

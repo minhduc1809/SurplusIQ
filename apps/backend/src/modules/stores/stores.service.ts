@@ -18,6 +18,8 @@ import {
   CustomerNoteDto,
   VirtualClockDto,
   ExportDataQueryDto,
+  CreateStoreClosureDto,
+  UpdateTaskRemindersDto,
 } from './dto/store-operations.dto';
 import { ReconciliationEngine, type ReconciliationOrderStatus } from '@surplusiq/core';
 
@@ -694,6 +696,128 @@ export class StoresService {
       customerId: saved.customerId,
       note: saved.note,
       updatedAt: saved.updatedAt,
+    };
+  }
+
+  /**
+   * Danh sách các ngày đóng cửa / giờ đặc biệt của cửa hàng (R2-097)
+   */
+  async getClosures(storeId: string) {
+    return this.closureRepo.find({
+      where: { storeId },
+      order: { date: 'ASC' },
+    });
+  }
+
+  /**
+   * Thiết lập lịch đóng cửa hoặc giờ mở cửa đặc biệt (R2-097)
+   */
+  async createClosure(storeId: string, dto: CreateStoreClosureDto) {
+    let closure = await this.closureRepo.findOne({
+      where: { storeId, date: dto.date },
+    });
+    const closureType =
+      dto.type === 'SPECIAL_HOURS' ? StoreClosureType.SPECIAL_HOURS : StoreClosureType.CLOSED;
+    if (!closure) {
+      closure = this.closureRepo.create({
+        storeId,
+        date: dto.date,
+        type: closureType,
+        openHours: dto.openHours || null,
+      });
+    } else {
+      closure.type = closureType;
+      closure.openHours = dto.openHours || null;
+    }
+    return this.closureRepo.save(closure);
+  }
+
+  /**
+   * Xóa lịch đóng cửa (R2-097)
+   */
+  async deleteClosure(storeId: string, closureId: string) {
+    const closure = await this.closureRepo.findOne({
+      where: { id: closureId, storeId },
+    });
+    if (!closure) {
+      throw new NotFoundException('Lịch nghỉ không tồn tại.');
+    }
+    await this.closureRepo.delete({ id: closureId });
+    return { success: true, message: 'Đã xóa lịch nghỉ thành công.' };
+  }
+
+  /**
+   * Hàng đợi việc cần làm hôm nay của cửa hàng (R2-095)
+   */
+  async getTodayTasks(storeId: string) {
+    const pendingComplaints = await this.complaintRepo.count({
+      where: { storeId, status: ComplaintStatus.PENDING_STORE },
+    });
+
+    const activeOffers = await this.offerRepo.count({
+      where: { storeId, status: OfferStatus.OPEN },
+    });
+
+    const settings = await this.settingsRepo.findOne({ where: { storeId } });
+    const reminders = (settings?.taskReminders as Record<string, unknown>) || {};
+
+    const tasks = [
+      {
+        id: 'complaints_review',
+        title: 'Khiếu nại chờ xử lý',
+        count: pendingComplaints,
+        urgent: pendingComplaints > 0,
+        actionUrl: '/complaints',
+        description: 'Phản hồi khiếu nại khách hàng trong 48h để tránh tự động hoàn tiền 100%.',
+      },
+      {
+        id: 'active_offers_monitoring',
+        title: 'Suất bán đang mở hôm nay',
+        count: activeOffers,
+        urgent: false,
+        actionUrl: '/offers',
+        description: 'Theo dõi tồn kho thực tế và áp dụng điều chỉnh số lượng nếu cần.',
+      },
+      {
+        id: 'daily_actuals',
+        title: 'Ghi nhận số lượng thực tế cuối ngày',
+        count: 1,
+        urgent: false,
+        actionUrl: '/forecasting',
+        description: 'Nhập số lượng thực tế để cải thiện độ chính xác dự báo AI.',
+      },
+    ];
+
+    return {
+      storeId,
+      tasks,
+      reminders: {
+        actualsEntry: (reminders.actualsEntry as boolean) ?? true,
+        priceReview: (reminders.priceReview as boolean) ?? true,
+        reminderTime: (reminders.reminderTime as string) || '21:30',
+      },
+    };
+  }
+
+  /**
+   * Cập nhật cấu hình nhắc nhở công việc (R2-096)
+   */
+  async updateTaskReminders(storeId: string, dto: UpdateTaskRemindersDto) {
+    let settings = await this.settingsRepo.findOne({ where: { storeId } });
+    if (!settings) {
+      settings = this.settingsRepo.create({ storeId });
+    }
+    const currentReminders = (settings.taskReminders as Record<string, unknown>) || {};
+    settings.taskReminders = {
+      ...currentReminders,
+      ...(dto.actualsEntryReminder !== undefined && { actualsEntry: dto.actualsEntryReminder }),
+      ...(dto.priceReviewReminder !== undefined && { priceReview: dto.priceReviewReminder }),
+      ...(dto.reminderTime !== undefined && { reminderTime: dto.reminderTime }),
+    };
+    await this.settingsRepo.save(settings);
+    return {
+      success: true,
+      reminders: settings.taskReminders,
     };
   }
 }
