@@ -26,6 +26,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
 import { Channel } from '../../common/decorators/channel.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
 
@@ -217,5 +218,24 @@ export class CustomerInteractionsController {
   @ApiResponse({ status: 200, description: 'Thống kê tác động cá nhân' })
   async getCustomerImpact(@CurrentUser() user: RequestUser) {
     return this.interactionsService.getCustomerImpact(user?.userId);
+  }
+
+  @Get('impact/badges')
+  @ApiOperation({
+    summary: 'Xem danh hiệu & huy hiệu cứu thực phẩm, thẻ chia sẻ mạng xã hội (R1-081)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách huy hiệu và tiến trình mở khóa' })
+  async getCustomerImpactBadges(@CurrentUser() user: RequestUser) {
+    return this.interactionsService.getCustomerImpactBadges(user?.userId);
+  }
+
+  @Public()
+  @Get('help-center/faq')
+  @ApiOperation({
+    summary: 'Danh mục câu hỏi thường gặp FAQ và hướng dẫn nhận hàng, khiếu nại (R1-072)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách các câu hỏi thường gặp theo phân loại' })
+  async getHelpCenterFaq() {
+    return this.interactionsService.getHelpCenterFaq();
   }
 }

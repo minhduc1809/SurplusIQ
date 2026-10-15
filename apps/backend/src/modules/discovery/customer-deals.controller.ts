@@ -55,6 +55,21 @@ export class CustomerDealsController {
   }
 
   @Public()
+  @Get('deals/compare')
+  @ApiOperation({
+    summary: 'So sánh 2 đến 3 suất bán theo giá, khoảng cách và dị ứng (R1-036)',
+  })
+  @ApiResponse({ status: 200, description: 'Bảng so sánh chi tiết giữa các suất bán' })
+  @ApiResponse({ status: 400, description: 'Chỉ có thể so sánh từ 2 đến 3 suất' })
+  async compareDeals(@Query('ids') ids: string) {
+    const dealIds = (ids || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    return this.discoveryService.compareDeals(dealIds);
+  }
+
+  @Public()
   @Get('deals/:id')
   @ApiOperation({
     summary: 'Xem chi tiết suất cứu món kèm thành phần, dị ứng và thông tin cửa hàng (R1-026)',
@@ -63,6 +78,16 @@ export class CustomerDealsController {
   @ApiResponse({ status: 404, description: 'Deal không tồn tại hoặc đã hết hạn' })
   async getDealDetail(@Param('id') id: string) {
     return this.discoveryService.getDealDetail(id);
+  }
+
+  @Public()
+  @Get('deals/:id/share')
+  @ApiOperation({
+    summary: 'Lấy thông tin chia sẻ liên kết suất bán an toàn không chứa PII (R1-037)',
+  })
+  @ApiResponse({ status: 200, description: 'Thông tin liên kết chia sẻ an toàn' })
+  async getShareableDeal(@Param('id') id: string) {
+    return this.discoveryService.getShareableDeal(id);
   }
 
   @ApiBearerAuth()

@@ -480,4 +480,25 @@ describe('CustomerInteractionsService', () => {
       });
     });
   });
+
+  describe('ImpactBadges & FAQ (R1-081, R1-072)', () => {
+    it('lấy danh hiệu tác động môi trường của khách hàng (R1-081)', async () => {
+      jest.spyOn(service, 'getCustomerImpact').mockResolvedValueOnce({
+        totalOrders: 6,
+        totalFoodSavedKg: 2.5,
+        totalSavingsVnd: 150000,
+      });
+
+      const badges = await service.getCustomerImpactBadges('user-1');
+      expect(badges.impact.totalOrders).toBe(6);
+      expect(badges.badges.length).toBeGreaterThan(0);
+      expect(badges.badges[0].isUnlocked).toBe(true);
+    });
+
+    it('lấy danh sách câu hỏi thường gặp FAQ (R1-072)', async () => {
+      const faq = await service.getHelpCenterFaq();
+      expect(faq.length).toBeGreaterThan(0);
+      expect(faq[0].faqs.length).toBeGreaterThan(0);
+    });
+  });
 });
