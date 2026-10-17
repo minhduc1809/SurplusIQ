@@ -11,9 +11,9 @@ object SampleData {
     val sampleDeals = listOf(
         Deal(
             id = "deal-1",
-            storeId = "store-rincon-rambla",
-            storeName = "Rincón del Pan - Rambla Pulido",
-            storeAddress = "C. de Castro, 22, Santa Cruz de Tenerife",
+            storeId = "store-rincon-pasteur",
+            storeName = "Rincón del Pan - Chi nhánh Pasteur",
+            storeAddress = "142 Pasteur, Phường Bến Nghé, Quận 1, TP. HCM",
             storeLogoUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=160&auto=format&fit=crop&q=80",
             coverImageUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80",
             title = "Túi Bất Ngờ • Magic Bag",
@@ -25,7 +25,7 @@ object SampleData {
             discountPercent = 67,
             remainingStock = 2,
             initialStock = 8,
-            pickupWindowText = "Collect: 20:30 - 21:00 Today",
+            pickupWindowText = "Collect today 20:30 - 21:00",
             isToday = true,
             distanceText = "582 m",
             rating = 4.3,
@@ -37,9 +37,9 @@ object SampleData {
         ),
         Deal(
             id = "deal-2",
-            storeId = "store-valentin-sanz",
-            storeName = "Rincón del Pan - Valentín Sanz",
-            storeAddress = "Calle Valentín Sanz, 18, Trung tâm",
+            storeId = "store-rincon-bennghe",
+            storeName = "Rincón del Pan - Chi nhánh Bến Nghé",
+            storeAddress = "18 Valentín Sanz, Bến Nghé, Quận 1, TP. HCM",
             storeLogoUrl = "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=160&auto=format&fit=crop&q=80",
             coverImageUrl = "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=800&auto=format&fit=crop&q=80",
             title = "Túi Bánh Ngọt & Croissant • Magic Bag",
@@ -56,16 +56,16 @@ object SampleData {
             distanceText = "650 m",
             rating = 4.3,
             reviewCount = 98,
-            allergens = listOf("Gluten", "Sữa", "Đậu phộng"),
+            allergens = listOf("Gluten", "Sữa bò", "Đậu phộng"),
             dietaryType = DietaryType.NONE,
             isFavorite = false,
             isUrgent = false
         ),
         Deal(
             id = "deal-3",
-            storeId = "store-albahaca",
-            storeName = "La Albahaca - Comida casera",
-            storeAddress = "Avenida de Anaga, 12, Khu ẩm thực",
+            storeId = "store-albahaca-dakao",
+            storeName = "La Albahaca - Bếp Món Nhà Làm",
+            storeAddress = "12 Đinh Tiên Hoàng, Phường Đa Kao, Quận 1, TP. HCM",
             storeLogoUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=160&auto=format&fit=crop&q=80",
             coverImageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80",
             title = "Suất Bữa Ăn Nấu Tại Chỗ • Magic Bag",
@@ -89,9 +89,9 @@ object SampleData {
         ),
         Deal(
             id = "deal-4",
-            storeId = "store-calle-rosa",
-            storeName = "Rincón del Pan - Calle de la Rosa",
-            storeAddress = "Calle de la Rosa, 34, Khu phố cổ",
+            storeId = "store-rincon-phoco",
+            storeName = "Rincón del Pan - Chi nhánh Phố Cổ",
+            storeAddress = "34 Nguyễn Siêu, Bến Nghé, Quận 1, TP. HCM",
             storeLogoUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80",
             coverImageUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80",
             title = "Combo Bánh Mì Lúa Mạch • Magic Bag",
@@ -116,8 +116,8 @@ object SampleData {
         Deal(
             id = "deal-5",
             storeId = "store-organic-market",
-            storeName = "GreenFarm • Siêu Thị Nông Sản Hữu Cơ",
-            storeAddress = "88 Nguyễn Du, Bến Nghé, Quận 1",
+            storeName = "GreenFarm • Nông Sản Hữu Cơ",
+            storeAddress = "88 Nguyễn Du, Bến Nghé, Quận 1, TP. HCM",
             storeLogoUrl = "https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=160&auto=format&fit=crop&q=80",
             coverImageUrl = "https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=800&auto=format&fit=crop&q=80",
             title = "Túi Rau Củ Quả Hữu Cơ • Magic Bag",
@@ -138,21 +138,92 @@ object SampleData {
             dietaryType = DietaryType.VEGAN,
             isFavorite = true,
             isUrgent = false
+        ),
+        Deal(
+            id = "deal-6",
+            storeId = "store-artisan-tea",
+            storeName = "Tiệm Trà & Cafe Artisan",
+            storeAddress = "45 Lê Lợi, Bến Nghé, Quận 1, TP. HCM",
+            storeLogoUrl = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&auto=format&fit=crop&q=80",
+            coverImageUrl = "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80",
+            title = "Combo Trà Trái Cây & Mousse • Magic Bag",
+            description = "Thức uống trà ủ lạnh thảo mộc kết hợp bánh lạnh tráng miệng thơm mát.",
+            whatYouCouldGet = "2 ly trà đào cam sả ủ lạnh và 1 phần bánh mousse chanh leo mềm mịn.",
+            category = DealCategory.OTHER,
+            originalPrice = 85000,
+            discountPrice = 32000,
+            discountPercent = 62,
+            remainingStock = 3,
+            initialStock = 6,
+            pickupWindowText = "Collect today 20:00 - 21:30",
+            isToday = true,
+            distanceText = "1.8 km",
+            rating = 4.6,
+            reviewCount = 89,
+            allergens = listOf("Sữa tươi", "Kem béo"),
+            dietaryType = DietaryType.VEGETARIAN,
+            isFavorite = false,
+            isUrgent = false
+        )
+    )
+
+    val deals get() = sampleDeals
+
+    val sampleOrders = listOf(
+        ActiveOrder(
+            id = "ORD-8941",
+            orderCode = "SUQ8941",
+            deal = sampleDeals[0],
+            quantity = 1,
+            unitPrice = 29900,
+            totalPrice = 29900,
+            holdExpiresAtMillis = System.currentTimeMillis() + 10 * 60 * 1000L,
+            status = OrderStatus.PAID_WAITING_PICKUP,
+            qrToken = "SURPLUSIQ:HMAC-SHA256:SUQ8941:ORD-8941:VALID_TOKEN",
+            fallbackPin = "7K9X2B",
+            pickupWindow = "Hôm nay 20:30 - 21:00"
+        ),
+        ActiveOrder(
+            id = "ORD-8921",
+            orderCode = "SUQ8921",
+            deal = sampleDeals[2],
+            quantity = 1,
+            unitPrice = 42000,
+            totalPrice = 42000,
+            holdExpiresAtMillis = System.currentTimeMillis() + 8 * 60 * 1000L,
+            status = OrderStatus.PENDING_PAYMENT,
+            qrToken = "SURPLUSIQ:HMAC-SHA256:SUQ8921:ORD-8921:PENDING_TOKEN",
+            fallbackPin = "3M8P1A",
+            pickupWindow = "Hôm nay 14:00 - 15:30"
+        ),
+        ActiveOrder(
+            id = "ORD-8805",
+            orderCode = "SUQ8805",
+            deal = sampleDeals[4],
+            quantity = 2,
+            unitPrice = 50000,
+            totalPrice = 100000,
+            holdExpiresAtMillis = System.currentTimeMillis() - 86400000L,
+            status = OrderStatus.PICKED_UP,
+            qrToken = "SURPLUSIQ:HMAC-SHA256:SUQ8805:ORD-8805:CLAIMED",
+            fallbackPin = "5D2W9K",
+            pickupWindow = "Hôm qua 19:00 - 20:30"
         )
     )
 
     fun createSampleActiveOrder(deal: Deal, quantity: Int = 1): ActiveOrder {
+        val rand = (1000..9999).random()
         return ActiveOrder(
-            id = "ORD-8921",
-            orderCode = "SUQ8921",
+            id = "ORD-$rand",
+            orderCode = "SUQ$rand",
             deal = deal,
             quantity = quantity,
             unitPrice = deal.discountPrice,
             totalPrice = deal.discountPrice * quantity,
             holdExpiresAtMillis = System.currentTimeMillis() + 10 * 60 * 1000L,
             status = OrderStatus.PENDING_PAYMENT,
-            qrToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmRlcl9pZCI6Ik9SRC04OTIxIiwic3RvcmVfaWQiOiJzdG9yZS1yaW5jb24tcmFtYmxhIiwianRpIjoiMmE4ZjM5ZTAiLCJleHAiOjE3OTIxOTIwMDB9.SIGNATURE_TOKEN",
-            fallbackPin = "7K9X2B",
+            qrToken = "SURPLUSIQ:HMAC-SHA256:SUQ$rand:ORD-$rand:TOKEN",
+            fallbackPin = "7K" + rand.toString().takeLast(4),
             pickupWindow = deal.pickupWindowText
         )
     }

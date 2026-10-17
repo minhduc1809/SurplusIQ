@@ -8,6 +8,7 @@ import com.surplusiq.app.domain.model.ActiveOrder
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.domain.model.OrderStatus
 import com.surplusiq.app.domain.repository.OrderRepository
+import com.surplusiq.app.data.mock.SampleData
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,7 +19,9 @@ class OrderRepositoryImpl @Inject constructor(
     private val pickupsApiService: PickupsApiService
 ) : OrderRepository {
 
-    private val activeOrdersCache = mutableListOf<ActiveOrder>()
+    private val activeOrdersCache = mutableListOf<ActiveOrder>().apply {
+        addAll(SampleData.sampleOrders)
+    }
 
     override suspend fun holdOrder(
         deal: Deal,

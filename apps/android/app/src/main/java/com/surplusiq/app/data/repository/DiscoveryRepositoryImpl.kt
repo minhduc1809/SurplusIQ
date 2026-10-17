@@ -18,7 +18,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
     private val profileApiService: ProfileApiService
 ) : DiscoveryRepository {
 
-    private val favoriteStoreIds = mutableSetOf<String>()
+    // Tracks favorite state overrides so users can toggle favorites on and off reliably
+    private val favoriteOverrides = mutableMapOf<String, Boolean>()
 
     override suspend fun getNearbyDeals(
         latitude: Double?,
@@ -38,15 +39,15 @@ class DiscoveryRepositoryImpl @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 val items = response.body()!!.data
                 val mappedDeals = items.map { dto -> mapDtoToDeal(dto) }
-                val filtered = applyLocalFilters(mappedDeals, searchQuery, preferences)
+                val filtered = applyLocalFilters(mappedDeals, searchQuery, radiusKm, preferences)
                 Result.success(filtered)
             } else {
                 // Fallback to rich sample data
-                Result.success(applyLocalFilters(SampleData.deals, searchQuery, preferences))
+                Result.success(applyLocalFilters(SampleData.sampleDeals, searchQuery, radiusKm, preferences))
             }
         } catch (_: Exception) {
             // Graceful offline fallback
-            Result.success(applyLocalFilters(SampleData.deals, searchQuery, preferences))
+            Result.success(applyLocalFilters(SampleData.sampleDeals, searchQuery, radiusKm, preferences))
         }
     }
 
@@ -55,9 +56,10 @@ class DiscoveryRepositoryImpl @Inject constructor(
             val response = discoveryApiService.getDealDetail(id)
             if (response.isSuccessful && response.body() != null) {
                 val detail = response.body()!!
+                val storeId = detail.store?.id ?: "store-01"
                 val deal = Deal(
                     id = detail.id,
-                    storeId = detail.store?.id ?: "store-01",
+                    storeId = storeId,
                     storeName = detail.store?.name ?: "Cửa hàng đối tác",
                     storeAddress = detail.store?.address ?: "Quận 1, TP. HCM",
                     storeLogoUrl = detail.store?.logoUrl ?: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=150",
@@ -78,51 +80,94 @@ class DiscoveryRepositoryImpl @Inject constructor(
                     reviewCount = detail.store?.reviewCount ?: 124,
                     allergens = detail.allergens.ifEmpty { listOf("Gluten", "Sữa bò") },
                     dietaryType = parseDietary(detail.dietaryTypes.firstOrNull()),
-                    isFavorite = favoriteStoreIds.contains(detail.store?.id) || detail.store?.isFavorite == true
+                    isFavorite = favoriteOverrides[storeId] ?: (detail.store?.isFavorite == true)
                 )
                 Result.success(deal)
             } else {
-                val fallback = SampleData.deals.firstOrNull { it.id == id } ?: SampleData.deals.first()
-                Result.success(fallback.copy(isFavorite = favoriteStoreIds.contains(fallback.storeId)))
+                val fallback = SampleData.sampleDeals.firstOrNull { it.id == id } ?: SampleData.sampleDeals.first()
+                Result.success(fallback.copy(isFavorite = favoriteOverrides[fallback.storeId] ?: fallback.isFavorite))
             }
         } catch (_: Exception) {
-            val fallback = SampleData.deals.firstOrNull { it.id == id } ?: SampleData.deals.first()
-            Result.success(fallback.copy(isFavorite = favoriteStoreIds.contains(fallback.storeId)))
+            val fallback = SampleData.sampleDeals.firstOrNull { it.id == id } ?: SampleData.sampleDeals.first()
+            Result.success(fallback.copy(isFavorite = favoriteOverrides[fallback.storeId] ?: fallback.isFavorite))
         }
     }
 
     override suspend fun toggleFavorite(dealId: String, storeId: String, currentStatus: Boolean): Result<Boolean> {
         val newStatus = !currentStatus
+        favoriteOverrides[storeId] = newStatus
         if (newStatus) {
-            favoriteStoreIds.add(storeId)
             try { profileApiService.addFavorite(storeId) } catch (_: Exception) {}
         } else {
-            favoriteStoreIds.remove(storeId)
             try { profileApiService.removeFavorite(storeId) } catch (_: Exception) {}
         }
         return Result.success(newStatus)
     }
 
-    private fun applyLocalFilters(deals: List<Deal>, search: String?, preferences: UserPreferences?): List<Deal> {
+    private fun applyLocalFilters(
+        deals: List<Deal>,
+        search: String?,
+        radiusKm: Double,
+        preferences: UserPreferences?
+    ): List<Deal> {
         var result = deals
 
+        // 1. Text Search Filter
         if (!search.isNullOrBlank()) {
             val q = search.trim().lowercase()
             result = result.filter {
                 it.title.lowercase().contains(q) ||
                 it.storeName.lowercase().contains(q) ||
                 it.category.displayName.lowercase().contains(q) ||
-                it.whatYouCouldGet.lowercase().contains(q)
+                it.whatYouCouldGet.lowercase().contains(q) ||
+                it.storeAddress.lowercase().contains(q)
             }
         }
 
-        if (preferences != null) {
+        // 2. Radius Filter
+        if (radiusKm > 0.0) {
             result = result.filter { deal ->
-                preferences.categories.contains(deal.category)
+                parseDistanceKm(deal.distanceText) <= radiusKm
             }
         }
 
-        return result.map { it.copy(isFavorite = favoriteStoreIds.contains(it.storeId) || it.isFavorite) }
+        // 3. User Preferences Filter
+        if (preferences != null) {
+            if (preferences.categories.isNotEmpty()) {
+                result = result.filter { preferences.categories.contains(it.category) }
+            }
+
+            if (preferences.dietaryPreference != DietaryType.NONE) {
+                result = result.filter { deal ->
+                    when (preferences.dietaryPreference) {
+                        DietaryType.VEGAN -> deal.dietaryType == DietaryType.VEGAN
+                        DietaryType.VEGETARIAN -> deal.dietaryType == DietaryType.VEGETARIAN || deal.dietaryType == DietaryType.VEGAN
+                        DietaryType.NONE -> true
+                    }
+                }
+            }
+        }
+
+        // 4. Map favorite state with overrides
+        return result.map { deal ->
+            val resolvedFavorite = favoriteOverrides[deal.storeId] ?: deal.isFavorite
+            deal.copy(isFavorite = resolvedFavorite)
+        }
+    }
+
+    private fun parseDistanceKm(distanceText: String): Double {
+        val clean = distanceText.trim().lowercase()
+        return try {
+            if (clean.endsWith("km")) {
+                clean.removeSuffix("km").trim().toDouble()
+            } else if (clean.endsWith("m")) {
+                clean.removeSuffix("m").trim().toDouble() / 1000.0
+            } else {
+                clean.toDoubleOrNull() ?: 0.5
+            }
+        } catch (_: Exception) {
+            0.5
+        }
     }
 
     private fun mapDtoToDeal(dto: DealItemDto): Deal {
@@ -159,7 +204,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             reviewCount = 98,
             allergens = listOf("Gluten", "Sữa bò"),
             dietaryType = DietaryType.NONE,
-            isFavorite = favoriteStoreIds.contains(dto.storeId),
+            isFavorite = favoriteOverrides[dto.storeId] ?: false,
             isUrgent = dto.remainingQuantity <= 2
         )
     }
