@@ -7,6 +7,7 @@ import {
   AiFeedbackDto,
   DraftReviewReplyDto,
   DraftMarketingCampaignDto,
+  DraftComplaintReplyDto,
   SentimentAnalysisDto,
   SuggestCombosDto,
 } from './dto/ai.dto';
@@ -85,6 +86,20 @@ export class StoreAiController {
     return this.aiService.draftReviewReply(storeId, user.userId, dto);
   }
 
+  @Post('draft-complaint-reply')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'AI gợi ý soạn phản hồi giải quyết khiếu nại của khách hàng (R2-118, BR-054, BR-056)',
+  })
+  @ApiResponse({ status: 200, description: 'Gợi ý phản hồi khiếu nại chuyên nghiệp' })
+  async draftComplaintReply(
+    @CurrentStore() storeId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: DraftComplaintReplyDto,
+  ) {
+    return this.aiService.draftComplaintReply(storeId, user.userId, dto);
+  }
+
   @Post('draft-marketing-campaign')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({
@@ -92,6 +107,20 @@ export class StoreAiController {
   })
   @ApiResponse({ status: 200, description: 'Gợi ý chiến dịch thông báo push' })
   async draftMarketingCampaign(
+    @CurrentStore() storeId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: DraftMarketingCampaignDto,
+  ) {
+    return this.aiService.draftMarketingCampaign(storeId, user.userId, dto);
+  }
+
+  @Post('draft-notification')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'AI soạn tiêu đề và nội dung thông báo gửi khách hàng (R2-117, R2-122)',
+  })
+  @ApiResponse({ status: 200, description: 'Gợi ý tiêu đề và nội dung thông báo' })
+  async draftNotification(
     @CurrentStore() storeId: string,
     @CurrentUser() user: RequestUser,
     @Body() dto: DraftMarketingCampaignDto,

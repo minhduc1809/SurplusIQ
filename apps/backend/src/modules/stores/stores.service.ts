@@ -323,13 +323,33 @@ export class StoresService {
     const foodSavedKg = Number((rescuedItemsCount * 0.4).toFixed(2));
     const co2SavedKg = Number((foodSavedKg * 2.5).toFixed(2));
 
+    const totalOrdersCount = orders.length;
+    const recoveryRate =
+      totalOrdersCount > 0
+        ? Number(((completedOrders / totalOrdersCount) * 100).toFixed(1))
+        : 0;
+
+    const wastedOrdersCount = cancelledOrders + noShowOrders;
+    const wastedWeightKg = Number((wastedOrdersCount * 0.4).toFixed(2));
+    const wastedEstimatedCost = orders
+      .filter(
+        (o) =>
+          o.status === OrderStatus.CANCELLED || o.status === OrderStatus.PICKUP_EXPIRED,
+      )
+      .reduce((sum, o) => sum + (o.unitPrice * o.quantity || 0), 0);
+
+    const wasteReductionRate =
+      totalOrdersCount > 0
+        ? Number(((completedOrders / totalOrdersCount) * 45).toFixed(1))
+        : 0;
+
     return {
       period: {
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
       },
       summary: {
-        totalOrders: orders.length,
+        totalOrders: totalOrdersCount,
         completedOrders,
         cancelledOrders,
         noShowOrders,
@@ -339,6 +359,24 @@ export class StoresService {
         ratingAvg,
         ratingCount,
         complaintsCount,
+      },
+      // R2-062: Báo cáo thu hồi hàng riêng biệt
+      recovery: {
+        recoveredRevenue: grossRevenue,
+        recoveredOrdersCount: completedOrders,
+        recoveredItemsCount: rescuedItemsCount,
+        recoveredWeightKg: foodSavedKg,
+        recoveryRatePercent: recoveryRate,
+        co2ReducedKg: co2SavedKg,
+      },
+      // R2-062: Báo cáo hao hụt hàng riêng biệt
+      waste: {
+        wastedOrdersCount,
+        wastedWeightKg,
+        wastedEstimatedCost,
+        wasteReductionPercent: wasteReductionRate,
+        cancelledCount: cancelledOrders,
+        noShowCount: noShowOrders,
       },
     };
   }

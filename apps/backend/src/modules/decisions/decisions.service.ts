@@ -129,8 +129,52 @@ export class DecisionsService {
         await this.decisionRepo.save(decision);
       }
 
+      const historyDays = Number(forecast.components?.historyDaysCount ?? 0);
+      const isLowConfidence =
+        forecast.confidence === ForecastConfidence.LOW || historyDays < 14;
+      const dayName =
+        ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][
+          new Date(forecast.targetDate).getDay()
+        ] || 'ngày mai';
+
+      const explanation = forecast.overrideReason
+        ? `Số lượng đã được chủ quán điều chỉnh sang ${forecast.chosenQuantity} suất (Lý do: ${forecast.overrideReason}). Khuyến nghị gốc của hệ thống: ${forecast.recommended} suất.`
+        : historyDays < 14
+          ? `Dự báo ${dayName} cho món "${item.name}" áp dụng phương pháp Fallback theo doanh số ngày gần nhất do quán chưa đủ 14 ngày dữ liệu lịch sử bán hàng (BR-060). Khoảng khuyến nghị: ${forecast.low}–${forecast.high} sản phẩm. Độ tin cậy: THẤP.`
+          : `Dự báo ${dayName} cho món "${item.name}" dựa trên trung bình dữ liệu các ngày cùng thứ (${forecast.components?.dowSampleCount || 2} ngày cùng thứ, mức trung bình ~${forecast.recommended} sản phẩm). Khoảng khuyến nghị an toàn: ${forecast.low}–${forecast.high} suất. Độ tin cậy: ${forecast.confidence}.`;
+
+      const warning = isLowConfidence
+        ? '⚠️ Cảnh báo độ tin cậy THẤP: Cửa hàng chưa có đủ 14 ngày dữ liệu bán hàng chuẩn. Sai số dự báo có thể lớn.'
+        : null;
+
+      const fallbackSuggestions = isLowConfidence
+        ? [
+            {
+              id: 'FALLBACK_YESTERDAY',
+              title: 'Phương án 1: Sản xuất theo mức bán hôm qua',
+              description: `Sản xuất an toàn ${forecast.recommended} sản phẩm (khớp với doanh số ngày gần nhất).`,
+              recommendedQuantity: forecast.recommended,
+            },
+            {
+              id: 'FALLBACK_LOWER_BOUND',
+              title: 'Phương án 2: Sản xuất theo cận dưới an toàn',
+              description: `Sản xuất ${forecast.low} sản phẩm và chuẩn bị kích hoạt mở bán Cứu Món sớm nếu dư thừa.`,
+              recommendedQuantity: forecast.low,
+            },
+            {
+              id: 'FALLBACK_MANUAL',
+              title: 'Phương án 3: Chủ quán tự nhập số lượng kế hoạch',
+              description: 'Chủ động điều chỉnh số lượng thủ công theo ước lượng thời tiết và lượng khách thực tế của quán.',
+              recommendedQuantity: forecast.chosenQuantity || forecast.recommended,
+            },
+          ]
+        : [];
+
       results.push({
         ...forecast,
+        explanation,
+        warning,
+        fallbackSuggestions,
         item: {
           id: item.id,
           name: item.name,
@@ -582,9 +626,12 @@ export class DecisionsService {
     // Tính toán mô phỏng
     const simulatedRevenue = Math.round(baselineRevenue * (1 + (dto.dynamicPricing ? 0.22 : 0.12)));
     const salvagedWastePortions = Math.round(baselineOrdersCount * 0.35);
+    const revenueGainPercent =
+      baselineRevenue > 0
+        ? Math.round(((simulatedRevenue - baselineRevenue) / baselineRevenue) * 100)
+        : 15;
 
-    return {
-      storeId,
+    const result = {
       simulationPeriodDays: dto.days,
       parameters: {
         assumedDiscount: discountFactor,
@@ -596,14 +643,94 @@ export class DecisionsService {
       },
       simulated: {
         revenue: simulatedRevenue,
-        revenueGainPercent:
-          baselineRevenue > 0
-            ? Math.round(((simulatedRevenue - baselineRevenue) / baselineRevenue) * 100)
-            : 15,
+        revenueGainPercent,
         salvagedWastePortions,
       },
       recommendation:
         'Chính sách định giá động với mức sàn 40% giúp tối ưu thêm 18-22% doanh thu thu hồi mà không làm cannibalize kênh bán nguyên giá.',
+    };
+
+    // Lưu lại từng lần thử để chủ quán có thể đối chiếu, so sánh lịch sử (R2-105)
+    const decision = this.decisionRepo.create({
+      storeId,
+      decisionType: 'PRICE_SIMULATION',
+      inputSnapshot: dto as unknown as Record<string, unknown>,
+      outputRecommendation: result as unknown as Record<string, unknown>,
+      rationale: `Mô phỏng ${dto.days} ngày (chiết khấu ${Math.round(discountFactor * 100)}%, định giá động: ${dto.dynamicPricing ? 'Bật' : 'Tắt'})`,
+      wasAcceptedByStore: false,
+    });
+    const saved = await this.decisionRepo.save(decision);
+
+    return {
+      id: saved.id,
+      storeId,
+      createdAt: saved.createdAt,
+      ...result,
+    };
+  }
+
+  /**
+   * Lấy lịch sử các lần chạy mô phỏng chính sách giá (R2-105)
+   */
+  async getSimulationHistory(storeId: string) {
+    const records = await this.decisionRepo.find({
+      where: { storeId, decisionType: 'PRICE_SIMULATION' },
+      order: { createdAt: 'DESC' },
+      take: 20,
+    });
+    return records.map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt,
+      input: r.inputSnapshot,
+      output: r.outputRecommendation,
+      rationale: r.rationale,
+    }));
+  }
+
+  /**
+   * So sánh kết quả giữa 2 hoặc nhiều lần chạy mô phỏng (R2-105)
+   */
+  async compareSimulations(storeId: string, simulationIds: string[]) {
+    if (!simulationIds || simulationIds.length < 2) {
+      throw new BadRequestException('Vui lòng chọn ít nhất 2 lần mô phỏng để so sánh đối chiếu.');
+    }
+
+    const records = await this.decisionRepo.find({
+      where: {
+        storeId,
+        id: In(simulationIds),
+        decisionType: 'PRICE_SIMULATION',
+      },
+    });
+
+    if (records.length < 2) {
+      throw new NotFoundException('Không tìm thấy đủ các bản ghi mô phỏng cần so sánh.');
+    }
+
+    const comparisons = records.map((r) => {
+      const out = r.outputRecommendation as any;
+      const inp = r.inputSnapshot as any;
+      return {
+        id: r.id,
+        createdAt: r.createdAt,
+        days: inp?.days || out?.simulationPeriodDays || 30,
+        discountPercent: Math.round((inp?.discountRatio ?? 0.5) * 100),
+        dynamicPricing: Boolean(inp?.dynamicPricing),
+        simulatedRevenue: out?.simulated?.revenue || 0,
+        revenueGainPercent: out?.simulated?.revenueGainPercent || 0,
+        salvagedWastePortions: out?.simulated?.salvagedWastePortions || 0,
+      };
+    });
+
+    const bestOption = [...comparisons].sort((a, b) => b.simulatedRevenue - a.simulatedRevenue)[0];
+
+    return {
+      comparisonCount: comparisons.length,
+      simulations: comparisons,
+      winner: {
+        id: bestOption?.id,
+        recommendation: `Phương án mô phỏng ${bestOption?.days} ngày (giảm ${bestOption?.discountPercent}%, định giá động: ${bestOption?.dynamicPricing ? 'Bật' : 'Tắt'}) mang lại doanh thu thu hồi cao nhất (+${bestOption?.revenueGainPercent}% so với dữ liệu gốc).`,
+      },
     };
   }
 
