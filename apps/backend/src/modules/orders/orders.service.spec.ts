@@ -78,6 +78,7 @@ describe('OrdersService', () => {
     setLock: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
@@ -341,6 +342,38 @@ describe('OrdersService', () => {
       expect(result.total).toBe(1);
     });
 
+    it('phải lọc theo mã đơn hoặc tên cửa hàng khi có search (R1-045)', async () => {
+      const qb = createMockQueryBuilder(null, [[mockOrder], 1]);
+      mockOrderRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const query: QueryOrdersDto = { page: 1, limit: 10, search: 'ORD-001' };
+      await service.getCustomerOrders(mockCustomerId, query);
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(order.code ILIKE :search OR store.name ILIKE :search)',
+        { search: '%ORD-001%' },
+      );
+    });
+
+    it('phải giới hạn khoảng lọc ngày tối đa 12 tháng (R1-045)', async () => {
+      const qb = createMockQueryBuilder(null, [[mockOrder], 1]);
+      mockOrderRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const query: QueryOrdersDto = {
+        page: 1,
+        limit: 10,
+        fromDate: '2020-01-01',
+        toDate: '2026-01-01',
+      };
+      await service.getCustomerOrders(mockCustomerId, query);
+
+      const [, params] = qb.andWhere.mock.calls.find(([sql]: [string]) =>
+        sql.includes(':from AND'),
+      );
+      const rangeMs = params.to.getTime() - params.from.getTime();
+      expect(rangeMs).toBeLessThanOrEqual(12 * 31 * 24 * 60 * 60 * 1000);
+    });
+
     it('phải trả về các đơn đang hoạt động của khách', async () => {
       mockOrderRepo.find.mockResolvedValue([mockOrder]);
 
@@ -372,6 +405,18 @@ describe('OrdersService', () => {
       mockOrderRepo.findOne.mockResolvedValue({
         ...mockOrder,
         status: OrderStatus.PENDING_PAYMENT,
+      });
+
+      await expect(service.notifyCustomerArriving(mockCustomerId, mockOrderId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('phải ném lỗi BadRequestException nếu đã báo "đang tới" trước đó (R1-060)', async () => {
+      mockOrderRepo.findOne.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.PAID,
+        arrivingNotifiedAt: new Date(),
       });
 
       await expect(service.notifyCustomerArriving(mockCustomerId, mockOrderId)).rejects.toThrow(

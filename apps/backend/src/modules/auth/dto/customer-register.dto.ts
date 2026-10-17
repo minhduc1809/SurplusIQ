@@ -22,4 +22,12 @@ export class CustomerRegisterDto {
   @IsNotEmpty({ message: 'Họ tên không được để trống' })
   @IsString()
   fullName: string;
+
+  @ApiProperty({
+    example: 'device-uuid-1234',
+    description: 'Mã định danh thiết bị, dùng để giới hạn số lần đăng ký',
+  })
+  @IsNotEmpty({ message: 'Mã định danh thiết bị không được để trống' })
+  @IsString()
+  deviceId: string;
 }

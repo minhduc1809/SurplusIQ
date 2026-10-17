@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { StoreEntity as LegacyStoreEntity } from './modules/stores/store.entity';
 import { DecisionEntity } from './modules/decisions/decision.entity';
 import { ALL_ENTITIES } from './entities';
@@ -66,6 +68,12 @@ import { SeedModule } from './modules/seed/seed.module';
       }),
     }),
     TypeOrmModule.forFeature([LegacyStoreEntity, DecisionEntity, ...ALL_ENTITIES]),
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: IdempotencyInterceptor,
+    },
   ],
 })
 export class AppModule {}

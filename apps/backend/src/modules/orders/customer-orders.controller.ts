@@ -11,7 +11,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, CancelOrderDto, QueryOrdersDto, UpdatePickupSlotDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -20,6 +20,7 @@ import { ChannelGuard } from '../../common/guards/channel.guard';
 import { Channel } from '../../common/decorators/channel.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
+import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
 
 @ApiTags('Customer - Orders')
@@ -33,6 +34,7 @@ export class CustomerOrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
+  @Idempotent({ scope: 'orders.hold', required: true })
   @ApiOperation({
     summary:
       'Đặt giữ suất cứu món 10 phút, khóa giá chốt, trừ tồn nguyên tử (R1-040, BR-017, BR-020)',
@@ -42,6 +44,7 @@ export class CustomerOrdersController {
     status: 400,
     description: 'Hết suất, vi phạm giới hạn số lượng hoặc bị phạt khóa đặt',
   })
+  @ApiHeader({ name: 'Idempotency-Key', required: true })
   async holdOrder(@CurrentUser() user: RequestUser, @Body() dto: CreateOrderDto) {
     return this.ordersService.holdOrder(user?.userId, dto);
   }

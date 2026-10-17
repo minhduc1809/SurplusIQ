@@ -217,6 +217,7 @@ export class InitialPostgisSchema1700000000000 implements MigrationInterface {
       CREATE TABLE IF NOT EXISTS "otp_codes" (
         "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         "target" varchar(100) NOT NULL,
+        "device_id" varchar(100),
         "purpose" "otp_purpose_enum" NOT NULL,
         "code_hash" varchar(255) NOT NULL,
         "expires_at" timestamptz NOT NULL,
@@ -225,6 +226,7 @@ export class InitialPostgisSchema1700000000000 implements MigrationInterface {
         "created_at" timestamptz NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS "IDX_otp_codes_target_purpose" ON "otp_codes" ("target", "purpose");
+      CREATE INDEX IF NOT EXISTS "IDX_otp_codes_device_purpose" ON "otp_codes" ("device_id", "purpose", "created_at");
     `);
 
     await queryRunner.query(`
