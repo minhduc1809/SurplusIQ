@@ -31,6 +31,9 @@ import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
 
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.ViewList
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverHomeScreen(
@@ -44,6 +47,7 @@ fun DiscoverHomeScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var currentRadiusKm by remember { mutableStateOf(2) }
+    var isMapView by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -95,20 +99,40 @@ fun DiscoverHomeScreen(
                 }
             }
 
-            // Quick AI Assistant action button
-            IconButton(
-                onClick = onOpenAiChat,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(ForestGreenPrimary.copy(alpha = 0.1f))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = "AI Cứu Món",
-                    tint = ForestGreenPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Map/List Mode Toggle Button (R1-021)
+                IconButton(
+                    onClick = { isMapView = !isMapView },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                ) {
+                    Icon(
+                        imageVector = if (isMapView) Icons.Default.ViewList else Icons.Default.Map,
+                        contentDescription = if (isMapView) "Chuyển sang danh sách" else "Chuyển sang bản đồ",
+                        tint = ForestGreenPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Quick AI Assistant action button
+                IconButton(
+                    onClick = onOpenAiChat,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(ForestGreenPrimary.copy(alpha = 0.1f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "AI Cứu Món",
+                        tint = ForestGreenPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 
@@ -165,82 +189,91 @@ fun DiscoverHomeScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Main Content List
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 24.dp)
-        ) {
-            // Section 1: Recommended for you (Carousel)
-            item {
-                SectionHeader(
-                    title = "Recommended for you",
-                    onSeeAllClick = onSeeAllClick
-                )
-            }
+        if (isMapView) {
+            // Interactive Map View of Nearby Deals (R1-021)
+            DealMapScreen(
+                deals = deals,
+                onDealClick = onDealClick,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // Main Content List (Carousels)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                // Section 1: Recommended for you (Carousel)
+                item {
+                    SectionHeader(
+                        title = "Recommended for you",
+                        onSeeAllClick = onSeeAllClick
+                    )
+                }
 
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(deals) { deal ->
-                        DealCard(
-                            deal = deal,
-                            onDealClick = onDealClick,
-                            onFavoriteToggle = onFavoriteToggle,
-                            modifier = Modifier.width(280.dp)
-                        )
+                item {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(deals) { deal ->
+                            DealCard(
+                                deal = deal,
+                                onDealClick = onDealClick,
+                                onFavoriteToggle = onFavoriteToggle,
+                                modifier = Modifier.width(280.dp)
+                            )
+                        }
                     }
                 }
-            }
 
-            // Section 2: Save before it's too late
-            item {
-                Spacer(modifier = Modifier.height(20.dp))
-                SectionHeader(
-                    title = "Save before it's too late",
-                    onSeeAllClick = onSeeAllClick
-                )
-            }
+                // Section 2: Save before it's too late
+                item {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    SectionHeader(
+                        title = "Save before it's too late",
+                        onSeeAllClick = onSeeAllClick
+                    )
+                }
 
-            item {
-                val urgentDeals = deals.filter { it.isUrgent }.ifEmpty { deals }
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(urgentDeals) { deal ->
-                        DealCard(
-                            deal = deal,
-                            onDealClick = onDealClick,
-                            onFavoriteToggle = onFavoriteToggle,
-                            modifier = Modifier.width(280.dp)
-                        )
+                item {
+                    val urgentDeals = deals.filter { it.isUrgent }.ifEmpty { deals }
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(urgentDeals) { deal ->
+                            DealCard(
+                                deal = deal,
+                                onDealClick = onDealClick,
+                                onFavoriteToggle = onFavoriteToggle,
+                                modifier = Modifier.width(280.dp)
+                            )
+                        }
                     }
                 }
-            }
 
-            // Section 3: New Magic Bags
-            item {
-                Spacer(modifier = Modifier.height(20.dp))
-                SectionHeader(
-                    title = "New Magic Bags",
-                    onSeeAllClick = onSeeAllClick
-                )
-            }
+                // Section 3: New Magic Bags
+                item {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    SectionHeader(
+                        title = "New Magic Bags",
+                        onSeeAllClick = onSeeAllClick
+                    )
+                }
 
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(deals.reversed()) { deal ->
-                        DealCard(
-                            deal = deal,
-                            onDealClick = onDealClick,
-                            onFavoriteToggle = onFavoriteToggle,
-                            modifier = Modifier.width(280.dp)
-                        )
+                item {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(deals.reversed()) { deal ->
+                            DealCard(
+                                deal = deal,
+                                onDealClick = onDealClick,
+                                onFavoriteToggle = onFavoriteToggle,
+                                modifier = Modifier.width(280.dp)
+                            )
+                        }
                     }
                 }
             }

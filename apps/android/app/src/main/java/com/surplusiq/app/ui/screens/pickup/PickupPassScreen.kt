@@ -1,22 +1,36 @@
 package com.surplusiq.app.ui.screens.pickup
 
+import android.app.Activity
+import android.content.ContextWrapper
+import android.content.Intent
+import android.net.Uri
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.BrightnessHigh
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,10 +47,41 @@ import com.surplusiq.app.ui.theme.TextSecondary
 fun PickupPassScreen(
     order: ActiveOrder,
     onBackClick: () -> Unit,
+    onNavigateToReview: ((ActiveOrder) -> Unit)? = null,
+    onNavigateToComplaint: ((ActiveOrder) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+
     var hasNotifiedArriving by remember { mutableStateOf(false) }
     var isClaimedByStore by remember { mutableStateOf(false) }
+
+    // BR-020: Hardware Max Brightness & Keep Screen On for barcode scanner optimization
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+            ?: (context as? ContextWrapper)?.baseContext as? Activity
+        val window = activity?.window
+
+        val originalBrightness = window?.attributes?.screenBrightness
+            ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+
+        window?.let { win ->
+            val layoutParams = win.attributes
+            layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL // 1.0f
+            win.attributes = layoutParams
+            win.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+
+        onDispose {
+            window?.let { win ->
+                val layoutParams = win.attributes
+                layoutParams.screenBrightness = originalBrightness
+                win.attributes = layoutParams
+                win.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -59,6 +104,15 @@ fun PickupPassScreen(
                     )
                 }
             },
+            actions = {
+                // Brightness icon indicator
+                Icon(
+                    imageVector = Icons.Default.BrightnessHigh,
+                    contentDescription = "Max Brightness Active",
+                    tint = ForestGreenPrimary,
+                    modifier = Modifier.padding(end = 16.dp).size(22.dp)
+                )
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surface
             )
@@ -71,6 +125,34 @@ fun PickupPassScreen(
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Brightness Optimization Notice Banner (BR-020)
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = ForestGreenPrimary.copy(alpha = 0.08f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.BrightnessHigh,
+                        contentDescription = null,
+                        tint = ForestGreenPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Màn hình đã tự động tăng sáng cực đại để máy quét của quán dễ đọc mã QR.",
+                        fontSize = 12.sp,
+                        color = ForestGreenDark,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
@@ -85,7 +167,7 @@ fun PickupPassScreen(
                         text = if (isClaimedByStore) "ĐÃ NHẬN HÀNG THÀNH CÔNG" else "VÉ NHẬN HÀNG HỢP LỆ",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = ForestGreenPrimary,
+                        color = if (isClaimedByStore) ForestGreenPrimary else ForestGreenDark,
                         letterSpacing = 1.sp
                     )
 
@@ -195,19 +277,55 @@ fun PickupPassScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // "Tôi sắp đến" Button (R1-060)
-            if (!isClaimedByStore) {
+            // Action Quick Buttons: Directions (R1-038) & Phone Call
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedButton(
+                    onClick = {
+                        val encodedAddress = Uri.encode("${order.deal.storeName}, ${order.deal.storeAddress}")
+                        val mapUri = Uri.parse("geo:0,0?q=$encodedAddress")
+                        val mapIntent = Intent(Intent.ACTION_VIEW, mapUri)
+                        context.startActivity(Intent.createChooser(mapIntent, "Mở ứng dụng bản đồ"))
+                    },
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Directions, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Chỉ đường", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:0908123456"))
+                        context.startActivity(dialIntent)
+                    },
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Gọi quán", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Post-claim Actions OR "Tôi sắp đến" Button
+            if (!isClaimedByStore) {
+                Button(
                     onClick = { hasNotifiedArriving = true },
                     enabled = !hasNotifiedArriving,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(24.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = ForestGreenPrimary
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ForestGreenPrimary
                     )
                 ) {
                     Icon(
@@ -217,7 +335,7 @@ fun PickupPassScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (hasNotifiedArriving) "Đã báo quán: Bạn sắp đến!" else "Báo cho quán là tôi sắp đến",
+                        text = if (hasNotifiedArriving) "Đã thông báo quán: Bạn sắp đến!" else "Tôi sắp đến quán (Báo trước 1 lần)",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -225,15 +343,45 @@ fun PickupPassScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Simulated store scanner confirmation button for test
+                // Simulated store scanner confirmation button for test & verification
                 TextButton(
-                    onClick = { isClaimedByStore = true }
+                    onClick = {
+                        isClaimedByStore = true
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    }
                 ) {
                     Text(
-                        text = "[Mô phỏng] Quán đã quét mã QR thành công",
+                        text = "[Mô phỏng] Cửa hàng quét mã nhận thành công",
                         fontSize = 12.sp,
                         color = TextMuted
                     )
+                }
+            } else {
+                // Post-purchase actions (R1-061 & R1-064)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = { onNavigateToReview?.invoke(order) },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+                    ) {
+                        Icon(imageVector = Icons.Default.Star, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "⭐ Đánh giá cửa hàng", fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = { onNavigateToComplaint?.invoke(order) },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.ReportProblem, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Khiếu nại chất lượng (trong 24h)", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }

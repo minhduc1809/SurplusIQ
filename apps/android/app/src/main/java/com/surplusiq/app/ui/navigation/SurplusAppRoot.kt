@@ -27,9 +27,12 @@ import com.surplusiq.app.ui.screens.favourites.FavouritesScreen
 import com.surplusiq.app.ui.screens.orders.MyOrdersScreen
 import com.surplusiq.app.ui.screens.orders.OrderDetailScreen
 import com.surplusiq.app.ui.screens.pickup.PickupPassScreen
+import com.surplusiq.app.ui.screens.postpurchase.CreateComplaintScreen
+import com.surplusiq.app.ui.screens.postpurchase.CreateReviewScreen
 import com.surplusiq.app.ui.screens.profile.ProfileScreen
 import com.surplusiq.app.ui.viewmodel.AuthViewModel
 import com.surplusiq.app.ui.viewmodel.DiscoveryViewModel
+import com.surplusiq.app.ui.viewmodel.InteractionsViewModel
 import com.surplusiq.app.ui.viewmodel.MyOrdersViewModel
 
 sealed class AppDestination {
@@ -40,6 +43,8 @@ sealed class AppDestination {
     data class PickupPass(val order: ActiveOrder) : AppDestination()
     object MyOrders : AppDestination()
     data class OrderDetail(val order: ActiveOrder) : AppDestination()
+    data class CreateReview(val order: ActiveOrder) : AppDestination()
+    data class CreateComplaint(val order: ActiveOrder) : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -53,7 +58,8 @@ enum class AuthScreenState {
 fun SurplusAppRoot(
     discoveryViewModel: DiscoveryViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
-    myOrdersViewModel: MyOrdersViewModel = hiltViewModel()
+    myOrdersViewModel: MyOrdersViewModel = hiltViewModel(),
+    interactionsViewModel: InteractionsViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.uiState.collectAsState()
     val discoveryState by discoveryViewModel.uiState.collectAsState()
@@ -149,7 +155,9 @@ fun SurplusAppRoot(
         is AppDestination.PickupPass -> {
             PickupPassScreen(
                 order = dest.order,
-                onBackClick = { currentDestination = AppDestination.MainTabs }
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onNavigateToReview = { order -> currentDestination = AppDestination.CreateReview(order) },
+                onNavigateToComplaint = { order -> currentDestination = AppDestination.CreateComplaint(order) }
             )
         }
 
@@ -170,7 +178,33 @@ fun SurplusAppRoot(
                 onBackClick = { currentDestination = AppDestination.MyOrders },
                 onOpenPickupPass = { order -> currentDestination = AppDestination.PickupPass(order) },
                 onResumePayment = { order -> currentDestination = AppDestination.CheckoutHold(order.deal) },
-                onCancelOrder = { orderId -> myOrdersViewModel.cancelOrder(orderId) }
+                onCancelOrder = { orderId -> myOrdersViewModel.cancelOrder(orderId) },
+                onOpenReview = { order -> currentDestination = AppDestination.CreateReview(order) },
+                onOpenComplaint = { order -> currentDestination = AppDestination.CreateComplaint(order) }
+            )
+        }
+
+        is AppDestination.CreateReview -> {
+            CreateReviewScreen(
+                order = dest.order,
+                interactionsRepository = interactionsViewModel.interactionsRepository,
+                onBackClick = { currentDestination = AppDestination.OrderDetail(dest.order) },
+                onSubmitSuccess = {
+                    myOrdersViewModel.loadOrders()
+                    currentDestination = AppDestination.MyOrders
+                }
+            )
+        }
+
+        is AppDestination.CreateComplaint -> {
+            CreateComplaintScreen(
+                order = dest.order,
+                interactionsRepository = interactionsViewModel.interactionsRepository,
+                onBackClick = { currentDestination = AppDestination.OrderDetail(dest.order) },
+                onSubmitSuccess = {
+                    myOrdersViewModel.loadOrders()
+                    currentDestination = AppDestination.MyOrders
+                }
             )
         }
 

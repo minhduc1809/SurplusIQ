@@ -48,6 +48,7 @@ fun DealDetailScreen(
 ) {
     var isFavorite by remember { mutableStateOf(deal.isFavorite) }
     var showFavoriteToast by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Box(
         modifier = modifier
@@ -260,12 +261,16 @@ fun DealDetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Address Row with Chevron
+                // Address Row with Directions Action (R1-038)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { }
+                        .clickable {
+                            val mapUri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode("${deal.storeName}, ${deal.storeAddress}"))
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, mapUri)
+                            context.startActivity(android.content.Intent.createChooser(intent, "Mở ứng dụng bản đồ"))
+                        }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -283,9 +288,10 @@ fun DealDetailScreen(
                             color = TextPrimary
                         )
                         Text(
-                            text = "More information about the store",
+                            text = "Chạm để chỉ đường tới quán bằng bản đồ",
                             fontSize = 12.sp,
-                            color = TextMuted
+                            color = ForestGreenPrimary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                     Icon(

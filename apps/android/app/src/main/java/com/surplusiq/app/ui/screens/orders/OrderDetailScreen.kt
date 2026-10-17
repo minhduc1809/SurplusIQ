@@ -37,8 +37,11 @@ fun OrderDetailScreen(
     onOpenPickupPass: (ActiveOrder) -> Unit,
     onResumePayment: (ActiveOrder) -> Unit,
     onCancelOrder: (String) -> Unit,
+    onOpenReview: ((ActiveOrder) -> Unit)? = null,
+    onOpenComplaint: ((ActiveOrder) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showCancelDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -217,6 +220,45 @@ fun OrderDetailScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(text = "Hủy giữ suất", color = TextMuted, fontSize = 13.sp)
+                    }
+                }
+
+                OrderStatus.PICKED_UP -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(
+                            onClick = { onOpenReview?.invoke(order) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            shape = RoundedCornerShape(25.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "⭐ Đánh giá cửa hàng (R1-064)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { onOpenComplaint?.invoke(order) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Text(text = "⚠️ Khiếu nại chất lượng (trong 24h)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CoralRed)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val encoded = android.net.Uri.encode("${order.deal.storeName}, ${order.deal.storeAddress}")
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=$encoded"))
+                                context.startActivity(android.content.Intent.createChooser(intent, "Mở ứng dụng bản đồ"))
+                            },
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape = RoundedCornerShape(22.dp)
+                        ) {
+                            Text(text = "Chỉ đường đến vị trí quán", fontSize = 13.sp, color = TextSecondary)
+                        }
                     }
                 }
 

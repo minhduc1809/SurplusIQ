@@ -83,4 +83,9 @@ object NetworkModule {
     @Singleton
     fun provideAiApiService(retrofit: Retrofit): AiApiService =
         retrofit.create(AiApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideInteractionsApiService(retrofit: Retrofit): InteractionsApiService =
+        retrofit.create(InteractionsApiService::class.java)
 }
