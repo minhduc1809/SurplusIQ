@@ -32,6 +32,8 @@ import com.surplusiq.app.ui.theme.TextSecondary
 fun ProfileScreen(
     stats: UserImpactStats = UserImpactStats(),
     onOpenAiChat: () -> Unit,
+    onOpenMyOrders: () -> Unit = {},
+    onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -181,7 +183,7 @@ fun ProfileScreen(
                         icon = Icons.Default.ReceiptLong,
                         title = "Đơn hàng của tôi",
                         subtitle = "Lịch sử mua & vé nhận hàng",
-                        onClick = {}
+                        onClick = onOpenMyOrders
                     )
                     Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                     ProfileMenuItem(
@@ -209,7 +211,7 @@ fun ProfileScreen(
                         icon = Icons.Default.Logout,
                         title = "Đăng xuất",
                         subtitle = "Thu hồi phiên đăng nhập",
-                        onClick = {}
+                        onClick = onLogout
                     )
                 }
             }
