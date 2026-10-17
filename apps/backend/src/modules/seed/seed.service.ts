@@ -16,6 +16,11 @@ export class SeedService implements OnModuleInit {
     try {
       this.logger.log('Bắt đầu kiểm tra và khởi tạo dữ liệu mẫu (Seed Data) cho SurplusIQ...');
 
+      // Đảm bảo schema cập nhật đầy đủ các cột mới nhất
+      await this.dataSource.query(
+        `ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "task_reminders" jsonb;`,
+      );
+
       // 1. Tạo User chủ quán & Khách hàng mẫu với mật khẩu mặc định "123456" chuẩn CryptoUtil OWASP scrypt
       const ownerId = '11111111-1111-1111-1111-111111111111';
       const customerId = '22222222-2222-2222-2222-222222222222';

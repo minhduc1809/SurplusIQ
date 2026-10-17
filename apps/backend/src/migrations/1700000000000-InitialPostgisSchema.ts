@@ -345,6 +345,7 @@ export class InitialPostgisSchema1700000000000 implements MigrationInterface {
         "late_grace_minutes" int NOT NULL DEFAULT 15,
         "max_qty_per_order" int NOT NULL DEFAULT 5,
         "fixed_discount_schedule" jsonb,
+        "task_reminders" jsonb,
         "created_at" timestamptz NOT NULL DEFAULT now(),
         "updated_at" timestamptz NOT NULL DEFAULT now()
       );
