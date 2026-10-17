@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsDateString, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsEnum, IsDateString, IsInt, IsString, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { OrderStatus } from '../../../entities/orders/order.entity';
@@ -35,6 +35,14 @@ export class QueryOrdersDto {
   @IsOptional()
   @IsDateString({}, { message: 'toDate phải có định dạng YYYY-MM-DD hợp lệ.' })
   toDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tìm theo mã đơn hàng hoặc tên cửa hàng',
+    example: 'ORD-20261013',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
 
   @ApiPropertyOptional({
     description: 'Số trang (bắt đầu từ 1)',

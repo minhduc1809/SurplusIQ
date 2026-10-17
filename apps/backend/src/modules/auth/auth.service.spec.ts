@@ -249,6 +249,7 @@ describe('AuthService', () => {
         phone: '0901234567',
         fullName: 'Nguyễn Văn A',
         password: 'Password123@',
+        deviceId: 'device-test-1',
       });
 
       expect(result.userId).toBeDefined();
@@ -263,8 +264,23 @@ describe('AuthService', () => {
           phone: '0901234567',
           fullName: 'Nguyễn Văn A',
           password: 'Password123@',
+          deviceId: 'device-test-1',
         }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should block registration when device already registered 5 times in 1 hour', async () => {
+      mockOtpRepo.count.mockResolvedValue(5);
+      mockUserRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.registerCustomer({
+          phone: '0901234567',
+          fullName: 'Nguyễn Văn A',
+          password: 'Password123@',
+          deviceId: 'device-test-1',
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
