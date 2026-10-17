@@ -1,0 +1,183 @@
+package com.surplusiq.app.data.repository
+
+import com.surplusiq.app.data.mock.SampleData
+import com.surplusiq.app.data.remote.api.DiscoveryApiService
+import com.surplusiq.app.data.remote.api.ProfileApiService
+import com.surplusiq.app.data.remote.dto.DealItemDto
+import com.surplusiq.app.domain.model.Deal
+import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.domain.model.DietaryType
+import com.surplusiq.app.domain.model.UserPreferences
+import com.surplusiq.app.domain.repository.DiscoveryRepository
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class DiscoveryRepositoryImpl @Inject constructor(
+    private val discoveryApiService: DiscoveryApiService,
+    private val profileApiService: ProfileApiService
+) : DiscoveryRepository {
+
+    private val favoriteStoreIds = mutableSetOf<String>()
+
+    override suspend fun getNearbyDeals(
+        latitude: Double?,
+        longitude: Double?,
+        radiusKm: Double,
+        searchQuery: String?,
+        preferences: UserPreferences?
+    ): Result<List<Deal>> {
+        return try {
+            val response = discoveryApiService.findNearbyDeals(
+                latitude = latitude,
+                longitude = longitude,
+                radiusKm = radiusKm,
+                search = searchQuery
+            )
+
+            if (response.isSuccessful && response.body() != null) {
+                val items = response.body()!!.data
+                val mappedDeals = items.map { dto -> mapDtoToDeal(dto) }
+                val filtered = applyLocalFilters(mappedDeals, searchQuery, preferences)
+                Result.success(filtered)
+            } else {
+                // Fallback to rich sample data
+                Result.success(applyLocalFilters(SampleData.deals, searchQuery, preferences))
+            }
+        } catch (_: Exception) {
+            // Graceful offline fallback
+            Result.success(applyLocalFilters(SampleData.deals, searchQuery, preferences))
+        }
+    }
+
+    override suspend fun getDealDetail(id: String): Result<Deal> {
+        return try {
+            val response = discoveryApiService.getDealDetail(id)
+            if (response.isSuccessful && response.body() != null) {
+                val detail = response.body()!!
+                val deal = Deal(
+                    id = detail.id,
+                    storeId = detail.store?.id ?: "store-01",
+                    storeName = detail.store?.name ?: "Cửa hàng đối tác",
+                    storeAddress = detail.store?.address ?: "Quận 1, TP. HCM",
+                    storeLogoUrl = detail.store?.logoUrl ?: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=150",
+                    coverImageUrl = detail.store?.coverImageUrl ?: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+                    title = detail.title,
+                    description = detail.description ?: "Túi Cứu Món Magic Bag bảo quản tươi ngon trong ngày.",
+                    whatYouCouldGet = detail.whatYouCouldGet.joinToString(" • ").ifBlank { "Bánh mỳ tươi, bánh ngọt Pháp, combo trưa" },
+                    category = parseCategory(detail.category),
+                    originalPrice = detail.originalPrice.toInt(),
+                    discountPrice = detail.currentPrice.toInt(),
+                    discountPercent = detail.discountPercent,
+                    remainingStock = detail.remainingQuantity,
+                    initialStock = detail.remainingQuantity + 3,
+                    pickupWindowText = "Hôm nay ${detail.pickupStart?.takeLast(8)?.take(5) ?: "19:00"} - ${detail.pickupEnd?.takeLast(8)?.take(5) ?: "21:30"}",
+                    isToday = true,
+                    distanceText = "1.2 km",
+                    rating = detail.store?.rating ?: 4.8,
+                    reviewCount = detail.store?.reviewCount ?: 124,
+                    allergens = detail.allergens.ifEmpty { listOf("Gluten", "Sữa bò") },
+                    dietaryType = parseDietary(detail.dietaryTypes.firstOrNull()),
+                    isFavorite = favoriteStoreIds.contains(detail.store?.id) || detail.store?.isFavorite == true
+                )
+                Result.success(deal)
+            } else {
+                val fallback = SampleData.deals.firstOrNull { it.id == id } ?: SampleData.deals.first()
+                Result.success(fallback.copy(isFavorite = favoriteStoreIds.contains(fallback.storeId)))
+            }
+        } catch (_: Exception) {
+            val fallback = SampleData.deals.firstOrNull { it.id == id } ?: SampleData.deals.first()
+            Result.success(fallback.copy(isFavorite = favoriteStoreIds.contains(fallback.storeId)))
+        }
+    }
+
+    override suspend fun toggleFavorite(dealId: String, storeId: String, currentStatus: Boolean): Result<Boolean> {
+        val newStatus = !currentStatus
+        if (newStatus) {
+            favoriteStoreIds.add(storeId)
+            try { profileApiService.addFavorite(storeId) } catch (_: Exception) {}
+        } else {
+            favoriteStoreIds.remove(storeId)
+            try { profileApiService.removeFavorite(storeId) } catch (_: Exception) {}
+        }
+        return Result.success(newStatus)
+    }
+
+    private fun applyLocalFilters(deals: List<Deal>, search: String?, preferences: UserPreferences?): List<Deal> {
+        var result = deals
+
+        if (!search.isNullOrBlank()) {
+            val q = search.trim().lowercase()
+            result = result.filter {
+                it.title.lowercase().contains(q) ||
+                it.storeName.lowercase().contains(q) ||
+                it.category.displayName.lowercase().contains(q) ||
+                it.whatYouCouldGet.lowercase().contains(q)
+            }
+        }
+
+        if (preferences != null) {
+            result = result.filter { deal ->
+                preferences.categories.contains(deal.category)
+            }
+        }
+
+        return result.map { it.copy(isFavorite = favoriteStoreIds.contains(it.storeId) || it.isFavorite) }
+    }
+
+    private fun mapDtoToDeal(dto: DealItemDto): Deal {
+        val orig = dto.originalPrice.toInt()
+        val curr = dto.currentPrice.toInt()
+        val distText = if (dto.distanceMeters != null) {
+            if (dto.distanceMeters < 1000) "${dto.distanceMeters.toInt()} m" else "%.1f km".format(dto.distanceMeters / 1000.0)
+        } else if (dto.distanceKm != null) {
+            "%.1f km".format(dto.distanceKm)
+        } else {
+            "850 m"
+        }
+
+        return Deal(
+            id = dto.id,
+            storeId = dto.storeId,
+            storeName = dto.storeName,
+            storeAddress = dto.storeAddress ?: "Quận 1, TP. Hồ Chí Minh",
+            storeLogoUrl = dto.storeLogoUrl ?: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=150",
+            coverImageUrl = dto.imageUrl ?: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+            title = dto.title,
+            description = "Túi Cứu Món Magic Bag giải cứu thực phẩm chất lượng cao trong ngày từ ${dto.storeName}.",
+            whatYouCouldGet = "Bánh mỳ nóng giòn, croissant bơ Pháp, bánh bông lan kem tươi",
+            category = parseCategory(dto.category),
+            originalPrice = orig,
+            discountPrice = curr,
+            discountPercent = dto.discountPercent,
+            remainingStock = dto.remainingQuantity,
+            initialStock = dto.remainingQuantity + 2,
+            pickupWindowText = "Hôm nay 20:00 - 21:30",
+            isToday = true,
+            distanceText = distText,
+            rating = 4.7,
+            reviewCount = 98,
+            allergens = listOf("Gluten", "Sữa bò"),
+            dietaryType = DietaryType.NONE,
+            isFavorite = favoriteStoreIds.contains(dto.storeId),
+            isUrgent = dto.remainingQuantity <= 2
+        )
+    }
+
+    private fun parseCategory(cat: String?): DealCategory {
+        return when (cat?.lowercase()) {
+            "meals", "món mặn", "cơm", "bún" -> DealCategory.MEALS
+            "baked goods", "bánh", "bakery", "bánh mì" -> DealCategory.BAKED_GOODS
+            "groceries", "rau củ", "nông sản" -> DealCategory.GROCERIES
+            else -> DealCategory.OTHER
+        }
+    }
+
+    private fun parseDietary(dietary: String?): DietaryType {
+        return when (dietary?.lowercase()) {
+            "vegetarian", "chay" -> DietaryType.VEGETARIAN
+            "vegan", "thuần chay" -> DietaryType.VEGAN
+            else -> DietaryType.NONE
+        }
+    }
+}

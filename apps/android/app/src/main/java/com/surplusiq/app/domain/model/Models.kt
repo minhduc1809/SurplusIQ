@@ -90,3 +90,11 @@ data class UserImpactStats(
     val totalReducedCo2Kg: Double = 46.2,
     val totalRescuedBags: Int = 14
 )
+
+data class UserProfile(
+    val id: String,
+    val phone: String,
+    val fullName: String,
+    val avatarUrl: String? = null,
+    val impactStats: UserImpactStats = UserImpactStats()
+)

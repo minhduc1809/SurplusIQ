@@ -25,6 +25,9 @@ import com.surplusiq.app.ui.screens.favourites.FavouritesScreen
 import com.surplusiq.app.ui.screens.pickup.PickupPassScreen
 import com.surplusiq.app.ui.screens.profile.ProfileScreen
 
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.surplusiq.app.ui.viewmodel.DiscoveryViewModel
+
 sealed class AppDestination {
     object MainTabs : AppDestination()
     data class DealDetail(val deal: Deal) : AppDestination()
@@ -35,18 +38,14 @@ sealed class AppDestination {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SurplusAppRoot() {
+fun SurplusAppRoot(
+    discoveryViewModel: DiscoveryViewModel = hiltViewModel()
+) {
+    val discoveryState by discoveryViewModel.uiState.collectAsState()
+    val dealsList = discoveryState.deals
     var selectedTab by remember { mutableStateOf(NavTab.DISCOVER) }
     var currentDestination by remember { mutableStateOf<AppDestination>(AppDestination.MainTabs) }
-    var dealsList by remember { mutableStateOf(SampleData.sampleDeals) }
-    var userPreferences by remember { mutableStateOf(UserPreferences()) }
     var showAiBottomSheet by remember { mutableStateOf(false) }
-
-    fun toggleFavorite(deal: Deal) {
-        dealsList = dealsList.map {
-            if (it.id == deal.id) it.copy(isFavorite = !it.isFavorite) else it
-        }
-    }
 
     when (val dest = currentDestination) {
         is AppDestination.DealDetail -> {
@@ -61,10 +60,10 @@ fun SurplusAppRoot() {
 
         is AppDestination.Preferences -> {
             PreferencesScreen(
-                currentPreferences = userPreferences,
+                currentPreferences = discoveryState.preferences,
                 onBackClick = { currentDestination = AppDestination.MainTabs },
                 onApplyPreferences = { updatedPrefs ->
-                    userPreferences = updatedPrefs
+                    discoveryViewModel.onPreferencesUpdated(updatedPrefs)
                     currentDestination = AppDestination.MainTabs
                 }
             )
@@ -104,7 +103,7 @@ fun SurplusAppRoot() {
                                 onDealClick = { deal ->
                                     currentDestination = AppDestination.DealDetail(deal)
                                 },
-                                onFavoriteToggle = { toggleFavorite(it) },
+                                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) },
                                 onOpenPreferences = {
                                     currentDestination = AppDestination.Preferences
                                 },
@@ -120,7 +119,7 @@ fun SurplusAppRoot() {
                                 onDealClick = { deal ->
                                     currentDestination = AppDestination.DealDetail(deal)
                                 },
-                                onFavoriteToggle = { toggleFavorite(it) }
+                                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) }
                             )
                         }
 
@@ -130,7 +129,7 @@ fun SurplusAppRoot() {
                                 onDealClick = { deal ->
                                     currentDestination = AppDestination.DealDetail(deal)
                                 },
-                                onFavoriteToggle = { toggleFavorite(it) }
+                                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) }
                             )
                         }
 
