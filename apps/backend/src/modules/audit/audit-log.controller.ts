@@ -38,6 +38,16 @@ export class AuditLogController {
     description: 'Lọc theo đối tượng (ví dụ: OFFER, ITEM)',
   })
   @ApiQuery({
+    name: 'actorId',
+    required: false,
+    description: 'Lọc theo nhân viên cụ thể (R2-081)',
+  })
+  @ApiQuery({
+    name: 'employeeId',
+    required: false,
+    description: 'Alias của actorId để lọc theo nhân viên cụ thể',
+  })
+  @ApiQuery({
     name: 'from',
     required: false,
     description: 'Thời gian bắt đầu (tối đa 12 tháng trước)',

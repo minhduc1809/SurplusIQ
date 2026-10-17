@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Compass,
   ShoppingBag,
@@ -12,19 +12,12 @@ import {
   Sparkles,
   X,
   ChevronRight,
-  Share2,
   QrCode,
-  ShieldCheck,
-  RefreshCw,
   Filter,
-  Play,
   TrendingDown,
   DollarSign,
   Leaf,
   ChevronDown,
-  CheckCircle2,
-  Calendar,
-  AlertCircle
 } from 'lucide-react';
 
 interface Deal {

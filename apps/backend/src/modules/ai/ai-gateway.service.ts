@@ -13,6 +13,7 @@ import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
+import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import {
   StoreAiChatDto,
@@ -23,6 +24,7 @@ import {
   CustomerAiChatDto,
   DraftReviewReplyDto,
   DraftMarketingCampaignDto,
+  DraftComplaintReplyDto,
   SentimentAnalysisDto,
   SuggestCombosDto,
 } from './dto/ai.dto';
@@ -50,6 +52,8 @@ export class AiGatewayService {
     private readonly orderRepo: Repository<OrderEntity>,
     @InjectRepository(ReviewEntity)
     private readonly reviewRepo: Repository<ReviewEntity>,
+    @InjectRepository(ComplaintEntity)
+    private readonly complaintRepo: Repository<ComplaintEntity>,
     @InjectRepository(StoreEntity)
     private readonly storeRepo: Repository<StoreEntity>,
     private readonly quotaService: QuotaService,
@@ -524,13 +528,68 @@ export class AiGatewayService {
     const msgLower = dto.message.toLowerCase();
     let reply: string;
 
-    if (
+    const isOrderQuery =
+      msgLower.includes('đơn hàng') ||
+      msgLower.includes('đơn của tôi') ||
       msgLower.includes('nhận hàng') ||
       msgLower.includes('quét mã') ||
-      msgLower.includes('lấy bánh')
-    ) {
-      reply =
-        'Khi đến cửa hàng nhận suất cứu món, bạn chỉ cần mở đơn hàng trên app SurplusIQ và đưa mã QR cho nhân viên quét (hoặc đọc mã PIN 6 số nếu camera có vấn đề). Hãy chú ý đến đúng khung giờ nhận để món ăn luôn thơm ngon nhất nhé!';
+      msgLower.includes('lấy bánh') ||
+      msgLower.includes('lấy món') ||
+      msgLower.includes('ở đâu') ||
+      msgLower.includes('mấy giờ') ||
+      msgLower.includes('bao giờ') ||
+      msgLower.includes('tình trạng');
+
+    if (isOrderQuery) {
+      // Truy vấn đơn hàng thật của khách hàng (R1-083, R1-088)
+      const recentOrders = await this.orderRepo.find({
+        where: { customerId: userId },
+        order: { createdAt: 'DESC' },
+        take: 3,
+      });
+
+      const activeOrder =
+        recentOrders.find(
+          (o) =>
+            o.status === OrderStatus.PENDING_PAYMENT ||
+            o.status === OrderStatus.PAID,
+        ) || recentOrders[0];
+
+      if (!activeOrder) {
+        reply =
+          'Để nhận hàng tại quán, bạn chỉ cần mở ứng dụng SurplusIQ, vào mục "Đơn hàng" để lấy vé mã QR và đưa nhân viên quầy quét khi đến khung giờ nhận (hoặc đọc mã PIN 6 số dự phòng). Hiện bạn chưa có đơn hàng nào đang chờ nhận trên SurplusIQ. Bạn có muốn mình gợi ý vài suất Cứu Món ngon giá tốt quanh khu vực của bạn tối nay không?';
+      } else {
+        const store = await this.storeRepo.findOne({ where: { id: activeOrder.storeId } });
+        const storeName = store?.name || 'Cửa hàng';
+        const storeAddress = store?.address || '';
+        const nowMs = Date.now();
+
+        if (activeOrder.status === OrderStatus.PENDING_PAYMENT) {
+          reply = `Đơn hàng #${activeOrder.code} tại quán "${storeName}" của bạn hiện ĐANG CHỜ THANH TOÁN (thời gian giữ suất 10 phút theo BR-017). Vui lòng hoàn tất quét mã VietQR trong app để khóa giá và nhận Vé QR lấy món nhé!`;
+        } else if (activeOrder.status === OrderStatus.PAID) {
+          if (activeOrder.pickupSlot) {
+            const slotMs = new Date(activeOrder.pickupSlot).getTime();
+            const slotTimeStr = new Date(activeOrder.pickupSlot).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+
+            if (nowMs < slotMs - 15 * 60 * 1000) {
+              reply = `Đơn hàng #${activeOrder.code} tại "${storeName}" (${storeAddress}) đã được thanh toán thành công! Khung giờ hẹn nhận của bạn bắt đầu lúc ${slotTimeStr}. Hiện chưa đến giờ nhận, quán đang chuẩn bị suất ăn tươi ngon nhất. Bạn vui lòng chờ thêm một chút trước khi di chuyển nhé! Khi chuẩn bị đi, bạn có thể bấm nút "Báo quán tôi sắp đến" trên app.`;
+            } else if (nowMs >= slotMs - 15 * 60 * 1000 && nowMs <= slotMs + 60 * 60 * 1000) {
+              reply = `Đơn hàng #${activeOrder.code} tại "${storeName}" (${storeAddress}) ĐÃ ĐẾN GIỜ NHẬN! Bạn hãy mở Vé QR trong mục "Đơn hàng" trên app SurplusIQ và đến quầy đọc mã hoặc đưa nhân viên quét để nhận món ngay nhé.`;
+            } else {
+              reply = `Đơn hàng #${activeOrder.code} tại "${storeName}" đã quá khung giờ nhận dự kiến (${slotTimeStr}). Bạn hãy đến quán ngay tại địa chỉ ${storeAddress} hoặc gọi quán theo SĐT ${store?.phone || ''} để nhân viên hỗ trợ giữ phần nhé.`;
+            }
+          } else {
+            reply = `Đơn hàng #${activeOrder.code} tại quán "${storeName}" (${storeAddress}) đã thanh toán thành công và sẵn sàng nhận món. Bạn có thể mở mục "Vé QR" trong app và ghé quán nhận hàng ngay nhé!`;
+          }
+        } else if (activeOrder.status === OrderStatus.PICKED_UP) {
+          reply = `Đơn hàng gần nhất #${activeOrder.code} tại "${storeName}" của bạn đã hoàn thành nhận hàng. Cảm ơn bạn đã đồng hành cứu thực phẩm cùng SurplusIQ! Bạn có hài lòng với món ăn không?`;
+        } else {
+          reply = `Đơn hàng #${activeOrder.code} tại "${storeName}" hiện ở trạng thái ${activeOrder.status}. Nếu cần hỗ trợ thêm, bạn có thể tạo khiếu nại hoặc liên hệ tổng đài SurplusIQ nhé!`;
+        }
+      }
     } else if (
       msgLower.includes('hoàn tiền') ||
       msgLower.includes('hủy đơn') ||
@@ -547,7 +606,7 @@ export class AiGatewayService {
         'Các món cứu thực phẩm được chuẩn bị tươi mới trong ngày. Bạn nên dùng ngay hoặc bọc kín trong màng bọc thực phẩm để ngăn mát tủ lạnh (dùng trong 24-48 giờ). Khi ăn hãy nướng lại bằng nồi chiên không dầu 160°C trong 3 phút là bánh sẽ giòn ngon như mới!';
     } else {
       reply =
-        'Chào bạn! Mình là SaveBite AI – trợ lý cứu thực phẩm thông minh. Mình có thể giúp bạn giải đáp thắc mắc về các món ngon hôm nay, mẹo hâm nóng, kiểm tra dị ứng hoặc hướng dẫn quy trình nhận hàng tại cửa hàng đối tác. Bạn cần mình hỗ trợ gì thêm không?';
+        'Chào bạn! Mình là SaveBite AI – trợ lý cứu thực phẩm thông minh. Mình có thể giúp bạn kiểm tra tình trạng đơn hàng thật, giờ nhận món, mẹo hâm nóng, thành phần dị ứng hoặc đề xuất món ngon giá tốt hôm nay. Bạn cần mình hỗ trợ gì?';
     }
 
     const assistantMessage = this.messageRepo.create({
@@ -650,6 +709,67 @@ export class AiGatewayService {
       customerComment: review.comment,
       draftReply,
       logId: savedLog.id,
+    };
+  }
+
+  /**
+   * AI gợi ý soạn phản hồi cho khiếu nại của khách hàng (R2-118, BR-054, BR-056)
+   */
+  async draftComplaintReply(storeId: string, userId: string, dto: DraftComplaintReplyDto) {
+    const quotaCheck = await this.quotaService.checkQuota({
+      storeId,
+      quotaKey: QuotaKey.AI_CONTENT_GEN,
+    });
+    if (quotaCheck.isExceeded) {
+      throw new BadRequestException(
+        `Đã đạt hạn mức lượt AI tạo nội dung trong tháng (${quotaCheck.limit} lượt). Vui lòng nâng cấp gói Pro.`,
+      );
+    }
+
+    const complaint = await this.complaintRepo.findOne({
+      where: { id: dto.complaintId, storeId },
+    });
+    if (!complaint) {
+      throw new NotFoundException('Khiếu nại không tồn tại hoặc không thuộc cửa hàng.');
+    }
+
+    const store = await this.storeRepo.findOne({ where: { id: storeId } });
+    const storeName = store?.name || 'Cửa hàng';
+    const action = dto.action || 'REFUND';
+    let draftReply: string;
+
+    if (action === 'REFUND') {
+      draftReply = `Kính gửi quý khách, ${storeName} xin chân thành cáo lỗi về sự cố đối với đơn hàng của quý khách (${complaint.description}). Chúng tôi đã kiểm tra và đồng ý hoàn tiền 100% cho đơn hàng này theo đúng chính sách của SurplusIQ (BR-054). ${dto.notes ? dto.notes + '. ' : ''}Khoản hoàn tiền sẽ được chuyển về tài khoản của bạn trong 24 giờ. Rất mong quý khách thông cảm và tiếp tục ủng hộ tiệm!`;
+    } else if (action === 'REJECT') {
+      draftReply = `Kính gửi quý khách, ${storeName} đã tiếp nhận và xem xét kỹ lưỡng khiếu nại của quý khách về đơn hàng. Sau khi đối chiếu hình ảnh lưu mẫu trước khi giao và quy định tại quầy (BR-056), chúng tôi xin phép chưa thể chấp nhận yêu cầu này do sản phẩm đã bàn giao đúng tình trạng và đúng khung giờ quy định. ${dto.notes ? dto.notes + '. ' : ''}Nếu quý khách có thêm thắc mắc, vui lòng liên hệ hotline quán để được giải thích thêm. Chân thành cảm ơn quý khách.`;
+    } else {
+      draftReply = `Kính gửi quý khách, ${storeName} xin gửi lời xin lỗi chân thành vì trải nghiệm chưa thật sự hài lòng của quý khách (${complaint.description}). Để tạ lỗi, chúng tôi xin gửi tặng quý khách mã ưu đãi giảm 20% cho lần ghé tiếp theo. ${dto.notes ? dto.notes + '. ' : ''}Chúng tôi đã nhắc nhở nhân viên quầy để không tái diễn sự cố. Chúc quý khách một ngày tốt lành!`;
+    }
+
+    const aiLog = this.logRepo.create({
+      userId,
+      storeId,
+      featureCode: 'STORE_AI_COMPLAINT_REPLY',
+      model: 'gemini-1.5-flash',
+      latencyMs: 340,
+      inputSummary: `Complaint ID: ${dto.complaintId}, Action: ${action}`,
+      outputSummary: draftReply.slice(0, 200),
+    });
+    const savedLog = await this.logRepo.save(aiLog);
+
+    await this.quotaService.consume({
+      storeId,
+      userId,
+      quotaKey: QuotaKey.AI_CONTENT_GEN,
+      units: 1,
+      refId: savedLog.id,
+    });
+
+    return {
+      complaintId: complaint.id,
+      action,
+      suggestedReply: draftReply,
+      aiLogId: savedLog.id,
     };
   }
 

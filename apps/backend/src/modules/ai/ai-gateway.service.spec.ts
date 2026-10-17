@@ -10,6 +10,7 @@ import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
+import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import { QuotaService } from '../subscriptions/quota.service';
 
@@ -23,6 +24,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
   let itemRepo: any;
   let orderRepo: any;
   let reviewRepo: any;
+  let complaintRepo: any;
   let storeRepo: any;
   let quotaService: any;
 
@@ -60,6 +62,13 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
     };
+    complaintRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'comp-1',
+        reason: 'Món ăn không đúng mô tả',
+        description: 'Bánh mì giao đến bị nguội và thiếu nước xốt',
+      }),
+    };
     storeRepo = {
       findOne: jest.fn().mockResolvedValue({ id: 'store-1', name: 'Tiệm Bánh Mì Việt' }),
     };
@@ -83,6 +92,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
         { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
+        { provide: getRepositoryToken(ComplaintEntity), useValue: complaintRepo },
         { provide: getRepositoryToken(StoreEntity), useValue: storeRepo },
         { provide: QuotaService, useValue: quotaService },
       ],

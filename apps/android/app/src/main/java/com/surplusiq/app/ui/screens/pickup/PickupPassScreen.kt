@@ -286,10 +286,11 @@ fun PickupPassScreen(
             ) {
                 OutlinedButton(
                     onClick = {
-                        val encodedAddress = Uri.encode("${order.deal.storeName}, ${order.deal.storeAddress}")
-                        val mapUri = Uri.parse("geo:0,0?q=$encodedAddress")
-                        val mapIntent = Intent(Intent.ACTION_VIEW, mapUri)
-                        context.startActivity(Intent.createChooser(mapIntent, "Mở ứng dụng bản đồ"))
+                        com.surplusiq.app.ui.util.NavigationUtil.openMapOrCopyAddress(
+                            context = context,
+                            storeAddress = order.deal.storeAddress,
+                            storeName = order.deal.storeName
+                        )
                     },
                     modifier = Modifier.weight(1f).height(44.dp),
                     shape = RoundedCornerShape(12.dp)

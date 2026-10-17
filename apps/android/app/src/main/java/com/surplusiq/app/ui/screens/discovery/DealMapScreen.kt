@@ -256,9 +256,11 @@ fun DealMapScreen(
                         ) {
                             OutlinedButton(
                                 onClick = {
-                                    val encoded = Uri.encode("${currentDeal.storeName}, ${currentDeal.storeAddress}")
-                                    val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$encoded"))
-                                    context.startActivity(Intent.createChooser(mapIntent, "Chỉ đường bằng bản đồ"))
+                                    com.surplusiq.app.ui.util.NavigationUtil.openMapOrCopyAddress(
+                                        context = context,
+                                        storeAddress = currentDeal.storeAddress,
+                                        storeName = currentDeal.storeName
+                                    )
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f).height(40.dp)

@@ -267,9 +267,11 @@ fun DealDetailScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .clickable {
-                            val mapUri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode("${deal.storeName}, ${deal.storeAddress}"))
-                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, mapUri)
-                            context.startActivity(android.content.Intent.createChooser(intent, "Mở ứng dụng bản đồ"))
+                            com.surplusiq.app.ui.util.NavigationUtil.openMapOrCopyAddress(
+                                context = context,
+                                storeAddress = deal.storeAddress,
+                                storeName = deal.storeName
+                            )
                         }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically

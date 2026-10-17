@@ -19,6 +19,8 @@ export interface CreateAuditLogParams {
 export interface GetStoreAuditLogsQuery {
   action?: string;
   targetType?: string;
+  actorId?: string;
+  employeeId?: string;
   from?: string | Date;
   to?: string | Date;
   page?: number;
@@ -88,6 +90,11 @@ export class AuditLogService {
 
     if (query.targetType) {
       qb.andWhere('audit.target_type = :targetType', { targetType: query.targetType });
+    }
+
+    const targetActorId = query.actorId || query.employeeId;
+    if (targetActorId) {
+      qb.andWhere('audit.actor_id = :actorId', { actorId: targetActorId });
     }
 
     qb.orderBy('audit.created_at', 'DESC').skip(skip).take(limit);

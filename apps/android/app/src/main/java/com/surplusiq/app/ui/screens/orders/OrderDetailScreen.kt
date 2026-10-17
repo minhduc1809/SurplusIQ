@@ -251,9 +251,11 @@ fun OrderDetailScreen(
 
                         OutlinedButton(
                             onClick = {
-                                val encoded = android.net.Uri.encode("${order.deal.storeName}, ${order.deal.storeAddress}")
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=$encoded"))
-                                context.startActivity(android.content.Intent.createChooser(intent, "Mở ứng dụng bản đồ"))
+                                com.surplusiq.app.ui.util.NavigationUtil.openMapOrCopyAddress(
+                                    context = context,
+                                    storeAddress = order.deal.storeAddress,
+                                    storeName = order.deal.storeName
+                                )
                             },
                             modifier = Modifier.fillMaxWidth().height(44.dp),
                             shape = RoundedCornerShape(22.dp)

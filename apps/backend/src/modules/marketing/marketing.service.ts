@@ -14,6 +14,7 @@ import { ItemEntity } from '../../entities/catalog/item.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import {
   CreatePromotionDto,
+  UpdatePromotionDto,
   CreateCampaignDto,
   CreateSurpriseBagDto,
   UpdateCampaignDto,
@@ -45,13 +46,85 @@ export class MarketingService {
   ) {}
 
   /**
-   * Danh sách các chương trình ưu đãi của quán (R2-088)
+   * Danh sách các chương trình ưu đãi của quán kèm số liệu hiệu quả (R2-088, R2-089)
    */
   async getPromotions(storeId: string) {
-    return this.promoRepo.find({
+    const promotions = await this.promoRepo.find({
       where: { storeId },
       order: { createdAt: 'DESC' },
     });
+
+    const ordersWithPromo = await this.orderRepo.find({
+      where: { storeId },
+      select: ['id', 'promotionId', 'totalAmount', 'discountAmount', 'customerId', 'status'],
+    });
+
+    return promotions.map((promo) => {
+      const relatedOrders = ordersWithPromo.filter(
+        (o) =>
+          o.promotionId === promo.id &&
+          o.status !== OrderStatus.CANCELLED,
+      );
+
+      const grossRevenue = relatedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+      const totalDiscount = relatedOrders.reduce((sum, o) => sum + (o.discountAmount || 0), 0);
+      const uniqueCustomers = new Set(
+        relatedOrders.map((o) => o.customerId).filter(Boolean),
+      ).size;
+      const conversionRatePercent =
+        promo.maxUses > 0
+          ? Number(((relatedOrders.length / promo.maxUses) * 100).toFixed(1))
+          : 0;
+
+      return {
+        ...promo,
+        analytics: {
+          usedOrdersCount: relatedOrders.length,
+          grossRevenueGenerated: grossRevenue,
+          totalDiscountGiven: totalDiscount,
+          uniqueCustomersCount: uniqueCustomers,
+          conversionRatePercent,
+          averageOrderValue:
+            relatedOrders.length > 0 ? Math.round(grossRevenue / relatedOrders.length) : 0,
+        },
+      };
+    });
+  }
+
+  /**
+   * Sửa nội dung chương trình ưu đãi đã tạo (R2-090)
+   */
+  async updatePromotion(storeId: string, promoId: string, dto: UpdatePromotionDto) {
+    const promo = await this.promoRepo.findOne({
+      where: { id: promoId, storeId },
+    });
+    if (!promo) {
+      throw new NotFoundException('Chương trình ưu đãi không tồn tại hoặc không thuộc cửa hàng.');
+    }
+
+    if (dto.startAt && dto.endAt) {
+      if (new Date(dto.endAt) <= new Date(dto.startAt)) {
+        throw new BadRequestException('Thời gian kết thúc phải diễn ra sau thời gian bắt đầu.');
+      }
+    }
+
+    if (dto.name !== undefined) promo.name = dto.name;
+    if (dto.type !== undefined) promo.type = dto.type;
+    if (dto.value !== undefined) {
+      if (promo.type === PromotionType.PERCENT && (dto.value <= 0 || dto.value > 100)) {
+        throw new BadRequestException(
+          'Mức giảm theo phần trăm phải nằm trong khoảng từ 1% đến 100%.',
+        );
+      }
+      promo.value = dto.value;
+    }
+    if (dto.target !== undefined) promo.target = dto.target;
+    if (dto.maxUses !== undefined) promo.maxUses = dto.maxUses;
+    if (dto.startAt !== undefined) promo.startAt = new Date(dto.startAt);
+    if (dto.endAt !== undefined) promo.endAt = new Date(dto.endAt);
+    if (dto.minOrderAmount !== undefined) promo.minOrderAmount = dto.minOrderAmount;
+
+    return this.promoRepo.save(promo);
   }
 
   /**
@@ -260,6 +333,77 @@ export class MarketingService {
     }
 
     return segmentationResult;
+  }
+
+  /**
+   * Danh sách riêng các khách hàng thường xuyên không đến nhận hàng (R2-087, BR-083)
+   */
+  async getFrequentNoShowCustomers(storeId: string) {
+    const orders = await this.orderRepo.find({
+      where: { storeId },
+      order: { createdAt: 'DESC' },
+    });
+
+    const customerStats = new Map<
+      string,
+      {
+        totalOrders: number;
+        noShowOrders: number;
+        lastNoShowAt: Date | null;
+        totalLossAmount: number;
+      }
+    >();
+
+    for (const ord of orders) {
+      if (!ord.customerId) continue;
+      const cId = ord.customerId;
+      const current = customerStats.get(cId) || {
+        totalOrders: 0,
+        noShowOrders: 0,
+        lastNoShowAt: null,
+        totalLossAmount: 0,
+      };
+
+      current.totalOrders += 1;
+      if (ord.status === OrderStatus.PICKUP_EXPIRED) {
+        current.noShowOrders += 1;
+        current.totalLossAmount += ord.totalAmount || 0;
+        if (!current.lastNoShowAt || ord.createdAt > current.lastNoShowAt) {
+          current.lastNoShowAt = ord.createdAt;
+        }
+      }
+      customerStats.set(cId, current);
+    }
+
+    const frequentNoShows = [];
+    for (const [customerId, stats] of customerStats.entries()) {
+      if (stats.noShowOrders > 0) {
+        const noShowRate = Number(((stats.noShowOrders / stats.totalOrders) * 100).toFixed(1));
+        const anonymizedCode = CustomerSegmentationEngine.anonymizeCustomerId(customerId);
+
+        frequentNoShows.push({
+          anonymizedCustomerId: anonymizedCode,
+          customerId,
+          totalOrders: stats.totalOrders,
+          noShowCount: stats.noShowOrders,
+          noShowRatePercent: noShowRate,
+          lastNoShowAt: stats.lastNoShowAt,
+          estimatedLossAmount: stats.totalLossAmount,
+          recommendedAction:
+            noShowRate >= 50
+              ? 'Yêu cầu nhân viên quầy gọi nhắc hẹn trước 15 phút và chỉ đóng gói khi khách xác nhận đang di chuyển.'
+              : 'Gửi thông báo nhắc nhở tự động qua app trước 30 phút giờ hẹn nhận hàng.',
+        });
+      }
+    }
+
+    frequentNoShows.sort((a, b) => b.noShowCount - a.noShowCount);
+
+    return {
+      storeId,
+      totalFrequentNoShowCustomers: frequentNoShows.length,
+      customers: frequentNoShows,
+    };
   }
 
   /**
