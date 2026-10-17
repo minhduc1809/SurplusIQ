@@ -22,6 +22,7 @@ import { DecisionsModule } from './modules/decisions/decisions.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { AiModule } from './modules/ai/ai.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { SeedModule } from './modules/seed/seed.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     MarketingModule,
     AiModule,
     NotificationsModule,
+    SeedModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

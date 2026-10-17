@@ -22,7 +22,7 @@ class SessionManager @Inject constructor(
         private const val KEY_FULL_NAME = "key_full_name"
         private const val KEY_DEVICE_ID = "key_device_id"
         private const val KEY_BASE_URL = "key_base_url"
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:3000/api/"
+        const val DEFAULT_BASE_URL = "http://10.0.2.2:4000/"
     }
 
     init {
@@ -54,7 +54,14 @@ class SessionManager @Inject constructor(
 
     fun getDeviceId(): String = prefs.getString(KEY_DEVICE_ID, "android-device-emulator") ?: "android-device-emulator"
 
-    fun getBaseUrl(): String = prefs.getString(KEY_BASE_URL, DEFAULT_BASE_URL) ?: DEFAULT_BASE_URL
+    fun getBaseUrl(): String {
+        val current = prefs.getString(KEY_BASE_URL, null)
+        if (current == null || current.contains(":3000")) {
+            setBaseUrl(DEFAULT_BASE_URL)
+            return DEFAULT_BASE_URL
+        }
+        return current
+    }
 
     fun setBaseUrl(url: String) {
         val sanitized = if (url.endsWith("/")) url else "$url/"

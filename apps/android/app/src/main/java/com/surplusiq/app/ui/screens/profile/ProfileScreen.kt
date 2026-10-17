@@ -30,6 +30,8 @@ import com.surplusiq.app.ui.theme.TextSecondary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    userName: String = "Trần Minh Đức",
+    userPhone: String = "0901234567",
     stats: UserImpactStats = UserImpactStats(),
     onOpenAiChat: () -> Unit,
     onOpenMyOrders: () -> Unit = {},
@@ -86,13 +88,13 @@ fun ProfileScreen(
 
                 Column {
                     Text(
-                        text = "Nguyễn Văn An",
+                        text = userName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
                     Text(
-                        text = "an.nguyen@example.com",
+                        text = userPhone,
                         fontSize = 13.sp,
                         color = TextSecondary
                     )

@@ -38,9 +38,14 @@ class DiscoveryRepositoryImpl @Inject constructor(
 
             if (response.isSuccessful && response.body() != null) {
                 val items = response.body()!!.data
-                val mappedDeals = items.map { dto -> mapDtoToDeal(dto) }
-                val filtered = applyLocalFilters(mappedDeals, searchQuery, radiusKm, preferences)
-                Result.success(filtered)
+                if (items.isNotEmpty()) {
+                    val mappedDeals = items.map { dto -> mapDtoToDeal(dto) }
+                    val filtered = applyLocalFilters(mappedDeals, searchQuery, radiusKm, preferences)
+                    Result.success(filtered)
+                } else {
+                    // Fallback to rich sample data
+                    Result.success(applyLocalFilters(SampleData.sampleDeals, searchQuery, radiusKm, preferences))
+                }
             } else {
                 // Fallback to rich sample data
                 Result.success(applyLocalFilters(SampleData.sampleDeals, searchQuery, radiusKm, preferences))

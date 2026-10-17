@@ -257,6 +257,8 @@ fun SurplusAppRoot(
 
                         NavTab.ME -> {
                             ProfileScreen(
+                                userName = authState.fullName.ifBlank { "Trần Minh Đức" },
+                                userPhone = authState.phone.ifBlank { "0901234567" },
                                 onOpenAiChat = { showAiBottomSheet = true },
                                 onOpenMyOrders = {
                                     myOrdersViewModel.loadOrders()

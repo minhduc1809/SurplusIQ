@@ -51,23 +51,23 @@ fun DealMapScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFE8ECE9))
+            .background(Color(0xFFF0F6FA))
     ) {
         // Map Surface Simulation (Saigon Center Grid Pattern)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
 
-            // Simulated River Curve (Bạch Đằng / Sông Sài Gòn)
+            // Simulated River Curve (Bạch Đằng / Sông Sài Gòn - Light Blue)
             drawLine(
-                color = Color(0xFFCBE3EF),
+                color = Color(0xFFBAE6FD),
                 start = Offset(width * 0.85f, 0f),
                 end = Offset(width * 0.65f, height),
                 strokeWidth = 36f
             )
 
             // Grid streets
-            val streetColor = Color(0xFFD6DDD8)
+            val streetColor = Color(0xFFE2E8F0)
             for (i in 1..8) {
                 drawLine(
                     color = streetColor,
@@ -83,14 +83,14 @@ fun DealMapScreen(
                 )
             }
 
-            // Radar circle (radius ring)
+            // Radar circle (radius ring - Soft Sky Blue)
             drawCircle(
                 color = ForestGreenPrimary.copy(alpha = 0.08f),
                 radius = width * 0.38f,
                 center = Offset(width * 0.5f, height * 0.45f)
             )
             drawCircle(
-                color = ForestGreenPrimary.copy(alpha = 0.2f),
+                color = ForestGreenPrimary.copy(alpha = 0.25f),
                 radius = width * 0.38f,
                 center = Offset(width * 0.5f, height * 0.45f),
                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
