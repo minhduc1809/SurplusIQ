@@ -241,7 +241,8 @@ export class DraftComplaintReplyDto {
   complaintId: string;
 
   @ApiPropertyOptional({
-    description: 'Hướng xử lý (REFUND: Chấp nhận hoàn tiền, REJECT: Từ chối giải thích, APOLOGY: Xin lỗi tặng voucher)',
+    description:
+      'Hướng xử lý (REFUND: Chấp nhận hoàn tiền, REJECT: Từ chối giải thích, APOLOGY: Xin lỗi tặng voucher)',
     example: 'REFUND',
     default: 'REFUND',
   })

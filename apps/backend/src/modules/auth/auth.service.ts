@@ -639,7 +639,9 @@ export class AuthService {
    * Đăng xuất và thu hồi Refresh Token trên thiết bị hiện tại
    */
   async logout(userId: string, deviceId: string) {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId || '');
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      userId || '',
+    );
     if (isUuid) {
       await this.refreshTokenRepo.update(
         { userId, deviceId, revokedAt: undefined },

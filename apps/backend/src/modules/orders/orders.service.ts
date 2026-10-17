@@ -152,7 +152,9 @@ export class OrdersService {
         }
 
         if (promo.status !== PromotionStatus.ACTIVE) {
-          throw new BadRequestException('Mã ưu đãi hiện không khả dụng (đã tạm dừng hoặc đã kết thúc).');
+          throw new BadRequestException(
+            'Mã ưu đãi hiện không khả dụng (đã tạm dừng hoặc đã kết thúc).',
+          );
         }
 
         const nowTime = new Date().getTime();
@@ -170,7 +172,7 @@ export class OrdersService {
 
         if (promo.minOrderAmount && subtotal < promo.minOrderAmount) {
           throw new BadRequestException(
-            `Đơn hàng chưa đạt giá trị tối thiểu ${promo.minOrderAmount.toLocaleString('vi-VN')} ₫ để áp dụng mã này.`
+            `Đơn hàng chưa đạt giá trị tối thiểu ${promo.minOrderAmount.toLocaleString('vi-VN')} ₫ để áp dụng mã này.`,
           );
         }
 

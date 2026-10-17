@@ -12,7 +12,12 @@ export class SeedService implements OnModuleInit {
     await this.seedDemoData();
   }
 
-  async seedDemoData(): Promise<{ success: boolean; message: string; storesCount: number; offersCount: number }> {
+  async seedDemoData(): Promise<{
+    success: boolean;
+    message: string;
+    storesCount: number;
+    offersCount: number;
+  }> {
     try {
       this.logger.log('Bắt đầu kiểm tra và khởi tạo dữ liệu mẫu (Seed Data) cho SurplusIQ...');
 
@@ -56,7 +61,8 @@ export class SeedService implements OnModuleInit {
           lng: 106.7001,
           lat: 10.7765,
           phone: '0283822142',
-          logoUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=160&auto=format&fit=crop&q=80',
+          logoUrl:
+            'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=160&auto=format&fit=crop&q=80',
           rating: 4.8,
           count: 142,
         },
@@ -67,7 +73,8 @@ export class SeedService implements OnModuleInit {
           lng: 106.7025,
           lat: 10.7742,
           phone: '0283822143',
-          logoUrl: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=160&auto=format&fit=crop&q=80',
+          logoUrl:
+            'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=160&auto=format&fit=crop&q=80',
           rating: 4.5,
           count: 98,
         },
@@ -78,7 +85,8 @@ export class SeedService implements OnModuleInit {
           lng: 106.698,
           lat: 10.789,
           phone: '0283822144',
-          logoUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=160&auto=format&fit=crop&q=80',
+          logoUrl:
+            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=160&auto=format&fit=crop&q=80',
           rating: 4.7,
           count: 76,
         },
@@ -89,7 +97,8 @@ export class SeedService implements OnModuleInit {
           lng: 106.705,
           lat: 10.778,
           phone: '0283822145',
-          logoUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80',
+          logoUrl:
+            'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80',
           rating: 4.6,
           count: 54,
         },
@@ -100,7 +109,8 @@ export class SeedService implements OnModuleInit {
           lng: 106.699,
           lat: 10.7795,
           phone: '0283822146',
-          logoUrl: 'https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=160&auto=format&fit=crop&q=80',
+          logoUrl:
+            'https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=160&auto=format&fit=crop&q=80',
           rating: 4.9,
           count: 142,
         },
@@ -111,7 +121,8 @@ export class SeedService implements OnModuleInit {
           lng: 106.701,
           lat: 10.7735,
           phone: '0283822147',
-          logoUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&auto=format&fit=crop&q=80',
+          logoUrl:
+            'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&auto=format&fit=crop&q=80',
           rating: 4.6,
           count: 89,
         },
@@ -147,8 +158,10 @@ export class SeedService implements OnModuleInit {
           originalPrice: 90000,
           shelfLife: 24,
           allergens: ['Gluten', 'Sữa bò', 'Trứng gà'],
-          imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80',
-          description: 'Suất bánh nướng tươi ngon chuẩn phong cách Artisan được đóng gói ngẫu nhiên trước giờ đóng cửa.',
+          imageUrl:
+            'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80',
+          description:
+            'Suất bánh nướng tươi ngon chuẩn phong cách Artisan được đóng gói ngẫu nhiên trước giờ đóng cửa.',
         },
         {
           id: '44444444-4444-4444-4444-444444444402',
@@ -158,7 +171,8 @@ export class SeedService implements OnModuleInit {
           originalPrice: 90000,
           shelfLife: 24,
           allergens: ['Gluten', 'Sữa bò', 'Đậu phộng'],
-          imageUrl: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=800&auto=format&fit=crop&q=80',
+          imageUrl:
+            'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=800&auto=format&fit=crop&q=80',
           description: 'Tập hợp bánh nướng giòn rụm trong ngày từ lò bánh thủ công.',
         },
         {
@@ -169,8 +183,10 @@ export class SeedService implements OnModuleInit {
           originalPrice: 120000,
           shelfLife: 12,
           allergens: ['Đậu nành', 'Hành tỏi'],
-          imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80',
-          description: 'Món ăn gia đình ấm nóng từ bếp La Albahaca, đóng gói hộp giấy thân thiện môi trường.',
+          imageUrl:
+            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80',
+          description:
+            'Món ăn gia đình ấm nóng từ bếp La Albahaca, đóng gói hộp giấy thân thiện môi trường.',
         },
         {
           id: '44444444-4444-4444-4444-444444444404',
@@ -180,7 +196,8 @@ export class SeedService implements OnModuleInit {
           originalPrice: 90000,
           shelfLife: 24,
           allergens: ['Lúa mì nguyên cám', 'Hạt vừng'],
-          imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
+          imageUrl:
+            'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
           description: 'Bánh mì lên men chậm men vi sinh tự nhiên tốt cho sức khỏe.',
         },
         {
@@ -191,7 +208,8 @@ export class SeedService implements OnModuleInit {
           originalPrice: 150000,
           shelfLife: 48,
           allergens: [],
-          imageUrl: 'https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=800&auto=format&fit=crop&q=80',
+          imageUrl:
+            'https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=800&auto=format&fit=crop&q=80',
           description: 'Rau xà lách, cà chua bi, nấm đùi gà chuẩn VietGAP đóng gói trong ngày.',
         },
         {
@@ -202,7 +220,8 @@ export class SeedService implements OnModuleInit {
           originalPrice: 85000,
           shelfLife: 12,
           allergens: ['Sữa tươi', 'Kem béo'],
-          imageUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80',
+          imageUrl:
+            'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80',
           description: 'Thức uống trà ủ lạnh thảo mộc kết hợp bánh lạnh tráng miệng thơm mát.',
         },
       ];
@@ -322,7 +341,9 @@ export class SeedService implements OnModuleInit {
         );
       }
 
-      this.logger.log(`Seed Data thành công! Đã tạo 6 cửa hàng và 6 ưu đãi cứu món hoạt động thực tế trên PostgreSQL PostGIS.`);
+      this.logger.log(
+        `Seed Data thành công! Đã tạo 6 cửa hàng và 6 ưu đãi cứu món hoạt động thực tế trên PostgreSQL PostGIS.`,
+      );
       return {
         success: true,
         message: 'Khởi tạo dữ liệu mẫu thành công với 6 cửa hàng và 6 ưu đãi thực tế.',

@@ -197,10 +197,7 @@ export class DecisionsController {
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'So sánh đối chiếu kết quả giữa các lần thử mô phỏng (R2-105)' })
   @ApiResponse({ status: 200, description: 'Bảng so sánh chi tiết và phương án tốt nhất' })
-  async compareSimulations(
-    @CurrentStore() storeId: string,
-    @Body() dto: CompareSimulationsDto,
-  ) {
+  async compareSimulations(@CurrentStore() storeId: string, @Body() dto: CompareSimulationsDto) {
     return this.decisionsService.compareSimulations(storeId, dto.simulationIds);
   }
 

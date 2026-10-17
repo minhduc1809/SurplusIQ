@@ -61,20 +61,14 @@ export class MarketingService {
 
     return promotions.map((promo) => {
       const relatedOrders = ordersWithPromo.filter(
-        (o) =>
-          o.promotionId === promo.id &&
-          o.status !== OrderStatus.CANCELLED,
+        (o) => o.promotionId === promo.id && o.status !== OrderStatus.CANCELLED,
       );
 
       const grossRevenue = relatedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
       const totalDiscount = relatedOrders.reduce((sum, o) => sum + (o.discountAmount || 0), 0);
-      const uniqueCustomers = new Set(
-        relatedOrders.map((o) => o.customerId).filter(Boolean),
-      ).size;
+      const uniqueCustomers = new Set(relatedOrders.map((o) => o.customerId).filter(Boolean)).size;
       const conversionRatePercent =
-        promo.maxUses > 0
-          ? Number(((relatedOrders.length / promo.maxUses) * 100).toFixed(1))
-          : 0;
+        promo.maxUses > 0 ? Number(((relatedOrders.length / promo.maxUses) * 100).toFixed(1)) : 0;
 
       return {
         ...promo,

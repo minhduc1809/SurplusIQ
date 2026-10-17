@@ -550,9 +550,7 @@ export class AiGatewayService {
 
       const activeOrder =
         recentOrders.find(
-          (o) =>
-            o.status === OrderStatus.PENDING_PAYMENT ||
-            o.status === OrderStatus.PAID,
+          (o) => o.status === OrderStatus.PENDING_PAYMENT || o.status === OrderStatus.PAID,
         ) || recentOrders[0];
 
       if (!activeOrder) {

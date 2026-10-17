@@ -114,7 +114,9 @@ export class AuthController {
   @ApiHeader({ name: 'x-user-id' })
   async changePassword(@Headers('x-user-id') userId: string, @Body() dto: ChangePasswordDto) {
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
-      throw new UnauthorizedException('Chưa đăng nhập. Vui lòng đăng nhập để thực hiện đổi mật khẩu.');
+      throw new UnauthorizedException(
+        'Chưa đăng nhập. Vui lòng đăng nhập để thực hiện đổi mật khẩu.',
+      );
     }
     return this.authService.changePassword(userId, dto);
   }

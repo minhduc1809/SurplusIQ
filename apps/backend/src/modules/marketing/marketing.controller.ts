@@ -43,7 +43,9 @@ export class MarketingController {
 
   @Get('promotions')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
-  @ApiOperation({ summary: 'Danh sách các chương trình ưu đãi kèm số liệu hiệu quả (R2-088, R2-089)' })
+  @ApiOperation({
+    summary: 'Danh sách các chương trình ưu đãi kèm số liệu hiệu quả (R2-088, R2-089)',
+  })
   @ApiResponse({ status: 200, description: 'Danh sách ưu đãi kèm analytics' })
   async getPromotions(@CurrentStore() storeId: string) {
     return this.marketingService.getPromotions(storeId);
@@ -86,7 +88,9 @@ export class MarketingController {
 
   @Get('frequent-noshow')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
-  @ApiOperation({ summary: 'Danh sách khách hàng thường xuyên bỏ đơn không nhận kèm khuyến nghị (R2-087, BR-083)' })
+  @ApiOperation({
+    summary: 'Danh sách khách hàng thường xuyên bỏ đơn không nhận kèm khuyến nghị (R2-087, BR-083)',
+  })
   @ApiResponse({ status: 200, description: 'Danh sách khách thường xuyên noshow ẩn danh' })
   async getFrequentNoShow(@CurrentStore() storeId: string) {
     return this.marketingService.getFrequentNoShowCustomers(storeId);

@@ -325,23 +325,16 @@ export class StoresService {
 
     const totalOrdersCount = orders.length;
     const recoveryRate =
-      totalOrdersCount > 0
-        ? Number(((completedOrders / totalOrdersCount) * 100).toFixed(1))
-        : 0;
+      totalOrdersCount > 0 ? Number(((completedOrders / totalOrdersCount) * 100).toFixed(1)) : 0;
 
     const wastedOrdersCount = cancelledOrders + noShowOrders;
     const wastedWeightKg = Number((wastedOrdersCount * 0.4).toFixed(2));
     const wastedEstimatedCost = orders
-      .filter(
-        (o) =>
-          o.status === OrderStatus.CANCELLED || o.status === OrderStatus.PICKUP_EXPIRED,
-      )
+      .filter((o) => o.status === OrderStatus.CANCELLED || o.status === OrderStatus.PICKUP_EXPIRED)
       .reduce((sum, o) => sum + (o.unitPrice * o.quantity || 0), 0);
 
     const wasteReductionRate =
-      totalOrdersCount > 0
-        ? Number(((completedOrders / totalOrdersCount) * 45).toFixed(1))
-        : 0;
+      totalOrdersCount > 0 ? Number(((completedOrders / totalOrdersCount) * 45).toFixed(1)) : 0;
 
     return {
       period: {

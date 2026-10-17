@@ -130,8 +130,7 @@ export class DecisionsService {
       }
 
       const historyDays = Number(forecast.components?.historyDaysCount ?? 0);
-      const isLowConfidence =
-        forecast.confidence === ForecastConfidence.LOW || historyDays < 14;
+      const isLowConfidence = forecast.confidence === ForecastConfidence.LOW || historyDays < 14;
       const dayName =
         ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][
           new Date(forecast.targetDate).getDay()
@@ -164,7 +163,8 @@ export class DecisionsService {
             {
               id: 'FALLBACK_MANUAL',
               title: 'Phương án 3: Chủ quán tự nhập số lượng kế hoạch',
-              description: 'Chủ động điều chỉnh số lượng thủ công theo ước lượng thời tiết và lượng khách thực tế của quán.',
+              description:
+                'Chủ động điều chỉnh số lượng thủ công theo ước lượng thời tiết và lượng khách thực tế của quán.',
               recommendedQuantity: forecast.chosenQuantity || forecast.recommended,
             },
           ]
