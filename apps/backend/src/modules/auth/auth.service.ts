@@ -84,6 +84,21 @@ export class AuthService {
    * Đăng ký tài khoản khách hàng (R1-001)
    */
   async registerCustomer(dto: CustomerRegisterDto) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentRegistrationsFromDevice = await this.otpRepo.count({
+      where: {
+        deviceId: dto.deviceId,
+        purpose: OtpPurpose.VERIFY,
+        createdAt: MoreThan(oneHourAgo),
+      },
+    });
+    if (recentRegistrationsFromDevice >= AUTH_CONSTANTS.REGISTER_MAX_PER_HOUR) {
+      throw new BadRequestException({
+        code: AUTH_ERRORS.REGISTER_RATE_LIMITED,
+        message: 'Đã vượt quá giới hạn 5 lần đăng ký trong 1 giờ trên thiết bị này',
+      });
+    }
+
     const existing = await this.userRepo.findOne({
       where: [{ phone: dto.phone }, ...(dto.email ? [{ email: dto.email }] : [])],
     });
@@ -124,6 +139,7 @@ export class AuthService {
 
       const otpEntity = manager.create(OtpCodeEntity, {
         target: dto.phone,
+        deviceId: dto.deviceId,
         purpose: OtpPurpose.VERIFY,
         codeHash: otpHash,
         expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
@@ -144,8 +160,13 @@ export class AuthService {
    * Đăng nhập khách hàng với cơ chế tách kênh (9.1), khóa brute-force và kiểm tra 2FA
    */
   async loginCustomer(dto: CustomerLoginDto, ip: string = '127.0.0.1') {
+    const identifier = (dto.identifier || dto.phone || '').trim();
+    if (!identifier) {
+      throw new BadRequestException('Vui lòng nhập số điện thoại hoặc email đăng nhập');
+    }
+
     const user = await this.userRepo.findOne({
-      where: [{ phone: dto.identifier }, { email: dto.identifier }],
+      where: [{ phone: identifier }, { email: identifier }],
     });
 
     if (!user) {
@@ -618,10 +639,15 @@ export class AuthService {
    * Đăng xuất và thu hồi Refresh Token trên thiết bị hiện tại
    */
   async logout(userId: string, deviceId: string) {
-    await this.refreshTokenRepo.update(
-      { userId, deviceId, revokedAt: undefined },
-      { revokedAt: new Date() },
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      userId || '',
     );
+    if (isUuid) {
+      await this.refreshTokenRepo.update(
+        { userId, deviceId, revokedAt: undefined },
+        { revokedAt: new Date() },
+      );
+    }
     return { success: true, message: 'Đăng xuất thành công' };
   }
 

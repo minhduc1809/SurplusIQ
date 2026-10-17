@@ -105,6 +105,78 @@ export class UpdatePromotionStatusDto {
   status: PromotionStatus;
 }
 
+export class UpdatePromotionDto {
+  @ApiPropertyOptional({
+    description: 'Tên chương trình ưu đãi',
+    example: 'Giảm 25% khung giờ vàng cho khách thân thiết',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: 'Loại ưu đãi (PERCENT hoặc FIXED)',
+    enum: PromotionType,
+    example: PromotionType.PERCENT,
+  })
+  @IsOptional()
+  @IsEnum(PromotionType)
+  type?: PromotionType;
+
+  @ApiPropertyOptional({
+    description: 'Giá trị ưu đãi (% hoặc số tiền VND)',
+    example: 25,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  value?: number;
+
+  @ApiPropertyOptional({
+    description: 'Đối tượng áp dụng (ALL, FAVORITES, LOYAL, AT_RISK)',
+    enum: PromotionTarget,
+    example: PromotionTarget.LOYAL,
+  })
+  @IsOptional()
+  @IsEnum(PromotionTarget)
+  target?: PromotionTarget;
+
+  @ApiPropertyOptional({
+    description: 'Số lượt sử dụng tối đa',
+    example: 80,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxUses?: number;
+
+  @ApiPropertyOptional({
+    description: 'Thời điểm bắt đầu áp dụng (ISO Date)',
+    example: '2026-10-15T00:00:00Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  startAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Thời điểm kết thúc ưu đãi (ISO Date)',
+    example: '2026-11-15T23:59:59Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  endAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Giá trị đơn hàng tối thiểu để áp dụng (VND)',
+    example: 60000,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  minOrderAmount?: number;
+}
+
 export class CreateCampaignDto {
   @ApiProperty({
     description: 'Tiêu đề chiến dịch thông báo push (tối đa 150 ký tự)',

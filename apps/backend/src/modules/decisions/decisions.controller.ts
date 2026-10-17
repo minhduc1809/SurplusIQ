@@ -18,6 +18,7 @@ import {
   QueryForecastDto,
   CreateSpecialEventDto,
   SimulatePolicyDto,
+  CompareSimulationsDto,
   CreateDonationRecordDto,
   QueryAnomalyDto,
 } from './dto/decisions.dto';
@@ -179,9 +180,25 @@ export class DecisionsController {
     summary:
       'Mô phỏng chính sách giá và giảm hao hụt trên dữ liệu 14-90 ngày (R2-099, R2-104..105)',
   })
-  @ApiResponse({ status: 200, description: 'Kết quả mô phỏng chính sách' })
+  @ApiResponse({ status: 200, description: 'Kết quả mô phỏng chính sách kèm lưu lịch sử' })
   async simulatePolicy(@CurrentStore() storeId: string, @Body() dto: SimulatePolicyDto) {
     return this.decisionsService.simulatePolicy(storeId, dto);
+  }
+
+  @Get('simulation/history')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xem lịch sử các lần chạy mô phỏng chính sách giá đã lưu (R2-105)' })
+  @ApiResponse({ status: 200, description: 'Danh sách các lần thử mô phỏng' })
+  async getSimulationHistory(@CurrentStore() storeId: string) {
+    return this.decisionsService.getSimulationHistory(storeId);
+  }
+
+  @Post('simulation/compare')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'So sánh đối chiếu kết quả giữa các lần thử mô phỏng (R2-105)' })
+  @ApiResponse({ status: 200, description: 'Bảng so sánh chi tiết và phương án tốt nhất' })
+  async compareSimulations(@CurrentStore() storeId: string, @Body() dto: CompareSimulationsDto) {
+    return this.decisionsService.compareSimulations(storeId, dto.simulationIds);
   }
 
   @Get('donations/suggestions')

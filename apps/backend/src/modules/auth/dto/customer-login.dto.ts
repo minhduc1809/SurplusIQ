@@ -2,10 +2,15 @@ import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CustomerLoginDto {
-  @ApiProperty({ example: '0901234567', description: 'Số điện thoại hoặc Email' })
-  @IsNotEmpty({ message: 'Tài khoản đăng nhập không được để trống' })
+  @ApiPropertyOptional({ example: '0901234567', description: 'Số điện thoại hoặc Email' })
+  @IsOptional()
   @IsString()
-  identifier: string;
+  identifier?: string;
+
+  @ApiPropertyOptional({ example: '0901234567', description: 'Số điện thoại' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @ApiProperty({ example: 'MatKhau123@' })
   @IsNotEmpty({ message: 'Mật khẩu không được để trống' })

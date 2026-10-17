@@ -17,6 +17,11 @@ import {
 } from '../../entities/orders/payment-transaction.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import {
+  PromotionEntity,
+  PromotionStatus,
+  PromotionType,
+} from '../../entities/marketing/promotion.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QrTokenEngine } from '@surplusiq/core';
 import { CreateOrderDto, CancelOrderDto, QueryOrdersDto } from './dto';
@@ -127,10 +132,67 @@ export class OrdersService {
       }
       await manager.save(offer);
 
-      // 5. Khóa giá chốt đơn (R1-040)
+      // 5. Khóa giá chốt đơn (R1-040) & Áp dụng ưu đãi giảm giá (R1-053)
       const unitPrice = offer.currentPrice;
-      const discountAmount = 0; // Giảm giá từ promotion nếu có
-      const totalAmount = unitPrice * dto.quantity - discountAmount;
+      const subtotal = unitPrice * dto.quantity;
+      let discountAmount = 0;
+      let appliedPromotionId: string | null = null;
+
+      if (dto.promotionId) {
+        const promo = await manager.findOne(PromotionEntity, {
+          where: { id: dto.promotionId },
+        });
+
+        if (!promo) {
+          throw new BadRequestException('Mã ưu đãi không tồn tại trên hệ thống.');
+        }
+
+        if (promo.storeId !== offer.storeId) {
+          throw new BadRequestException('Mã ưu đãi này không thuộc cửa hàng đã chọn.');
+        }
+
+        if (promo.status !== PromotionStatus.ACTIVE) {
+          throw new BadRequestException(
+            'Mã ưu đãi hiện không khả dụng (đã tạm dừng hoặc đã kết thúc).',
+          );
+        }
+
+        const nowTime = new Date().getTime();
+        if (promo.startAt && nowTime < new Date(promo.startAt).getTime()) {
+          throw new BadRequestException('Chương trình ưu đãi này chưa bắt đầu.');
+        }
+
+        if (promo.endAt && nowTime > new Date(promo.endAt).getTime()) {
+          throw new BadRequestException('Mã ưu đãi này đã hết hạn sử dụng.');
+        }
+
+        if (promo.maxUses && promo.usedCount >= promo.maxUses) {
+          throw new BadRequestException('Mã ưu đãi đã hết lượt sử dụng.');
+        }
+
+        if (promo.minOrderAmount && subtotal < promo.minOrderAmount) {
+          throw new BadRequestException(
+            `Đơn hàng chưa đạt giá trị tối thiểu ${promo.minOrderAmount.toLocaleString('vi-VN')} ₫ để áp dụng mã này.`,
+          );
+        }
+
+        // Tính toán số tiền chiết khấu theo loại ưu đãi
+        if (promo.type === PromotionType.PERCENT) {
+          discountAmount = Math.round((subtotal * promo.value) / 100);
+        } else {
+          discountAmount = Math.min(promo.value, subtotal);
+        }
+
+        // Giới hạn giảm giá không vượt quá tổng tiền
+        discountAmount = Math.min(discountAmount, subtotal);
+
+        // Tăng số lượt sử dụng của promotion
+        promo.usedCount += 1;
+        await manager.save(promo);
+        appliedPromotionId = promo.id;
+      }
+
+      const totalAmount = Math.max(0, subtotal - discountAmount);
 
       // 6. Tính thời gian hết hạn giữ suất 10 phút (BR-017)
       const now = new Date();
@@ -148,7 +210,7 @@ export class OrdersService {
         offerId: offer.id,
         quantity: dto.quantity,
         unitPrice,
-        promotionId: dto.promotionId || null,
+        promotionId: appliedPromotionId,
         discountAmount,
         totalAmount,
         status: OrderStatus.PENDING_PAYMENT,
@@ -388,6 +450,7 @@ export class OrdersService {
 
     const qb = this.orderRepo
       .createQueryBuilder('order')
+      .leftJoin('stores', 'store', 'store.id = order.store_id')
       .where('order.customer_id = :customerId', { customerId });
 
     if (query.status) {
@@ -398,6 +461,22 @@ export class OrdersService {
       qb.andWhere('order.created_at >= :start AND order.created_at <= :end', {
         start: new Date(`${query.date}T00:00:00.000Z`),
         end: new Date(`${query.date}T23:59:59.999Z`),
+      });
+    } else if (query.fromDate || query.toDate) {
+      const maxRangeMs = ORDERS_CONSTANTS.ORDERS_FILTER_MAX_RANGE_MONTHS * 31 * 24 * 60 * 60 * 1000;
+      const to = query.toDate ? new Date(`${query.toDate}T23:59:59.999Z`) : new Date();
+      const earliestAllowed = new Date(to.getTime() - maxRangeMs);
+      const requestedFrom = query.fromDate
+        ? new Date(`${query.fromDate}T00:00:00.000Z`)
+        : earliestAllowed;
+      const from = requestedFrom < earliestAllowed ? earliestAllowed : requestedFrom;
+
+      qb.andWhere('order.created_at >= :from AND order.created_at <= :to', { from, to });
+    }
+
+    if (query.search) {
+      qb.andWhere('(order.code ILIKE :search OR store.name ILIKE :search)', {
+        search: `%${query.search}%`,
       });
     }
 
@@ -445,6 +524,16 @@ export class OrdersService {
       throw new BadRequestException(
         'Chỉ có thể thông báo đến cho đơn hàng đã thanh toán thành công.',
       );
+    }
+
+    if (order.arrivingNotifiedAt) {
+      throw new BadRequestException('Đơn hàng này đã được báo "đang tới" trước đó.');
+    }
+
+    const offer = await this.offerRepo.findOne({ where: { id: order.offerId } });
+    const now = new Date();
+    if (offer && (now < new Date(offer.pickupStart) || now > new Date(offer.pickupEnd))) {
+      throw new BadRequestException('Chỉ có thể báo "đang tới" trong khung giờ nhận hàng.');
     }
 
     order.arrivingNotifiedAt = new Date();

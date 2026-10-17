@@ -9,6 +9,7 @@ import {
   Ip,
   UsePipes,
   ValidationPipe,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -109,10 +110,15 @@ export class AuthController {
   // -------------------------------------------------------------------------
 
   @Post('auth/password/change')
-  @ApiOperation({ summary: 'Đổi mật khẩu và thu hồi các phiên đăng nhập khác (BR-003)' })
+  @ApiOperation({ summary: 'Đổi mật khẩu và thu hồi các phiên đăng nhập khác (BR-003, R1-007)' })
   @ApiHeader({ name: 'x-user-id' })
   async changePassword(@Headers('x-user-id') userId: string, @Body() dto: ChangePasswordDto) {
-    return this.authService.changePassword(userId || '00000000-0000-0000-0000-000000000001', dto);
+    if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
+      throw new UnauthorizedException(
+        'Chưa đăng nhập. Vui lòng đăng nhập để thực hiện đổi mật khẩu.',
+      );
+    }
+    return this.authService.changePassword(userId, dto);
   }
 
   @Post('auth/password/forgot')
@@ -135,31 +141,40 @@ export class AuthController {
   @ApiOperation({ summary: 'Danh sách các phiên đăng nhập đang hoạt động (R1-014)' })
   @ApiHeader({ name: 'x-user-id' })
   async getSessions(@Headers('x-user-id') userId: string) {
-    return this.authService.getSessions(userId || '00000000-0000-0000-0000-000000000001');
+    if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
+      throw new UnauthorizedException('Chưa đăng nhập. Vui lòng đăng nhập để xem phiên hoạt động.');
+    }
+    return this.authService.getSessions(userId);
   }
 
   @Delete('me/sessions/:id')
   @ApiOperation({ summary: 'Thu hồi phiên đăng nhập trên thiết bị cụ thể (R1-014)' })
   @ApiHeader({ name: 'x-user-id' })
   async revokeSession(@Headers('x-user-id') userId: string, @Param('id') sessionId: string) {
-    return this.authService.revokeSession(
-      userId || '00000000-0000-0000-0000-000000000001',
-      sessionId,
-    );
+    if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
+      throw new UnauthorizedException('Chưa đăng nhập.');
+    }
+    return this.authService.revokeSession(userId, sessionId);
   }
 
   @Post('me/2fa/toggle')
   @ApiOperation({ summary: 'Bật / Tắt xác thực 2 bước (2FA) (R1-013)' })
   @ApiHeader({ name: 'x-user-id' })
   async toggle2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
-    return this.authService.toggle2fa(userId || '00000000-0000-0000-0000-000000000001', dto);
+    if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
+      throw new UnauthorizedException('Chưa đăng nhập.');
+    }
+    return this.authService.toggle2fa(userId, dto);
   }
 
   @Post('me/2fa/enable')
   @ApiOperation({ summary: 'Kích hoạt xác thực 2 bước (2FA) (R1-013)' })
   @ApiHeader({ name: 'x-user-id' })
   async enable2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
-    return this.authService.toggle2fa(userId || '00000000-0000-0000-0000-000000000001', {
+    if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
+      throw new UnauthorizedException('Chưa đăng nhập.');
+    }
+    return this.authService.toggle2fa(userId, {
       ...dto,
       enabled: true,
     });
@@ -169,7 +184,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Hủy kích hoạt xác thực 2 bước (2FA) (R1-013)' })
   @ApiHeader({ name: 'x-user-id' })
   async disable2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
-    return this.authService.toggle2fa(userId || '00000000-0000-0000-0000-000000000001', {
+    if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
+      throw new UnauthorizedException('Chưa đăng nhập.');
+    }
+    return this.authService.toggle2fa(userId, {
       ...dto,
       enabled: false,
     });

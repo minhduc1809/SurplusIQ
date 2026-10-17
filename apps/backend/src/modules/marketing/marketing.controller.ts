@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Body,
   Param,
   UseGuards,
@@ -14,6 +15,7 @@ import { MarketingService } from './marketing.service';
 import {
   CreatePromotionDto,
   UpdatePromotionStatusDto,
+  UpdatePromotionDto,
   CreateCampaignDto,
   CreateSurpriseBagDto,
   UpdateCampaignDto,
@@ -41,8 +43,10 @@ export class MarketingController {
 
   @Get('promotions')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
-  @ApiOperation({ summary: 'Danh sách các chương trình ưu đãi của quán (R2-088)' })
-  @ApiResponse({ status: 200, description: 'Danh sách ưu đãi' })
+  @ApiOperation({
+    summary: 'Danh sách các chương trình ưu đãi kèm số liệu hiệu quả (R2-088, R2-089)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách ưu đãi kèm analytics' })
   async getPromotions(@CurrentStore() storeId: string) {
     return this.marketingService.getPromotions(storeId);
   }
@@ -57,6 +61,19 @@ export class MarketingController {
     return this.marketingService.createPromotion(storeId, dto);
   }
 
+  @Patch('promotions/:id')
+  @Put('promotions/:id')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Chỉnh sửa nội dung ưu đãi đã tạo (R2-090)' })
+  @ApiResponse({ status: 200, description: 'Cập nhật ưu đãi thành công' })
+  async updatePromotion(
+    @CurrentStore() storeId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdatePromotionDto,
+  ) {
+    return this.marketingService.updatePromotion(storeId, id, dto);
+  }
+
   @Patch('promotions/:id/status')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Bật/tắt/kết thúc chương trình ưu đãi (R2-088)' })
@@ -67,6 +84,16 @@ export class MarketingController {
     @Body() dto: UpdatePromotionStatusDto,
   ) {
     return this.marketingService.togglePromotionStatus(storeId, id, dto.status);
+  }
+
+  @Get('frequent-noshow')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'Danh sách khách hàng thường xuyên bỏ đơn không nhận kèm khuyến nghị (R2-087, BR-083)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách khách thường xuyên noshow ẩn danh' })
+  async getFrequentNoShow(@CurrentStore() storeId: string) {
+    return this.marketingService.getFrequentNoShowCustomers(storeId);
   }
 
   @Get('campaigns')

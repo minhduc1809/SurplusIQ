@@ -16,6 +16,9 @@ export class OtpCodeEntity {
   @Column({ type: 'varchar', length: 150 })
   target: string; // phone or email
 
+  @Column({ type: 'varchar', length: 100, nullable: true, name: 'device_id' })
+  deviceId: string | null;
+
   @Column({
     type: 'enum',
     enum: OtpPurpose,

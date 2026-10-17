@@ -289,6 +289,8 @@ export class PaymentsService {
         await manager.save(txn);
 
         // Tạo lệnh hoàn tiền 100% tự động, chống hoàn trùng (R1-047 BR 1, BR 2)
+        // shortcut: gateway hoàn tiền được giả lập nên luôn SUCCEEDED ngay, không có lỗi mạng để retry;
+        // nếu đổi sang cổng thanh toán thật, thêm retryCount + chuyển MANUAL_REVIEW sau 3 lần lỗi tại đây.
         const refundTxnId = `REFUND_${txn.gatewayTxnId}`;
         let refundTxn = await manager.findOne(PaymentTransactionEntity, {
           where: { gatewayTxnId: refundTxnId },
@@ -454,7 +456,9 @@ export class PaymentsService {
     txn.lastCheckedAt = now;
     txn.retryCount += 1;
 
-    // 3. Quá 24 giờ chưa xác nhận -> Đánh dấu FAILED (VC-07)
+    // 3. Quá 24 giờ chưa xác nhận -> Đánh dấu FAILED (VC-07, R1-056).
+    // Nếu tiền thực tế đến muộn sau mốc này, webhook thanh toán (processPaymentWebhook)
+    // vẫn xử lý độc lập và tự hoàn tiền 100% vì hold đã hết hạn từ lâu (R1-047).
     const hoursElapsed = (now.getTime() - new Date(txn.createdAt).getTime()) / (1000 * 60 * 60);
     if (
       txn.status === PaymentStatus.PENDING_CONFIRM &&

@@ -231,3 +231,30 @@ export class SuggestCombosDto {
   @IsNumber()
   targetDiscountPercent?: number;
 }
+
+export class DraftComplaintReplyDto {
+  @ApiProperty({
+    description: 'ID khiếu nại của khách hàng (R2-118)',
+    example: '00000000-0000-0000-0000-000000000001',
+  })
+  @IsUUID('4')
+  complaintId: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Hướng xử lý (REFUND: Chấp nhận hoàn tiền, REJECT: Từ chối giải thích, APOLOGY: Xin lỗi tặng voucher)',
+    example: 'REFUND',
+    default: 'REFUND',
+  })
+  @IsOptional()
+  @IsString()
+  action?: 'REFUND' | 'REJECT' | 'APOLOGY';
+
+  @ApiPropertyOptional({
+    description: 'Ghi chú thêm từ chủ quán',
+    example: 'Sơ suất trong khâu bảo quản nhiệt độ, đồng ý hoàn tiền 100%',
+  })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}

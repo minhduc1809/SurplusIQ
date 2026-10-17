@@ -7,8 +7,20 @@ import {
   MaxLength,
   IsDateString,
   IsUUID,
+  IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class CompareSimulationsDto {
+  @ApiProperty({
+    description: 'Danh sách ID các lần mô phỏng cần so sánh (tối thiểu 2 lần) (R2-105)',
+    example: ['00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002'],
+    isArray: true,
+  })
+  @IsArray({ message: 'simulationIds phải là một mảng.' })
+  @IsNotEmpty({ message: 'Danh sách simulationIds không được để trống.' })
+  simulationIds: string[];
+}
 
 export class OverrideForecastDto {
   @ApiProperty({

@@ -1,0 +1,230 @@
+package com.surplusiq.app.data.mock
+
+import com.surplusiq.app.domain.model.ActiveOrder
+import com.surplusiq.app.domain.model.Deal
+import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.domain.model.DietaryType
+import com.surplusiq.app.domain.model.OrderStatus
+
+object SampleData {
+
+    val sampleDeals = listOf(
+        Deal(
+            id = "deal-1",
+            storeId = "store-rincon-pasteur",
+            storeName = "Rincón del Pan - Chi nhánh Pasteur",
+            storeAddress = "142 Pasteur, Phường Bến Nghé, Quận 1, TP. HCM",
+            storeLogoUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=160&auto=format&fit=crop&q=80",
+            coverImageUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80",
+            title = "Túi Bất Ngờ • Magic Bag",
+            description = "Suất bánh nướng tươi ngon chuẩn phong cách Artisan được đóng gói ngẫu nhiên trước giờ đóng cửa.",
+            whatYouCouldGet = "Cứu thức ăn tại Rincón del Pan! Suất Bất Ngờ (Magic Bag) của bạn có thể chứa đa dạng các loại bánh ngọt, bánh sừng bò, bánh mì men tự nhiên sourdough và các loại bánh mì mặn kẹp thịt tươi ngon.",
+            category = DealCategory.BAKED_GOODS,
+            originalPrice = 90000,
+            discountPrice = 29900,
+            discountPercent = 67,
+            remainingStock = 2,
+            initialStock = 8,
+            pickupWindowText = "Collect today 20:30 - 21:00",
+            isToday = true,
+            distanceText = "582 m",
+            rating = 4.3,
+            reviewCount = 121,
+            allergens = listOf("Gluten", "Sữa bò", "Bơ thực vật", "Trứng gà"),
+            dietaryType = DietaryType.VEGETARIAN,
+            isFavorite = true,
+            isUrgent = true
+        ),
+        Deal(
+            id = "deal-2",
+            storeId = "store-rincon-bennghe",
+            storeName = "Rincón del Pan - Chi nhánh Bến Nghé",
+            storeAddress = "18 Valentín Sanz, Bến Nghé, Quận 1, TP. HCM",
+            storeLogoUrl = "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=160&auto=format&fit=crop&q=80",
+            coverImageUrl = "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=800&auto=format&fit=crop&q=80",
+            title = "Túi Bánh Ngọt & Croissant • Magic Bag",
+            description = "Tập hợp bánh nướng giòn rụm trong ngày từ lò bánh thủ công.",
+            whatYouCouldGet = "Gồm 2-3 phần bánh sừng bò kem bơ Pháp, bánh cuộn quế cinnamon roll và tart trứng thơm lừng.",
+            category = DealCategory.BAKED_GOODS,
+            originalPrice = 90000,
+            discountPrice = 29900,
+            discountPercent = 67,
+            remainingStock = 4,
+            initialStock = 10,
+            pickupWindowText = "Collect today 20:50 - 21:20",
+            isToday = true,
+            distanceText = "650 m",
+            rating = 4.3,
+            reviewCount = 98,
+            allergens = listOf("Gluten", "Sữa bò", "Đậu phộng"),
+            dietaryType = DietaryType.NONE,
+            isFavorite = false,
+            isUrgent = false
+        ),
+        Deal(
+            id = "deal-3",
+            storeId = "store-albahaca-dakao",
+            storeName = "La Albahaca - Bếp Món Nhà Làm",
+            storeAddress = "12 Đinh Tiên Hoàng, Phường Đa Kao, Quận 1, TP. HCM",
+            storeLogoUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=160&auto=format&fit=crop&q=80",
+            coverImageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80",
+            title = "Suất Bữa Ăn Nấu Tại Chỗ • Magic Bag",
+            description = "Món ăn gia đình ấm nóng từ bếp La Albahaca, đóng gói hộp giấy thân thiện môi trường.",
+            whatYouCouldGet = "Có thể là phần cơm bò xào sốt tiêu đen, mì Ý sốt pesto rau húng tây tươi hoặc súp kem nấm bổ dưỡng.",
+            category = DealCategory.MEALS,
+            originalPrice = 120000,
+            discountPrice = 42000,
+            discountPercent = 65,
+            remainingStock = 3,
+            initialStock = 6,
+            pickupWindowText = "Collect today 14:00 - 15:30",
+            isToday = true,
+            distanceText = "645 m",
+            rating = 4.3,
+            reviewCount = 76,
+            allergens = listOf("Đậu nành", "Hành tỏi", "Tiêu đen"),
+            dietaryType = DietaryType.NONE,
+            isFavorite = false,
+            isUrgent = false
+        ),
+        Deal(
+            id = "deal-4",
+            storeId = "store-rincon-phoco",
+            storeName = "Rincón del Pan - Chi nhánh Phố Cổ",
+            storeAddress = "34 Nguyễn Siêu, Bến Nghé, Quận 1, TP. HCM",
+            storeLogoUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80",
+            coverImageUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80",
+            title = "Combo Bánh Mì Lúa Mạch • Magic Bag",
+            description = "Bánh mì lên men chậm men vi sinh tự nhiên tốt cho sức khỏe.",
+            whatYouCouldGet = "Ổ bánh mì ngũ cốc nguyên cám, 2 bánh baguette Pháp nhỏ cùng mứt dâu homemade.",
+            category = DealCategory.BAKED_GOODS,
+            originalPrice = 90000,
+            discountPrice = 29900,
+            discountPercent = 67,
+            remainingStock = 2,
+            initialStock = 5,
+            pickupWindowText = "Collect today 20:30 - 21:10",
+            isToday = true,
+            distanceText = "759 m",
+            rating = 4.1,
+            reviewCount = 54,
+            allergens = listOf("Lúa mì nguyên cám", "Hạt vừng mè"),
+            dietaryType = DietaryType.VEGAN,
+            isFavorite = false,
+            isUrgent = true
+        ),
+        Deal(
+            id = "deal-5",
+            storeId = "store-organic-market",
+            storeName = "GreenFarm • Nông Sản Hữu Cơ",
+            storeAddress = "88 Nguyễn Du, Bến Nghé, Quận 1, TP. HCM",
+            storeLogoUrl = "https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=160&auto=format&fit=crop&q=80",
+            coverImageUrl = "https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=800&auto=format&fit=crop&q=80",
+            title = "Túi Rau Củ Quả Hữu Cơ • Magic Bag",
+            description = "Rau xà lách, cà chua bi, nấm đùi gà chuẩn VietGAP đóng gói trong ngày.",
+            whatYouCouldGet = "Hỗn hợp rau xà lách thủy canh, cà rốt baby, bơ 034 và chuối sứ chín tự nhiên.",
+            category = DealCategory.GROCERIES,
+            originalPrice = 150000,
+            discountPrice = 50000,
+            discountPercent = 67,
+            remainingStock = 5,
+            initialStock = 12,
+            pickupWindowText = "Collect today 19:00 - 20:30",
+            isToday = true,
+            distanceText = "1.1 km",
+            rating = 4.7,
+            reviewCount = 142,
+            allergens = emptyList(),
+            dietaryType = DietaryType.VEGAN,
+            isFavorite = true,
+            isUrgent = false
+        ),
+        Deal(
+            id = "deal-6",
+            storeId = "store-artisan-tea",
+            storeName = "Tiệm Trà & Cafe Artisan",
+            storeAddress = "45 Lê Lợi, Bến Nghé, Quận 1, TP. HCM",
+            storeLogoUrl = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&auto=format&fit=crop&q=80",
+            coverImageUrl = "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80",
+            title = "Combo Trà Trái Cây & Mousse • Magic Bag",
+            description = "Thức uống trà ủ lạnh thảo mộc kết hợp bánh lạnh tráng miệng thơm mát.",
+            whatYouCouldGet = "2 ly trà đào cam sả ủ lạnh và 1 phần bánh mousse chanh leo mềm mịn.",
+            category = DealCategory.OTHER,
+            originalPrice = 85000,
+            discountPrice = 32000,
+            discountPercent = 62,
+            remainingStock = 3,
+            initialStock = 6,
+            pickupWindowText = "Collect today 20:00 - 21:30",
+            isToday = true,
+            distanceText = "1.8 km",
+            rating = 4.6,
+            reviewCount = 89,
+            allergens = listOf("Sữa tươi", "Kem béo"),
+            dietaryType = DietaryType.VEGETARIAN,
+            isFavorite = false,
+            isUrgent = false
+        )
+    )
+
+    val deals get() = sampleDeals
+
+    val sampleOrders = listOf(
+        ActiveOrder(
+            id = "ORD-8941",
+            orderCode = "SUQ8941",
+            deal = sampleDeals[0],
+            quantity = 1,
+            unitPrice = 29900,
+            totalPrice = 29900,
+            holdExpiresAtMillis = System.currentTimeMillis() + 10 * 60 * 1000L,
+            status = OrderStatus.PAID_WAITING_PICKUP,
+            qrToken = "SURPLUSIQ:HMAC-SHA256:SUQ8941:ORD-8941:VALID_TOKEN",
+            fallbackPin = "7K9X2B",
+            pickupWindow = "Hôm nay 20:30 - 21:00"
+        ),
+        ActiveOrder(
+            id = "ORD-8921",
+            orderCode = "SUQ8921",
+            deal = sampleDeals[2],
+            quantity = 1,
+            unitPrice = 42000,
+            totalPrice = 42000,
+            holdExpiresAtMillis = System.currentTimeMillis() + 8 * 60 * 1000L,
+            status = OrderStatus.PENDING_PAYMENT,
+            qrToken = "SURPLUSIQ:HMAC-SHA256:SUQ8921:ORD-8921:PENDING_TOKEN",
+            fallbackPin = "3M8P1A",
+            pickupWindow = "Hôm nay 14:00 - 15:30"
+        ),
+        ActiveOrder(
+            id = "ORD-8805",
+            orderCode = "SUQ8805",
+            deal = sampleDeals[4],
+            quantity = 2,
+            unitPrice = 50000,
+            totalPrice = 100000,
+            holdExpiresAtMillis = System.currentTimeMillis() - 86400000L,
+            status = OrderStatus.PICKED_UP,
+            qrToken = "SURPLUSIQ:HMAC-SHA256:SUQ8805:ORD-8805:CLAIMED",
+            fallbackPin = "5D2W9K",
+            pickupWindow = "Hôm qua 19:00 - 20:30"
+        )
+    )
+
+    fun createSampleActiveOrder(deal: Deal, quantity: Int = 1): ActiveOrder {
+        val rand = (1000..9999).random()
+        return ActiveOrder(
+            id = "ORD-$rand",
+            orderCode = "SUQ$rand",
+            deal = deal,
+            quantity = quantity,
+            unitPrice = deal.discountPrice,
+            totalPrice = deal.discountPrice * quantity,
+            holdExpiresAtMillis = System.currentTimeMillis() + 10 * 60 * 1000L,
+            status = OrderStatus.PENDING_PAYMENT,
+            qrToken = "SURPLUSIQ:HMAC-SHA256:SUQ$rand:ORD-$rand:TOKEN",
+            fallbackPin = "7K" + rand.toString().takeLast(4),
+            pickupWindow = deal.pickupWindowText
+        )
+    }
+}

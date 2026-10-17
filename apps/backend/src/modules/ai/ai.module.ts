@@ -12,6 +12,7 @@ import { ItemEntity } from '../../entities/catalog/item.entity';
 import { OrderEntity } from '../../entities/orders/order.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
+import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -27,6 +28,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       OrderEntity,
       StoreMemberEntity,
       ReviewEntity,
+      ComplaintEntity,
       StoreEntity,
     ]),
     SubscriptionsModule,
