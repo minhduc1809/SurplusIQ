@@ -115,43 +115,6 @@ fun DealDetailScreen(
                     }
                 }
 
-                // Toast Notification: "Great! This store was added to your list of favourites" (Image 2 Screen 1)
-                AnimatedVisibility(
-                    visible = showFavoriteToast,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 70.dp, start = 20.dp, end = 20.dp)
-                ) {
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                                .fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Favorite,
-                                contentDescription = null,
-                                tint = CoralRed,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Great! This store was added to your list of favourites",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                        }
-                    }
-                }
-
                 // Remaining stock badge
                 Box(
                     modifier = Modifier
@@ -468,6 +431,42 @@ fun DealDetailScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
+            }
+        }
+        // Toast Notification Overlay: "Great! This store was added to your list of favourites" (Image 2 Screen 1)
+        AnimatedVisibility(
+            visible = showFavoriteToast,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 70.dp, start = 20.dp, end = 20.dp)
+        ) {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Favorite,
+                        contentDescription = null,
+                        tint = CoralRed,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Great! This store was added to your list of favourites",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                }
             }
         }
     }

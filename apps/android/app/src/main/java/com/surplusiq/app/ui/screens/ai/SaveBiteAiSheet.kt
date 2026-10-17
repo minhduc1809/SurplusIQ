@@ -4,11 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Sparkles
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -67,7 +68,7 @@ fun SaveBiteAiSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.Sparkles,
+                    imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
                     tint = ForestGreenPrimary,
                     modifier = Modifier.size(22.dp)

@@ -13,7 +13,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Sparkles
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -104,7 +104,7 @@ fun DiscoverHomeScreen(
                     .background(ForestGreenPrimary.copy(alpha = 0.1f))
             ) {
                 Icon(
-                    imageVector = Icons.Default.Sparkles,
+                    imageVector = Icons.Default.AutoAwesome,
                     contentDescription = "AI Cứu Món",
                     tint = ForestGreenPrimary,
                     modifier = Modifier.size(20.dp)

@@ -199,7 +199,7 @@ fun ProfileScreen(
                     )
                     Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                     ProfileMenuItem(
-                        icon = Icons.Default.Sparkles,
+                        icon = Icons.Default.AutoAwesome,
                         title = "Trợ lý AI Cứu Món",
                         subtitle = "Hỏi đáp deal, dinh dưỡng & thành phần",
                         onClick = onOpenAiChat
