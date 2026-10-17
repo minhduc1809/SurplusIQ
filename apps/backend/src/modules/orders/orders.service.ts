@@ -401,8 +401,7 @@ export class OrdersService {
         end: new Date(`${query.date}T23:59:59.999Z`),
       });
     } else if (query.fromDate || query.toDate) {
-      const maxRangeMs =
-        ORDERS_CONSTANTS.ORDERS_FILTER_MAX_RANGE_MONTHS * 31 * 24 * 60 * 60 * 1000;
+      const maxRangeMs = ORDERS_CONSTANTS.ORDERS_FILTER_MAX_RANGE_MONTHS * 31 * 24 * 60 * 60 * 1000;
       const to = query.toDate ? new Date(`${query.toDate}T23:59:59.999Z`) : new Date();
       const earliestAllowed = new Date(to.getTime() - maxRangeMs);
       const requestedFrom = query.fromDate
