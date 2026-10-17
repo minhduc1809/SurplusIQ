@@ -14,6 +14,7 @@
     "build:core": "npm --workspace=@surplusiq/core run build",
     "migration:run": "npm --workspace=@surplusiq/backend run migration:run",
     "migration:revert": "npm --workspace=@surplusiq/backend run migration:revert",
+    "seed": "npm --workspace=@surplusiq/backend run seed",
     "dev:backend": "npm --workspace=@surplusiq/backend run start:dev",
     "dev:web": "npm --workspace=@surplusiq/web run dev",
     "dev:simulation": "npm --workspace=@surplusiq/simulation run start",

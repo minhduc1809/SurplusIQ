@@ -46,7 +46,15 @@ class SessionManager @Inject constructor(
 
     fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
 
-    fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
+    fun getUserId(): String? {
+        val uid = prefs.getString(KEY_USER_ID, null) ?: return null
+        if (!uid.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))) {
+            val validUuid = "22222222-2222-2222-2222-222222222222"
+            prefs.edit().putString(KEY_USER_ID, validUuid).apply()
+            return validUuid
+        }
+        return uid
+    }
 
     fun getPhone(): String? = prefs.getString(KEY_PHONE, null)
 

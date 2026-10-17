@@ -144,8 +144,13 @@ export class AuthService {
    * Đăng nhập khách hàng với cơ chế tách kênh (9.1), khóa brute-force và kiểm tra 2FA
    */
   async loginCustomer(dto: CustomerLoginDto, ip: string = '127.0.0.1') {
+    const identifier = (dto.identifier || dto.phone || '').trim();
+    if (!identifier) {
+      throw new BadRequestException('Vui lòng nhập số điện thoại hoặc email đăng nhập');
+    }
+
     const user = await this.userRepo.findOne({
-      where: [{ phone: dto.identifier }, { email: dto.identifier }],
+      where: [{ phone: identifier }, { email: identifier }],
     });
 
     if (!user) {
@@ -618,10 +623,13 @@ export class AuthService {
    * Đăng xuất và thu hồi Refresh Token trên thiết bị hiện tại
    */
   async logout(userId: string, deviceId: string) {
-    await this.refreshTokenRepo.update(
-      { userId, deviceId, revokedAt: undefined },
-      { revokedAt: new Date() },
-    );
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId || '');
+    if (isUuid) {
+      await this.refreshTokenRepo.update(
+        { userId, deviceId, revokedAt: undefined },
+        { revokedAt: new Date() },
+      );
+    }
     return { success: true, message: 'Đăng xuất thành công' };
   }
 

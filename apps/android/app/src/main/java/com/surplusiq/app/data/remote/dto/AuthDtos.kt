@@ -11,18 +11,24 @@ data class CustomerRegisterRequest(
 )
 
 data class CustomerLoginRequest(
-    @SerializedName("phone") val phone: String,
+    @SerializedName("identifier") val identifier: String,
+    @SerializedName("phone") val phone: String = identifier,
     @SerializedName("password") val password: String,
-    @SerializedName("deviceId") val deviceId: String? = null
+    @SerializedName("deviceId") val deviceId: String
 )
 
 data class VerifyOtpRequest(
-    @SerializedName("phone") val phone: String,
-    @SerializedName("otp") val otp: String
+    @SerializedName("target") val target: String,
+    @SerializedName("code") val code: String,
+    @SerializedName("purpose") val purpose: String = "VERIFY",
+    @SerializedName("phone") val phone: String = target,
+    @SerializedName("otp") val otp: String = code
 )
 
 data class ResendOtpRequest(
-    @SerializedName("phone") val phone: String
+    @SerializedName("target") val target: String,
+    @SerializedName("purpose") val purpose: String = "VERIFY",
+    @SerializedName("phone") val phone: String = target
 )
 
 data class RefreshTokenRequest(

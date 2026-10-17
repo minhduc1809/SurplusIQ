@@ -20,6 +20,7 @@ class AuthRepositoryImpl @Inject constructor(
         return try {
             val response = authApiService.loginCustomer(
                 CustomerLoginRequest(
+                    identifier = phone,
                     phone = phone,
                     password = password,
                     deviceId = sessionManager.getDeviceId()
@@ -30,22 +31,22 @@ class AuthRepositoryImpl @Inject constructor(
                 sessionManager.saveSession(
                     accessToken = body.accessToken,
                     refreshToken = body.refreshToken,
-                    userId = body.user?.id ?: "usr-${System.currentTimeMillis()}",
+                    userId = body.user?.id ?: "22222222-2222-2222-2222-222222222222",
                     phone = phone,
                     fullName = body.user?.fullName ?: "Khách hàng SurplusIQ"
                 )
                 Result.success(true)
             } else {
-                // If backend error, check credentials or return error message
-                val errorMsg = response.errorBody()?.string() ?: "Đăng nhập không thành công (${response.code()})"
-                Result.failure(Exception(errorMsg))
+                val rawError = response.errorBody()?.string()
+                val friendlyMessage = extractErrorMessage(rawError, "Đăng nhập không thành công (${response.code()})")
+                Result.failure(Exception(friendlyMessage))
             }
         } catch (e: Exception) {
             // Local fallback simulation for smooth offline/dev mode
             sessionManager.saveSession(
                 accessToken = "simulated_jwt_token_${System.currentTimeMillis()}",
                 refreshToken = "simulated_refresh_token",
-                userId = "usr-demo-01",
+                userId = "22222222-2222-2222-2222-222222222222",
                 phone = phone,
                 fullName = "Trần Minh Đức"
             )
@@ -65,8 +66,9 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 Result.success(true)
             } else {
-                val errorMsg = response.errorBody()?.string() ?: "Đăng ký không thành công"
-                Result.failure(Exception(errorMsg))
+                val rawError = response.errorBody()?.string()
+                val friendlyMessage = extractErrorMessage(rawError, "Đăng ký không thành công")
+                Result.failure(Exception(friendlyMessage))
             }
         } catch (e: Exception) {
             Result.success(true)
@@ -75,19 +77,23 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun verifyOtp(phone: String, otp: String): Result<Boolean> {
         return try {
-            val response = authApiService.verifyOtp(VerifyOtpRequest(phone = phone, otp = otp))
+            val response = authApiService.verifyOtp(
+                VerifyOtpRequest(target = phone, code = otp, purpose = "VERIFY")
+            )
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 sessionManager.saveSession(
                     accessToken = body.accessToken,
                     refreshToken = body.refreshToken,
-                    userId = body.user?.id ?: "usr-${System.currentTimeMillis()}",
+                    userId = body.user?.id ?: "22222222-2222-2222-2222-222222222222",
                     phone = phone,
                     fullName = body.user?.fullName
                 )
                 Result.success(true)
             } else {
-                Result.failure(Exception("Mã OTP không chính xác"))
+                val rawError = response.errorBody()?.string()
+                val friendlyMessage = extractErrorMessage(rawError, "Mã OTP không chính xác")
+                Result.failure(Exception(friendlyMessage))
             }
         } catch (e: Exception) {
             Result.success(true)
@@ -96,7 +102,9 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun resendOtp(phone: String): Result<Boolean> {
         return try {
-            val response = authApiService.resendOtp(ResendOtpRequest(phone = phone))
+            val response = authApiService.resendOtp(
+                ResendOtpRequest(target = phone, purpose = "VERIFY")
+            )
             Result.success(response.isSuccessful)
         } catch (e: Exception) {
             Result.success(true)
@@ -117,4 +125,33 @@ class AuthRepositoryImpl @Inject constructor(
     override fun isLoggedIn(): Boolean = sessionManager.isLoggedIn()
 
     override fun getCurrentUserName(): String = sessionManager.getFullName()
+
+    private fun extractErrorMessage(rawError: String?, defaultMessage: String): String {
+        if (rawError.isNullOrBlank()) return defaultMessage
+        return try {
+            val json = org.json.JSONObject(rawError)
+            when {
+                json.has("message") -> {
+                    val msgObj = json.get("message")
+                    if (msgObj is org.json.JSONArray) {
+                        val messages = mutableListOf<String>()
+                        for (i in 0 until msgObj.length()) {
+                            messages.add(msgObj.getString(i))
+                        }
+                        messages.joinToString("\n")
+                    } else {
+                        msgObj.toString()
+                    }
+                }
+                json.has("error") -> json.getString("error")
+                else -> defaultMessage
+            }
+        } catch (_: Exception) {
+            if (rawError.trim().startsWith("{") && rawError.trim().endsWith("}")) {
+                defaultMessage
+            } else {
+                rawError.trim()
+            }
+        }
+    }
 }

@@ -23,15 +23,15 @@ export class SeedService implements OnModuleInit {
 
       await this.dataSource.query(
         `INSERT INTO users (id, phone, email, password_hash, role, status, created_at, updated_at)
-         VALUES ($1, '0909000001', 'owner@rincon.vn', $2, 'STORE_USER', 'ACTIVE', NOW(), NOW())
-         ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, status = 'ACTIVE';`,
+         VALUES ($1, '0909000001', 'owner@rincon.vn', $2, 'STORE_USER'::user_role_enum, 'ACTIVE'::user_status_enum, NOW(), NOW())
+         ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, status = 'ACTIVE'::user_status_enum;`,
         [ownerId, standardPasswordHash],
       );
 
       await this.dataSource.query(
         `INSERT INTO users (id, phone, email, password_hash, role, status, created_at, updated_at)
-         VALUES ($1, '0901234567', 'customer@surplusiq.vn', $2, 'CUSTOMER', 'ACTIVE', NOW(), NOW())
-         ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, status = 'ACTIVE';`,
+         VALUES ($1, '0901234567', 'customer@surplusiq.vn', $2, 'CUSTOMER'::user_role_enum, 'ACTIVE'::user_status_enum, NOW(), NOW())
+         ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, status = 'ACTIVE'::user_status_enum;`,
         [customerId, standardPasswordHash],
       );
 
@@ -115,13 +115,20 @@ export class SeedService implements OnModuleInit {
       for (const s of stores) {
         await this.dataSource.query(
           `INSERT INTO stores (id, owner_user_id, name, address, location, phone, logo_url, status, rating_avg, rating_count, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($5, $6), 4326), $7, $8, 'ACTIVE', $9, $10, NOW(), NOW())
+           VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($5, $6), 4326), $7, $8, 'ACTIVE'::store_status_enum, $9, $10, NOW(), NOW())
            ON CONFLICT (id) DO UPDATE SET
              name = EXCLUDED.name,
              address = EXCLUDED.address,
              location = EXCLUDED.location,
-             status = 'ACTIVE';`,
+             status = 'ACTIVE'::store_status_enum;`,
           [s.id, ownerId, s.name, s.address, s.lng, s.lat, s.phone, s.logoUrl, s.rating, s.count],
+        );
+
+        await this.dataSource.query(
+          `INSERT INTO store_settings (store_id, default_pickup_start, default_pickup_end, floor_ratio, pricing_mode, late_grace_minutes, max_qty_per_order, created_at, updated_at)
+           VALUES ($1, '19:00:00', '21:30:00', 0.40, 'MANUAL'::pricing_mode_enum, 15, 5, NOW(), NOW())
+           ON CONFLICT (store_id) DO NOTHING;`,
+          [s.id],
         );
       }
 
@@ -198,7 +205,7 @@ export class SeedService implements OnModuleInit {
       for (const item of items) {
         await this.dataSource.query(
           `INSERT INTO items (id, store_id, name, category, original_price, standard_shelf_life_hours, allergens, image_url, description, status, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ACTIVE', NOW(), NOW())
+           VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, 'ACTIVE'::item_status_enum, NOW(), NOW())
            ON CONFLICT (id) DO UPDATE SET
              name = EXCLUDED.name,
              original_price = EXCLUDED.original_price,
@@ -290,12 +297,12 @@ export class SeedService implements OnModuleInit {
       for (const off of offers) {
         await this.dataSource.query(
           `INSERT INTO offers (id, store_id, item_id, kind, total_quantity, remaining_quantity, sold_quantity, original_price, current_price, floor_price, pickup_start, pickup_end, expires_at, status, price_change_count, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9, NOW(), NOW() + INTERVAL '2 days', NOW() + INTERVAL '2 days', 'OPEN', 0, NOW(), NOW())
+           VALUES ($1, $2, $3, $4::offer_kind_enum, $5, $6, 0, $7, $8, $9, NOW(), NOW() + INTERVAL '2 days', NOW() + INTERVAL '2 days', 'OPEN'::offer_status_enum, 0, NOW(), NOW())
            ON CONFLICT (id) DO UPDATE SET
              remaining_quantity = EXCLUDED.remaining_quantity,
              current_price = EXCLUDED.current_price,
              pickup_end = NOW() + INTERVAL '2 days',
-             status = 'OPEN';`,
+             status = 'OPEN'::offer_status_enum;`,
           [
             off.id,
             off.storeId,
