@@ -7,6 +7,7 @@ export const ORDERS_CONSTANTS = {
   LOCK_DAYS: 7, // Khóa đặt hàng 7 ngày sau 3 lần noshow per BR-020
   PICKUP_GRACE_MINUTES: 15, // Gia hạn trễ 15 phút sau khung nhận per BR-023
   CANCEL_CUTOFF_MINUTES: 60, // Khách hủy trước khung nhận ít nhất 60 phút per R1-043
+  ORDERS_FILTER_MAX_RANGE_MONTHS: 12, // Khoảng lọc ngày tối đa 12 tháng per R1-045
 };
 
 export enum OrderCancelReason {

@@ -13,6 +13,7 @@ import { UserEntity } from '../../entities/auth/user.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QrTokenEngine, BackupPinEngine } from '@surplusiq/core';
 import { VerifyPickupDto, VerifyProxyCodeDto } from './dto';
+import { ORDERS_CONSTANTS } from '../orders/orders.constants';
 
 export interface PickupVerificationResult {
   success: boolean;
@@ -187,10 +188,11 @@ export class PickupsService {
       }
 
       if (deadline) {
-        const graceDeadline = new Date(deadline.getTime() + 15 * 60 * 1000); // 15 phút trễ
+        const graceMinutes = ORDERS_CONSTANTS.PICKUP_GRACE_MINUTES;
+        const graceDeadline = new Date(deadline.getTime() + graceMinutes * 60 * 1000);
         if (now > graceDeadline) {
           throw new BadRequestException(
-            `Đã quá thời gian nhận hàng cho phép (+ 15 phút trễ) (BR-069). Khung nhận kết thúc lúc ${deadline.toLocaleTimeString(
+            `Đã quá thời gian nhận hàng cho phép (+ ${graceMinutes} phút trễ) (BR-069). Khung nhận kết thúc lúc ${deadline.toLocaleTimeString(
               'vi-VN',
             )}.`,
           );

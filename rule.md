@@ -2,6 +2,10 @@
 
 > **Mục đích**: Tài liệu này định nghĩa toàn bộ quy chuẩn bắt buộc về quy trình Git, phân nhánh, quy tắc commit, chuẩn hóa code (ESLint / Linter) và quy tắc triển khai kỹ thuật cho toàn bộ thành viên và AI Assistant tham gia phát triển hệ thống SurplusIQ.
 
+## Theo Dõi Tiến Độ Dự Án
+
+[Bảng theo dõi tiến độ dự án SurplusIQ](https://docs.google.com/spreadsheets/d/1foXJRuqRQCVc8uH5k7tI3uODuFnvglDVlHfo43jUml4/edit?usp=sharing)
+
 ---
 
 ## 1. Quy Trình Phân Nhánh Git (Branching Workflow)
@@ -160,3 +164,28 @@ Trước khi đẩy code (push) lên remote repository hoặc tạo Pull Request
 | 5 | Chạy Unit Test kiểm thử logic | `npm run test` | Pass |
 | 6 | Đã kéo cập nhật mới nhất từ `development` về trước khi push | `git pull origin development` | Already up to date / Đã merge |
 | 7 | Định dạng commit đúng `feat:`, `update:`, `fix:` kèm `[scope]` | `git log -1` | Hợp lệ theo mục 2 |
+
+---
+
+## 7. Quy Tắc Quy Trình Code Với Custom Slash Commands
+
+Khi Claude Code được cấu hình các lệnh trong `~/.claude/commands/`, sử dụng lệnh phù hợp với phạm vi công việc để chuẩn hóa quy trình. Các lệnh này hỗ trợ thực hiện quy tắc dự án, không thay thế việc đọc code hiện có, chạy kiểm thử hoặc xác minh kết quả thực tế.
+
+1. **Làm rõ yêu cầu và lập kế hoạch**:
+   - Với tính năng hoặc thay đổi có nhiều bước, dùng `/spec` để xác định mục tiêu, phạm vi, tiêu chí nghiệm thu và các trường hợp biên trước khi code.
+   - Dùng `/plan` để chia công việc thành các tác vụ nhỏ, có thứ tự và kết quả kiểm chứng được.
+2. **Triển khai theo lát cắt nhỏ**:
+   - Dùng `/build` để triển khai từng lát cắt hoàn chỉnh; giữ thay đổi đúng phạm vi, tuân thủ các quy tắc tại mục 4 và mục 5.
+   - Không coi nội dung do AI đề xuất là sự thật nếu chưa đối chiếu với code, dependency và cấu hình hiện có.
+3. **Kiểm thử và giữ chuẩn chất lượng**:
+   - Dùng `/test` để chọn và chạy kiểm thử phù hợp với thay đổi. Báo cáo chính xác lệnh đã chạy và kết quả; không tuyên bố kiểm thử đạt nếu chưa thực thi.
+   - Dùng `/constraints` để xác định các ngưỡng chất lượng liên quan trước thay đổi lớn. Không hạ ngưỡng, bỏ qua hoặc xóa kiểm tra để làm cho build/test đạt.
+4. **Rà soát và đơn giản hóa**:
+   - Dùng `/review` để rà soát thay đổi trước khi merge; xử lý các lỗi ảnh hưởng tính đúng đắn, bảo mật, dữ liệu hoặc khả năng vận hành.
+   - Dùng `/code-simplify` khi cần giảm độ phức tạp; việc đơn giản hóa phải giữ nguyên hành vi và vẫn vượt qua các kiểm thử liên quan.
+5. **Hiệu năng web và phát hành**:
+   - Dùng `/webperf` cho thay đổi có khả năng ảnh hưởng tốc độ tải, tương tác hoặc tài nguyên của web; đánh giá bằng số liệu hoặc phép đo phù hợp, không tối ưu dựa trên phỏng đoán.
+   - Dùng `/ship` khi chuẩn bị phát hành để kiểm tra các điều kiện hoàn tất. Chỉ phát hành khi các kiểm tra bắt buộc trong mục 6 đạt và thay đổi đã được rà soát.
+6. **Áp dụng theo phạm vi**:
+   - Không bắt buộc chạy mọi lệnh cho mỗi thay đổi nhỏ; chọn các bước phù hợp, nhưng không được bỏ qua yêu cầu kiểm thử, lint, build và rà soát vốn áp dụng cho thay đổi.
+   - Nếu môi trường không có một slash command, thực hiện trực tiếp các bước tương ứng theo quy tắc này; không xem việc thiếu command là lý do để bỏ qua quy trình.

@@ -388,6 +388,7 @@ export class OrdersService {
 
     const qb = this.orderRepo
       .createQueryBuilder('order')
+      .leftJoin('stores', 'store', 'store.id = order.store_id')
       .where('order.customer_id = :customerId', { customerId });
 
     if (query.status) {
@@ -398,6 +399,23 @@ export class OrdersService {
       qb.andWhere('order.created_at >= :start AND order.created_at <= :end', {
         start: new Date(`${query.date}T00:00:00.000Z`),
         end: new Date(`${query.date}T23:59:59.999Z`),
+      });
+    } else if (query.fromDate || query.toDate) {
+      const maxRangeMs =
+        ORDERS_CONSTANTS.ORDERS_FILTER_MAX_RANGE_MONTHS * 31 * 24 * 60 * 60 * 1000;
+      const to = query.toDate ? new Date(`${query.toDate}T23:59:59.999Z`) : new Date();
+      const earliestAllowed = new Date(to.getTime() - maxRangeMs);
+      const requestedFrom = query.fromDate
+        ? new Date(`${query.fromDate}T00:00:00.000Z`)
+        : earliestAllowed;
+      const from = requestedFrom < earliestAllowed ? earliestAllowed : requestedFrom;
+
+      qb.andWhere('order.created_at >= :from AND order.created_at <= :to', { from, to });
+    }
+
+    if (query.search) {
+      qb.andWhere('(order.code ILIKE :search OR store.name ILIKE :search)', {
+        search: `%${query.search}%`,
       });
     }
 
@@ -445,6 +463,16 @@ export class OrdersService {
       throw new BadRequestException(
         'Chỉ có thể thông báo đến cho đơn hàng đã thanh toán thành công.',
       );
+    }
+
+    if (order.arrivingNotifiedAt) {
+      throw new BadRequestException('Đơn hàng này đã được báo "đang tới" trước đó.');
+    }
+
+    const offer = await this.offerRepo.findOne({ where: { id: order.offerId } });
+    const now = new Date();
+    if (offer && (now < new Date(offer.pickupStart) || now > new Date(offer.pickupEnd))) {
+      throw new BadRequestException('Chỉ có thể báo "đang tới" trong khung giờ nhận hàng.');
     }
 
     order.arrivingNotifiedAt = new Date();
