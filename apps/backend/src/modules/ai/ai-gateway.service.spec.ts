@@ -339,5 +339,46 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
       expect(res.suggestedCombos.length).toBeGreaterThan(0);
       expect(res.suggestedCombos[0].type).toBe('SURPRISE_BAG');
     });
+
+    it('calls Google Gemini REST API with GEMINI_API_KEY and model config when enabled', async () => {
+      const prevKey = process.env.GEMINI_API_KEY;
+      const prevForce = process.env.GEMINI_FORCE_LIVE_TEST;
+      const prevModel = process.env.GEMINI_CHAT_MODEL;
+      process.env.GEMINI_API_KEY = 'test-gemini-api-key';
+      process.env.GEMINI_FORCE_LIVE_TEST = 'true';
+      process.env.GEMINI_CHAT_MODEL = 'gemini-2.0-flash';
+
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'Phản hồi trực tiếp từ Gemini API cho SurplusIQ!' }],
+              },
+            },
+          ],
+        }),
+      } as Response);
+
+      try {
+        const res = await service.chatWithStore('store-1', 'user-1', {
+          message: 'Tư vấn giảm giá bánh ngọt cuối ngày',
+        });
+
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=test-gemini-api-key',
+          ),
+          expect.objectContaining({ method: 'POST' }),
+        );
+        expect(res.reply).toBe('Phản hồi trực tiếp từ Gemini API cho SurplusIQ!');
+      } finally {
+        fetchSpy.mockRestore();
+        process.env.GEMINI_API_KEY = prevKey;
+        process.env.GEMINI_FORCE_LIVE_TEST = prevForce;
+        process.env.GEMINI_CHAT_MODEL = prevModel;
+      }
+    });
   });
 });
