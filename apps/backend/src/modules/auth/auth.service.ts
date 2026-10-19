@@ -8,7 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, LessThan, MoreThan } from 'typeorm';
+import { Repository, DataSource, IsNull, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import {
   UserEntity,
@@ -200,6 +200,8 @@ export class AuthService {
         message: 'Tài khoản chưa được kích hoạt mã OTP. Vui lòng hoàn tất xác thực OTP',
       });
     }
+
+    this.assertActiveUser(user);
 
     // 4. So khớp mật khẩu an toàn
     const isPasswordValid = CryptoUtil.verifyPassword(dto.password, user.passwordHash);
@@ -435,6 +437,8 @@ export class AuthService {
       });
     }
 
+    this.assertActiveUser(user);
+
     // 4. Mật khẩu
     const isPasswordValid = CryptoUtil.verifyPassword(dto.password, user.passwordHash);
 
@@ -600,7 +604,7 @@ export class AuthService {
     }
 
     const user = await this.userRepo.findOne({ where: { id: tokenRecord.userId } });
-    if (!user || user.status === UserStatus.LOCKED) {
+    if (!user || user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Người dùng không còn hoạt động');
     }
 
@@ -644,11 +648,20 @@ export class AuthService {
     );
     if (isUuid) {
       await this.refreshTokenRepo.update(
-        { userId, deviceId, revokedAt: undefined },
+        { userId, deviceId, revokedAt: IsNull() },
         { revokedAt: new Date() },
       );
     }
     return { success: true, message: 'Đăng xuất thành công' };
+  }
+
+  private assertActiveUser(user: UserEntity) {
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException({
+        code: AUTH_ERRORS.LOCKED,
+        message: 'Tài khoản đã bị khóa hoặc không còn hoạt động',
+      });
+    }
   }
 
   // =========================================================================

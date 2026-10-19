@@ -1,10 +1,15 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { QuotaService } from './quota.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   SubscriptionPlan,
   SubscriptionStatus,
+  SubscriptionEntity,
 } from '../../entities/subscriptions/subscription.entity';
+import { SubscriptionInvoiceEntity } from '../../entities/subscriptions/subscription-invoice.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { QuotaKey, QuotaPeriod } from './quota.constants';
 import { StoreMemberStatus } from '../../entities/stores/store-member.entity';
 import { PromotionStatus } from '../../entities/marketing/promotion.entity';
@@ -63,6 +68,17 @@ describe('QuotaService & SubscriptionsService Unit Tests (VC-01..VC-11, R2-016)'
       findOne: jest.fn(),
       save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
     };
+    const repositories = new Map<any, any>([
+      [SubscriptionEntity, mockSubRepo],
+      [SubscriptionInvoiceEntity, mockInvoiceRepo],
+      [StoreSettingsEntity, mockStoreSettingsRepo],
+      [StoreMemberEntity, mockStoreMemberRepo],
+    ]);
+    const transactionManager = {
+      findOne: jest.fn().mockResolvedValue({ id: 'store-1' }),
+      getRepository: (entity) => repositories.get(entity),
+    };
+    mockSubRepo.manager = { transaction: jest.fn((work) => work(transactionManager)) };
 
     subscriptionsService = new SubscriptionsService(
       mockSubRepo,
@@ -70,6 +86,9 @@ describe('QuotaService & SubscriptionsService Unit Tests (VC-01..VC-11, R2-016)'
       mockStoreSettingsRepo as any,
       mockStoreMemberRepo,
       quotaService,
+      {
+        invalidateStoreSettingsCache: jest.fn().mockResolvedValue(undefined),
+      } as unknown as SettingsService,
     );
   });
 

@@ -27,6 +27,7 @@ import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
 import { AiLogEntity } from '../../entities/ai/ai-log.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { AuditModule } from '../audit/audit.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { AuditModule } from '../audit/audit.module';
       ViewHistoryEntity,
     ]),
     AuditModule,
+    SettingsModule,
   ],
   controllers: [JobsController],
   providers: [JobsService, BullMqScheduler],

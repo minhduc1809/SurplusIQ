@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SubscriptionsService } from './subscriptions.service';
 import { QuotaService } from './quota.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   SubscriptionEntity,
   SubscriptionPlan,
@@ -61,6 +62,17 @@ describe('SubscriptionsService Unit Tests (VC-01..VC-11)', () => {
       getEffectivePlan: jest.fn().mockResolvedValue(SubscriptionPlan.PRO),
       getStoreQuotaSummary: jest.fn(),
     };
+    const repositories = new Map<any, any>([
+      [SubscriptionEntity, subRepo],
+      [SubscriptionInvoiceEntity, invoiceRepo],
+      [StoreSettingsEntity, storeSettingsRepo],
+      [StoreMemberEntity, storeMemberRepo],
+    ]);
+    const transactionManager = {
+      findOne: jest.fn().mockResolvedValue({ id: mockStoreId }),
+      getRepository: (entity) => repositories.get(entity),
+    };
+    subRepo.manager = { transaction: jest.fn((work) => work(transactionManager)) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -70,6 +82,10 @@ describe('SubscriptionsService Unit Tests (VC-01..VC-11)', () => {
         { provide: getRepositoryToken(StoreSettingsEntity), useValue: storeSettingsRepo },
         { provide: getRepositoryToken(StoreMemberEntity), useValue: storeMemberRepo },
         { provide: QuotaService, useValue: quotaService },
+        {
+          provide: SettingsService,
+          useValue: { invalidateStoreSettingsCache: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -118,6 +134,12 @@ describe('SubscriptionsService Unit Tests (VC-01..VC-11)', () => {
     expect(invoiceRepo.save).toHaveBeenCalled();
     const periodEndMs = new Date(res.periodEnd).getTime();
     expect(periodEndMs).toBeGreaterThan(futurePeriodEnd.getTime());
+    expect(invoiceRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        periodStart: futurePeriodEnd,
+        periodEnd: new Date(futurePeriodEnd.getTime() + 30 * 86400000),
+      }),
+    );
   });
 
   it('downgradeToBasic - gói Trial dừng ngay lập tức, tắt AUTO và khóa nhân viên ngoài hạn mức (VC-05, VC-06)', async () => {

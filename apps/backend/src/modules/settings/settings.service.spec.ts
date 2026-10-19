@@ -279,5 +279,37 @@ describe('SettingsService', () => {
 
       expect(mockDataSource.transaction).toHaveBeenCalled();
     });
+
+    it('validates the floor and cost after merging with the stored configuration', async () => {
+      mockStoreSettingsRepo.findOne.mockResolvedValue({
+        storeId,
+        floorRatio: 0.35,
+        costPriceRatio: 0.2,
+      });
+      await expect(
+        service.updateStoreSettings(storeId, actorId, { costPriceRatio: null }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateStoreSettings(storeId, actorId, { floorRatio: 0.3 }),
+      ).resolves.toMatchObject({ floorRatio: 0.3, costPriceRatio: 0.2 });
+    });
+
+    it('runs the optional ADMIN audit in the same transaction and propagates its failure', async () => {
+      mockStoreSettingsRepo.findOne.mockResolvedValue({
+        storeId,
+        maxQtyPerOrder: 5,
+        floorRatio: 0.4,
+      });
+      const afterUpdate = jest.fn().mockRejectedValue(new Error('audit failed'));
+      await expect(
+        service.updateStoreSettings(storeId, actorId, { maxQtyPerOrder: 4 }, false, afterUpdate),
+      ).rejects.toThrow('audit failed');
+      expect(mockRedisClient.del).not.toHaveBeenCalled();
+      expect(afterUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ save: expect.any(Function) }),
+        expect.objectContaining({ maxQtyPerOrder: 5 }),
+        expect.objectContaining({ maxQtyPerOrder: 4 }),
+      );
+    });
   });
 });

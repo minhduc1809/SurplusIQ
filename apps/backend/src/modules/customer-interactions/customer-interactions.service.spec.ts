@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { CustomerInteractionsService } from './customer-interactions.service';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
@@ -27,6 +28,8 @@ describe('CustomerInteractionsService', () => {
   let offerRepo: any;
   let itemRepo: any;
   let storeRepo: any;
+  let transactionManager: any;
+  let paymentTxnRepo: any;
 
   beforeEach(async () => {
     complaintRepo = {
@@ -92,9 +95,26 @@ describe('CustomerInteractionsService', () => {
     storeRepo = {
       findOne: jest.fn(),
     };
-    const paymentTxnRepo = {
+    paymentTxnRepo = {
+      find: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation((d) => ({ id: 'pt-1', ...d })),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'pt-1', ...d })),
+    };
+    const repositories = new Map<any, any>([
+      [ComplaintEntity, complaintRepo],
+      [OrderEntity, orderRepo],
+      [PaymentTransactionEntity, paymentTxnRepo],
+    ]);
+    transactionManager = {
+      findOne: jest.fn(async (entity, options) => {
+        const value = await repositories.get(entity).findOne(options);
+        return value ? Object.assign(new entity(), value) : null;
+      }),
+      find: jest.fn((entity, options) => repositories.get(entity).find(options)),
+      create: jest.fn((entity, value) =>
+        Object.assign(new entity(), repositories.get(entity).create(value)),
+      ),
+      save: jest.fn((value) => repositories.get(value.constructor).save(value)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -111,6 +131,10 @@ describe('CustomerInteractionsService', () => {
         { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
         { provide: getRepositoryToken(StoreEntity), useValue: storeRepo },
         { provide: getRepositoryToken(PaymentTransactionEntity), useValue: paymentTxnRepo },
+        {
+          provide: DataSource,
+          useValue: { transaction: jest.fn((work) => work(transactionManager)) },
+        },
       ],
     }).compile();
 
@@ -372,6 +396,7 @@ describe('CustomerInteractionsService', () => {
         });
         orderRepo.findOne.mockResolvedValue({
           id: 'ord-1',
+          storeId: 'store-1',
           totalAmount: 50000,
           status: OrderStatus.PICKED_UP,
         });
@@ -383,6 +408,17 @@ describe('CustomerInteractionsService', () => {
 
         expect(res.success).toBe(true);
         expect(complaintRepo.save).toHaveBeenCalled();
+        expect(transactionManager.findOne).toHaveBeenCalledWith(
+          ComplaintEntity,
+          expect.objectContaining({
+            lock: { mode: 'pessimistic_write' },
+            where: { id: 'comp-1', storeId: 'store-1' },
+          }),
+        );
+        expect(transactionManager.findOne).toHaveBeenCalledWith(
+          OrderEntity,
+          expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+        );
       });
 
       it('ném lỗi nếu số tiền hoàn vượt quá giá trị đơn hàng', async () => {
@@ -394,12 +430,26 @@ describe('CustomerInteractionsService', () => {
         });
         orderRepo.findOne.mockResolvedValue({
           id: 'ord-1',
+          storeId: 'store-1',
           totalAmount: 30000,
         });
 
         await expect(
           service.resolveComplaint('store-1', 'comp-1', { refundAmount: 50000 }),
         ).rejects.toThrow(BadRequestException);
+      });
+
+      it('does not refund again after another channel has resolved the locked complaint', async () => {
+        complaintRepo.findOne.mockResolvedValue({
+          id: 'comp-1',
+          storeId: 'store-1',
+          status: ComplaintStatus.ACCEPTED,
+        });
+        await expect(
+          service.resolveComplaint('store-1', 'comp-1', { refundAmount: 50000 }),
+        ).rejects.toThrow(ConflictException);
+        expect(paymentTxnRepo.save).not.toHaveBeenCalled();
+        expect(complaintRepo.save).not.toHaveBeenCalled();
       });
     });
 

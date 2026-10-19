@@ -37,6 +37,7 @@ import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
 import { AiLogEntity } from '../../entities/ai/ai-log.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { AuditLogService } from '../audit/audit-log.service';
+import { SettingsService } from '../settings/settings.service';
 
 describe('JobsService (All 12 Background Jobs)', () => {
   let service: JobsService;
@@ -65,6 +66,7 @@ describe('JobsService (All 12 Background Jobs)', () => {
   let viewHistoryRepo: jest.Mocked<Repository<ViewHistoryEntity>>;
   let auditLogService: jest.Mocked<AuditLogService>;
   let dataSource: jest.Mocked<DataSource>;
+  let settingsService: { invalidateStoreSettingsCache: jest.Mock };
 
   const mockCustomerId = 'cust-111-uuid';
   const mockStoreId = 'store-222-uuid';
@@ -143,6 +145,7 @@ describe('JobsService (All 12 Background Jobs)', () => {
     dataSource = {
       transaction: jest.fn(),
     } as any;
+    settingsService = { invalidateStoreSettingsCache: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -172,6 +175,7 @@ describe('JobsService (All 12 Background Jobs)', () => {
         { provide: getRepositoryToken(ViewHistoryEntity), useValue: viewHistoryRepo },
         { provide: AuditLogService, useValue: auditLogService },
         { provide: DataSource, useValue: dataSource },
+        { provide: SettingsService, useValue: settingsService },
       ],
     }).compile();
 
@@ -298,11 +302,18 @@ describe('JobsService (All 12 Background Jobs)', () => {
       } as SubscriptionEntity;
 
       subscriptionRepo.find.mockResolvedValueOnce([sub]);
-
+      let committed = false;
+      settingsService.invalidateStoreSettingsCache.mockImplementation(async () => {
+        expect(committed).toBe(true);
+      });
       dataSource.transaction.mockImplementationOnce(async (cb: any) => {
         const mockManager = {
           save: jest.fn().mockImplementation((e) => Promise.resolve(e)),
-          findOne: jest.fn().mockResolvedValue({ pricingMode: PricingMode.AUTO }),
+          findOne: jest.fn().mockImplementation(async (entity) => {
+            if (entity === StoreEntity) return { id: mockStoreId };
+            if (entity === SubscriptionEntity) return sub;
+            return { pricingMode: PricingMode.AUTO };
+          }),
           update: jest.fn().mockResolvedValue({}),
           find: jest.fn().mockResolvedValue([
             { id: 'm-1', permission: StorePermission.OWNER, status: StoreMemberStatus.ACTIVE },
@@ -310,12 +321,52 @@ describe('JobsService (All 12 Background Jobs)', () => {
             { id: 'm-3', permission: StorePermission.COUNTER, status: StoreMemberStatus.ACTIVE },
           ]),
         };
-        return cb(mockManager);
+        const result = await cb(mockManager);
+        committed = true;
+        return result;
       });
 
       const res = await service.processSubscriptionLifecycles(now);
       expect(res.count).toBe(1);
       expect(sub.plan).toBe(SubscriptionPlan.BASIC);
+      expect(settingsService.invalidateStoreSettingsCache).toHaveBeenCalledWith(mockStoreId);
+    });
+
+    it('preserves a renewal committed after the expired candidate scan and before acquiring the store lock', async () => {
+      const now = new Date('2026-10-14T00:00:00Z');
+      const scanned = {
+        storeId: mockStoreId,
+        plan: SubscriptionPlan.PRO,
+        status: SubscriptionStatus.ACTIVE,
+        periodEnd: new Date('2026-10-13T23:59:59Z'),
+      } as SubscriptionEntity;
+      const renewed = { ...scanned, periodEnd: new Date('2026-11-13T00:00:00Z') };
+      subscriptionRepo.find.mockResolvedValueOnce([scanned]);
+      const manager = {
+        findOne: jest
+          .fn()
+          .mockImplementation(async (entity) =>
+            entity === StoreEntity ? { id: mockStoreId } : renewed,
+          ),
+        save: jest.fn(),
+        update: jest.fn(),
+        find: jest.fn(),
+      };
+      dataSource.transaction.mockImplementationOnce(async (work: any) => work(manager));
+      const result = await service.processSubscriptionLifecycles(now);
+      expect(manager.findOne).toHaveBeenNthCalledWith(1, StoreEntity, {
+        where: { id: mockStoreId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(manager.findOne).toHaveBeenNthCalledWith(2, SubscriptionEntity, {
+        where: { storeId: mockStoreId },
+      });
+      expect(result).toEqual({ count: 0, storeIds: [] });
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(auditLogService.log).not.toHaveBeenCalled();
+      expect(renewed.plan).toBe(SubscriptionPlan.PRO);
+      expect(settingsService.invalidateStoreSettingsCache).not.toHaveBeenCalled();
     });
   });
 

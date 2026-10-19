@@ -146,6 +146,9 @@ export class DiscoveryService {
         break;
     }
 
+    // Stable tie-breaker prevents repeated/missing rows across offset pages.
+    qb.addOrderBy('o.id', 'ASC');
+
     // 7. Chọn trường cần thiết
     qb.select([
       'o.id AS offer_id',

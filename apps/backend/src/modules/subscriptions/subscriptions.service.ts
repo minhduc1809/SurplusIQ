@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
 import {
   SubscriptionEntity,
   SubscriptionPlan,
@@ -11,12 +12,14 @@ import {
   InvoiceStatus,
 } from '../../entities/subscriptions/subscription-invoice.entity';
 import { StoreSettingsEntity, PricingMode } from '../../entities/stores/store-settings.entity';
+import { StoreEntity } from '../../entities/stores/store.entity';
 import {
   StoreMemberEntity,
   StoreMemberStatus,
   StorePermission,
 } from '../../entities/stores/store-member.entity';
 import { QuotaService } from './quota.service';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class SubscriptionsService {
@@ -30,10 +33,27 @@ export class SubscriptionsService {
     @InjectRepository(StoreMemberEntity)
     private readonly storeMemberRepo: Repository<StoreMemberEntity>,
     private readonly quotaService: QuotaService,
+    private readonly settingsService: SettingsService,
   ) {}
 
-  private async formatSubscription(sub: SubscriptionEntity) {
-    const effectivePlan = await this.quotaService.getEffectivePlan(sub.storeId);
+  private async withStoreLock<T>(
+    storeId: string,
+    mutate: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    const result = await this.subRepo.manager.transaction(async (manager) => {
+      const store = await manager.findOne(StoreEntity, {
+        where: { id: storeId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!store) throw new NotFoundException('Không tìm thấy cửa hàng.');
+      return mutate(manager);
+    });
+    await this.settingsService.invalidateStoreSettingsCache(storeId);
+    return result;
+  }
+
+  private async formatSubscription(sub: SubscriptionEntity, manager?: EntityManager) {
+    const effectivePlan = await this.quotaService.getEffectivePlan(sub.storeId, manager);
     const now = new Date();
     const periodEnd = sub.periodEnd ? new Date(sub.periodEnd) : null;
     const msRemaining = periodEnd ? Math.max(0, periodEnd.getTime() - now.getTime()) : 0;
@@ -80,16 +100,30 @@ export class SubscriptionsService {
   /**
    * Nâng cấp gói Pro (VC-02, kỳ 30 ngày tính từ thời điểm kích hoạt)
    */
-  async upgradeToPro(storeId: string) {
-    let sub = await this.subRepo.findOne({
+  async upgradeToPro(storeId: string, manager?: EntityManager) {
+    if (!manager) return this.withStoreLock(storeId, (tx) => this.upgradeToPro(storeId, tx));
+    const subRepo = manager.getRepository(SubscriptionEntity);
+    const invoiceRepo = manager.getRepository(SubscriptionInvoiceEntity);
+    let sub = await subRepo.findOne({
       where: { storeId },
     });
+
+    if (
+      sub?.plan === SubscriptionPlan.PRO &&
+      sub.status === SubscriptionStatus.ACTIVE &&
+      sub.periodEnd &&
+      new Date(sub.periodEnd) > new Date()
+    ) {
+      throw new ConflictException(
+        'Cửa hàng đang có gói PRO còn hạn. Hãy dùng gia hạn để giữ nguyên thời gian đã thanh toán.',
+      );
+    }
 
     const now = new Date();
     const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     if (!sub) {
-      sub = this.subRepo.create({
+      sub = subRepo.create({
         storeId,
         plan: SubscriptionPlan.PRO,
         status: SubscriptionStatus.ACTIVE,
@@ -106,38 +140,43 @@ export class SubscriptionsService {
       sub.downgradeAtPeriodEnd = false;
     }
 
-    const saved = await this.subRepo.save(sub);
+    const saved = await subRepo.save(sub);
 
     // Tạo hóa đơn gói Pro bất biến 300.000đ (BR-049, VC-02, VC-10)
-    const invoice = this.invoiceRepo.create({
+    const invoice = invoiceRepo.create({
       storeId,
       periodStart: now,
       periodEnd,
       amount: 300000,
-      paymentTxnId: `sub_pay_${storeId}_${Date.now()}`,
+      paymentTxnId: `sub_pay_${storeId}_${randomUUID()}`,
       status: InvoiceStatus.PAID,
     });
-    await this.invoiceRepo.save(invoice);
+    await invoiceRepo.save(invoice);
 
-    return this.formatSubscription(saved);
+    return this.formatSubscription(saved, manager);
   }
 
   /**
    * Gia hạn gói Pro (VC-03: trước hạn nối tiếp +30 ngày, sau hạn tính từ lúc gia hạn)
    */
-  async renewPro(storeId: string) {
-    const sub = await this.subRepo.findOne({ where: { storeId } });
+  async renewPro(storeId: string, manager?: EntityManager) {
+    if (!manager) return this.withStoreLock(storeId, (tx) => this.renewPro(storeId, tx));
+    const subRepo = manager.getRepository(SubscriptionEntity);
+    const invoiceRepo = manager.getRepository(SubscriptionInvoiceEntity);
+    const sub = await subRepo.findOne({ where: { storeId } });
     if (!sub) {
       throw new NotFoundException('Không tìm thấy thông tin gói dịch vụ');
     }
 
     const now = new Date();
     let newStart = now;
+    let invoiceStart = now;
     let newEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     if (sub.plan === SubscriptionPlan.PRO && sub.periodEnd && new Date(sub.periodEnd) > now) {
       // Gia hạn trước hạn: kỳ mới nối tiếp kỳ cũ (+30 ngày)
       newStart = new Date(sub.periodStart);
+      invoiceStart = new Date(sub.periodEnd);
       newEnd = new Date(new Date(sub.periodEnd).getTime() + 30 * 24 * 60 * 60 * 1000);
     }
 
@@ -148,27 +187,31 @@ export class SubscriptionsService {
     sub.cancelAtPeriodEnd = false;
     sub.downgradeAtPeriodEnd = false;
 
-    const saved = await this.subRepo.save(sub);
+    const saved = await subRepo.save(sub);
 
     // Tạo hóa đơn gia hạn
-    const invoice = this.invoiceRepo.create({
+    const invoice = invoiceRepo.create({
       storeId,
-      periodStart: newStart,
+      periodStart: invoiceStart,
       periodEnd: newEnd,
       amount: 300000,
-      paymentTxnId: `sub_renew_${storeId}_${Date.now()}`,
+      paymentTxnId: `sub_renew_${storeId}_${randomUUID()}`,
       status: InvoiceStatus.PAID,
     });
-    await this.invoiceRepo.save(invoice);
+    await invoiceRepo.save(invoice);
 
-    return this.formatSubscription(saved);
+    return this.formatSubscription(saved, manager);
   }
 
   /**
    * Hạ cấp về gói Basic (VC-05: hiệu lực cuối kỳ nếu đang Pro; dừng ngay nếu đang Trial)
    */
-  async downgradeToBasic(storeId: string) {
-    const sub = await this.subRepo.findOne({ where: { storeId } });
+  async downgradeToBasic(storeId: string, manager?: EntityManager) {
+    if (!manager) return this.withStoreLock(storeId, (tx) => this.downgradeToBasic(storeId, tx));
+    const subRepo = manager.getRepository(SubscriptionEntity);
+    const storeSettingsRepo = manager.getRepository(StoreSettingsEntity);
+    const storeMemberRepo = manager.getRepository(StoreMemberEntity);
+    const sub = await subRepo.findOne({ where: { storeId } });
     if (!sub) {
       throw new NotFoundException('Không tìm thấy thông tin gói dịch vụ');
     }
@@ -178,16 +221,16 @@ export class SubscriptionsService {
       sub.plan = SubscriptionPlan.BASIC;
       sub.periodEnd = new Date();
       sub.downgradeAtPeriodEnd = false;
-      await this.subRepo.save(sub);
+      await subRepo.save(sub);
 
       // Tắt AUTO pricing & khóa nhân viên thừa
-      const settings = await this.storeSettingsRepo.findOne({ where: { storeId } });
+      const settings = await storeSettingsRepo.findOne({ where: { storeId } });
       if (settings) {
         settings.pricingMode = PricingMode.MANUAL;
-        await this.storeSettingsRepo.save(settings);
+        await storeSettingsRepo.save(settings);
       }
 
-      const staffList = await this.storeMemberRepo.find({
+      const staffList = await storeMemberRepo.find({
         where: { storeId, status: StoreMemberStatus.ACTIVE },
         order: { createdAt: 'ASC' },
       });
@@ -198,23 +241,25 @@ export class SubscriptionsService {
           activeKept++;
         } else {
           m.status = StoreMemberStatus.LOCKED;
-          await this.storeMemberRepo.save(m);
+          await storeMemberRepo.save(m);
         }
       }
     } else if (sub.plan === SubscriptionPlan.PRO) {
       // Đánh dấu hạ cấp vào cuối kỳ (VC-05)
       sub.downgradeAtPeriodEnd = true;
-      await this.subRepo.save(sub);
+      await subRepo.save(sub);
     }
 
-    return this.formatSubscription(sub);
+    return this.formatSubscription(sub, manager);
   }
 
   /**
    * Hủy gói Pro (VC-08: giữ nguyên quyền đến period_end)
    */
-  async cancelPro(storeId: string) {
-    const sub = await this.subRepo.findOne({
+  async cancelPro(storeId: string, manager?: EntityManager) {
+    if (!manager) return this.withStoreLock(storeId, (tx) => this.cancelPro(storeId, tx));
+    const subRepo = manager.getRepository(SubscriptionEntity);
+    const sub = await subRepo.findOne({
       where: { storeId },
     });
 
@@ -230,8 +275,8 @@ export class SubscriptionsService {
       sub.cancelAtPeriodEnd = true;
     }
 
-    const saved = await this.subRepo.save(sub);
-    return this.formatSubscription(saved);
+    const saved = await subRepo.save(sub);
+    return this.formatSubscription(saved, manager);
   }
 
   /**

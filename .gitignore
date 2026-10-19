@@ -36,3 +36,6 @@ powershell.cmd
 
 # Documentation
 docs/
+
+# Generated local demo data (served as public static files)
+apps/web/public/admin-data/

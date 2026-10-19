@@ -1,6 +1,6 @@
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { EntityManager, Repository, Between } from 'typeorm';
 import {
   SubscriptionEntity,
   SubscriptionPlan,
@@ -52,12 +52,13 @@ export class QuotaService {
    * Xác định gói dịch vụ có hiệu lực thực tế của cửa hàng (VC-01..VC-06)
    * Nếu hết hạn kỳ trả phí/dùng thử -> tự động hạ về BASIC lúc 00:00 (VC-06)
    */
-  async getEffectivePlan(storeId: string): Promise<SubscriptionPlan> {
+  async getEffectivePlan(storeId: string, manager?: EntityManager): Promise<SubscriptionPlan> {
     if (!storeId) {
       return SubscriptionPlan.BASIC;
     }
 
-    const sub = await this.subRepo.findOne({
+    const subRepo = manager ? manager.getRepository(SubscriptionEntity) : this.subRepo;
+    const sub = await subRepo.findOne({
       where: { storeId },
     });
 

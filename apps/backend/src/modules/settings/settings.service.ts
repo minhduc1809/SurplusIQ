@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import Redis from 'ioredis';
 import {
   PlatformSettingEntity,
@@ -219,6 +219,12 @@ export class SettingsService implements OnModuleInit {
     actorId: string,
     dto: UpdateStoreSettingsDto,
     isProPlan: boolean = false,
+    afterUpdate?: (
+      manager: EntityManager,
+      previous: StoreSettingsEntity | null,
+      updated: StoreSettingsEntity,
+    ) => Promise<void>,
+    transactionManager?: EntityManager,
   ): Promise<StoreSettingsEntity> {
     // 1. Kiểm tra ràng buộc nghiệp vụ (R2-101, BR-046)
     if (dto.maxQtyPerOrder !== undefined && (dto.maxQtyPerOrder < 1 || dto.maxQtyPerOrder > 5)) {
@@ -233,17 +239,13 @@ export class SettingsService implements OnModuleInit {
       );
     }
 
-    if (dto.floorRatio !== undefined && dto.floorRatio < 0.4 && !dto.costPriceRatio) {
-      throw new BadRequestException(
-        'Tỷ lệ giá sàn không được thấp hơn 0.40 nếu chưa khai báo giá vốn (BR-046)',
-      );
-    }
-
     // 2. Chạy cập nhật và ghi audit trail trong Transaction
-    return this.dataSource.transaction(async (manager) => {
+    const mutate = async (manager: EntityManager) => {
       let currentSettings = await manager.findOne(StoreSettingsEntity, {
         where: { storeId },
+        lock: { mode: 'pessimistic_write' },
       });
+      const previous = currentSettings ? { ...currentSettings } : null;
 
       if (!currentSettings) {
         currentSettings = manager.create(StoreSettingsEntity, {
@@ -257,6 +259,15 @@ export class SettingsService implements OnModuleInit {
           maxQtyPerOrder: 5,
           fixedDiscountSchedule: null,
         });
+      }
+
+      const floorRatio = dto.floorRatio !== undefined ? dto.floorRatio : currentSettings.floorRatio;
+      const costPriceRatio =
+        dto.costPriceRatio !== undefined ? dto.costPriceRatio : currentSettings.costPriceRatio;
+      if (floorRatio < 0.4 && !costPriceRatio) {
+        throw new BadRequestException(
+          'Tỷ lệ giá sàn không được thấp hơn 0.40 nếu chưa khai báo giá vốn (BR-046)',
+        );
       }
 
       const auditEntries: StoreSettingsHistoryEntity[] = [];
@@ -289,12 +300,20 @@ export class SettingsService implements OnModuleInit {
       }
 
       const updated = await manager.save(currentSettings);
-
-      // Invalidate cache
-      await this.redisDel(`${SETTINGS_CACHE_PREFIX.STORE}${storeId}`);
+      if (afterUpdate) await afterUpdate(manager, previous, updated);
 
       return updated;
-    });
+    };
+    const updated = transactionManager
+      ? await mutate(transactionManager)
+      : await this.dataSource.transaction(mutate);
+    if (!transactionManager) await this.invalidateStoreSettingsCache(storeId);
+    return updated;
+  }
+
+  /** Call after a transaction that changes store settings has committed. */
+  async invalidateStoreSettingsCache(storeId: string): Promise<void> {
+    await this.redisDel(`${SETTINGS_CACHE_PREFIX.STORE}${storeId}`);
   }
 
   /**

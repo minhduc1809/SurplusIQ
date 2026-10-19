@@ -169,7 +169,7 @@ export default function App() {
 
   // Hold Timer Countdown
   useEffect(() => {
-    let interval: any = null;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (showCheckout && holdTimer > 0) {
       interval = setInterval(() => {
         setHoldTimer((prev) => (prev > 0 ? prev - 1 : 0));
@@ -310,7 +310,7 @@ export default function App() {
       expiresAt: '2026-10-20',
     },
   ]);
-  const [editingPromo, setEditingPromo] = useState<any | null>(null);
+  const [editingPromo, setEditingPromo] = useState<(typeof promotionsList)[number] | null>(null);
 
   // R2-117: AI Notification Drafter
   const [showAiNotificationModal, setShowAiNotificationModal] = useState(false);
@@ -1799,7 +1799,7 @@ export default function App() {
                     onClick={() => {
                       setSelectedDeal(null);
                       setShowPreferences(false);
-                      setActiveTab(tab.id as any);
+                      setActiveTab(tab.id as typeof activeTab);
                     }}
                     style={{
                       background: 'none',
@@ -2523,7 +2523,7 @@ export default function App() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setMerchantTab(tab.id as any)}
+                  onClick={() => setMerchantTab(tab.id as typeof merchantTab)}
                   style={{
                     whiteSpace: 'nowrap',
                     padding: '10px 16px',
@@ -3244,7 +3244,17 @@ export default function App() {
                   </span>
                   <select
                     value={staffFilter}
-                    onChange={(e) => setStaffFilter(e.target.value as any)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (
+                        value === 'ALL' ||
+                        value === 'AN' ||
+                        value === 'BINH' ||
+                        value === 'CUONG'
+                      ) {
+                        setStaffFilter(value);
+                      }
+                    }}
                     style={{
                       backgroundColor: '#1f2937',
                       color: '#ffffff',
@@ -4635,7 +4645,7 @@ export default function App() {
                           <button
                             key={opt.id}
                             onClick={() => {
-                              setAiReplyOption(opt.id as any);
+                              setAiReplyOption(opt.id as typeof aiReplyOption);
                               if (opt.id === 'REFUND') {
                                 setAiGeneratedReply(
                                   `Chào bạn, Artisan Bakery chân thành xin lỗi vì suất bánh chưa đạt độ giòn ưng ý lúc nhận hàng. Để bạn có trải nghiệm tốt hơn, tiệm đã hoàn 100% tiền đơn hàng (${(29900).toLocaleString('vi-VN')} ₫) vào ví SurplusIQ của bạn, kèm mã ưu đãi "SORRY10K" giảm 10k cho lần đặt tới. Cảm ơn bạn đã đồng hành cứu thực phẩm cùng tiệm!`,
