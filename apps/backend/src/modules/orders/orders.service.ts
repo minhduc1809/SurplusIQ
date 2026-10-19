@@ -16,7 +16,7 @@ import {
   PaymentStatus,
 } from '../../entities/orders/payment-transaction.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
-import { StoreEntity } from '../../entities/stores/store.entity';
+import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
 import {
   PromotionEntity,
   PromotionStatus,
@@ -117,6 +117,14 @@ export class OrdersService {
 
       if (offer.status !== OfferStatus.OPEN) {
         throw new BadRequestException('Suất bán hiện không mở để đặt hàng.');
+      }
+
+      const store = await manager.findOne(StoreEntity, {
+        where: { id: offer.storeId },
+        lock: { mode: 'pessimistic_read' },
+      });
+      if (!store || store.status !== StoreStatus.ACTIVE) {
+        throw new BadRequestException('Cửa hàng hiện không nhận đơn mới.');
       }
 
       if (offer.remainingQuantity < dto.quantity) {
@@ -480,7 +488,7 @@ export class OrdersService {
       });
     }
 
-    qb.orderBy('order.created_at', 'DESC').skip(skip).take(limit);
+    qb.orderBy('order.createdAt', 'DESC').skip(skip).take(limit);
 
     const [data, total] = await qb.getManyAndCount();
 
@@ -563,7 +571,7 @@ export class OrdersService {
       });
     }
 
-    qb.orderBy('order.created_at', 'DESC').skip(skip).take(limit);
+    qb.orderBy('order.createdAt', 'DESC').skip(skip).take(limit);
 
     const [data, total] = await qb.getManyAndCount();
 

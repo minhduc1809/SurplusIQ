@@ -32,6 +32,7 @@ describe('DiscoveryService', () => {
     addSelect: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
     groupBy: jest.fn().mockReturnThis(),
     addGroupBy: jest.fn().mockReturnThis(),
     offset: jest.fn().mockReturnThis(),
@@ -141,6 +142,7 @@ describe('DiscoveryService', () => {
       expect(result.data[0].discountPercent).toBe(50);
       expect(result.data[0].distanceMeters).toBe(450);
       expect(result.data[0].distanceKm).toBe(0.45);
+      expect(mockQueryBuilder.addOrderBy).toHaveBeenCalledWith('o.id', 'ASC');
       expect(result.meta.total).toBe(1);
     });
   });

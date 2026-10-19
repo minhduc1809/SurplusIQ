@@ -145,6 +145,7 @@ describe('OrdersService', () => {
     jest.clearAllMocks();
 
     mockTransactionManager = {
+      findOne: jest.fn().mockResolvedValue({ status: 'ACTIVE' }),
       createQueryBuilder: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
@@ -265,6 +266,18 @@ describe('OrdersService', () => {
         BadRequestException,
       );
     });
+
+    it('từ chối đơn mới khi Admin đã tạm ngưng cửa hàng, không trừ tồn kho', async () => {
+      mockOrderLockRepo.findOne.mockResolvedValue(null);
+      mockTransactionManager.createQueryBuilder.mockReturnValue(
+        createMockQueryBuilder({ ...mockOffer }),
+      );
+      mockTransactionManager.findOne.mockResolvedValue({ status: 'SUSPENDED' });
+      await expect(service.holdOrder(mockCustomerId, validDto)).rejects.toThrow(
+        'không nhận đơn mới',
+      );
+      expect(mockTransactionManager.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('cancelHoldByCustomer (R1-043)', () => {
@@ -340,6 +353,8 @@ describe('OrdersService', () => {
 
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(1);
+      // Joined pagination resolves sort fields through entity metadata, not raw SQL names.
+      expect(qb.orderBy).toHaveBeenCalledWith('order.createdAt', 'DESC');
     });
 
     it('phải lọc theo mã đơn hoặc tên cửa hàng khi có search (R1-045)', async () => {
@@ -389,6 +404,15 @@ describe('OrdersService', () => {
         }),
       );
     });
+  });
+
+  it('uses the mapped creation date for the store order pagination', async () => {
+    const qb = createMockQueryBuilder(null, [[mockOrder], 1]);
+    mockOrderRepo.createQueryBuilder.mockReturnValue(qb);
+    const result = await service.getStoreOrders(mockStoreId, { page: 2, limit: 10 });
+    expect(result.total).toBe(1);
+    expect(qb.orderBy).toHaveBeenCalledWith('order.createdAt', 'DESC');
+    expect(qb.skip).toHaveBeenCalledWith(10);
   });
 
   describe('notifyCustomerArriving', () => {
