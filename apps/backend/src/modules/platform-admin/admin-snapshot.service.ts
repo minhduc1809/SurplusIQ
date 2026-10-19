@@ -52,7 +52,10 @@ export class AdminSnapshotService {
           const userId =
             row.customer_id || row.user_id || row.owner_user_id || row.actor_id || row.reporter_id;
           if (userId)
-            row.user_label = users.get(userId)?.email || users.get(userId)?.phone || userId;
+            row.user_label =
+              userId === '00000000-0000-0000-0000-000000000000'
+                ? 'SYSTEM'
+                : users.get(userId)?.email || users.get(userId)?.phone || userId;
           if (row.order_id) row.order_code = orders.get(row.order_id)?.code || row.order_id;
           if (row.item_id) row.item_name = items.get(row.item_id)?.name || row.item_id;
         }
