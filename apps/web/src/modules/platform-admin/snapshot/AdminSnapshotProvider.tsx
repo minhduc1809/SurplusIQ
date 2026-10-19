@@ -109,3 +109,7 @@ export function useAdminSnapshot() {
   if (!state) throw new Error('Thiếu AdminSnapshotProvider.');
   return state;
 }
+
+export function useOptionalAdminSnapshot() {
+  return useContext(Context);
+}

@@ -282,4 +282,29 @@ describe('Admin management operations', () => {
     expect(keyAt(3)).not.toBe(keyAt(0));
     expect(onSaved).not.toHaveBeenCalled();
   });
+
+  it('sends numeric PostGIS coordinates when latitude and longitude are provided for a store', async () => {
+    await saveAdminRecord(
+      'stores',
+      { id: 'store-1' },
+      {
+        name: 'Tiệm Bánh Quận 1',
+        address: '100 Nguyễn Huệ',
+        phone: '0909111222',
+        logoUrl: '',
+        status: 'ACTIVE',
+        latitude: '10.7769',
+        longitude: '106.7009',
+      },
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      name: 'Tiệm Bánh Quận 1',
+      address: '100 Nguyễn Huệ',
+      phone: '0909111222',
+      logoUrl: null,
+      status: 'ACTIVE',
+      latitude: 10.7769,
+      longitude: 106.7009,
+    });
+  });
 });
