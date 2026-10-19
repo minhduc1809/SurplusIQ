@@ -16,6 +16,15 @@ export interface CollectionDefinition {
 }
 export const collections: Record<string, CollectionDefinition> = definitions;
 
+if (collections.aiLogs && collections.aiLogs.fields) {
+  if (!collections.aiLogs.fields.input_summary) {
+    collections.aiLogs.fields.input_summary = 'Dữ liệu đầu vào (Prompt)';
+  }
+  if (!collections.aiLogs.fields.output_summary) {
+    collections.aiLogs.fields.output_summary = 'Dữ liệu đầu ra (Completion)';
+  }
+}
+
 // =====================================================
 // 2. ĐỊNH NGHĨA SNAPSHOT
 // =====================================================
@@ -70,6 +79,10 @@ export function parseSnapshot(value: unknown): AdminSnapshot {
       'order_code',
       'item_name',
     ]);
+    if (key === 'aiLogs') {
+      allowed.add('input_summary');
+      allowed.add('output_summary');
+    }
     if (!Array.isArray(rows) || value.counts[key] !== rows.length) {
       throw new Error(`Tập dữ liệu ${definition.title} không hợp lệ hoặc chưa được xuất đầy đủ.`);
     }
