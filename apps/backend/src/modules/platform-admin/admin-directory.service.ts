@@ -9,6 +9,8 @@ import { DataSource, EntityManager, IsNull } from 'typeorm';
 import {
   AuditLogEntity,
   CustomerProfileEntity,
+  OfferEntity,
+  OfferStatus,
   RefreshTokenEntity,
   StoreEntity,
   StoreMemberEntity,
@@ -244,6 +246,11 @@ export class AdminDirectoryService {
       if (await manager.findOne(StoreMemberEntity, { where: { userId: owner.id } })) {
         throw new ConflictException('Tài khoản chủ đã liên kết với một cửa hàng');
       }
+      const hasCoordinates =
+        dto.latitude !== undefined &&
+        dto.latitude !== null &&
+        dto.longitude !== undefined &&
+        dto.longitude !== null;
       const store = manager.create(StoreEntity, {
         ownerUserId: owner.id,
         name: dto.name.trim(),
@@ -251,6 +258,14 @@ export class AdminDirectoryService {
         phone: dto.phone.trim(),
         logoUrl: dto.logoUrl || null,
         status: dto.status ?? StoreStatus.PENDING_VERIFY,
+        ...(hasCoordinates
+          ? {
+              location: {
+                type: 'Point',
+                coordinates: [Number(dto.longitude), Number(dto.latitude)],
+              },
+            }
+          : {}),
       });
       await manager.save(store);
       await manager.save(
@@ -300,7 +315,23 @@ export class AdminDirectoryService {
       for (const field of ['name', 'address', 'phone', 'logoUrl', 'status'] as const) {
         if (dto[field] !== undefined) (store[field] as string | null) = dto[field];
       }
+      if (dto.latitude !== undefined && dto.longitude !== undefined) {
+        store.location =
+          dto.latitude === null || dto.longitude === null
+            ? null
+            : {
+                type: 'Point',
+                coordinates: [Number(dto.longitude), Number(dto.latitude)],
+              };
+      }
       await manager.save(store);
+      if (store.status === StoreStatus.SUSPENDED && before.status !== StoreStatus.SUSPENDED) {
+        await manager.update(
+          OfferEntity,
+          { storeId: id, status: OfferStatus.OPEN },
+          { status: OfferStatus.CLOSED },
+        );
+      }
       const result = this.storeView(store);
       await this.audit(manager, actorId, 'ADMIN_STORE_UPDATE', 'STORE', id, before, result, id);
       return result;

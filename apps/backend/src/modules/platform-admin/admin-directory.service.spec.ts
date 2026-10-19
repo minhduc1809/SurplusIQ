@@ -7,6 +7,8 @@ import { DataSource, EntityManager } from 'typeorm';
 import {
   AuditLogEntity,
   CustomerProfileEntity,
+  OfferEntity,
+  OfferStatus,
   RefreshTokenEntity,
   StoreEntity,
   StoreMemberEntity,
@@ -275,7 +277,7 @@ describe('Admin directory writes', () => {
     expect(manager.save).not.toHaveBeenCalled();
   });
 
-  it('store delete suspends without deleting related records', async () => {
+  it('store delete suspends without deleting related records and closes open offers', async () => {
     const result = await service.suspendStore(actor.id, 'store');
     expect(result.status).toBe(StoreStatus.SUSPENDED);
     const saved = manager.save.mock.calls.map(([entity]) => entity);
@@ -284,6 +286,22 @@ describe('Admin directory writes', () => {
       action: 'ADMIN_STORE_UPDATE',
       oldValue: { status: 'ACTIVE', id: 'store', name: 'Original', ownerUserId: 'target' },
       newValue: { status: 'SUSPENDED', id: 'store', name: 'Original', ownerUserId: 'target' },
+    });
+    expect(manager.update).toHaveBeenCalledWith(
+      OfferEntity,
+      { storeId: 'store', status: OfferStatus.OPEN },
+      { status: OfferStatus.CLOSED },
+    );
+  });
+
+  it('sets PostGIS Point location when latitude and longitude are provided', async () => {
+    await service.updateStore(actor.id, 'store', {
+      latitude: 10.7769,
+      longitude: 106.7009,
+    });
+    expect(store?.location).toEqual({
+      type: 'Point',
+      coordinates: [106.7009, 10.7769],
     });
   });
 
