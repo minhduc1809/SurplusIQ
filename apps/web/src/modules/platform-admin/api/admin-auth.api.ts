@@ -40,6 +40,29 @@ export const REQUIRED_ADMIN_ROLE = 'ADMIN' as const;
 export interface AdminLoginInput {
   email: string;
   password: string;
+  otpCode?: string;
+  deviceId?: string;
+}
+
+/**
+ * Yêu cầu xác thực 2 lớp (2FA OTP) từ Backend.
+ */
+export interface AdminTwoFactorChallenge {
+  twoFactorRequired: true;
+  target: string;
+  message: string;
+  otpPreview?: string;
+  deviceId: string;
+}
+
+export class AdminTwoFactorRequiredError extends AdminApiError {
+  readonly challenge: AdminTwoFactorChallenge;
+
+  constructor(challenge: AdminTwoFactorChallenge) {
+    super(challenge.message, 403, 'ADMIN_2FA_REQUIRED');
+    this.name = 'AdminTwoFactorRequiredError';
+    this.challenge = challenge;
+  }
 }
 
 /**
@@ -419,12 +442,14 @@ async function requestServerLogout(userId: string, deviceId: string): Promise<bo
 export async function loginAdmin(input: AdminLoginInput): Promise<AdminSession> {
   const email = input.email.trim();
   const password = input.password;
+  const otpCode = input.otpCode?.trim();
 
   if (!email || !password) {
     throw new AdminApiError('Vui lòng nhập đầy đủ email và mật khẩu.', 400, 'ADMIN_LOGIN_REQUIRED');
   }
 
-  const deviceId = generateDeviceId();
+  const deviceId =
+    input.deviceId && isNonEmptyString(input.deviceId) ? input.deviceId.trim() : generateDeviceId();
 
   // Gửi request không kèm Bearer Token cũ.
   const rawResponse = await adminApi.post<unknown>(
@@ -434,6 +459,7 @@ export async function loginAdmin(input: AdminLoginInput): Promise<AdminSession> 
       password,
       deviceId,
       deviceName: 'SurplusIQ Admin Web',
+      ...(otpCode ? { otpCode } : {}),
     },
     {
       auth: false,
@@ -445,11 +471,16 @@ export async function loginAdmin(input: AdminLoginInput): Promise<AdminSession> 
   // quy trình xác thực hoặc trả response khác hợp đồng.
   if (!isStoreLoginResponse(rawResponse)) {
     if (isRecord(rawResponse) && rawResponse.twoFactorRequired === true) {
-      throw new AdminApiError(
-        'Backend yêu cầu xác thực bổ sung nhưng giao diện Admin chưa hỗ trợ luồng này.',
-        403,
-        'ADMIN_2FA_NOT_IMPLEMENTED',
-      );
+      throw new AdminTwoFactorRequiredError({
+        twoFactorRequired: true,
+        target: typeof rawResponse.target === 'string' ? rawResponse.target : email,
+        message:
+          typeof rawResponse.message === 'string'
+            ? rawResponse.message
+            : 'Vui lòng nhập mã xác thực 2FA (6 chữ số) để hoàn tất đăng nhập.',
+        otpPreview: typeof rawResponse.otpPreview === 'string' ? rawResponse.otpPreview : undefined,
+        deviceId,
+      });
     }
 
     throw new AdminApiError(
@@ -607,6 +638,15 @@ export async function logoutAdmin(): Promise<AdminLogoutResult> {
   };
 }
 
+/**
+ * Bật / tắt xác thực 2 bước (2FA OTP) cho tài khoản hiện tại.
+ */
+export async function toggleAdminTwoFactor(
+  enable: boolean,
+): Promise<{ twoFactorEnabled: boolean }> {
+  return adminApi.post<{ twoFactorEnabled: boolean }>('/me/2fa/toggle', { enable });
+}
+
 // =====================================================
 // 11. EXPORT API AUTHENTICATION
 // =====================================================
@@ -623,6 +663,7 @@ export const adminAuthApi = {
   logout: logoutAdmin,
   getSession: getAdminSession,
   clearSession: clearAdminSession,
+  toggleTwoFactor: toggleAdminTwoFactor,
 };
 
 export default adminAuthApi;

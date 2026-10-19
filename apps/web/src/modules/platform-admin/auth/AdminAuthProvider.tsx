@@ -17,12 +17,13 @@ import {
   adminTokenStorage,
 } from '../api/admin-api.client';
 
-import { adminAuthApi } from '../api/admin-auth.api';
+import { AdminTwoFactorRequiredError, adminAuthApi } from '../api/admin-auth.api';
 
 import type {
   AdminLoginInput,
   AdminLogoutResult,
   AdminSession,
+  AdminTwoFactorChallenge,
   AdminUser,
 } from '../api/admin-auth.api';
 
@@ -61,6 +62,8 @@ export interface AdminAuthContextValue {
 
   error: string | null;
 
+  twoFactorChallenge: AdminTwoFactorChallenge | null;
+
   login: (input: AdminLoginInput) => Promise<AdminSession>;
 
   logout: () => Promise<AdminLogoutResult>;
@@ -68,6 +71,8 @@ export interface AdminAuthContextValue {
   retryRestore: () => Promise<void>;
 
   clearError: () => void;
+
+  clearTwoFactorChallenge: () => void;
 }
 
 export interface AdminAuthProviderProps {
@@ -258,6 +263,10 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
 
   const [error, setError] = useState<string | null>(null);
 
+  const [twoFactorChallenge, setTwoFactorChallenge] = useState<AdminTwoFactorChallenge | null>(
+    null,
+  );
+
   // ---------------------------------------------------
   // Kiểm soát các thao tác bất đồng bộ
   // ---------------------------------------------------
@@ -373,6 +382,7 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
       const result = await adminAuthApi.login(input);
 
       if (version === operationVersion.current) {
+        setTwoFactorChallenge(null);
         setSession(result);
         setStatus('authenticated');
       }
@@ -383,7 +393,12 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
         setSession(null);
         setStatus('unauthenticated');
 
-        setError(getAuthErrorMessage(caughtError));
+        if (caughtError instanceof AdminTwoFactorRequiredError) {
+          setTwoFactorChallenge(caughtError.challenge);
+          setError(null);
+        } else {
+          setError(getAuthErrorMessage(caughtError));
+        }
       }
 
       throw caughtError;
@@ -420,6 +435,7 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
     // Ẩn nội dung Admin ngay lập tức.
     setSession(null);
     setStatus('unauthenticated');
+    setTwoFactorChallenge(null);
     setBusy(true);
     setError(null);
 
@@ -448,6 +464,11 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
     setError(null);
   }, []);
 
+  const clearTwoFactorChallenge = useCallback(() => {
+    setTwoFactorChallenge(null);
+    setError(null);
+  }, []);
+
   // ===================================================
   // 12. TẠO GIÁ TRỊ CHIA SẺ QUA CONTEXT
   // ===================================================
@@ -462,12 +483,25 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
       isAuthenticated,
       isLoading: status === 'checking' || busy,
       error,
+      twoFactorChallenge,
       login,
       logout,
       retryRestore,
       clearError,
+      clearTwoFactorChallenge,
     };
-  }, [status, session, busy, error, login, logout, retryRestore, clearError]);
+  }, [
+    status,
+    session,
+    busy,
+    error,
+    twoFactorChallenge,
+    login,
+    logout,
+    retryRestore,
+    clearError,
+    clearTwoFactorChallenge,
+  ]);
 
   // ===================================================
   // 13. CUNG CẤP CONTEXT CHO ỨNG DỤNG

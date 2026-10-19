@@ -20,44 +20,44 @@ import type {} from '@mui/material/themeCssVarsAugmentation';
  */
 
 export const ADMIN_COLORS = {
-  primary: '#635BFF',
-  primaryDark: '#4F46E5',
-  success: '#15B79F',
-  warning: '#F79009',
-  error: '#F04438',
-  info: '#06AED4',
+  primary: '#1F3BB3',
+  primaryDark: '#172E8C',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: '#0EA5E9',
 
   light: {
-    background: '#F8F9FC',
+    background: '#F4F5F7',
     paper: '#FFFFFF',
-    textPrimary: '#111927',
-    textSecondary: '#667085',
+    textPrimary: '#1E293B',
+    textSecondary: '#64748B',
     divider: '#E5E7EB',
   },
 
   dark: {
-    background: '#101828',
-    paper: '#182230',
-    textPrimary: '#F9FAFB',
-    textSecondary: '#98A2B3',
-    divider: '#344054',
+    background: '#0F172A',
+    paper: '#1E293B',
+    textPrimary: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    divider: '#334155',
   },
 
   sidebar: {
-    background: '#0B1220',
-    text: '#D0D5DD',
-    muted: '#667085',
+    background: '#FFFFFF',
+    text: '#334155',
+    muted: '#64748B',
   },
 } as const;
 
 export const ADMIN_LAYOUT = {
-  sidebarWidth: 280,
-  collapsedSidebarWidth: 76,
-  mobileSidebarWidth: 320,
-  headerHeight: 64,
+  sidebarWidth: 256,
+  collapsedSidebarWidth: 74,
+  mobileSidebarWidth: 280,
+  headerHeight: 72,
   contentMaxWidth: 1600,
-  cardRadius: 20,
-  buttonRadius: 12,
+  cardRadius: 12,
+  buttonRadius: 8,
 } as const;
 
 export const adminTheme = createTheme({

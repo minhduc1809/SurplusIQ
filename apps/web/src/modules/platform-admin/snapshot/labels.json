@@ -136,6 +136,8 @@
   "feedback": "Phản hồi",
   "feature_code": "Tính năng",
   "model": "Mô hình",
+  "input_summary": "Dữ liệu đầu vào (Prompt)",
+  "output_summary": "Dữ liệu đầu ra (Completion)",
   "latency_ms": "Thời gian xử lý (ms)",
   "error_code": "Mã lỗi",
   "note": "Ghi chú",

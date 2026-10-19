@@ -88,6 +88,32 @@ export function snapshotFixture(): AdminSnapshot {
     actor_role: 'ADMIN',
     created_at: '2026-10-19T09:00:00.000Z',
   });
+  add('aiLogs', {
+    id: 'ai-log-1',
+    store_id: 'store-1',
+    store_name: 'Tiệm Bánh Đỏ',
+    user_id: 'user-1',
+    feature_code: 'STORE_AI_CHAT',
+    model: 'gemini-2.0-flash',
+    input_summary: 'Phân tích doanh thu và tồn kho cuối ngày cho Tiệm Bánh Đỏ',
+    output_summary: 'Khuyến nghị giảm giá 35% cho bánh mì bơ tỏi từ 18:30 để tối ưu tỷ lệ cứu món.',
+    latency_ms: 640,
+    error_code: null,
+    created_at: '2026-10-19T08:30:00.000Z',
+  });
+  add('aiLogs', {
+    id: 'ai-log-2',
+    store_id: 'store-1',
+    store_name: 'Tiệm Bánh Đỏ',
+    user_id: 'user-1',
+    feature_code: 'DESCRIBE_ITEM',
+    model: 'gemini-1.5-flash',
+    input_summary: 'Combo bánh ngọt Pháp cuối ngày',
+    output_summary: 'Combo 4 bánh croissant bơ Pháp nướng trong ngày, thơm giòn tiết kiệm 40%.',
+    latency_ms: 480,
+    error_code: null,
+    created_at: '2026-10-19T08:45:00.000Z',
+  });
   return {
     version: 1,
     exportedAt: '2026-10-19T09:00:00.000Z',

@@ -6,14 +6,12 @@ import {
   Avatar,
   Badge,
   Box,
-  Breadcrumbs,
   ButtonBase,
   Chip,
   Dialog,
   Divider,
   IconButton,
   InputAdornment,
-  Link,
   List,
   ListItemButton,
   ListItemText,
@@ -28,18 +26,21 @@ import {
 } from '@mui/material';
 
 import {
+  ArrowRight,
+  Bell,
+  CalendarBlank,
+  CaretDown,
+  CrownSimple,
+  Info,
+  Key,
   List as MenuIcon,
   MagnifyingGlass,
-  Bell,
-  CaretDown,
-  ArrowRight,
   ShieldCheck,
   SignOut,
-  Info,
   X,
 } from '@phosphor-icons/react';
 
-import { AdminThemeToggle } from '../theme/AdminThemeProvider';
+import { adminAuthApi } from '../api/admin-auth.api';
 import { ADMIN_LAYOUT } from '../theme/create-theme';
 import { useOptionalAdminSnapshot } from '../snapshot/AdminSnapshotProvider';
 
@@ -48,12 +49,7 @@ import {
   ADMIN_ROUTES,
   getActiveAdminNavItem,
   getAdminPageTitle,
-  normalizeAdminPath,
 } from '../config/admin-navigation';
-
-// =====================================================
-// 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU
-// =====================================================
 
 export interface AdminAccount {
   displayName?: string;
@@ -62,30 +58,13 @@ export interface AdminAccount {
 }
 
 export interface AdminTopbarProps {
-  // Đường dẫn trang hiện tại, dùng để xác định Breadcrumb.
   pathname: string;
-
-  // Mở Sidebar dạng Drawer trên thiết bị di động.
   onOpenMobile: () => void;
-
-  // Hàm điều hướng SPA, sẽ được truyền từ AdminLayout.
   onNavigate?: (href: string) => void;
-
-  // Thông tin tài khoản thực tế sau khi đăng nhập.
   currentUser?: AdminAccount | null;
-
-  // Hàm đăng xuất, được triển khai tại tầng xác thực.
   onLogout?: () => void;
 }
 
-// =====================================================
-// 2. HÀM TIỆN ÍCH
-// =====================================================
-
-/**
- * Chuẩn hóa chuỗi để tìm kiếm không phân biệt
- * chữ hoa, chữ thường hoặc dấu tiếng Việt.
- */
 function normalizeSearchText(value: string): string {
   return value
     .normalize('NFD')
@@ -96,17 +75,9 @@ function normalizeSearchText(value: string): string {
     .trim();
 }
 
-/**
- * Lấy chữ cái đại diện cho tài khoản khi chưa có ảnh.
- * Không sử dụng tên hoặc ảnh đại diện giả.
- */
 function getAccountInitial(name?: string): string {
   return name?.trim().charAt(0).toUpperCase() || 'A';
 }
-
-// =====================================================
-// 3. COMPONENT CHÍNH
-// =====================================================
 
 export function AdminTopbar({
   pathname,
@@ -115,16 +86,13 @@ export function AdminTopbar({
   currentUser,
   onLogout,
 }: AdminTopbarProps) {
-  // ---------------------------------------------------
-  // Quản lý trạng thái các cửa sổ tương tác
-  // ---------------------------------------------------
-
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const [categoryAnchor, setCategoryAnchor] = useState<HTMLElement | null>(null);
   const [notificationAnchor, setNotificationAnchor] = useState<HTMLElement | null>(null);
-
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
+  const [twoFactorStatusMsg, setTwoFactorStatusMsg] = useState<string | null>(null);
 
   const snapshotState = useOptionalAdminSnapshot();
 
@@ -182,38 +150,35 @@ export function AdminTopbar({
     [operationalAlerts],
   );
 
-  // ---------------------------------------------------
-  // Xác định trang hiện tại
-  // ---------------------------------------------------
-
   const activeItem = getActiveAdminNavItem(pathname);
-
   const currentPageTitle = getAdminPageTitle(pathname);
 
-  const isDetailPage =
-    activeItem !== undefined &&
-    normalizeAdminPath(pathname) !== normalizeAdminPath(activeItem.href);
-
-  // ---------------------------------------------------
-  // Điều hướng giữa các trang Admin
-  // ---------------------------------------------------
+  const formattedDate = useMemo(() => {
+    const refDate = snapshotState?.data?.exportedAt
+      ? new Date(snapshotState.data.exportedAt)
+      : new Date();
+    const validDate = Number.isFinite(refDate.getTime()) ? refDate : new Date();
+    return new Intl.DateTimeFormat('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    }).format(validDate);
+  }, [snapshotState?.data?.exportedAt]);
 
   const navigateTo = (href: string) => {
     setSearchOpen(false);
     setSearchQuery('');
+    setCategoryAnchor(null);
 
     if (onNavigate) {
       onNavigate(href);
       return;
     }
 
-    // Khi chưa tích hợp React Router, dùng điều hướng
-    // trình duyệt để đảm bảo menu vẫn hoạt động.
     window.location.assign(href);
   };
 
   const handleLinkClick = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
-    // Giữ nguyên hành vi mở tab mới của trình duyệt.
     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
       return;
     }
@@ -224,13 +189,8 @@ export function AdminTopbar({
     }
   };
 
-  // ---------------------------------------------------
-  // Lọc danh sách phân hệ trong tìm kiếm nhanh
-  // ---------------------------------------------------
-
   const filteredItems = useMemo(() => {
     const keyword = normalizeSearchText(searchQuery);
-
     if (!keyword) {
       return ADMIN_NAV_ITEMS;
     }
@@ -239,19 +199,13 @@ export function AdminTopbar({
       const searchableText = normalizeSearchText(
         [item.title, item.description, ...(item.keywords || [])].join(' '),
       );
-
       return searchableText.includes(keyword);
     });
   }, [searchQuery]);
 
-  // ---------------------------------------------------
-  // Xử lý phím tắt Ctrl + K hoặc Cmd + K
-  // ---------------------------------------------------
-
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
       const isSearchShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
-
       if (isSearchShortcut) {
         event.preventDefault();
         setSearchOpen(true);
@@ -259,24 +213,15 @@ export function AdminTopbar({
     };
 
     window.addEventListener('keydown', handleKeyboardShortcut);
-
     return () => {
       window.removeEventListener('keydown', handleKeyboardShortcut);
     };
   }, []);
 
-  // ---------------------------------------------------
-  // Đóng và làm sạch dữ liệu tìm kiếm
-  // ---------------------------------------------------
-
   const closeSearch = () => {
     setSearchOpen(false);
     setSearchQuery('');
   };
-
-  // ---------------------------------------------------
-  // Xử lý chọn kết quả tìm kiếm bằng bàn phím
-  // ---------------------------------------------------
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' && filteredItems.length > 0) {
@@ -285,22 +230,32 @@ export function AdminTopbar({
     }
   };
 
-  // ---------------------------------------------------
-  // Xử lý đăng xuất
-  // ---------------------------------------------------
-
   const handleLogout = () => {
     setAccountAnchor(null);
-
-    // Việc xóa token, thu hồi session và chuyển trang
-    // do tầng xác thực quản lý, không thực hiện ở Topbar.
     onLogout?.();
   };
 
+  const handleToggle2FA = async (enable: boolean) => {
+    try {
+      const res = await adminAuthApi.toggleTwoFactor(enable);
+      setTwoFactorStatusMsg(
+        res.twoFactorEnabled
+          ? 'Đã bật xác thực 2FA (OTP) cho tài khoản Admin.'
+          : 'Đã tắt xác thực 2FA (OTP).',
+      );
+      void snapshotState?.reload();
+    } catch (error) {
+      setTwoFactorStatusMsg(
+        error instanceof Error ? error.message : 'Không thể cập nhật trạng thái 2FA.',
+      );
+    }
+  };
+
+  const displayName =
+    currentUser?.displayName || (currentUser?.email ? currentUser.email.split('@')[0] : 'Admin');
+
   return (
     <>
-      {/* THANH ĐIỀU HƯỚNG CHÍNH */}
-
       <AppBar
         position="sticky"
         elevation={0}
@@ -309,9 +264,8 @@ export function AdminTopbar({
           top: 0,
           width: '100%',
           zIndex: (theme) => theme.zIndex.appBar,
-          bgcolor: 'background.paper',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
+          bgcolor: '#F4F5F7',
+          borderBottom: '1px solid #E5E7EB',
           backgroundImage: 'none',
         }}
       >
@@ -330,8 +284,7 @@ export function AdminTopbar({
             gap: 2,
           }}
         >
-          {/* NÚT MỞ SIDEBAR TRÊN MOBILE */}
-
+          {/* Mobile menu button */}
           <IconButton
             onClick={onOpenMobile}
             aria-label="Mở menu quản trị"
@@ -340,68 +293,50 @@ export function AdminTopbar({
                 xs: 'inline-flex',
                 lg: 'none',
               },
-              color: 'text.secondary',
+              color: '#475569',
             }}
           >
-            <MenuIcon size={23} />
+            <MenuIcon size={22} />
           </IconButton>
 
-          {/* BREADCRUMB TRÊN DESKTOP */}
-
-          <Breadcrumbs
-            aria-label="Vị trí trang hiện tại"
-            separator="/"
+          {/* StarAdmin Greeting Header on Desktop */}
+          <Box
             sx={{
-              display: {
-                xs: 'none',
-                md: 'flex',
-              },
+              display: { xs: 'none', md: 'block' },
               flex: 1,
-
-              '& .MuiBreadcrumbs-separator': {
-                mx: 1,
-                color: 'text.disabled',
-              },
+              minWidth: 0,
             }}
           >
-            <Link
-              href={ADMIN_ROUTES.overview}
-              underline="hover"
-              onClick={(event) => handleLinkClick(event, ADMIN_ROUTES.overview)}
-              sx={{
-                color: 'text.secondary',
-                fontSize: 13,
-                fontWeight: 500,
-              }}
-            >
-              Super Admin
-            </Link>
-
             <Typography
               sx={{
-                color: isDetailPage ? 'text.secondary' : 'text.primary',
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: 22,
+                fontWeight: 400,
+                color: '#64748B',
+                lineHeight: 1.25,
+                letterSpacing: '-0.02em',
               }}
             >
-              {currentPageTitle}
+              Xin chào,{' '}
+              <Box component="span" sx={{ fontWeight: 800, color: '#1E293B' }}>
+                {displayName}
+              </Box>
             </Typography>
+            <Typography
+              noWrap
+              sx={{
+                fontSize: 12.5,
+                color: '#64748B',
+                mt: 0.25,
+              }}
+            >
+              Your performance summary this week · Phân hệ:{' '}
+              <Box component="span" sx={{ fontWeight: 600, color: '#1F3BB3' }}>
+                {currentPageTitle}
+              </Box>
+            </Typography>
+          </Box>
 
-            {isDetailPage && (
-              <Typography
-                sx={{
-                  color: 'text.primary',
-                  fontSize: 13,
-                  fontWeight: 600,
-                }}
-              >
-                Chi tiết
-              </Typography>
-            )}
-          </Breadcrumbs>
-
-          {/* TÊN TRANG TRÊN MOBILE */}
-
+          {/* Mobile Page Title */}
           <Typography
             noWrap
             sx={{
@@ -411,7 +346,7 @@ export function AdminTopbar({
               },
               flex: 1,
               minWidth: 0,
-              color: 'text.primary',
+              color: '#1E293B',
               fontSize: 15,
               fontWeight: 700,
             }}
@@ -419,130 +354,126 @@ export function AdminTopbar({
             {currentPageTitle}
           </Typography>
 
-          {/* NHÓM CÔNG CỤ BÊN PHẢI */}
-
-          <Stack
-            direction="row"
-            spacing={{
-              xs: 0.5,
-              sm: 1,
-            }}
-            sx={{
-              alignItems: 'center',
-            }}
-          >
-            {/* TÌM KIẾM NHANH */}
-
+          {/* StarAdmin Right Controls */}
+          <Stack direction="row" spacing={{ xs: 0.75, sm: 1.25 }} sx={{ alignItems: 'center' }}>
+            {/* Select Category Dropdown (StarAdmin style) */}
             <ButtonBase
-              onClick={() => setSearchOpen(true)}
-              aria-label="Tìm kiếm phân hệ Admin"
+              onClick={(event) => setCategoryAnchor(event.currentTarget)}
+              aria-label="Chọn phân hệ quản trị"
               sx={{
-                display: {
-                  xs: 'none',
-                  lg: 'flex',
-                },
+                display: { xs: 'none', lg: 'inline-flex' },
                 alignItems: 'center',
-                gap: 1.25,
-                width: 260,
-                height: 38,
+                justifyContent: 'space-between',
+                gap: 1.5,
+                minWidth: 175,
+                height: 36,
                 px: 1.5,
-                borderRadius: '12px',
-                border: '1px solid',
-                borderColor: 'divider',
-                bgcolor: 'background.default',
-                color: 'text.secondary',
-                justifyContent: 'flex-start',
-                transition: 'border-color 0.2s',
-
+                borderRadius: '6px',
+                bgcolor: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                color: '#1E293B',
+                fontSize: 12.5,
+                fontWeight: 500,
                 '&:hover': {
-                  borderColor: 'primary.main',
+                  borderColor: '#CBD5E1',
                 },
               }}
             >
-              <MagnifyingGlass size={18} />
-
-              <Typography
-                sx={{
-                  fontSize: 13,
-                  flex: 1,
-                  textAlign: 'left',
-                }}
-              >
-                Tìm kiếm...
-              </Typography>
-
               <Box
                 component="span"
-                sx={{
-                  px: 0.75,
-                  py: 0.25,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: '5px',
-                  fontSize: 10,
-                  fontWeight: 700,
-                }}
+                sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
               >
-                Ctrl K
+                {activeItem?.title || 'Select Category'}
               </Box>
+              <CaretDown size={13} color="#64748B" />
             </ButtonBase>
 
-            {/* TÌM KIẾM TRÊN MÀN HÌNH NHỎ */}
-
-            <Tooltip title="Tìm kiếm">
-              <IconButton
-                onClick={() => setSearchOpen(true)}
-                aria-label="Tìm kiếm"
+            {/* Date Picker Pill (StarAdmin style) */}
+            <Box
+              sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
+                alignItems: 'center',
+                height: 36,
+                borderRadius: '6px',
+                bgcolor: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                overflow: 'hidden',
+              }}
+            >
+              <Box
                 sx={{
-                  display: {
-                    xs: 'inline-flex',
-                    lg: 'none',
-                  },
-                  color: 'text.secondary',
+                  px: 1,
+                  height: '100%',
+                  display: 'grid',
+                  placeItems: 'center',
+                  borderRight: '1px solid #E2E8F0',
+                  color: '#475569',
                 }}
               >
-                <MagnifyingGlass size={21} />
+                <CalendarBlank size={16} />
+              </Box>
+              <Typography
+                sx={{
+                  px: 1.5,
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: '#334155',
+                }}
+              >
+                {formattedDate}
+              </Typography>
+            </Box>
+
+            {/* Quick Search Icon */}
+            <Tooltip title="Tìm kiếm nhanh (Ctrl + K)">
+              <IconButton
+                onClick={() => setSearchOpen(true)}
+                aria-label="Tìm kiếm phân hệ Admin"
+                sx={{
+                  color: '#334155',
+                  width: 36,
+                  height: 36,
+                }}
+              >
+                <MagnifyingGlass size={19} />
               </IconButton>
             </Tooltip>
 
-            {/* CHUYỂN ĐỔI CHẾ ĐỘ SÁNG / TỐI */}
+            {/* Quick Pro Approval Shortcut */}
+            <Tooltip title="Duyệt gói Pro & Thuê bao">
+              <IconButton
+                onClick={() => navigateTo(ADMIN_ROUTES.subscriptions)}
+                aria-label="Duyệt gói Pro"
+                sx={{
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  color: '#D97706',
+                  width: 36,
+                  height: 36,
+                }}
+              >
+                <CrownSimple size={19} weight="duotone" />
+              </IconButton>
+            </Tooltip>
 
-            <AdminThemeToggle />
-
-            {/* KHU VỰC THÔNG BÁO */}
-
+            {/* System Notifications Bell */}
             <Tooltip title="Thông báo hệ thống">
               <IconButton
                 onClick={(event) => setNotificationAnchor(event.currentTarget)}
                 aria-label="Xem thông báo hệ thống"
                 aria-haspopup="dialog"
                 sx={{
-                  color: 'text.secondary',
-                  width: 40,
-                  height: 40,
+                  color: '#334155',
+                  width: 36,
+                  height: 36,
                 }}
               >
                 <Badge badgeContent={totalAlerts} color="error" max={99}>
-                  <Bell size={21} />
+                  <Bell size={19} />
                 </Badge>
               </IconButton>
             </Tooltip>
 
-            {/* MENU TÀI KHOẢN */}
-
-            <Divider
-              orientation="vertical"
-              flexItem
-              sx={{
-                mx: 0.5,
-                my: 0.75,
-                display: {
-                  xs: 'none',
-                  sm: 'block',
-                },
-              }}
-            />
-
+            {/* Account Avatar Button */}
             <ButtonBase
               onClick={(event) => setAccountAnchor(event.currentTarget)}
               aria-label="Mở menu tài khoản Admin"
@@ -550,76 +481,60 @@ export function AdminTopbar({
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1,
-                px: 0.75,
-                py: 0.5,
-                borderRadius: '12px',
-
+                gap: 0.75,
+                p: 0.4,
+                borderRadius: '999px',
                 '&:hover': {
-                  bgcolor: 'action.hover',
+                  bgcolor: 'rgba(15, 23, 42, 0.04)',
                 },
               }}
             >
               <Avatar
                 sx={{
-                  width: 36,
-                  height: 36,
-                  bgcolor: 'primary.main',
-                  color: 'primary.contrastText',
+                  width: 34,
+                  height: 34,
+                  bgcolor: '#1F3BB3',
+                  color: '#FFFFFF',
                   fontWeight: 700,
-                  fontSize: 14,
+                  fontSize: 13.5,
                 }}
               >
-                {getAccountInitial(currentUser?.displayName)}
+                {getAccountInitial(currentUser?.displayName || currentUser?.email)}
               </Avatar>
-
-              <Box
-                sx={{
-                  display: {
-                    xs: 'none',
-                    xl: 'block',
-                  },
-                  textAlign: 'left',
-                  maxWidth: 140,
-                }}
-              >
-                <Typography
-                  noWrap
-                  sx={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'text.primary',
-                  }}
-                >
-                  {currentUser?.displayName || 'Quản trị viên'}
-                </Typography>
-
-                <Typography
-                  noWrap
-                  sx={{
-                    fontSize: 11,
-                    color: 'text.secondary',
-                  }}
-                >
-                  {currentUser?.role || 'Admin'}
-                </Typography>
-              </Box>
-
-              <CaretDown
-                size={14}
-                style={{
-                  opacity: 0.6,
-                }}
-              />
             </ButtonBase>
           </Stack>
         </Toolbar>
       </AppBar>
 
-      {/* ============================================
-          HỘP THOẠI TÌM KIẾM TOÀN CỤC
-          ============================================ */}
+      {/* Category Menu */}
+      <Menu
+        open={Boolean(categoryAnchor)}
+        anchorEl={categoryAnchor}
+        onClose={() => setCategoryAnchor(null)}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 240,
+              borderRadius: '10px',
+              mt: 0.75,
+              border: '1px solid #E5E7EB',
+            },
+          },
+        }}
+      >
+        {ADMIN_NAV_ITEMS.map((item) => (
+          <MenuItem
+            key={item.key}
+            selected={activeItem?.key === item.key}
+            onClick={() => navigateTo(item.href)}
+            sx={{ fontSize: 13, py: 1 }}
+          >
+            {item.title}
+          </MenuItem>
+        ))}
+      </Menu>
 
+      {/* Global Search Dialog */}
       <Dialog
         open={searchOpen}
         onClose={closeSearch}
@@ -629,15 +544,13 @@ export function AdminTopbar({
         slotProps={{
           paper: {
             sx: {
-              borderRadius: '18px',
+              borderRadius: '14px',
               overflow: 'hidden',
               p: 0,
             },
           },
         }}
       >
-        {/* Ô NHẬP TỪ KHÓA */}
-
         <Box sx={{ p: 2 }}>
           <TextField
             autoFocus
@@ -650,7 +563,7 @@ export function AdminTopbar({
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <MagnifyingGlass size={21} />
+                    <MagnifyingGlass size={20} />
                   </InputAdornment>
                 ),
                 endAdornment: (
@@ -664,7 +577,7 @@ export function AdminTopbar({
             }}
             sx={{
               '& .MuiOutlinedInput-root': {
-                height: 48,
+                height: 46,
               },
             }}
           />
@@ -672,15 +585,7 @@ export function AdminTopbar({
 
         <Divider />
 
-        {/* DANH SÁCH KẾT QUẢ */}
-
-        <Box
-          sx={{
-            maxHeight: 390,
-            overflowY: 'auto',
-            p: 1.5,
-          }}
-        >
+        <Box sx={{ maxHeight: 380, overflowY: 'auto', p: 1.5 }}>
           <Typography
             sx={{
               px: 1,
@@ -695,32 +600,10 @@ export function AdminTopbar({
           </Typography>
 
           {filteredItems.length === 0 ? (
-            <Box
-              sx={{
-                py: 5,
-                textAlign: 'center',
-              }}
-            >
-              <MagnifyingGlass size={30} color="#98A2B3" />
-
-              <Typography
-                sx={{
-                  mt: 1.5,
-                  fontSize: 14,
-                  fontWeight: 600,
-                }}
-              >
+            <Box sx={{ py: 5, textAlign: 'center' }}>
+              <MagnifyingGlass size={28} color="#94A3B8" />
+              <Typography sx={{ mt: 1.5, fontSize: 14, fontWeight: 600 }}>
                 Không tìm thấy kết quả
-              </Typography>
-
-              <Typography
-                sx={{
-                  mt: 0.5,
-                  fontSize: 12,
-                  color: 'text.secondary',
-                }}
-              >
-                Thử tìm bằng từ khóa khác.
               </Typography>
             </Box>
           ) : (
@@ -737,116 +620,39 @@ export function AdminTopbar({
                   sx={{
                     mb: 0.5,
                     px: 2,
-                    py: 1.5,
-                    borderRadius: '12px',
-
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
+                    py: 1.25,
+                    borderRadius: '10px',
                   }}
                 >
                   <ListItemText
                     primary={item.title}
                     secondary={item.description}
                     slotProps={{
-                      primary: {
-                        sx: {
-                          fontSize: 13,
-                          fontWeight: 700,
-                        },
-                      },
-                      secondary: {
-                        sx: {
-                          fontSize: 11,
-                          mt: 0.4,
-                        },
-                      },
+                      primary: { sx: { fontSize: 13, fontWeight: 700 } },
+                      secondary: { sx: { fontSize: 11.5, mt: 0.25 } },
                     }}
                   />
-
-                  <Stack
-                    direction="row"
-                    spacing={1}
-
-                    sx={{ alignItems: 'center', ml: 1 }}
-                  >
-                    {item.backendAvailability === 'unavailable' && (
-                      <Chip
-                        label="Chưa có API"
-                        size="small"
-                        variant="outlined"
-                        sx={{ fontSize: 10 }}
-                      />
-                    )}
-
-                    <ArrowRight size={17} color="#98A2B3" />
-                  </Stack>
+                  <ArrowRight size={16} color="#94A3B8" />
                 </ListItemButton>
               ))}
             </List>
           )}
         </Box>
-
-        {/* HƯỚNG DẪN PHÍM TẮT */}
-
-        <Divider />
-
-        <Stack
-          direction="row"
-
-          spacing={1}
-          sx={{
-            alignItems: 'center',
-            px: 2.5,
-            py: 1.5,
-          }}
-        >
-          <Chip label="Enter" size="small" variant="outlined" />
-
-          <Typography
-            sx={{
-              color: 'text.secondary',
-              fontSize: 11,
-            }}
-          >
-            Mở kết quả đầu tiên
-          </Typography>
-
-          <Chip label="Esc" size="small" variant="outlined" sx={{ ml: 'auto !important' }} />
-
-          <Typography
-            sx={{
-              color: 'text.secondary',
-              fontSize: 11,
-            }}
-          >
-            Đóng
-          </Typography>
-        </Stack>
       </Dialog>
 
-      {/* ============================================
-          CỬA SỔ THÔNG BÁO
-          ============================================ */}
-
+      {/* Notifications Popover */}
       <Popover
         open={Boolean(notificationAnchor)}
         anchorEl={notificationAnchor}
         onClose={() => setNotificationAnchor(null)}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
             sx: {
               width: 340,
               maxWidth: 'calc(100vw - 24px)',
-              borderRadius: '16px',
+              borderRadius: '12px',
               mt: 1,
               overflow: 'hidden',
             },
@@ -855,29 +661,20 @@ export function AdminTopbar({
       >
         <Stack
           direction="row"
-
           sx={{
             alignItems: 'center',
             justifyContent: 'space-between',
             px: 2.5,
-            py: 2,
+            py: 1.75,
           }}
         >
-          <Typography
-            sx={{
-              fontSize: 15,
-              fontWeight: 700,
-            }}
-          >
-            Thông báo hệ thống
-          </Typography>
-
+          <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Thông báo hệ thống</Typography>
           <IconButton
             size="small"
             onClick={() => setNotificationAnchor(null)}
             aria-label="Đóng thông báo"
           >
-            <X size={18} />
+            <X size={16} />
           </IconButton>
         </Stack>
 
@@ -912,140 +709,113 @@ export function AdminTopbar({
             ))}
           </List>
         ) : (
-          <Stack
-            spacing={1.5}
-            sx={{
-              alignItems: 'center',
-              px: 3,
-              py: 5,
-              textAlign: 'center',
-            }}
-          >
-            <Info size={30} color="#98A2B3" />
-
-            <Typography
-              sx={{
-                fontSize: 13,
-                fontWeight: 700,
-              }}
-            >
+          <Stack spacing={1.25} sx={{ alignItems: 'center', px: 3, py: 4, textAlign: 'center' }}>
+            <Info size={28} color="#94A3B8" />
+            <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
               Không có cảnh báo tồn đọng
             </Typography>
-
-            <Typography
-              sx={{
-                fontSize: 12,
-                lineHeight: 1.7,
-                color: 'text.secondary',
-              }}
-            >
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
               Tất cả hồ sơ KYC, khiếu nại và báo cáo vi phạm trên toàn sàn đã được xử lý.
             </Typography>
           </Stack>
         )}
       </Popover>
 
-      {/* ============================================
-          MENU TÀI KHOẢN ADMIN
-          ============================================ */}
-
+      {/* Account Menu */}
       <Menu
         open={Boolean(accountAnchor)}
         anchorEl={accountAnchor}
-        onClose={() => setAccountAnchor(null)}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
+        onClose={() => {
+          setAccountAnchor(null);
+          setTwoFactorStatusMsg(null);
         }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
             sx: {
-              width: 260,
-              borderRadius: '16px',
+              width: 280,
+              borderRadius: '12px',
               mt: 1,
               py: 0.5,
             },
           },
         }}
       >
-        {/* THÔNG TIN NGƯỜI DÙNG */}
-
-        <Box sx={{ px: 2.5, py: 1.75 }}>
-          <Typography
-            noWrap
-            sx={{
-              fontSize: 14,
-              fontWeight: 700,
-            }}
-          >
+        <Box sx={{ px: 2.25, py: 1.5 }}>
+          <Typography noWrap sx={{ fontSize: 14, fontWeight: 700, color: '#1E293B' }}>
             {currentUser?.displayName || 'Quản trị viên'}
           </Typography>
 
           {currentUser?.email && (
-            <Typography
-              noWrap
-              sx={{
-                fontSize: 12,
-                color: 'text.secondary',
-                mt: 0.5,
-              }}
-            >
+            <Typography noWrap sx={{ fontSize: 12, color: '#64748B', mt: 0.25 }}>
               {currentUser.email}
             </Typography>
           )}
 
-          <Stack
-            direction="row"
-            spacing={0.75}
-
-            sx={{ alignItems: 'center', mt: 1 }}
-          >
-            <ShieldCheck size={16} color="#15B79F" />
-
-            <Typography
-              sx={{
-                fontSize: 11,
-                color: 'text.secondary',
-              }}
-            >
-              {currentUser?.role || 'Quản trị viên'}
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', mt: 1 }}>
+            <ShieldCheck size={16} color="#1F3BB3" weight="duotone" />
+            <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: '#1F3BB3' }}>
+              {currentUser?.role || 'ADMIN'}
             </Typography>
           </Stack>
+
+          {twoFactorStatusMsg && (
+            <Typography
+              sx={{
+                mt: 1,
+                p: 1,
+                borderRadius: '6px',
+                bgcolor: '#EEF2FF',
+                color: '#1E3A8A',
+                fontSize: 11.5,
+                fontWeight: 600,
+              }}
+            >
+              {twoFactorStatusMsg}
+            </Typography>
+          )}
         </Box>
 
-        <Divider sx={{ my: 0.75 }} />
+        <Divider sx={{ my: 0.5 }} />
 
-        {/* CHỈ HIỂN THỊ ĐĂNG XUẤT
-            KHI ĐÃ CÓ HÀM XỬ LÝ THỰC TẾ */}
+        <MenuItem
+          onClick={() => void handleToggle2FA(true)}
+          sx={{ mx: 1, my: 0.25, borderRadius: '8px', gap: 1.25, fontSize: 12.5 }}
+        >
+          <Key size={17} color="#1F3BB3" />
+          Bật xác thực mã 2FA (OTP)
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => void handleToggle2FA(false)}
+          sx={{ mx: 1, my: 0.25, borderRadius: '8px', gap: 1.25, fontSize: 12.5 }}
+        >
+          <Key size={17} color="#64748B" />
+          Tắt xác thực mã 2FA (OTP)
+        </MenuItem>
+
+        <Divider sx={{ my: 0.5 }} />
 
         {onLogout ? (
           <MenuItem
             onClick={handleLogout}
             sx={{
               mx: 1,
-              my: 0.5,
-              borderRadius: '10px',
+              my: 0.25,
+              borderRadius: '8px',
               color: 'error.main',
-              gap: 1.5,
+              gap: 1.25,
               fontSize: 13,
+              fontWeight: 600,
             }}
           >
-            <SignOut size={19} />
+            <SignOut size={18} />
             Đăng xuất
           </MenuItem>
         ) : (
-          <Box sx={{ px: 2.5, py: 1.5 }}>
-            <Typography
-              sx={{
-                fontSize: 11,
-                color: 'text.secondary',
-                lineHeight: 1.6,
-              }}
-            >
+          <Box sx={{ px: 2.25, py: 1.25 }}>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
               Chức năng đăng xuất sẽ được kết nối ở phần Authentication.
             </Typography>
           </Box>

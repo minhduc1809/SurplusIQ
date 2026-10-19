@@ -44,6 +44,12 @@ import { AdminDrawer } from '../../components/Drawer/AdminDrawer';
 
 import { AdminStatCard } from '../../components/StatCard/AdminStatCard';
 
+import { saveAdminRecord } from '../../api/admin-management.api';
+
+import { useOptionalAdminSnapshot } from '../../snapshot/AdminSnapshotProvider';
+
+import { text, type SnapshotRow } from '../../snapshot/model';
+
 // =====================================================
 // 1. CÁC KIỂU DỮ LIỆU THEO BACKEND
 // =====================================================
@@ -662,34 +668,123 @@ function QuotaDetailDrawer({ quota, onClose }: QuotaDetailDrawerProps) {
  * subscription của toàn bộ cửa hàng.
  */
 function SubscriptionsListTab() {
+  const snapshotCtx = useOptionalAdminSnapshot();
+  const [search, setSearch] = useState('');
+  const [planFilter, setPlanFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [busyStoreId, setBusyStoreId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
+    null,
+  );
+
+  const rows = useMemo(() => {
+    const stores = snapshotCtx?.data?.collections.stores ?? [];
+    const subscriptions = snapshotCtx?.data?.collections.subscriptions ?? [];
+    const subMap = new Map(subscriptions.map((s) => [text(s.store_id), s]));
+
+    return stores
+      .map((store) => {
+        const storeId = text(store.id);
+        const sub = subMap.get(storeId);
+        const plan = text(sub?.plan) || 'BASIC';
+        const status = text(sub?.status) || 'ACTIVE';
+        const periodStart = text(sub?.period_start);
+        const periodEnd = text(sub?.period_end);
+        const rawSub: SnapshotRow = sub ?? {
+          store_id: storeId,
+          store_name: store.name,
+          plan: 'BASIC',
+          status: 'ACTIVE',
+        };
+        return {
+          storeId,
+          storeName: text(store.name) || storeId,
+          plan,
+          status,
+          periodStart,
+          periodEnd,
+          rawSub,
+        };
+      })
+      .filter((item) => {
+        if (planFilter !== 'ALL' && item.plan !== planFilter) return false;
+        if (statusFilter !== 'ALL' && item.status !== statusFilter) return false;
+        if (search.trim()) {
+          const needle = search.trim().toLowerCase();
+          return (
+            item.storeName.toLowerCase().includes(needle) ||
+            item.storeId.toLowerCase().includes(needle)
+          );
+        }
+        return true;
+      });
+  }, [snapshotCtx?.data, search, planFilter, statusFilter]);
+
+  const handleAction = async (
+    storeId: string,
+    storeName: string,
+    rawSub: SnapshotRow,
+    action: 'upgrade' | 'renew' | 'downgrade',
+  ) => {
+    if (busyStoreId) return;
+    setBusyStoreId(storeId);
+    setFeedback(null);
+    try {
+      await saveAdminRecord('subscriptions', rawSub, { action }, crypto.randomUUID());
+      await snapshotCtx?.refreshFromBackend();
+      const label =
+        action === 'upgrade'
+          ? 'Đã duyệt & nâng cấp gói PRO (30 ngày)'
+          : action === 'renew'
+            ? 'Đã gia hạn gói PRO (+30 ngày)'
+            : 'Đã hạ về gói BASIC';
+      setFeedback({ type: 'success', message: `${label} cho cửa hàng "${storeName}".` });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Không thể cập nhật gói dịch vụ.',
+      });
+    } finally {
+      setBusyStoreId(null);
+    }
+  };
+
   return (
     <Stack spacing={3}>
       <SectionHeading
-        title="Đăng ký gói dịch vụ toàn sàn"
-        description={'Tra cứu cửa hàng, gói hiện tại ' + 'và thời gian hiệu lực.'}
+        title="Admin Duyệt Gói Pro & Đăng ký Thuê bao Toàn sàn"
+        description="Tra cứu cửa hàng, gói hiện tại và duyệt nâng cấp PRO (30 ngày), gia hạn hoặc hạ về BASIC trực tiếp."
         icon={<UsersThree size={25} weight="duotone" />}
       />
 
-      <Alert severity="info" variant="outlined">
-        Các endpoint subscription hiện tại chỉ dành cho STORE_USER có quyền cửa hàng. Chưa có API
-        quản trị toàn sàn dành cho tài khoản ADMIN.
-      </Alert>
+      {feedback && (
+        <Alert severity={feedback.type} onClose={() => setFeedback(null)}>
+          {feedback.message}
+        </Alert>
+      )}
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}>
           <TextField
-            disabled
             fullWidth
             size="small"
             label="Tìm kiếm"
             placeholder="Tên hoặc mã cửa hàng"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <TextField disabled select fullWidth size="small" label="Gói dịch vụ" defaultValue="ALL">
+          <TextField
+            select
+            fullWidth
+            size="small"
+            label="Gói dịch vụ"
+            value={planFilter}
+            onChange={(event) => setPlanFilter(event.target.value)}
+          >
             <MenuItem value="ALL">Tất cả gói</MenuItem>
-
             {PLANS.map((plan) => (
               <MenuItem key={plan.id} value={plan.id}>
                 {plan.name}
@@ -699,9 +794,15 @@ function SubscriptionsListTab() {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <TextField disabled select fullWidth size="small" label="Trạng thái" defaultValue="ALL">
+          <TextField
+            select
+            fullWidth
+            size="small"
+            label="Trạng thái"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
             <MenuItem value="ALL">Tất cả trạng thái</MenuItem>
-
             {SUBSCRIPTION_STATUSES.map((item) => (
               <MenuItem key={item.status} value={item.status}>
                 {item.label}
@@ -726,61 +827,87 @@ function SubscriptionsListTab() {
               <TableCell>Trạng thái</TableCell>
               <TableCell>Bắt đầu</TableCell>
               <TableCell>Hết hạn</TableCell>
-              <TableCell>Thao tác</TableCell>
+              <TableCell align="right">Thao tác Duyệt Gói</TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={6} align="center" sx={{ py: 7 }}>
-                <Stack
-                  spacing={1.5}
-                  sx={{
-                    alignItems: 'center',
-                  }}
-                >
-                  <ShieldWarning size={34} weight="duotone" color="#F79009" />
-
-                  <Typography sx={{ fontWeight: 700, fontSize: 13 }}>
-                    Chưa có API danh sách subscription toàn sàn
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: 13 }} color="text.secondary">
+                    Không có cửa hàng phù hợp với bộ lọc hiện tại.
                   </Typography>
-
-                  <Typography
-                    color="text.secondary"
-                    sx={{
-                      fontSize: 12,
-                      maxWidth: 450,
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    Đây là trạng thái chưa hỗ trợ, không phải kết quả truy vấn không có cửa hàng
-                    đăng ký.
-                  </Typography>
-                </Stack>
-              </TableCell>
-            </TableRow>
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((row) => {
+                const isPro = row.plan === 'PRO';
+                const isBusy = busyStoreId === row.storeId;
+                return (
+                  <TableRow key={row.storeId} hover>
+                    <TableCell sx={{ fontWeight: 700 }}>{row.storeName}</TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={row.plan}
+                        color={isPro ? 'warning' : row.plan === 'TRIAL' ? 'info' : 'default'}
+                        sx={{ fontWeight: 700 }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip size="small" variant="outlined" label={row.status} />
+                    </TableCell>
+                    <TableCell>{row.periodStart || '—'}</TableCell>
+                    <TableCell>{row.periodEnd || '—'}</TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                        {!isPro ? (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            disabled={Boolean(busyStoreId)}
+                            onClick={() =>
+                              void handleAction(row.storeId, row.storeName, row.rawSub, 'upgrade')
+                            }
+                          >
+                            {isBusy ? 'Đang duyệt...' : 'Duyệt lên PRO'}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            disabled={Boolean(busyStoreId)}
+                            onClick={() =>
+                              void handleAction(row.storeId, row.storeName, row.rawSub, 'renew')
+                            }
+                          >
+                            {isBusy ? 'Đang xử lý...' : 'Gia hạn PRO'}
+                          </Button>
+                        )}
+                        {row.plan !== 'BASIC' && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="inherit"
+                            disabled={Boolean(busyStoreId)}
+                            onClick={() =>
+                              void handleAction(row.storeId, row.storeName, row.rawSub, 'downgrade')
+                            }
+                          >
+                            Hạ về Basic
+                          </Button>
+                        )}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </TableContainer>
-
-      <Stack
-        direction={{
-          xs: 'column',
-          sm: 'row',
-        }}
-        sx={{
-          justifyContent: 'flex-end',
-        }}
-        spacing={1.5}
-      >
-        <Button disabled variant="outlined">
-          Xem subscription
-        </Button>
-
-        <Button disabled variant="contained">
-          Điều chỉnh gói
-        </Button>
-      </Stack>
     </Stack>
   );
 }
