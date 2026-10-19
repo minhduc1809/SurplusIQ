@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsc --project tsconfig.test.json && vitest run",
+    "test": "tsc --project tsconfig.test.json && vitest run --config vitest.config.mjs",
     "test:live": "tsc --project tsconfig.test.json && vitest run --config vitest.live.config.mjs"
   },
   "dependencies": {
