@@ -553,9 +553,54 @@ describe('AuthService', () => {
         deviceId: 'browser-device-1',
       });
 
-      expect(result.accessToken).toBe('mocked.jwt.access.token');
-      expect(result.user.storeId).toBe('store-1');
-      expect(result.user.permission).toBe(StorePermission.OWNER);
+      if ('accessToken' in result) {
+        expect(result.accessToken).toBe('mocked.jwt.access.token');
+        expect(result.user.storeId).toBe('store-1');
+        expect(result.user.permission).toBe(StorePermission.OWNER);
+      } else {
+        throw new Error('Expected tokens response');
+      }
+    });
+
+    it('should require 2FA OTP on store/admin login when twoFactorEnabled is true on untrusted device', async () => {
+      const user = {
+        id: 'user-admin',
+        email: 'admin@surplusiq.vn',
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+        failedLoginCount: 0,
+        twoFactorEnabled: true,
+        passwordHash: CryptoUtil.hashPassword('AdminPass123@'),
+      };
+      mockUserRepo.findOne.mockResolvedValue(user);
+      mockTrustedDeviceRepo.findOne.mockResolvedValue(null);
+
+      const challenge = await service.loginStore({
+        email: 'admin@surplusiq.vn',
+        password: 'AdminPass123@',
+        deviceId: 'new-browser-device',
+      });
+
+      expect('twoFactorRequired' in challenge && challenge.twoFactorRequired).toBe(true);
+      expect(mockOtpRepo.save).toHaveBeenCalled();
+    });
+
+    it('should reject non-ADMIN accounts on loginAdmin', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'user-store',
+        email: 'tiembanh@example.com',
+        role: UserRole.STORE_USER,
+        status: UserStatus.ACTIVE,
+        passwordHash: CryptoUtil.hashPassword('CorrectPass@'),
+      });
+
+      await expect(
+        service.loginAdmin({
+          email: 'tiembanh@example.com',
+          password: 'CorrectPass@',
+          deviceId: 'browser-device-1',
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -578,6 +623,13 @@ describe('AuthService', () => {
         { userId: 'user-1' },
         expect.objectContaining({ revokedAt: expect.any(Date) }),
       );
+    });
+
+    it('should reject logout when userId or deviceId is missing or uses fallback placeholder', async () => {
+      await expect(service.logout(undefined, undefined)).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.logout('00000000-0000-0000-0000-000000000001', 'default-device'),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });
