@@ -32,6 +32,14 @@ export class AdminSnapshotService {
         return `"${identifier}"`;
       };
       for (const [key, definition] of Object.entries(definitions)) {
+        if (
+          !definition ||
+          typeof definition !== 'object' ||
+          !('fields' in (definition as Record<string, unknown>)) ||
+          !('table' in (definition as Record<string, unknown>))
+        ) {
+          continue;
+        }
         const fields = Object.keys(definition.fields)
           .map((field) =>
             dates.has(field) ? `${quote(field)}::text AS ${quote(field)}` : quote(field),

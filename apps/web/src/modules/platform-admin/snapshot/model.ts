@@ -70,9 +70,24 @@ export function parseSnapshot(value: unknown): AdminSnapshot {
       'order_code',
       'item_name',
     ]);
+    if (!Array.isArray(rows) || value.counts[key] !== rows.length) {
+      throw new Error(`Tập dữ liệu ${definition.title} không hợp lệ hoặc chưa được xuất đầy đủ.`);
+    }
+
+    if (key === 'aiLogs') {
+      for (const row of rows) {
+        if (record(row)) {
+          if (!Object.prototype.hasOwnProperty.call(row, 'input_summary')) {
+            row.input_summary = null;
+          }
+          if (!Object.prototype.hasOwnProperty.call(row, 'output_summary')) {
+            row.output_summary = null;
+          }
+        }
+      }
+    }
+
     if (
-      !Array.isArray(rows) ||
-      value.counts[key] !== rows.length ||
       rows.some(
         (row) =>
           !record(row) ||
