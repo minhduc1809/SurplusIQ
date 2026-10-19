@@ -149,7 +149,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
 
         icon: 'SquaresFour',
 
-        backendAvailability: 'partial',
+        backendAvailability: 'ready',
 
         keywords: ['dashboard', 'overview', 'esg', 'impact', 'thống kê', 'tổng quan'],
       },
@@ -173,7 +173,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
 
         icon: 'Storefront',
 
-        backendAvailability: 'partial',
+        backendAvailability: 'ready',
 
         keywords: ['merchant', 'store', 'kyc', 'shop', 'cửa hàng', 'đối tác'],
       },
@@ -189,7 +189,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
 
         icon: 'UsersThree',
 
-        backendAvailability: 'unavailable',
+        backendAvailability: 'ready',
 
         keywords: ['user', 'customer', 'security', 'account', 'người dùng', 'bảo mật'],
       },
@@ -205,7 +205,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
 
         icon: 'ShoppingCart',
 
-        backendAvailability: 'unavailable',
+        backendAvailability: 'ready',
 
         keywords: ['order', 'payment', 'refund', 'kill switch', 'đơn hàng', 'thanh toán'],
       },
@@ -229,7 +229,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
 
         icon: 'Gavel',
 
-        backendAvailability: 'unavailable',
+        backendAvailability: 'ready',
 
         keywords: ['dispute', 'complaint', 'violation', 'khiếu nại', 'vi phạm'],
       },
@@ -245,7 +245,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
 
         icon: 'ArrowsClockwise',
 
-        backendAvailability: 'unavailable',
+        backendAvailability: 'ready',
 
         keywords: ['settlement', 'reconciliation', 'payout', 'checksum', 'đối soát', 'sao kê'],
       },
@@ -269,7 +269,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
 
         icon: 'CrownSimple',
 
-        backendAvailability: 'unavailable',
+        backendAvailability: 'ready',
 
         keywords: ['saas', 'subscription', 'quota', 'billing', 'gói dịch vụ', 'hạn mức'],
       },
@@ -285,7 +285,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
 
         icon: 'GearSix',
 
-        backendAvailability: 'partial',
+        backendAvailability: 'ready',
 
         keywords: ['settings', 'configuration', 'audit', 'cronjob', 'cấu hình', 'nhật ký'],
       },

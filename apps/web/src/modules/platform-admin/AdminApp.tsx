@@ -570,8 +570,13 @@ export function AdminApp() {
               Đường dẫn không thuộc Super Admin
             </Typography>
 
-            <Button component="a" href="/" variant="outlined" endIcon={<ArrowRight size={18} />}>
-              Trở về ứng dụng chính
+            <Button
+              component="a"
+              href={ADMIN_ROUTES.overview}
+              variant="outlined"
+              endIcon={<ArrowRight size={18} />}
+            >
+              Mở Dashboard Super Admin
             </Button>
           </Stack>
         </Box>
