@@ -1,9 +1,14 @@
-import { IsBoolean, IsNotEmpty } from 'class-validator';
+import { IsBoolean, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class Enable2faDto {
-  @ApiProperty({ example: true })
-  @IsNotEmpty()
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
   @IsBoolean()
-  enabled: boolean;
+  enabled?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  enable?: boolean;
 }

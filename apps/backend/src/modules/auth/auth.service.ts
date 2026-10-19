@@ -892,13 +892,14 @@ export class AuthService {
    * Bật / Tắt xác thực 2 bước 2FA (R1-013)
    */
   async toggle2fa(userId: string, dto: Enable2faDto) {
+    const isEnabled = dto.enabled ?? dto.enable ?? true;
     await this.userRepo.update(userId, {
-      twoFactorEnabled: dto.enabled,
+      twoFactorEnabled: isEnabled,
     });
     return {
       success: true,
-      twoFactorEnabled: dto.enabled,
-      message: dto.enabled ? 'Đã bật xác thực 2 bước (2FA)' : 'Đã tắt xác thực 2 bước',
+      twoFactorEnabled: isEnabled,
+      message: isEnabled ? 'Đã bật xác thực 2 bước (2FA)' : 'Đã tắt xác thực 2 bước',
     };
   }
 

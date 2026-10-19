@@ -139,13 +139,13 @@ const FEATURE_SYSTEM_PROMPT_TOKENS: Record<string, number> = {
   CUSTOMER_AI_SEARCH: 300,
 };
 
-export interface AiTokenEstimate {
+interface AiTokenEstimate {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
 }
 
-export function estimateAiRowTokens(row: SnapshotRow): AiTokenEstimate {
+function estimateAiRowTokens(row: SnapshotRow): AiTokenEstimate {
   const feature = text(row.feature_code).toUpperCase();
   const basePrompt = FEATURE_SYSTEM_PROMPT_TOKENS[feature] ?? 240;
   const inputStr = text(row.input_summary);

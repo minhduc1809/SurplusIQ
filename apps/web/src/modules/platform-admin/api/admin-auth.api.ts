@@ -644,7 +644,10 @@ export async function logoutAdmin(): Promise<AdminLogoutResult> {
 export async function toggleAdminTwoFactor(
   enable: boolean,
 ): Promise<{ twoFactorEnabled: boolean }> {
-  return adminApi.post<{ twoFactorEnabled: boolean }>('/me/2fa/toggle', { enable });
+  return adminApi.post<{ twoFactorEnabled: boolean }>('/me/2fa/toggle', {
+    enabled: enable,
+    enable: enable,
+  });
 }
 
 // =====================================================
