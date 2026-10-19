@@ -453,13 +453,24 @@
     "table": "ai_logs",
     "title": "Hoạt động AI",
     "primaryKey": "id",
-    "columns": ["store_name", "feature_code", "model", "latency_ms", "error_code", "created_at"],
+    "columns": [
+      "store_name",
+      "feature_code",
+      "model",
+      "input_summary",
+      "output_summary",
+      "latency_ms",
+      "error_code",
+      "created_at"
+    ],
     "fields": {
       "id": "Mã bản ghi",
       "user_id": "Mã người dùng",
       "store_id": "Mã cửa hàng",
       "feature_code": "Tính năng",
       "model": "Mô hình",
+      "input_summary": "Dữ liệu đầu vào (Prompt)",
+      "output_summary": "Dữ liệu đầu ra (Completion)",
       "latency_ms": "Thời gian xử lý (ms)",
       "error_code": "Mã lỗi",
       "created_at": "Ngày tạo"

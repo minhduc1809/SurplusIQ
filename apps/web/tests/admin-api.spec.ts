@@ -144,4 +144,47 @@ describe('Admin API contract and failures', () => {
     expect(adminTokenStorage.get()).toBeNull();
     expect(adminAuthApi.getSession()).toBeNull();
   });
+
+  it('handles 2FA challenge and completes login when otpCode is verified on the same device', async () => {
+    let challengedDeviceId = '';
+    fetchMock.mockImplementation(async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      if (!body.otpCode) {
+        challengedDeviceId = body.deviceId;
+        return json({
+          twoFactorRequired: true,
+          target: body.email,
+          message: 'Vui lòng nhập mã xác thực 2FA đã gửi tới tài khoản của bạn.',
+          otpPreview: '654321',
+        });
+      }
+      expect(body.deviceId).toBe(challengedDeviceId);
+      expect(body.otpCode).toBe('654321');
+      return json({
+        accessToken: token(body.deviceId),
+        refreshToken: 'test-refresh',
+        user: { id: userId, role: 'ADMIN', email: body.email },
+      });
+    });
+
+    await expect(
+      adminAuthApi.login({ email: 'admin@example.test', password: 'test-password' }),
+    ).rejects.toMatchObject({
+      code: 'ADMIN_2FA_REQUIRED',
+      challenge: {
+        twoFactorRequired: true,
+        target: 'admin@example.test',
+        otpPreview: '654321',
+      },
+    });
+
+    const session = await adminAuthApi.login({
+      email: 'admin@example.test',
+      password: 'test-password',
+      otpCode: '654321',
+      deviceId: challengedDeviceId,
+    });
+    expect(session.deviceId).toBe(challengedDeviceId);
+    expect(session.user.role).toBe('ADMIN');
+  });
 });
