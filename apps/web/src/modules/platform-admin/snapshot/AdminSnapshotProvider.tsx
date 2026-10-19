@@ -52,6 +52,7 @@ export function AdminSnapshotProvider({ children }: { children: ReactNode }) {
             if (!controller.signal.aborted) setData(snapshot);
             return;
           } catch (cause) {
+            console.error('[AdminSnapshotProvider] API /admin/snapshot failed:', cause);
             if (controller.signal.aborted) return;
             if (cause instanceof AdminApiError && [401, 403].includes(cause.status)) throw cause;
           }
@@ -79,6 +80,7 @@ export function AdminSnapshotProvider({ children }: { children: ReactNode }) {
         const snapshot = parseSnapshot(await response.json());
         if (!controller.signal.aborted) setData(snapshot);
       } catch (cause) {
+        console.error('[AdminSnapshotProvider] Fallback static snapshot failed:', cause);
         if (!controller.signal.aborted) {
           setData(null);
           setError(cause instanceof Error ? cause.message : 'Không đọc được dữ liệu.');
