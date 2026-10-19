@@ -275,7 +275,7 @@ export class OffersService {
     await this.offerEventRepo.save(
       this.offerEventRepo.create({
         offerId: savedOffer.id,
-        actorId,
+        actorId: actorId === 'SYSTEM' ? null : actorId,
         type: OfferEventType.CREATED,
         payload: {
           totalQuantity: savedOffer.totalQuantity,
@@ -292,7 +292,7 @@ export class OffersService {
       await this.offerEventRepo.save(
         this.offerEventRepo.create({
           offerId: savedOffer.id,
-          actorId,
+          actorId: actorId === 'SYSTEM' ? null : actorId,
           type: OfferEventType.OPENED,
           reason: 'Mở bán cho khách',
         }),
@@ -412,7 +412,7 @@ export class OffersService {
       await this.offerEventRepo.save(
         this.offerEventRepo.create({
           offerId: saved.id,
-          actorId,
+          actorId: actorId === 'SYSTEM' ? null : actorId,
           type: OfferEventType.CREATED,
           payload: { clonedFromOfferId: oldOffer.id },
           reason: 'Nhân bản suất từ hôm qua (R2-029)',
@@ -547,7 +547,7 @@ export class OffersService {
       await this.offerEventRepo.save(
         this.offerEventRepo.create({
           offerId: saved.id,
-          actorId,
+          actorId: actorId === 'SYSTEM' ? null : actorId,
           type: OfferEventType.PRICE_CHANGED,
           payload: { oldPrice, newPrice: saved.currentPrice, changeCount: saved.priceChangeCount },
           reason: dto.note || 'Chủ quán điều chỉnh giá bán',
@@ -570,7 +570,7 @@ export class OffersService {
       await this.offerEventRepo.save(
         this.offerEventRepo.create({
           offerId: saved.id,
-          actorId,
+          actorId: actorId === 'SYSTEM' ? null : actorId,
           type: OfferEventType.OPENED,
           reason: 'Mở bán suất từ bản nháp',
         }),
@@ -586,7 +586,7 @@ export class OffersService {
     await this.offerEventRepo.save(
       this.offerEventRepo.create({
         offerId: saved.id,
-        actorId,
+        actorId: actorId === 'SYSTEM' ? null : actorId,
         type: OfferEventType.EDITED,
         payload: { note: dto.note },
         reason: 'Chỉnh sửa thông tin suất',
@@ -650,7 +650,7 @@ export class OffersService {
     await this.offerEventRepo.save(
       this.offerEventRepo.create({
         offerId: saved.id,
-        actorId,
+        actorId: actorId === 'SYSTEM' ? null : actorId,
         type: OfferEventType.STOCK_ADJUSTED,
         payload: {
           deltaQuantity: dto.deltaQuantity,
@@ -716,7 +716,7 @@ export class OffersService {
     await this.offerEventRepo.save(
       this.offerEventRepo.create({
         offerId: saved.id,
-        actorId,
+        actorId: actorId === 'SYSTEM' ? null : actorId,
         type: OfferEventType.CLOSED,
         payload: { wasteQuantity, note: dto.note },
         reason: dto.reason,
@@ -782,7 +782,7 @@ export class OffersService {
     await this.offerEventRepo.save(
       this.offerEventRepo.create({
         offerId: saved.id,
-        actorId,
+        actorId: actorId === 'SYSTEM' ? null : actorId,
         type: OfferEventType.CANCELLED,
         payload: {
           affectedOrdersCount: paidOrders.length,

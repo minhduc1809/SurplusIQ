@@ -16,9 +16,11 @@ import { StoreStatusGuard } from '../../common/guards/store-status.guard';
 import { PlanGuard } from '../../common/guards/plan.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
+    SettingsModule,
     TypeOrmModule.forFeature([
       SubscriptionEntity,
       SubscriptionInvoiceEntity,

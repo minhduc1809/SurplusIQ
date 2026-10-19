@@ -27,6 +27,9 @@ export interface GetStoreAuditLogsQuery {
   limit?: number;
 }
 
+export const SYSTEM_ACTOR_UUID = '00000000-0000-0000-0000-000000000000';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class AuditLogService {
   private readonly logger = new Logger(AuditLogService.name);
@@ -40,9 +43,14 @@ export class AuditLogService {
    * Ghi vết kiểm toán nhạy cảm (Append-only, không sửa, không xóa - BR-080, R2-075)
    */
   async log(params: CreateAuditLogParams): Promise<AuditLogEntity> {
+    const normalizedActorId =
+      params.actorId && UUID_REGEX.test(params.actorId) ? params.actorId : SYSTEM_ACTOR_UUID;
+    const normalizedStoreId =
+      params.storeId && UUID_REGEX.test(params.storeId) ? params.storeId : null;
+
     const audit = this.auditRepo.create({
-      storeId: params.storeId || null,
-      actorId: params.actorId,
+      storeId: normalizedStoreId,
+      actorId: normalizedActorId,
       actorRole: params.actorRole,
       action: params.action,
       targetType: params.targetType,
@@ -94,7 +102,8 @@ export class AuditLogService {
 
     const targetActorId = query.actorId || query.employeeId;
     if (targetActorId) {
-      qb.andWhere('audit.actor_id = :actorId', { actorId: targetActorId });
+      const normalizedActorId = UUID_REGEX.test(targetActorId) ? targetActorId : SYSTEM_ACTOR_UUID;
+      qb.andWhere('audit.actor_id = :actorId', { actorId: normalizedActorId });
     }
 
     qb.orderBy('audit.created_at', 'DESC').skip(skip).take(limit);

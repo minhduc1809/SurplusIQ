@@ -21,4 +21,12 @@ export class StoreLoginDto {
   @IsOptional()
   @IsString()
   deviceName?: string;
+
+  @ApiPropertyOptional({
+    example: '123456',
+    description: 'Mã xác thực 2 bước (nếu tài khoản bật 2FA)',
+  })
+  @IsOptional()
+  @IsString()
+  otpCode?: string;
 }

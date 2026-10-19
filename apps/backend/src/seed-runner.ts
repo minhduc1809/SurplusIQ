@@ -6,15 +6,17 @@ async function runSeed() {
   await AppDataSource.initialize();
   console.log('✅ [Seed Runner] Kết nối thành công! Bắt đầu nạp seed data...');
 
-  const seedService = new SeedService(AppDataSource);
-  const result = await seedService.seedDemoData();
-
-  console.log('🎉 [Seed Runner] Kết quả:', result);
-  await AppDataSource.destroy();
+  try {
+    const seedService = new SeedService(AppDataSource);
+    const result = await seedService.seedDemoData();
+    console.log('🎉 [Seed Runner] Kết quả:', result);
+  } finally {
+    await AppDataSource.destroy();
+  }
   console.log('👋 [Seed Runner] Hoàn tất và ngắt kết nối database.');
 }
 
 runSeed().catch((err) => {
-  console.error('❌ [Seed Runner] Lỗi nạp seed:', err);
-  process.exit(1);
+  console.error('❌ [Seed Runner] Lỗi nạp seed:', err instanceof Error ? err.message : String(err));
+  process.exitCode = 1;
 });

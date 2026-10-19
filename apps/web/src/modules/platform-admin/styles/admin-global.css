@@ -1,0 +1,305 @@
+/* =====================================================
+   SURPLUSIQ SUPER ADMIN - GLOBAL STYLES
+   ===================================================== */
+
+/*
+ * Chỉ áp dụng CSS cho vùng Super Admin.
+ *
+ * Không thay đổi trực tiếp body, html hoặc
+ * các component thuộc ứng dụng Customer/Store.
+ *
+ * Phần màu sắc và component của Material UI
+ * vẫn được quản lý bởi create-theme.ts.
+ */
+
+[data-surplusiq-admin-root] {
+  --admin-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+
+  --admin-focus-color: #635bff;
+
+  --admin-scrollbar-color: rgba(102, 112, 133, 0.35);
+
+  --admin-scrollbar-hover: rgba(102, 112, 133, 0.55);
+
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  font-family: var(--admin-font-family);
+
+  color: var(--mui-palette-text-primary, #111927);
+
+  background-color: var(--mui-palette-background-default, #f8f9fc);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =====================================================
+   1. BOX SIZING
+   ===================================================== */
+
+/*
+ * Giới hạn box-sizing trong Admin.
+ *
+ * ScopedCssBaseline của Material UI cũng
+ * cung cấp các quy tắc nền tương tự.
+ */
+[data-surplusiq-admin-root],
+[data-surplusiq-admin-root] *,
+[data-surplusiq-admin-root] *::before,
+[data-surplusiq-admin-root] *::after {
+  box-sizing: border-box;
+}
+
+/* =====================================================
+   2. FONT VÀ HIỂN THỊ VĂN BẢN
+   ===================================================== */
+
+/*
+ * Đảm bảo các thành phần nhập liệu kế thừa
+ * font từ vùng Admin khi không có style riêng.
+ */
+[data-surplusiq-admin-root] input,
+[data-surplusiq-admin-root] textarea,
+[data-surplusiq-admin-root] select {
+  font-family: inherit;
+}
+
+/*
+ * Giúp nội dung dài không làm vỡ layout.
+ *
+ * Chỉ áp dụng cho các vùng được đánh dấu,
+ * không tự động ngắt tất cả văn bản.
+ */
+[data-surplusiq-admin-root] .admin-break-word {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/*
+ * Sử dụng số có độ rộng ổn định trong
+ * KPI, bảng dữ liệu và chỉ số tài chính.
+ */
+[data-surplusiq-admin-root] .admin-tabular-numbers {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Giữ giá trị trong bảng trên một dòng
+ * khi cột được cấu hình không xuống dòng.
+ */
+[data-surplusiq-admin-root] .admin-nowrap {
+  white-space: nowrap;
+}
+
+/* =====================================================
+   3. SCROLLBAR
+   ===================================================== */
+
+/*
+ * Scrollbar gọn và trung tính.
+ *
+ * Không tùy biến thanh cuộn của toàn website.
+ */
+[data-surplusiq-admin-root] {
+  scrollbar-color: var(--admin-scrollbar-color) transparent;
+
+  scrollbar-width: thin;
+}
+
+[data-surplusiq-admin-root]::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+[data-surplusiq-admin-root]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-surplusiq-admin-root]::-webkit-scrollbar-thumb {
+  background: var(--admin-scrollbar-color);
+
+  border-radius: 999px;
+}
+
+[data-surplusiq-admin-root]::-webkit-scrollbar-thumb:hover {
+  background: var(--admin-scrollbar-hover);
+}
+
+/*
+ * Dành cho bảng lớn hoặc vùng dữ liệu
+ * cần cuộn mà không ảnh hưởng toàn trang.
+ */
+[data-surplusiq-admin-root] .admin-scroll-area {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* =====================================================
+   4. KEYBOARD ACCESSIBILITY
+   ===================================================== */
+
+/*
+ * Hiển thị viền focus khi người dùng
+ * điều hướng bằng bàn phím.
+ *
+ * :focus-visible giúp hạn chế viền focus
+ * không cần thiết khi chỉ sử dụng chuột.
+ */
+[data-surplusiq-admin-root] a:focus-visible,
+[data-surplusiq-admin-root] button:focus-visible,
+[data-surplusiq-admin-root] [role='button']:focus-visible {
+  outline: 2px solid var(--admin-focus-color);
+
+  outline-offset: 3px;
+}
+
+/* =====================================================
+   5. TEXT SELECTION
+   ===================================================== */
+
+/*
+ * Màu lựa chọn văn bản theo thương hiệu Admin.
+ */
+[data-surplusiq-admin-root]::selection {
+  background-color: #e4e1ff;
+  color: #302a85;
+}
+
+/* =====================================================
+   6. CHUYỂN CẢNH NỘI DUNG
+   ===================================================== */
+
+/*
+ * Animation nhẹ dành cho vùng nội dung trang.
+ *
+ * Chỉ chạy khi component sử dụng class
+ * admin-page-enter.
+ */
+@keyframes surplusiq-admin-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-surplusiq-admin-root] .admin-page-enter {
+  animation: surplusiq-admin-page-enter 220ms ease-out both;
+}
+
+/* =====================================================
+   7. VÙNG NỘI DUNG CHUNG
+   ===================================================== */
+
+/*
+ * Sử dụng cho trang Overview, Merchants,
+ * Orders và các phân hệ khác.
+ */
+[data-surplusiq-admin-root] .admin-page-section {
+  min-width: 0;
+  width: 100%;
+}
+
+/*
+ * Khoảng cách giữa các phần nội dung.
+ * Không áp dụng lên mọi Stack của Material UI.
+ */
+[data-surplusiq-admin-root] .admin-section-spacing {
+  margin-top: 24px;
+}
+
+/* =====================================================
+   8. DARK MODE
+   ===================================================== */
+
+/*
+ * ThemeProvider đặt class dark trên body
+ * khi Super Admin sử dụng chế độ tối.
+ *
+ * CSS chỉ tác động đến vùng Admin bên dưới.
+ */
+body.dark [data-surplusiq-admin-root] {
+  --admin-focus-color: #a5b4fc;
+
+  --admin-scrollbar-color: rgba(152, 162, 179, 0.38);
+
+  --admin-scrollbar-hover: rgba(152, 162, 179, 0.6);
+}
+
+body.dark [data-surplusiq-admin-root]::selection {
+  background-color: #4f46a5;
+  color: #ffffff;
+}
+
+/* =====================================================
+   9. RESPONSIVE
+   ===================================================== */
+
+@media (max-width: 599px) {
+  /*
+   * Giảm khoảng cách mặc định giữa
+   * các phần nội dung trên điện thoại.
+   */
+  [data-surplusiq-admin-root] .admin-section-spacing {
+    margin-top: 16px;
+  }
+
+  /*
+   * Phần tử có class này sẽ chiếm
+   * toàn bộ chiều rộng ở màn hình nhỏ.
+   */
+  [data-surplusiq-admin-root] .admin-mobile-full-width {
+    width: 100%;
+  }
+}
+
+/* =====================================================
+   10. GIẢM CHUYỂN ĐỘNG
+   ===================================================== */
+
+/*
+ * Tôn trọng thiết lập hỗ trợ tiếp cận
+ * của hệ điều hành.
+ */
+@media (prefers-reduced-motion: reduce) {
+  [data-surplusiq-admin-root],
+  [data-surplusiq-admin-root] *,
+  [data-surplusiq-admin-root] *::before,
+  [data-surplusiq-admin-root] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =====================================================
+   11. PRINT
+   ===================================================== */
+
+@media print {
+  /*
+   * Ẩn các vùng điều khiển không cần
+   * thiết khi in báo cáo.
+   */
+  [data-surplusiq-admin-root] .admin-hide-on-print {
+    display: none !important;
+  }
+
+  /*
+   * Tránh animation làm ảnh hưởng
+   * nội dung được in hoặc xuất PDF.
+   */
+  [data-surplusiq-admin-root] .admin-page-enter {
+    animation: none;
+  }
+}

@@ -24,9 +24,12 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run build:core && npm --workspace=@surplusiq/core run test && npm --workspace=@surplusiq/backend run test",
+    "test": "npm run build:core && npm --workspace=@surplusiq/core run test && npm --workspace=@surplusiq/backend run test && npm --workspace=@surplusiq/web run test",
     "test:core": "npm --workspace=@surplusiq/core run test",
-    "test:backend": "npm --workspace=@surplusiq/backend run test"
+    "test:backend": "npm --workspace=@surplusiq/backend run test",
+    "test:web": "npm --workspace=@surplusiq/web run test",
+    "snapshot:export": "node scripts/export-admin-snapshot.mjs",
+    "test:admin:live": "node scripts/test-admin-crud-live.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

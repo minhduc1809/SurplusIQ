@@ -130,6 +130,7 @@ describe('Concurrency Race Condition: Anti-Overselling Verification', () => {
     dataSource.transaction.mockImplementation((callback: any) => {
       const executeTransaction = async () => {
         const mockManager = {
+          findOne: jest.fn().mockResolvedValue({ status: 'ACTIVE' }),
           createQueryBuilder: jest.fn().mockReturnValue({
             setLock: jest.fn().mockReturnThis(),
             where: jest.fn().mockReturnThis(),
@@ -248,6 +249,7 @@ describe('Concurrency Race Condition: Anti-Overselling Verification', () => {
     dataSource.transaction.mockImplementation((callback: any) => {
       const executeTransaction = async () => {
         const mockManager = {
+          findOne: jest.fn().mockResolvedValue({ status: 'ACTIVE' }),
           createQueryBuilder: jest.fn().mockReturnValue({
             setLock: jest.fn().mockReturnThis(),
             where: jest.fn().mockReturnThis(),

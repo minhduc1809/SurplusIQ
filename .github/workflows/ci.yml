@@ -53,11 +53,20 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Setup Environment
+        run: cp .env.example .env
+
       - name: Build Core
         run: npm run build:core
 
-      - name: Run Unit Tests (Core & Backend)
-        run: npm run test
+      - name: Run Core Tests
+        run: npm run test:core
+
+      - name: Run Backend Tests
+        run: npm run test:backend
+
+      - name: Run Web Tests
+        run: npm run test:web
 
   build:
     name: Monorepo Build Check
@@ -75,6 +84,9 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Setup Environment
+        run: cp .env.example .env
 
       - name: Build Core, Backend, Web & Simulation
         run: npm run build

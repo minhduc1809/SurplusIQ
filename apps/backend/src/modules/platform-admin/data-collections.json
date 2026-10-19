@@ -1,0 +1,572 @@
+{
+  "stores": {
+    "table": "stores",
+    "title": "Cửa hàng",
+    "primaryKey": "id",
+    "columns": ["name", "user_label", "status", "phone", "address"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "owner_user_id": "Mã chủ cửa hàng",
+      "name": "Tên",
+      "address": "Địa chỉ",
+      "phone": "Điện thoại",
+      "logo_url": "Ảnh cửa hàng",
+      "open_hours": "Giờ hoạt động",
+      "status": "Trạng thái",
+      "trial_used": "Đã dùng thử",
+      "is_demo": "Cửa hàng demo",
+      "rating_avg": "Điểm đánh giá",
+      "rating_count": "Số đánh giá",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "users": {
+    "table": "users",
+    "title": "Người dùng",
+    "primaryKey": "id",
+    "columns": ["email", "phone", "role", "status", "two_factor_enabled"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "email": "Email",
+      "phone": "Điện thoại",
+      "role": "Vai trò",
+      "status": "Trạng thái",
+      "two_factor_enabled": "Cờ 2FA",
+      "locked_until": "Khóa đến",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "members": {
+    "table": "store_members",
+    "title": "Thành viên cửa hàng",
+    "primaryKey": "id",
+    "columns": ["store_name", "user_label", "permission", "status"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "user_id": "Mã người dùng",
+      "permission": "Quyền cửa hàng",
+      "status": "Trạng thái",
+      "last_active_at": "Hoạt động gần nhất",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "items": {
+    "table": "items",
+    "title": "Sản phẩm",
+    "primaryKey": "id",
+    "columns": ["name", "store_name", "category", "original_price", "status"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "name": "Tên",
+      "category": "Danh mục",
+      "original_price": "Giá gốc",
+      "cost_price": "Giá vốn",
+      "standard_shelf_life_hours": "Hạn dùng tiêu chuẩn (giờ)",
+      "ingredients": "Thành phần",
+      "allergens": "Chất gây dị ứng",
+      "weight_grams": "Khối lượng (g)",
+      "image_url": "Ảnh sản phẩm",
+      "description": "Mô tả",
+      "status": "Trạng thái",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "offers": {
+    "table": "offers",
+    "title": "Đợt bán",
+    "primaryKey": "id",
+    "columns": [
+      "item_name",
+      "store_name",
+      "current_price",
+      "remaining_quantity",
+      "status",
+      "pickup_end"
+    ],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "item_id": "Mã sản phẩm",
+      "kind": "Loại",
+      "total_quantity": "Tổng số lượng",
+      "remaining_quantity": "Còn lại",
+      "sold_quantity": "Đã bán",
+      "original_price": "Giá gốc",
+      "current_price": "Giá bán",
+      "floor_price": "Giá sàn",
+      "pickup_start": "Bắt đầu nhận",
+      "pickup_end": "Kết thúc nhận",
+      "expires_at": "Hết hạn",
+      "status": "Trạng thái",
+      "price_change_count": "Số lần đổi giá",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "orders": {
+    "table": "orders",
+    "title": "Đơn hàng",
+    "primaryKey": "id",
+    "columns": ["code", "store_name", "user_label", "total_amount", "status", "created_at"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "code": "Mã đơn",
+      "customer_id": "Mã khách hàng",
+      "store_id": "Mã cửa hàng",
+      "offer_id": "Mã đợt bán",
+      "quantity": "Số lượng",
+      "unit_price": "Đơn giá",
+      "discount_amount": "Giảm giá",
+      "total_amount": "Thành tiền",
+      "status": "Trạng thái",
+      "hold_expires_at": "Hết hạn giữ chỗ",
+      "pickup_slot": "Giờ nhận",
+      "paid_at": "Thanh toán lúc",
+      "picked_up_at": "Nhận hàng lúc",
+      "cancelled_at": "Hủy lúc",
+      "cancel_reason": "Lý do hủy",
+      "cancelled_by": "Bên hủy",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "payments": {
+    "table": "payment_transactions",
+    "title": "Giao dịch thanh toán",
+    "primaryKey": "id",
+    "columns": ["order_code", "store_name", "kind", "amount", "method", "status"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "order_id": "Mã đơn hàng",
+      "store_id": "Mã cửa hàng",
+      "kind": "Loại",
+      "amount": "Số tiền",
+      "method": "Phương thức",
+      "status": "Trạng thái",
+      "retry_count": "Số lần thử lại",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "complaints": {
+    "table": "complaints",
+    "title": "Khiếu nại",
+    "primaryKey": "id",
+    "columns": ["order_code", "store_name", "user_label", "category", "status", "response_due_at"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "order_id": "Mã đơn hàng",
+      "customer_id": "Mã khách hàng",
+      "store_id": "Mã cửa hàng",
+      "category": "Danh mục",
+      "description": "Mô tả",
+      "status": "Trạng thái",
+      "response_due_at": "Hạn phản hồi",
+      "extended": "Đã gia hạn",
+      "refund_amount": "Tiền hoàn",
+      "reject_reason": "Lý do từ chối",
+      "auto_accepted": "Tự chấp nhận",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "attachments": {
+    "table": "complaint_attachments",
+    "title": "Bằng chứng khiếu nại",
+    "primaryKey": "id",
+    "columns": ["complaint_id", "url", "added_round", "created_at"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "complaint_id": "Mã khiếu nại",
+      "url": "Tệp bằng chứng",
+      "added_round": "Đợt bổ sung",
+      "created_at": "Ngày tạo"
+    }
+  },
+  "reviews": {
+    "table": "reviews",
+    "title": "Đánh giá",
+    "primaryKey": "id",
+    "columns": ["order_code", "store_name", "rating", "status", "comment"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "order_id": "Mã đơn hàng",
+      "customer_id": "Mã khách hàng",
+      "store_id": "Mã cửa hàng",
+      "rating": "Điểm",
+      "comment": "Nội dung",
+      "status": "Trạng thái",
+      "store_reply": "Cửa hàng trả lời",
+      "store_reply_at": "Trả lời lúc",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "violations": {
+    "table": "violation_reports",
+    "title": "Báo cáo vi phạm",
+    "primaryKey": "id",
+    "columns": ["user_label", "target_type", "reason", "status", "created_at"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "reporter_id": "Mã người báo cáo",
+      "target_type": "Loại đối tượng",
+      "target_id": "Mã đối tượng",
+      "reason": "Lý do",
+      "status": "Trạng thái",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "statements": {
+    "table": "weekly_statements",
+    "title": "Sao kê tuần",
+    "primaryKey": "id",
+    "columns": ["store_name", "week_start", "gross", "commission", "net_payable", "status"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "week_start": "Bắt đầu tuần",
+      "week_end": "Kết thúc tuần",
+      "gross": "Doanh thu đối soát",
+      "commission": "Hoa hồng",
+      "refunds": "Khấu trừ hoàn tiền",
+      "subscription_fee": "Phí thuê bao",
+      "adjustments": "Điều chỉnh",
+      "net_payable": "Thực trả",
+      "status": "Trạng thái",
+      "checksum": "Checksum đã lưu",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "statementLines": {
+    "table": "statement_lines",
+    "title": "Bút toán",
+    "primaryKey": "id",
+    "columns": ["statement_id", "order_code", "type", "amount", "commission"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "statement_id": "Mã sao kê",
+      "order_id": "Mã đơn hàng",
+      "type": "Loại",
+      "amount": "Số tiền",
+      "commission": "Hoa hồng",
+      "created_at": "Ngày tạo"
+    }
+  },
+  "subscriptions": {
+    "table": "subscriptions",
+    "title": "Thuê bao",
+    "primaryKey": "store_id",
+    "columns": ["store_name", "plan", "status", "period_start", "period_end"],
+    "fields": {
+      "store_id": "Mã cửa hàng",
+      "plan": "Gói",
+      "period_start": "Bắt đầu kỳ",
+      "period_end": "Kết thúc kỳ",
+      "cancel_at_period_end": "Hủy cuối kỳ",
+      "downgrade_at_period_end": "Hạ gói cuối kỳ",
+      "trial_used": "Đã dùng thử",
+      "status": "Trạng thái",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "invoices": {
+    "table": "subscription_invoices",
+    "title": "Hóa đơn thuê bao",
+    "primaryKey": "id",
+    "columns": ["store_name", "amount", "status", "period_start", "period_end"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "period_start": "Bắt đầu kỳ",
+      "period_end": "Kết thúc kỳ",
+      "amount": "Số tiền",
+      "status": "Trạng thái",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "quotas": {
+    "table": "plan_quotas",
+    "title": "Cấu hình hạn mức",
+    "primaryKey": "id",
+    "columns": ["plan", "quota_key", "quota_value", "period"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "plan": "Gói",
+      "quota_key": "Hạn mức",
+      "quota_value": "Giới hạn",
+      "period": "Chu kỳ",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "usage": {
+    "table": "usage_logs",
+    "title": "Sử dụng hạn mức",
+    "primaryKey": "id",
+    "columns": ["store_name", "user_label", "quota_key", "units", "created_at"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "user_id": "Mã người dùng",
+      "quota_key": "Hạn mức",
+      "units": "Đã sử dụng",
+      "ref_id": "Mã tham chiếu",
+      "created_at": "Ngày tạo"
+    }
+  },
+  "audit": {
+    "table": "audit_logs",
+    "title": "Nhật ký thao tác",
+    "primaryKey": "id",
+    "columns": ["created_at", "store_name", "user_label", "actor_role", "action", "target_type"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "actor_id": "Mã người thực hiện",
+      "actor_role": "Vai trò người thực hiện",
+      "action": "Hành động",
+      "target_type": "Loại đối tượng",
+      "target_id": "Mã đối tượng",
+      "created_at": "Ngày tạo"
+    }
+  },
+  "settings": {
+    "table": "store_settings",
+    "title": "Cấu hình cửa hàng",
+    "primaryKey": "store_id",
+    "columns": ["store_name", "pricing_mode", "floor_ratio", "max_qty_per_order"],
+    "fields": {
+      "store_id": "Mã cửa hàng",
+      "default_pickup_start": "Giờ nhận mặc định từ",
+      "default_pickup_end": "Giờ nhận mặc định đến",
+      "floor_ratio": "Tỷ lệ giá sàn",
+      "cost_price_ratio": "Tỷ lệ giá vốn",
+      "pricing_mode": "Chế độ định giá",
+      "late_grace_minutes": "Số phút cho phép đến muộn",
+      "max_qty_per_order": "Số lượng tối đa / đơn",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "notifications": {
+    "table": "notifications",
+    "title": "Thông báo",
+    "primaryKey": "id",
+    "columns": ["store_name", "user_label", "title", "type", "is_read", "created_at"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "user_id": "Mã người dùng",
+      "store_id": "Mã cửa hàng",
+      "type": "Loại",
+      "title": "Tiêu đề",
+      "body": "Nội dung",
+      "is_read": "Đã đọc",
+      "read_at": "Đọc lúc",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "actuals": {
+    "table": "daily_actuals",
+    "title": "Sản lượng thực tế",
+    "primaryKey": "id",
+    "columns": ["date", "store_name", "item_name", "produced", "sold_app", "sold_offline"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "item_id": "Mã sản phẩm",
+      "date": "Ngày",
+      "produced": "Sản xuất",
+      "sold_offline": "Bán tại quầy",
+      "sold_app": "Bán qua ứng dụng",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "forecasts": {
+    "table": "forecasts",
+    "title": "Dự báo",
+    "primaryKey": "id",
+    "columns": ["store_name", "item_name", "target_date", "recommended", "confidence"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "item_id": "Mã sản phẩm",
+      "target_date": "Ngày dự báo",
+      "recommended": "Khuyến nghị",
+      "low": "Cận dưới",
+      "high": "Cận trên",
+      "confidence": "Độ tin cậy",
+      "method": "Phương thức",
+      "chosen_quantity": "Số lượng đã chọn",
+      "override_reason": "Lý do điều chỉnh",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "donations": {
+    "table": "donation_records",
+    "title": "Quyên góp",
+    "primaryKey": "id",
+    "columns": ["store_name", "quantity", "donated_at", "recipient_info"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "offer_id": "Mã đợt bán",
+      "recipient_info": "Đơn vị nhận",
+      "quantity": "Số lượng",
+      "donated_at": "Quyên góp lúc",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "anomalies": {
+    "table": "anomalies",
+    "title": "Bất thường",
+    "primaryKey": "id",
+    "columns": ["store_name", "metric", "date", "actual_value", "mad_score", "status"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "metric": "Chỉ số",
+      "date": "Ngày",
+      "expected_value": "Giá trị kỳ vọng",
+      "actual_value": "Giá trị thực tế",
+      "mad_score": "Điểm MAD",
+      "status": "Trạng thái",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "aiLogs": {
+    "table": "ai_logs",
+    "title": "Hoạt động AI",
+    "primaryKey": "id",
+    "columns": [
+      "store_name",
+      "feature_code",
+      "model",
+      "input_summary",
+      "output_summary",
+      "latency_ms",
+      "error_code",
+      "created_at"
+    ],
+    "fields": {
+      "id": "Mã bản ghi",
+      "user_id": "Mã người dùng",
+      "store_id": "Mã cửa hàng",
+      "feature_code": "Tính năng",
+      "model": "Mô hình",
+      "input_summary": "Dữ liệu đầu vào (Prompt)",
+      "output_summary": "Dữ liệu đầu ra (Completion)",
+      "latency_ms": "Thời gian xử lý (ms)",
+      "error_code": "Mã lỗi",
+      "created_at": "Ngày tạo"
+    }
+  },
+  "promotions": {
+    "table": "promotions",
+    "title": "Ưu đãi",
+    "primaryKey": "id",
+    "columns": ["name", "store_name", "type", "value", "used_count", "status"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "name": "Tên",
+      "type": "Loại",
+      "value": "Giá trị",
+      "target": "Đối tượng",
+      "max_uses": "Lượt tối đa",
+      "used_count": "Đã sử dụng",
+      "start_at": "Bắt đầu",
+      "end_at": "Kết thúc",
+      "min_order_amount": "Giá trị đơn tối thiểu",
+      "status": "Trạng thái",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "campaigns": {
+    "table": "campaigns",
+    "title": "Chiến dịch",
+    "primaryKey": "id",
+    "columns": ["title", "store_name", "target", "scheduled_at", "status"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "store_id": "Mã cửa hàng",
+      "title": "Tiêu đề",
+      "target": "Đối tượng",
+      "scheduled_at": "Lên lịch lúc",
+      "status": "Trạng thái",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "support": {
+    "table": "support_tickets",
+    "title": "Yêu cầu hỗ trợ",
+    "primaryKey": "id",
+    "columns": ["subject", "user_label", "status", "created_at"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "user_id": "Mã người dùng",
+      "subject": "Tiêu đề",
+      "status": "Trạng thái",
+      "created_at": "Ngày tạo",
+      "updated_at": "Cập nhật"
+    }
+  },
+  "supportMessages": {
+    "table": "support_messages",
+    "title": "Trao đổi hỗ trợ",
+    "primaryKey": "id",
+    "columns": ["ticket_id", "sender_id", "message", "created_at"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "ticket_id": "Mã yêu cầu",
+      "sender_id": "Mã người gửi",
+      "message": "Nội dung",
+      "is_internal": "Nội bộ",
+      "created_at": "Ngày tạo"
+    }
+  },
+  "noshows": {
+    "table": "noshow_records",
+    "title": "Không đến nhận",
+    "primaryKey": "id",
+    "columns": ["order_code", "user_label", "occurred_at", "excluded"],
+    "fields": {
+      "id": "Mã bản ghi",
+      "customer_id": "Mã khách hàng",
+      "order_id": "Mã đơn hàng",
+      "occurred_at": "Xảy ra lúc",
+      "excluded": "Đã loại trừ",
+      "created_at": "Ngày tạo"
+    }
+  },
+  "settingsHistory": {
+    "table": "store_settings_history",
+    "title": "Lịch sử cấu hình",
+    "primaryKey": "id",
+    "columns": ["store_name", "user_label", "key", "created_at"],
+    "fields": {
+      "id": "Mã thay đổi",
+      "store_id": "Mã cửa hàng",
+      "actor_id": "Người thực hiện",
+      "key": "Tham số đã đổi",
+      "created_at": "Thời điểm thay đổi"
+    }
+  }
+}

@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not } from 'typeorm';
+import { DataSource, Repository, Not } from 'typeorm';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { ComplaintAttachmentEntity } from '../../entities/complaints/complaint-attachment.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
@@ -19,6 +19,7 @@ import { SupportTicketEntity, TicketStatus } from '../../entities/complaints/sup
 import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { decideComplaint } from './complaint-decision';
 import {
   UpdateReviewDto,
   AddComplaintAttachmentsDto,
@@ -63,6 +64,7 @@ export class CustomerInteractionsService {
     private readonly messageRepo: Repository<SupportMessageEntity>,
     @InjectRepository(PaymentTransactionEntity)
     private readonly paymentTxnRepo: Repository<PaymentTransactionEntity>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -467,21 +469,24 @@ export class CustomerInteractionsService {
    * Khách hàng tự nguyện rút khiếu nại khi chưa xử lý (R1-063)
    */
   async withdrawComplaint(customerId: string, complaintId: string) {
-    const complaint = await this.complaintRepo.findOne({
-      where: { id: complaintId, customerId },
+    return this.dataSource.transaction(async (manager) => {
+      const complaint = await manager.findOne(ComplaintEntity, {
+        where: { id: complaintId, customerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!complaint) {
+        throw new NotFoundException('Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu.');
+      }
+      if (complaint.status !== ComplaintStatus.PENDING_STORE) {
+        throw new BadRequestException(
+          `Chỉ có thể rút khiếu nại đang ở trạng thái chờ cửa hàng xử lý (hiện tại: ${complaint.status}) (R1-063).`,
+        );
+      }
+      complaint.status = ComplaintStatus.CLOSED;
+      complaint.rejectReason = 'Khách hàng tự nguyện rút khiếu nại';
+      await manager.save(complaint);
+      return { success: true, message: 'Đã rút khiếu nại thành công.' };
     });
-    if (!complaint) {
-      throw new NotFoundException('Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu.');
-    }
-    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
-      throw new BadRequestException(
-        `Chỉ có thể rút khiếu nại đang ở trạng thái chờ cửa hàng xử lý (hiện tại: ${complaint.status}) (R1-063).`,
-      );
-    }
-    complaint.status = ComplaintStatus.CLOSED;
-    complaint.rejectReason = 'Khách hàng tự nguyện rút khiếu nại';
-    await this.complaintRepo.save(complaint);
-    return { success: true, message: 'Đã rút khiếu nại thành công.' };
   }
 
   /**
@@ -754,124 +759,69 @@ export class CustomerInteractionsService {
    * Cửa hàng chấp nhận khiếu nại và hoàn tiền cho khách (R2-055, BR-054)
    */
   async resolveComplaint(storeId: string, complaintId: string, dto: ResolveComplaintDto) {
-    const complaint = await this.complaintRepo.findOne({
-      where: { id: complaintId, storeId },
-    });
-    if (!complaint) {
-      throw new NotFoundException(
-        'Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu của quán.',
-      );
-    }
-    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
-      throw new BadRequestException(
-        'Chỉ có thể giải quyết khiếu nại đang ở trạng thái chờ xử lý (PENDING_STORE).',
-      );
-    }
-    const order = await this.orderRepo.findOne({
-      where: { id: complaint.orderId },
-    });
-    if (!order) {
-      throw new NotFoundException('Đơn hàng liên quan không tồn tại.');
-    }
-
-    const orderAmount = order.totalAmount || 0;
-    const refundAmount = dto.refundAmount !== undefined ? dto.refundAmount : orderAmount;
-    if (refundAmount > orderAmount) {
-      throw new BadRequestException(
-        `Số tiền hoàn không được vượt quá số tiền khách đã thanh toán (${orderAmount} VND).`,
-      );
-    }
-
-    complaint.status = ComplaintStatus.ACCEPTED;
-    complaint.refundAmount = refundAmount;
-    await this.complaintRepo.save(complaint);
-
-    if (refundAmount > 0) {
-      const refundTxn = this.paymentTxnRepo.create({
-        orderId: order.id,
+    return this.dataSource.transaction(async (manager) => {
+      const { complaint } = await decideComplaint(
+        manager,
+        complaintId,
+        { decision: 'ACCEPT', refundAmount: dto.refundAmount, reason: dto.note },
         storeId,
-        kind: PaymentKind.ORDER_REFUND,
-        amount: refundAmount,
-        method: PaymentMethod.SIMULATED,
-        status: PaymentStatus.SUCCEEDED,
-        gatewayTxnId: `REFUND_${complaint.id}_${Date.now()}`,
-      });
-      await this.paymentTxnRepo.save(refundTxn);
-    }
-
-    if (refundAmount >= orderAmount && order.status === OrderStatus.PICKED_UP) {
-      order.status = OrderStatus.REFUNDED;
-      await this.orderRepo.save(order);
-    }
-
-    return {
-      success: true,
-      message: 'Giải quyết khiếu nại thành công.',
-      complaint,
-    };
+        'STORE_REFUND',
+      );
+      return { success: true, message: 'Giải quyết khiếu nại thành công.', complaint };
+    });
   }
 
   /**
    * Cửa hàng từ chối khiếu nại với lý do bắt buộc (R2-056, BR-056)
    */
   async rejectComplaint(storeId: string, complaintId: string, dto: RejectComplaintDto) {
-    const complaint = await this.complaintRepo.findOne({
-      where: { id: complaintId, storeId },
+    return this.dataSource.transaction(async (manager) => {
+      const { complaint } = await decideComplaint(
+        manager,
+        complaintId,
+        { decision: 'REJECT', reason: dto.reason },
+        storeId,
+      );
+      return { success: true, message: 'Đã từ chối khiếu nại.', complaint };
     });
-    if (!complaint) {
-      throw new NotFoundException(
-        'Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu của quán.',
-      );
-    }
-    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
-      throw new BadRequestException(
-        'Chỉ có thể từ chối khiếu nại đang ở trạng thái chờ xử lý (PENDING_STORE).',
-      );
-    }
-    complaint.status = ComplaintStatus.REJECTED;
-    complaint.rejectReason = dto.reason;
-    await this.complaintRepo.save(complaint);
-
-    return {
-      success: true,
-      message: 'Đã từ chối khiếu nại.',
-      complaint,
-    };
   }
 
   /**
    * Cửa hàng gia hạn thời gian xử lý khiếu nại thêm 24 giờ (R2-055, BR-055)
    */
   async extendComplaint(storeId: string, complaintId: string) {
-    const complaint = await this.complaintRepo.findOne({
-      where: { id: complaintId, storeId },
-    });
-    if (!complaint) {
-      throw new NotFoundException(
-        'Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu của quán.',
+    return this.dataSource.transaction(async (manager) => {
+      const complaint = await manager.findOne(ComplaintEntity, {
+        where: { id: complaintId, storeId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!complaint) {
+        throw new NotFoundException(
+          'Khiếu nại không tồn tại hoặc không thuộc quyền sở hữu của quán.',
+        );
+      }
+      if (complaint.status !== ComplaintStatus.PENDING_STORE) {
+        throw new BadRequestException(
+          'Chỉ có thể gia hạn khiếu nại đang ở trạng thái chờ xử lý (PENDING_STORE).',
+        );
+      }
+      if (complaint.extended) {
+        throw new BadRequestException(
+          'Khiếu nại này đã được gia hạn trước đó. Cửa hàng chỉ được gia hạn tối đa 1 lần (+24 giờ) (BR-055).',
+        );
+      }
+      complaint.extended = true;
+      complaint.responseDueAt = new Date(
+        new Date(complaint.responseDueAt).getTime() + 24 * 60 * 60 * 1000,
       );
-    }
-    if (complaint.status !== ComplaintStatus.PENDING_STORE) {
-      throw new BadRequestException(
-        'Chỉ có thể gia hạn khiếu nại đang ở trạng thái chờ xử lý (PENDING_STORE).',
-      );
-    }
-    if (complaint.extended) {
-      throw new BadRequestException(
-        'Khiếu nại này đã được gia hạn trước đó. Cửa hàng chỉ được gia hạn tối đa 1 lần (+24 giờ) (BR-055).',
-      );
-    }
-    complaint.extended = true;
-    complaint.responseDueAt = new Date(
-      new Date(complaint.responseDueAt).getTime() + 24 * 60 * 60 * 1000,
-    );
-    await this.complaintRepo.save(complaint);
+      await manager.save(complaint);
 
-    return {
-      success: true,
-      message: 'Đã gia hạn thời gian phản hồi thêm 24 giờ thành công (BR-055).',
-      complaint,
-    };
+      return {
+        success: true,
+        message: 'Đã gia hạn thời gian phản hồi thêm 24 giờ thành công (BR-055).',
+        complaint,
+      };
+    });
   }
 
   /**

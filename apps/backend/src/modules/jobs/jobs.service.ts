@@ -48,6 +48,7 @@ import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
 import { AiLogEntity } from '../../entities/ai/ai-log.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { AuditLogService } from '../audit/audit-log.service';
+import { SettingsService } from '../settings/settings.service';
 import { JOBS_CONSTANTS } from './jobs.constants';
 import {
   ReconciliationEngine,
@@ -163,6 +164,7 @@ export class JobsService {
     private readonly viewHistoryRepo: Repository<ViewHistoryEntity>,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
+    private readonly settingsService: SettingsService,
   ) {}
 
   /**
@@ -628,8 +630,26 @@ export class JobsService {
 
     const processedStoreIds: string[] = [];
 
-    for (const sub of candidates) {
-      await this.dataSource.transaction(async (manager) => {
+    for (const candidate of candidates) {
+      const processed = await this.dataSource.transaction(async (manager) => {
+        // Use the same lock as interactive ADMIN/STORE subscription mutations,
+        // then re-read: the candidate may have been renewed since the scan.
+        const store = await manager.findOne(StoreEntity, {
+          where: { id: candidate.storeId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!store) return;
+        const sub = await manager.findOne(SubscriptionEntity, {
+          where: { storeId: candidate.storeId },
+        });
+        if (
+          !sub ||
+          sub.status !== SubscriptionStatus.ACTIVE ||
+          sub.plan === SubscriptionPlan.BASIC ||
+          !sub.periodEnd ||
+          new Date(sub.periodEnd) > now
+        )
+          return;
         sub.plan = SubscriptionPlan.BASIC;
         sub.status = SubscriptionStatus.ACTIVE;
         sub.downgradeAtPeriodEnd = false;
@@ -685,8 +705,12 @@ export class JobsService {
           },
         });
 
-        processedStoreIds.push(sub.storeId);
+        return true;
       });
+      if (processed) {
+        await this.settingsService.invalidateStoreSettingsCache(candidate.storeId);
+        processedStoreIds.push(candidate.storeId);
+      }
     }
 
     if (processedStoreIds.length > 0) {

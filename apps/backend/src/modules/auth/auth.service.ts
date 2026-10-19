@@ -8,7 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, LessThan, MoreThan } from 'typeorm';
+import { Repository, DataSource, IsNull, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import {
   UserEntity,
@@ -200,6 +200,8 @@ export class AuthService {
         message: 'Tài khoản chưa được kích hoạt mã OTP. Vui lòng hoàn tất xác thực OTP',
       });
     }
+
+    this.assertActiveUser(user);
 
     // 4. So khớp mật khẩu an toàn
     const isPasswordValid = CryptoUtil.verifyPassword(dto.password, user.passwordHash);
@@ -396,7 +398,7 @@ export class AuthService {
   }
 
   /**
-   * Đăng nhập cổng quản trị cửa hàng với cơ chế tách kênh (9.1)
+   * Đăng nhập cổng quản trị cửa hàng với cơ chế tách kênh (9.1) và kiểm tra 2FA (R1-013)
    */
   async loginStore(dto: StoreLoginDto, ip: string = '127.0.0.1') {
     const user = await this.userRepo.findOne({
@@ -435,6 +437,8 @@ export class AuthService {
       });
     }
 
+    this.assertActiveUser(user);
+
     // 4. Mật khẩu
     const isPasswordValid = CryptoUtil.verifyPassword(dto.password, user.passwordHash);
 
@@ -455,7 +459,47 @@ export class AuthService {
     user.lockedUntil = null;
     await this.userRepo.save(user);
 
-    // 5. Lấy cửa hàng liên kết
+    // 5. Kiểm tra 2FA nếu tài khoản bật xác thực 2 bước (R1-013)
+    if (user.twoFactorEnabled) {
+      const isTrusted = await this.trustedDeviceRepo.findOne({
+        where: {
+          userId: user.id,
+          deviceId: dto.deviceId,
+          expiresAt: MoreThan(new Date()),
+        },
+      });
+
+      if (!isTrusted) {
+        const otpTarget = user.email || user.phone || user.id;
+        if (dto.otpCode?.trim()) {
+          await this.verifyOtp({
+            target: otpTarget,
+            code: dto.otpCode.trim(),
+            purpose: OtpPurpose.TWO_FA,
+          });
+        } else {
+          const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
+          const otpEntity = this.otpRepo.create({
+            target: otpTarget,
+            purpose: OtpPurpose.TWO_FA,
+            codeHash: CryptoUtil.sha256(otp),
+            expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
+          });
+          await this.otpRepo.save(otpEntity);
+
+          this.logger.log(`[STORE/ADMIN 2FA OTP SIMULATION] Mã xác thực 2FA: ${otp}`);
+
+          return {
+            twoFactorRequired: true,
+            target: user.email || user.phone,
+            message: 'Vui lòng xác thực mã 2FA gửi về email / số điện thoại của bạn',
+            otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
+          };
+        }
+      }
+    }
+
+    // 6. Lấy cửa hàng liên kết (nếu là STORE_USER)
     const member = await this.storeMemberRepo.findOne({
       where: { userId: user.id },
     });
@@ -468,6 +512,31 @@ export class AuthService {
       member?.storeId,
       member?.permission,
     );
+  }
+
+  /**
+   * Đăng nhập dành riêng cho Platform Super Admin (chặn STORE_USER và CUSTOMER từ tầng Backend)
+   */
+  async loginAdmin(dto: StoreLoginDto, ip: string = '127.0.0.1') {
+    const user = await this.userRepo.findOne({
+      where: { email: dto.email },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException({
+        code: AUTH_ERRORS.INVALID_CREDENTIALS,
+        message: 'Email hoặc mật khẩu không chính xác',
+      });
+    }
+
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException({
+        code: AUTH_ERRORS.WRONG_CHANNEL,
+        message: 'Tài khoản này không có quyền truy cập Super Admin',
+      });
+    }
+
+    return this.loginStore(dto, ip);
   }
 
   // =========================================================================
@@ -600,7 +669,7 @@ export class AuthService {
     }
 
     const user = await this.userRepo.findOne({ where: { id: tokenRecord.userId } });
-    if (!user || user.status === UserStatus.LOCKED) {
+    if (!user || user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Người dùng không còn hoạt động');
     }
 
@@ -638,17 +707,68 @@ export class AuthService {
   /**
    * Đăng xuất và thu hồi Refresh Token trên thiết bị hiện tại
    */
-  async logout(userId: string, deviceId: string) {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      userId || '',
-    );
-    if (isUuid) {
-      await this.refreshTokenRepo.update(
-        { userId, deviceId, revokedAt: undefined },
-        { revokedAt: new Date() },
-      );
+  async logout(userId?: string, deviceId?: string, authorization?: string) {
+    let effectiveUserId = userId?.trim();
+    let effectiveDeviceId = deviceId?.trim();
+
+    if (authorization?.startsWith('Bearer ')) {
+      const rawToken = authorization.slice(7).trim();
+      if (rawToken && typeof (this.jwtService as { verify?: unknown }).verify === 'function') {
+        try {
+          const decoded = (
+            this.jwtService as unknown as {
+              verify: (
+                token: string,
+                options: { secret: string; ignoreExpiration: boolean },
+              ) => { sub?: string; deviceId?: string };
+            }
+          ).verify(rawToken, {
+            secret: AUTH_CONSTANTS.JWT_SECRET,
+            ignoreExpiration: true,
+          });
+          if (effectiveUserId && decoded.sub && effectiveUserId !== decoded.sub) {
+            throw new ForbiddenException('Không được phép đăng xuất phiên của tài khoản khác');
+          }
+          effectiveUserId = decoded.sub || effectiveUserId;
+          effectiveDeviceId = effectiveDeviceId || decoded.deviceId;
+        } catch (err) {
+          if (err instanceof ForbiddenException) {
+            throw err;
+          }
+          // Nếu truyền Bearer token sai chữ ký và không có cặp định danh hợp lệ thì từ chối
+          if (!effectiveUserId || !effectiveDeviceId) {
+            throw new UnauthorizedException('Token đăng xuất không hợp lệ');
+          }
+        }
+      }
     }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      effectiveUserId || '',
+    );
+    if (
+      !isUuid ||
+      effectiveUserId === '00000000-0000-0000-0000-000000000001' ||
+      !effectiveDeviceId ||
+      effectiveDeviceId === 'default-device'
+    ) {
+      throw new UnauthorizedException('Thiếu thông tin phiên thiết bị hợp lệ để đăng xuất');
+    }
+
+    await this.refreshTokenRepo.update(
+      { userId: effectiveUserId, deviceId: effectiveDeviceId, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
     return { success: true, message: 'Đăng xuất thành công' };
+  }
+
+  private assertActiveUser(user: UserEntity) {
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException({
+        code: AUTH_ERRORS.LOCKED,
+        message: 'Tài khoản đã bị khóa hoặc không còn hoạt động',
+      });
+    }
   }
 
   // =========================================================================
@@ -772,13 +892,14 @@ export class AuthService {
    * Bật / Tắt xác thực 2 bước 2FA (R1-013)
    */
   async toggle2fa(userId: string, dto: Enable2faDto) {
+    const isEnabled = dto.enabled ?? dto.enable ?? true;
     await this.userRepo.update(userId, {
-      twoFactorEnabled: dto.enabled,
+      twoFactorEnabled: isEnabled,
     });
     return {
       success: true,
-      twoFactorEnabled: dto.enabled,
-      message: dto.enabled ? 'Đã bật xác thực 2 bước (2FA)' : 'Đã tắt xác thực 2 bước',
+      twoFactorEnabled: isEnabled,
+      message: isEnabled ? 'Đã bật xác thực 2 bước (2FA)' : 'Đã tắt xác thực 2 bước',
     };
   }
 
