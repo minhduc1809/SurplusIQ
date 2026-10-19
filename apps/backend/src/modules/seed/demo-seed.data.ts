@@ -1000,7 +1000,132 @@ export function buildDemoSeed(options: DemoSeedOptions) {
       contextTokens: 0,
     },
   ]);
-  add(E.AiLogEntity, [
+  const aiLogTemplates = [
+    {
+      featureCode: 'STORE_AI_CHAT',
+      model: 'gemini-2.0-flash',
+      latencyMs: 320,
+      inputSummary: 'Tư vấn chiến lược xả tồn 15 suất cơm trưa văn phòng sau 13h30',
+      outputSummary:
+        'Gợi ý hạ giá 45% kết hợp gói túi mù Surprise Box để thu hút nhóm văn phòng lân cận.',
+      errorCode: null,
+      daysAgo: -1,
+    },
+    {
+      featureCode: 'DESCRIBE_ITEM',
+      model: 'gemini-2.0-flash',
+      latencyMs: 280,
+      inputSummary: 'Mô tả bánh mì ngũ cốc nguyên cám hạt óc chó giảm giá cuối ngày',
+      outputSummary:
+        'Bánh Mì Ngũ Cốc Óc Chó Giòn Rụm - Giàu chất xơ, nướng thủ công mỗi sáng, thanh ngọt tự nhiên.',
+      errorCode: null,
+      daysAgo: -1,
+    },
+    {
+      featureCode: 'MARKETING_CAMPAIGN',
+      model: 'gemini-1.5-flash',
+      latencyMs: 540,
+      inputSummary: 'Tạo nội dung thông báo đẩy giờ vàng 20h-21h cho cửa hàng Tous Les Jours',
+      outputSummary:
+        'Giờ Vàng Giải Cứu Bánh Tươi! Giảm sốc 50% toàn bộ bánh ngọt tại Tous Les Jours. Số lượng có hạn!',
+      errorCode: null,
+      daysAgo: -2,
+    },
+    {
+      featureCode: 'SUGGEST_COMBOS',
+      model: 'gemini-2.0-flash',
+      latencyMs: 410,
+      inputSummary: 'Gợi ý combo tồn kho: 8 ly trà sữa ô long và 6 phần bánh su kem',
+      outputSummary:
+        'Combo Siêu Tiết Kiệm: Trà Ô Long Đậm Vị + 2 Bánh Su Kem Béo Ngậy - Giảm 40% chỉ trong tối nay.',
+      errorCode: null,
+      daysAgo: -2,
+    },
+    {
+      featureCode: 'SENTIMENT_ANALYSIS',
+      model: 'gemini-1.5-flash',
+      latencyMs: 210,
+      inputSummary:
+        'Đánh giá của khách: Bánh ngon nhưng lúc đến lấy phải đợi nhân viên tìm đơn hơi lâu',
+      outputSummary:
+        'Phân loại: TÍCH CỰC CÓ GÓP Ý (Hài lòng chất lượng món ăn 4/5, cần tối ưu quy trình nhận hàng tại quầy).',
+      errorCode: null,
+      daysAgo: -3,
+    },
+    {
+      featureCode: 'DRAFT_REVIEW_REPLY',
+      model: 'gemini-2.0-flash',
+      latencyMs: 350,
+      inputSummary:
+        'Soạn thư trả lời xin lỗi khách hàng về việc nhận hàng trễ 5 phút tại chi nhánh Quận 1',
+      outputSummary:
+        'Chào bạn, SurplusIQ và Rincon xin chân thành cáo lỗi vì sự chờ đợi ngoài ý muốn. Chúng tôi đã nhắc nhở ca trực để phục vụ chu đáo hơn.',
+      errorCode: null,
+      daysAgo: -3,
+    },
+    {
+      featureCode: 'CUSTOMER_SEARCH',
+      model: 'gemini-2.0-flash',
+      latencyMs: 290,
+      inputSummary: 'Tìm món chay thanh đạm còn dư sau 19h gần khu vực Nguyễn Huệ',
+      outputSummary:
+        'Đã tìm thấy 3 suất Cơm Chay Tự Chọn và 2 phần Salad Mầm Rau sạch tại Healthy Box (cách 800m).',
+      errorCode: null,
+      daysAgo: -4,
+    },
+    {
+      featureCode: 'STORE_AI_CHAT',
+      model: 'gemini-2.0-flash',
+      latencyMs: 480,
+      inputSummary: 'Dự báo lượng tồn kho bánh ngọt cuối tuần căn cứ vào lịch sử thời tiết mưa lớn',
+      outputSummary:
+        'Dự báo doanh số tại chỗ giảm 25%, khuyến nghị tăng tỷ lệ xuất bán túi mù Surprise Bag trên ứng dụng từ 18h.',
+      errorCode: null,
+      daysAgo: -4,
+    },
+    {
+      featureCode: 'CUSTOMER_CHAT',
+      model: 'gemini-1.5-flash',
+      latencyMs: 390,
+      inputSummary: 'Hỏi chính sách hoàn tiền khi đơn hàng bị hủy do cửa hàng đóng cửa đột xuất',
+      outputSummary:
+        'Khoản tiền giữ chỗ sẽ được tự động hoàn lại 100% vào ví / tài khoản của bạn trong vòng 5-15 phút.',
+      errorCode: null,
+      daysAgo: -5,
+    },
+    {
+      featureCode: 'ALLERGY_CHECK',
+      model: 'gemini-2.0-flash',
+      latencyMs: 195,
+      inputSummary: 'Khách bị dị ứng đậu phộng và gluten có dùng được phần chè dừa non dầm không?',
+      outputSummary:
+        'Cảnh báo: Món chứa nước cốt dừa và thạch, tuy nhiên cơ sở có chế biến chè thập cẩm đậu phộng chung dây chuyền.',
+      errorCode: null,
+      daysAgo: -5,
+    },
+    {
+      featureCode: 'DESCRIBE_ITEM',
+      model: 'gemini-2.0-flash',
+      latencyMs: 310,
+      inputSummary: 'Viết mô tả món sushi cá hồi xông khói đóng khay bán trước 21h30',
+      outputSummary:
+        'Set Sushi Cá Hồi Na-uy Tươi Ngon - Bảo quản mát chuẩn nhiệt độ, tặng kèm mù tạt và gừng hồng thanh mát.',
+      errorCode: null,
+      daysAgo: -6,
+    },
+    {
+      featureCode: 'STORE_AI_CHAT',
+      model: 'gemini-1.5-flash',
+      latencyMs: 620,
+      inputSummary: 'Phân tích xu hướng mua hàng của khách khu vực Bình Thạnh trong 30 ngày qua',
+      outputSummary:
+        'Khách hàng ưu tiên khung giờ 19h30 - 20h30, phân khúc giá 35.000đ - 65.000đ đạt tỷ lệ giải cứu 92%.',
+      errorCode: null,
+      daysAgo: -6,
+    },
+  ];
+
+  const aiLogs: DeepPartial<E.AiLogEntity>[] = [
     {
       id: logId,
       userId: DEMO_OWNER_ID,
@@ -1011,8 +1136,23 @@ export function buildDemoSeed(options: DemoSeedOptions) {
       inputSummary: 'Dữ liệu demo, không gọi dịch vụ AI.',
       outputSummary: 'Nội dung minh họa có nhãn demo.',
       errorCode: null,
+      createdAt: at(-7),
     },
-  ]);
+    ...aiLogTemplates.map((tpl, idx) => ({
+      id: demoId(`ai-log:demo:${idx + 1}`),
+      userId: idx % 2 === 0 ? DEMO_OWNER_ID : DEMO_CUSTOMER_ID,
+      storeId: businessStoreIds[idx % businessStoreIds.length],
+      featureCode: tpl.featureCode,
+      model: tpl.model,
+      latencyMs: tpl.latencyMs,
+      inputSummary: tpl.inputSummary,
+      outputSummary: tpl.outputSummary,
+      errorCode: tpl.errorCode,
+      createdAt: at(tpl.daysAgo, (idx % 12) + 8),
+    })),
+  ];
+
+  add(E.AiLogEntity, aiLogs);
   add(E.AiFeedbackEntity, [
     {
       id: demoId('ai-feedback'),
