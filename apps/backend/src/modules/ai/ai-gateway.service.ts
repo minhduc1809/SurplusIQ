@@ -60,6 +60,90 @@ export class AiGatewayService {
   ) {}
 
   /**
+   * Gọi Google Gemini API thực tế thông qua GEMINI_API_KEY từ .env,
+   * tự động fallback an toàn về câu trả lời nghiệp vụ chuẩn nếu mất mạng hoặc trong môi trường test.
+   */
+  private async callGemini(
+    prompt: string,
+    fallbackText: string,
+    preferredModel?: string,
+  ): Promise<{ text: string; model: string; latencyMs: number }> {
+    const startMs = Date.now();
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const configuredModel =
+      preferredModel ||
+      process.env.GEMINI_CHAT_MODEL?.trim() ||
+      process.env.GEMINI_MODEL?.trim() ||
+      'gemini-1.5-flash';
+
+    if (
+      !apiKey ||
+      apiKey === 'your_gemini_api_key_here' ||
+      (process.env.NODE_ENV === 'test' && process.env.GEMINI_FORCE_LIVE_TEST !== 'true')
+    ) {
+      return {
+        text: fallbackText,
+        model: configuredModel,
+        latencyMs: Math.max(1, Date.now() - startMs) || 280,
+      };
+    }
+
+    const candidateModels = Array.from(
+      new Set([configuredModel, 'gemini-2.0-flash', 'gemini-1.5-flash']),
+    );
+    const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 10000;
+    const maxOutputTokens = Number(process.env.GEMINI_MAX_TOKENS) || 2048;
+
+    for (const model of candidateModels) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens,
+              temperature: 0.4,
+            },
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const payload = (await response.json()) as {
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        };
+        const generated = payload.candidates?.[0]?.content?.parts
+          ?.map((part) => part.text ?? '')
+          .join('')
+          .trim();
+
+        if (generated) {
+          return {
+            text: generated,
+            model,
+            latencyMs: Math.max(1, Date.now() - startMs),
+          };
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Gemini API call failed on model ${model}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    return {
+      text: fallbackText,
+      model: configuredModel,
+      latencyMs: Math.max(1, Date.now() - startMs),
+    };
+  }
+
+  /**
    * Hỏi đáp trợ lý AI thông minh dành cho chủ cửa hàng (R2-108..R2-110)
    */
   async chatWithStore(storeId: string, userId: string, dto: StoreAiChatDto) {
@@ -104,19 +188,26 @@ export class AiGatewayService {
     await this.messageRepo.save(userMessage);
 
     // 4. Sinh câu trả lời định hướng nghiệp vụ F&B và xử lý thực phẩm dư thừa
-    let assistantReply: string;
+    let fallbackReply: string;
     const lower = dto.message.toLowerCase();
 
     if (lower.includes('giảm giá') || lower.includes('định giá') || lower.includes('giá')) {
-      assistantReply =
+      fallbackReply =
         'Theo dữ liệu vận hành từ SurplusIQ, khi lượng tồn còn cao sát giờ đóng cửa (dưới 90 phút), bạn nên giảm thêm 15% - 25% (không vượt quá mức sàn 40% giá gốc). Đồng thời, hãy gom các món cùng loại thành Combo hoặc Túi Bất Ngờ để đẩy nhanh tốc độ giải phóng tồn kho.';
     } else if (lower.includes('mưa') || lower.includes('thời tiết') || lower.includes('ế')) {
-      assistantReply =
+      fallbackReply =
         'Vào những ngày thời tiết bất lợi, lượng khách vãng lai thường giảm khoảng 35%. Bạn nên mở bán ưu đãi sớm hơn 45 phút trên SurplusIQ và kích hoạt tính năng thông báo flash-sale tới nhóm khách hàng thân thiết trong bán kính 2km.';
     } else {
-      assistantReply =
+      fallbackReply =
         'Cảm ơn bạn đã hỏi trợ lý AI SurplusIQ. Để tối ưu hóa doanh thu và giảm thiểu lãng phí thực phẩm hôm nay, bạn có thể: (1) Kiểm tra dự báo sản xuất ngày mai trong mục Kế hoạch, (2) Tạo Túi Bất Ngờ (Surprise Bag) cho các món bánh nướng cuối ngày, (3) Theo dõi biểu đồ giải cứu thực phẩm để quảng bá thương hiệu xanh của quán.';
     }
+
+    const geminiResult = await this.callGemini(
+      `Bạn là trợ lý vận hành AI của nền tảng giải cứu thực phẩm SurplusIQ dành cho chủ cửa hàng F&B tại Việt Nam. Hãy trả lời ngắn gọn, súc tích bằng tiếng Việt cho câu hỏi sau của chủ quán: "${dto.message}"`,
+      fallbackReply,
+      process.env.GEMINI_CHAT_MODEL,
+    );
+    const assistantReply = geminiResult.text;
 
     // 5. Lưu tin nhắn trợ lý
     const assistantMessage = this.messageRepo.create({
@@ -131,8 +222,8 @@ export class AiGatewayService {
       userId,
       storeId,
       featureCode: 'STORE_AI_CHAT',
-      model: 'gemini-1.5-flash',
-      latencyMs: 320,
+      model: geminiResult.model,
+      latencyMs: geminiResult.latencyMs,
       inputSummary: dto.message.slice(0, 200),
       outputSummary: assistantReply.slice(0, 200),
     });
@@ -168,7 +259,14 @@ export class AiGatewayService {
       );
     }
 
-    const description = `Thưởng thức ${dto.name} tươi ngon chuẩn vị! Sản phẩm thuộc danh mục ${dto.category}, được nướng mới mỗi ngày từ nguyên liệu chọn lọc kỹ lưỡng${dto.ingredients ? ` (${dto.ingredients})` : ''}. ${dto.specialFeatures || 'Hương vị thơm béo, vỏ ngoài mềm xốp, thích hợp cho bữa sáng tiện lợi hoặc bữa phụ ngon lành.'} Đặt ngay trên SurplusIQ để giải cứu món ngon giá tốt và chung tay bảo vệ môi trường!`;
+    const fallbackDescription = `Thưởng thức ${dto.name} tươi ngon chuẩn vị! Sản phẩm thuộc danh mục ${dto.category}, được nướng mới mỗi ngày từ nguyên liệu chọn lọc kỹ lưỡng${dto.ingredients ? ` (${dto.ingredients})` : ''}. ${dto.specialFeatures || 'Hương vị thơm béo, vỏ ngoài mềm xốp, thích hợp cho bữa sáng tiện lợi hoặc bữa phụ ngon lành.'} Đặt ngay trên SurplusIQ để giải cứu món ngon giá tốt và chung tay bảo vệ môi trường!`;
+
+    const geminiResult = await this.callGemini(
+      `Hãy viết đoạn văn ngắn (2-3 câu, tiếng Việt) mô tả hấp dẫn cho món "${dto.name}" thuộc danh mục "${dto.category}", nguyên liệu: "${dto.ingredients || 'tự nhiên'}", điểm nổi bật: "${dto.specialFeatures || 'tươi ngon trong ngày'}" trên ứng dụng giải cứu thực phẩm SurplusIQ.`,
+      fallbackDescription,
+      process.env.GEMINI_MODEL,
+    );
+    const description = geminiResult.text;
 
     const suggestedTags = [
       'Bánh tươi trong ngày',
@@ -181,8 +279,8 @@ export class AiGatewayService {
       userId,
       storeId,
       featureCode: 'AI_DESCRIBE_ITEM',
-      model: 'gemini-1.5-flash',
-      latencyMs: 280,
+      model: geminiResult.model,
+      latencyMs: geminiResult.latencyMs,
       inputSummary: `Describe item: ${dto.name}`,
       outputSummary: description.slice(0, 200),
     });
@@ -225,7 +323,14 @@ export class AiGatewayService {
     const foodSavedKg = Number((rescuedItemsCount * 0.4).toFixed(1));
     const co2SavedKg = Number((foodSavedKg * 2.5).toFixed(1));
 
-    const narrativeSummary = `Tuần qua, cửa hàng của bạn đã đồng hành tuyệt vời cùng cộng đồng SurplusIQ! Nhờ sự chủ động mở bán vào các khung giờ vàng, quán đã giải cứu thành công ${rescuedItemsCount} sản phẩm (tương đương ${foodSavedKg} kg thực phẩm sạch), cắt giảm ${co2SavedKg} kg phát thải khí CO2 ra môi trường, và mang lại tổng doanh thu bổ sung đạt ${totalRevenue.toLocaleString('vi-VN')} VND.`;
+    const fallbackSummary = `Tuần qua, cửa hàng của bạn đã đồng hành tuyệt vời cùng cộng đồng SurplusIQ! Nhờ sự chủ động mở bán vào các khung giờ vàng, quán đã giải cứu thành công ${rescuedItemsCount} sản phẩm (tương đương ${foodSavedKg} kg thực phẩm sạch), cắt giảm ${co2SavedKg} kg phát thải khí CO2 ra môi trường, và mang lại tổng doanh thu bổ sung đạt ${totalRevenue.toLocaleString('vi-VN')} VND.`;
+
+    const geminiResult = await this.callGemini(
+      `Hãy viết một đoạn tóm tắt truyền cảm hứng (2-3 câu, tiếng Việt) cho chủ cửa hàng F&B trên SurplusIQ với kết quả tuần qua: giải cứu ${rescuedItemsCount} món (${foodSavedKg} kg thực phẩm), giảm ${co2SavedKg} kg CO2 và đạt doanh thu ${totalRevenue.toLocaleString('vi-VN')} VND.`,
+      fallbackSummary,
+      process.env.GEMINI_MODEL,
+    );
+    const narrativeSummary = geminiResult.text;
 
     const keyInsights = [
       `Tỷ lệ giải cứu thực phẩm đạt mức ấn tượng với ${rescuedItemsCount} món bánh ngon.`,
@@ -237,8 +342,8 @@ export class AiGatewayService {
       userId,
       storeId,
       featureCode: 'AI_WEEKLY_SUMMARY',
-      model: 'gemini-1.5-flash',
-      latencyMs: 310,
+      model: geminiResult.model,
+      latencyMs: geminiResult.latencyMs,
       inputSummary: `Weekly summary for store ${storeId}`,
       outputSummary: narrativeSummary.slice(0, 200),
     });
@@ -315,17 +420,24 @@ export class AiGatewayService {
         };
       });
 
-    const explanation =
+    const fallbackExplanation =
       matched.length > 0
         ? `SurplusIQ đã tìm thấy ${matched.length} món bánh thơm ngon phù hợp với yêu cầu "${dto.query}" của bạn với giá cực kỳ tiết kiệm!`
         : `Hiện tại chưa có suất bán nào hoàn toàn khớp với yêu cầu "${dto.query}". Bạn có thể xem thêm các deal ưu đãi khác gần khu vực của mình nhé!`;
+
+    const geminiSearch = await this.callGemini(
+      `Khách hàng trên ứng dụng giải cứu thực phẩm SurplusIQ tìm kiếm: "${dto.query}". Hệ thống tìm được ${matched.length} suất ăn phù hợp (${matched.map((m) => `${m.title} - ${m.currentPrice}đ`).join(', ') || 'không có'}). Hãy viết 1-2 câu giới thiệu ngắn gọn, thân thiện bằng tiếng Việt.`,
+      fallbackExplanation,
+      process.env.GEMINI_CHAT_MODEL,
+    );
+    const explanation = geminiSearch.text;
 
     const aiLog = this.logRepo.create({
       userId,
       storeId: null,
       featureCode: 'CUSTOMER_AI_SEARCH',
-      model: 'gemini-1.5-flash',
-      latencyMs: 250,
+      model: geminiSearch.model,
+      latencyMs: geminiSearch.latencyMs,
       inputSummary: dto.query,
       outputSummary: explanation,
     });
@@ -526,7 +638,7 @@ export class AiGatewayService {
     await this.messageRepo.save(userMessage);
 
     const msgLower = dto.message.toLowerCase();
-    let reply: string;
+    let fallbackReply: string;
 
     const isOrderQuery =
       msgLower.includes('đơn hàng') ||
@@ -554,7 +666,7 @@ export class AiGatewayService {
         ) || recentOrders[0];
 
       if (!activeOrder) {
-        reply =
+        fallbackReply =
           'Để nhận hàng tại quán, bạn chỉ cần mở ứng dụng SurplusIQ, vào mục "Đơn hàng" để lấy vé mã QR và đưa nhân viên quầy quét khi đến khung giờ nhận (hoặc đọc mã PIN 6 số dự phòng). Hiện bạn chưa có đơn hàng nào đang chờ nhận trên SurplusIQ. Bạn có muốn mình gợi ý vài suất Cứu Món ngon giá tốt quanh khu vực của bạn tối nay không?';
       } else {
         const store = await this.storeRepo.findOne({ where: { id: activeOrder.storeId } });
@@ -563,7 +675,7 @@ export class AiGatewayService {
         const nowMs = Date.now();
 
         if (activeOrder.status === OrderStatus.PENDING_PAYMENT) {
-          reply = `Đơn hàng #${activeOrder.code} tại quán "${storeName}" của bạn hiện ĐANG CHỜ THANH TOÁN (thời gian giữ suất 10 phút theo BR-017). Vui lòng hoàn tất quét mã VietQR trong app để khóa giá và nhận Vé QR lấy món nhé!`;
+          fallbackReply = `Đơn hàng #${activeOrder.code} tại quán "${storeName}" của bạn hiện ĐANG CHỜ THANH TOÁN (thời gian giữ suất 10 phút theo BR-017). Vui lòng hoàn tất quét mã VietQR trong app để khóa giá và nhận Vé QR lấy món nhé!`;
         } else if (activeOrder.status === OrderStatus.PAID) {
           if (activeOrder.pickupSlot) {
             const slotMs = new Date(activeOrder.pickupSlot).getTime();
@@ -573,19 +685,19 @@ export class AiGatewayService {
             });
 
             if (nowMs < slotMs - 15 * 60 * 1000) {
-              reply = `Đơn hàng #${activeOrder.code} tại "${storeName}" (${storeAddress}) đã được thanh toán thành công! Khung giờ hẹn nhận của bạn bắt đầu lúc ${slotTimeStr}. Hiện chưa đến giờ nhận, quán đang chuẩn bị suất ăn tươi ngon nhất. Bạn vui lòng chờ thêm một chút trước khi di chuyển nhé! Khi chuẩn bị đi, bạn có thể bấm nút "Báo quán tôi sắp đến" trên app.`;
+              fallbackReply = `Đơn hàng #${activeOrder.code} tại "${storeName}" (${storeAddress}) đã được thanh toán thành công! Khung giờ hẹn nhận của bạn bắt đầu lúc ${slotTimeStr}. Hiện chưa đến giờ nhận, quán đang chuẩn bị suất ăn tươi ngon nhất. Bạn vui lòng chờ thêm một chút trước khi di chuyển nhé! Khi chuẩn bị đi, bạn có thể bấm nút "Báo quán tôi sắp đến" trên app.`;
             } else if (nowMs >= slotMs - 15 * 60 * 1000 && nowMs <= slotMs + 60 * 60 * 1000) {
-              reply = `Đơn hàng #${activeOrder.code} tại "${storeName}" (${storeAddress}) ĐÃ ĐẾN GIỜ NHẬN! Bạn hãy mở Vé QR trong mục "Đơn hàng" trên app SurplusIQ và đến quầy đọc mã hoặc đưa nhân viên quét để nhận món ngay nhé.`;
+              fallbackReply = `Đơn hàng #${activeOrder.code} tại "${storeName}" (${storeAddress}) ĐÃ ĐẾN GIỜ NHẬN! Bạn hãy mở Vé QR trong mục "Đơn hàng" trên app SurplusIQ và đến quầy đọc mã hoặc đưa nhân viên quét để nhận món ngay nhé.`;
             } else {
-              reply = `Đơn hàng #${activeOrder.code} tại "${storeName}" đã quá khung giờ nhận dự kiến (${slotTimeStr}). Bạn hãy đến quán ngay tại địa chỉ ${storeAddress} hoặc gọi quán theo SĐT ${store?.phone || ''} để nhân viên hỗ trợ giữ phần nhé.`;
+              fallbackReply = `Đơn hàng #${activeOrder.code} tại "${storeName}" đã quá khung giờ nhận dự kiến (${slotTimeStr}). Bạn hãy đến quán ngay tại địa chỉ ${storeAddress} hoặc gọi quán theo SĐT ${store?.phone || ''} để nhân viên hỗ trợ giữ phần nhé.`;
             }
           } else {
-            reply = `Đơn hàng #${activeOrder.code} tại quán "${storeName}" (${storeAddress}) đã thanh toán thành công và sẵn sàng nhận món. Bạn có thể mở mục "Vé QR" trong app và ghé quán nhận hàng ngay nhé!`;
+            fallbackReply = `Đơn hàng #${activeOrder.code} tại quán "${storeName}" (${storeAddress}) đã thanh toán thành công và sẵn sàng nhận món. Bạn có thể mở mục "Vé QR" trong app và ghé quán nhận hàng ngay nhé!`;
           }
         } else if (activeOrder.status === OrderStatus.PICKED_UP) {
-          reply = `Đơn hàng gần nhất #${activeOrder.code} tại "${storeName}" của bạn đã hoàn thành nhận hàng. Cảm ơn bạn đã đồng hành cứu thực phẩm cùng SurplusIQ! Bạn có hài lòng với món ăn không?`;
+          fallbackReply = `Đơn hàng gần nhất #${activeOrder.code} tại "${storeName}" của bạn đã hoàn thành nhận hàng. Cảm ơn bạn đã đồng hành cứu thực phẩm cùng SurplusIQ! Bạn có hài lòng với món ăn không?`;
         } else {
-          reply = `Đơn hàng #${activeOrder.code} tại "${storeName}" hiện ở trạng thái ${activeOrder.status}. Nếu cần hỗ trợ thêm, bạn có thể tạo khiếu nại hoặc liên hệ tổng đài SurplusIQ nhé!`;
+          fallbackReply = `Đơn hàng #${activeOrder.code} tại "${storeName}" hiện ở trạng thái ${activeOrder.status}. Nếu cần hỗ trợ thêm, bạn có thể tạo khiếu nại hoặc liên hệ tổng đài SurplusIQ nhé!`;
         }
       }
     } else if (
@@ -593,19 +705,26 @@ export class AiGatewayService {
       msgLower.includes('hủy đơn') ||
       msgLower.includes('đổi')
     ) {
-      reply =
+      fallbackReply =
         'Theo chính sách chống lãng phí, đơn hàng đã thanh toán không thể tự hủy. Tuy nhiên, nếu món ăn nhận được không đúng mô tả hoặc chất lượng có vấn đề, bạn có thể gửi khiếu nại kèm ảnh chụp trong 24 giờ kể từ khi nhận để được hoàn tiền 100% (BR-071).';
     } else if (
       msgLower.includes('bảo quản') ||
       msgLower.includes('để qua đêm') ||
       msgLower.includes('hâm')
     ) {
-      reply =
+      fallbackReply =
         'Các món cứu thực phẩm được chuẩn bị tươi mới trong ngày. Bạn nên dùng ngay hoặc bọc kín trong màng bọc thực phẩm để ngăn mát tủ lạnh (dùng trong 24-48 giờ). Khi ăn hãy nướng lại bằng nồi chiên không dầu 160°C trong 3 phút là bánh sẽ giòn ngon như mới!';
     } else {
-      reply =
+      fallbackReply =
         'Chào bạn! Mình là SaveBite AI – trợ lý cứu thực phẩm thông minh. Mình có thể giúp bạn kiểm tra tình trạng đơn hàng thật, giờ nhận món, mẹo hâm nóng, thành phần dị ứng hoặc đề xuất món ngon giá tốt hôm nay. Bạn cần mình hỗ trợ gì?';
     }
+
+    const geminiCustomer = await this.callGemini(
+      `Bạn là trợ lý SaveBite AI của ứng dụng giải cứu thực phẩm SurplusIQ dành cho khách hàng Việt Nam. Dữ liệu ngữ cảnh hệ thống: "${fallbackReply}". Hãy trả lời câu hỏi của khách hàng "${dto.message}" một cách thân thiện, ngắn gọn bằng tiếng Việt.`,
+      fallbackReply,
+      process.env.GEMINI_CHAT_MODEL,
+    );
+    const reply = geminiCustomer.text;
 
     const assistantMessage = this.messageRepo.create({
       conversationId: conversation.id,
@@ -618,8 +737,8 @@ export class AiGatewayService {
       userId,
       storeId: null,
       featureCode: 'CUSTOMER_AI_CHAT',
-      model: 'gemini-1.5-flash',
-      latencyMs: 290,
+      model: geminiCustomer.model,
+      latencyMs: geminiCustomer.latencyMs,
       inputSummary: dto.message.slice(0, 200),
       outputSummary: reply.slice(0, 200),
     });
@@ -669,25 +788,32 @@ export class AiGatewayService {
     const rating = review.rating;
     const tone = dto.tone || 'FRIENDLY';
 
-    let draftReply: string;
+    let fallbackDraft: string;
     if (rating >= 4) {
       if (tone === 'FORMAL') {
-        draftReply = `Kính gửi quý khách, ${storeName} xin trân trọng cảm ơn quý khách đã tin tưởng và đồng hành cùng sứ mệnh giải cứu thực phẩm xanh. Chúng tôi luôn nỗ lực duy trì chất lượng phục vụ tốt nhất và rất mong được tiếp tục đón tiếp quý khách.`;
+        fallbackDraft = `Kính gửi quý khách, ${storeName} xin trân trọng cảm ơn quý khách đã tin tưởng và đồng hành cùng sứ mệnh giải cứu thực phẩm xanh. Chúng tôi luôn nỗ lực duy trì chất lượng phục vụ tốt nhất và rất mong được tiếp tục đón tiếp quý khách.`;
       } else {
-        draftReply = `Dạ ${storeName} cảm ơn bạn rất nhiều vì lời khen dễ thương! Cùng nhau cứu món ngon giá tốt và bảo vệ môi trường bạn nhé. Hẹn gặp lại bạn ở những suất cứu món tiếp theo ạ! 🥰`;
+        fallbackDraft = `Dạ ${storeName} cảm ơn bạn rất nhiều vì lời khen dễ thương! Cùng nhau cứu món ngon giá tốt và bảo vệ môi trường bạn nhé. Hẹn gặp lại bạn ở những suất cứu món tiếp theo ạ! 🥰`;
       }
     } else if (rating === 3) {
-      draftReply = `Chào bạn, ${storeName} chân thành ghi nhận góp ý của bạn để cải thiện hương vị và dịch vụ tốt hơn nữa trong những lần tới. Cảm ơn bạn đã luôn ủng hộ tiệm!`;
+      fallbackDraft = `Chào bạn, ${storeName} chân thành ghi nhận góp ý của bạn để cải thiện hương vị và dịch vụ tốt hơn nữa trong những lần tới. Cảm ơn bạn đã luôn ủng hộ tiệm!`;
     } else {
-      draftReply = `Kính gửi quý khách, ${storeName} thành thật xin lỗi vì trải nghiệm chưa trọn vẹn của bạn lần này. Chúng tôi đã nghiêm túc rà soát lại quy trình chuẩn bị và đóng gói món. Rất mong quý khách liên hệ hotline của quán để chúng tôi được lắng nghe và hỗ trợ chu đáo nhất!`;
+      fallbackDraft = `Kính gửi quý khách, ${storeName} thành thật xin lỗi vì trải nghiệm chưa trọn vẹn của bạn lần này. Chúng tôi đã nghiêm túc rà soát lại quy trình chuẩn bị và đóng gói món. Rất mong quý khách liên hệ hotline của quán để chúng tôi được lắng nghe và hỗ trợ chu đáo nhất!`;
     }
+
+    const geminiReview = await this.callGemini(
+      `Hãy soạn câu phản hồi ngắn gọn (2-3 câu, giọng điệu ${tone}, tiếng Việt) thay mặt cửa hàng "${storeName}" trả lời đánh giá ${rating}/5 sao của khách hàng với nhận xét: "${review.comment || 'Không có lời nhắn'}".`,
+      fallbackDraft,
+      process.env.GEMINI_MODEL,
+    );
+    const draftReply = geminiReview.text;
 
     const aiLog = this.logRepo.create({
       userId,
       storeId,
       featureCode: 'STORE_AI_REVIEW_REPLY',
-      model: 'gemini-1.5-flash',
-      latencyMs: 310,
+      model: geminiReview.model,
+      latencyMs: geminiReview.latencyMs,
       inputSummary: `Review rating: ${rating}, comment: ${review.comment || 'None'}`,
       outputSummary: draftReply.slice(0, 200),
     });
@@ -734,22 +860,29 @@ export class AiGatewayService {
     const store = await this.storeRepo.findOne({ where: { id: storeId } });
     const storeName = store?.name || 'Cửa hàng';
     const action = dto.action || 'REFUND';
-    let draftReply: string;
+    let fallbackDraft: string;
 
     if (action === 'REFUND') {
-      draftReply = `Kính gửi quý khách, ${storeName} xin chân thành cáo lỗi về sự cố đối với đơn hàng của quý khách (${complaint.description}). Chúng tôi đã kiểm tra và đồng ý hoàn tiền 100% cho đơn hàng này theo đúng chính sách của SurplusIQ (BR-054). ${dto.notes ? dto.notes + '. ' : ''}Khoản hoàn tiền sẽ được chuyển về tài khoản của bạn trong 24 giờ. Rất mong quý khách thông cảm và tiếp tục ủng hộ tiệm!`;
+      fallbackDraft = `Kính gửi quý khách, ${storeName} xin chân thành cáo lỗi về sự cố đối với đơn hàng của quý khách (${complaint.description}). Chúng tôi đã kiểm tra và đồng ý hoàn tiền 100% cho đơn hàng này theo đúng chính sách của SurplusIQ (BR-054). ${dto.notes ? dto.notes + '. ' : ''}Khoản hoàn tiền sẽ được chuyển về tài khoản của bạn trong 24 giờ. Rất mong quý khách thông cảm và tiếp tục ủng hộ tiệm!`;
     } else if (action === 'REJECT') {
-      draftReply = `Kính gửi quý khách, ${storeName} đã tiếp nhận và xem xét kỹ lưỡng khiếu nại của quý khách về đơn hàng. Sau khi đối chiếu hình ảnh lưu mẫu trước khi giao và quy định tại quầy (BR-056), chúng tôi xin phép chưa thể chấp nhận yêu cầu này do sản phẩm đã bàn giao đúng tình trạng và đúng khung giờ quy định. ${dto.notes ? dto.notes + '. ' : ''}Nếu quý khách có thêm thắc mắc, vui lòng liên hệ hotline quán để được giải thích thêm. Chân thành cảm ơn quý khách.`;
+      fallbackDraft = `Kính gửi quý khách, ${storeName} đã tiếp nhận và xem xét kỹ lưỡng khiếu nại của quý khách về đơn hàng. Sau khi đối chiếu hình ảnh lưu mẫu trước khi giao và quy định tại quầy (BR-056), chúng tôi xin phép chưa thể chấp nhận yêu cầu này do sản phẩm đã bàn giao đúng tình trạng và đúng khung giờ quy định. ${dto.notes ? dto.notes + '. ' : ''}Nếu quý khách có thêm thắc mắc, vui lòng liên hệ hotline quán để được giải thích thêm. Chân thành cảm ơn quý khách.`;
     } else {
-      draftReply = `Kính gửi quý khách, ${storeName} xin gửi lời xin lỗi chân thành vì trải nghiệm chưa thật sự hài lòng của quý khách (${complaint.description}). Để tạ lỗi, chúng tôi xin gửi tặng quý khách mã ưu đãi giảm 20% cho lần ghé tiếp theo. ${dto.notes ? dto.notes + '. ' : ''}Chúng tôi đã nhắc nhở nhân viên quầy để không tái diễn sự cố. Chúc quý khách một ngày tốt lành!`;
+      fallbackDraft = `Kính gửi quý khách, ${storeName} xin gửi lời xin lỗi chân thành vì trải nghiệm chưa thật sự hài lòng của quý khách (${complaint.description}). Để tạ lỗi, chúng tôi xin gửi tặng quý khách mã ưu đãi giảm 20% cho lần ghé tiếp theo. ${dto.notes ? dto.notes + '. ' : ''}Chúng tôi đã nhắc nhở nhân viên quầy để không tái diễn sự cố. Chúc quý khách một ngày tốt lành!`;
     }
+
+    const geminiComplaint = await this.callGemini(
+      `Hãy soạn phản hồi lịch sự (2-3 câu, tiếng Việt) thay mặt cửa hàng "${storeName}" xử lý khiếu nại của khách ("${complaint.description}") với hướng xử lý "${action}" (${dto.notes || ''}).`,
+      fallbackDraft,
+      process.env.GEMINI_MODEL,
+    );
+    const draftReply = geminiComplaint.text;
 
     const aiLog = this.logRepo.create({
       userId,
       storeId,
       featureCode: 'STORE_AI_COMPLAINT_REPLY',
-      model: 'gemini-1.5-flash',
-      latencyMs: 340,
+      model: geminiComplaint.model,
+      latencyMs: geminiComplaint.latencyMs,
       inputSummary: `Complaint ID: ${dto.complaintId}, Action: ${action}`,
       outputSummary: draftReply.slice(0, 200),
     });
@@ -814,7 +947,7 @@ export class AiGatewayService {
       userId,
       storeId,
       featureCode: 'STORE_AI_MARKETING_DRAFT',
-      model: 'gemini-1.5-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
       latencyMs: 330,
       inputSummary: `Draft campaign for ${itemName}`,
       outputSummary: proposals[0].title,
@@ -887,14 +1020,21 @@ export class AiGatewayService {
           ]
         : ['Tiếp tục duy trì phong độ phục vụ tốt hiện tại!'];
 
-    const summary = `Qua phân tích ${total} đánh giá gần nhất, cửa hàng đạt chỉ số hài lòng ${sentimentScore}%. Tỷ lệ phản hồi tích cực chiếm ${Math.round((pos / total) * 100)}%. Khách hàng đặc biệt hài lòng với độ tươi ngon và tính tiện lợi của quy trình nhận hàng.`;
+    const fallbackSummary = `Qua phân tích ${total} đánh giá gần nhất, cửa hàng đạt chỉ số hài lòng ${sentimentScore}%. Tỷ lệ phản hồi tích cực chiếm ${Math.round((pos / total) * 100)}%. Khách hàng đặc biệt hài lòng với độ tươi ngon và tính tiện lợi của quy trình nhận hàng.`;
+
+    const geminiSentiment = await this.callGemini(
+      `Hãy tóm tắt ngắn gọn (2 câu, tiếng Việt) kết quả phân tích cảm xúc từ ${total} đánh giá khách hàng của cửa hàng F&B trên SurplusIQ (tích cực: ${pos}, trung lập: ${neu}, tiêu cực: ${neg}, điểm hài lòng: ${sentimentScore}%).`,
+      fallbackSummary,
+      process.env.GEMINI_MODEL,
+    );
+    const summary = geminiSentiment.text;
 
     const aiLog = this.logRepo.create({
       userId,
       storeId,
       featureCode: 'STORE_AI_SENTIMENT_ANALYSIS',
-      model: 'gemini-1.5-flash',
-      latencyMs: 340,
+      model: geminiSentiment.model,
+      latencyMs: geminiSentiment.latencyMs,
       inputSummary: `Analyzed ${total} reviews for store ${storeId}`,
       outputSummary: summary.slice(0, 200),
     });
