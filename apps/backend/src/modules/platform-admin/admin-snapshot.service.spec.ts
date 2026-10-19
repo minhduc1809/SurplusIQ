@@ -33,5 +33,19 @@ describe('AdminSnapshotService read model', () => {
     });
     expect(snapshot.counts.users).toBe(1);
     expect(queries.some((sql) => sql.includes('"week_start"::text'))).toBe(true);
+
+    const paginated = await service.readCollection('orders', {
+      page: 1,
+      limit: 10,
+      search: 'DEMO1',
+    });
+    expect(paginated).toMatchObject({
+      key: 'orders',
+      page: 1,
+      limit: 10,
+      total: 1,
+      totalPages: 1,
+    });
+    expect(paginated.items).toHaveLength(1);
   });
 });

@@ -7,11 +7,14 @@ import {
   Headers,
   Param,
   Ip,
+  UseGuards,
   UsePipes,
   ValidationPipe,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBearerAuth } from '@nestjs/swagger';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
 import {
   CustomerRegisterDto,
@@ -63,7 +66,7 @@ export class AuthController {
   }
 
   // -------------------------------------------------------------------------
-  // CỬA HÀNG (STORE)
+  // CỬA HÀNG (STORE) & QUẢN TRỊ NỀN TẢNG (ADMIN)
   // -------------------------------------------------------------------------
 
   @Post('auth/store/register')
@@ -79,9 +82,15 @@ export class AuthController {
   }
 
   @Post('auth/store/login')
-  @ApiOperation({ summary: 'Đăng nhập cửa hàng trên cổng Web quản trị (tách kênh 9.1)' })
+  @ApiOperation({ summary: 'Đăng nhập cửa hàng trên cổng quản trị (tách kênh 9.1)' })
   async loginStore(@Body() dto: StoreLoginDto, @Ip() ip: string) {
     return this.authService.loginStore(dto, ip);
+  }
+
+  @Post('auth/admin/login')
+  @ApiOperation({ summary: 'Đăng nhập dành riêng cho Platform Super Admin (ADMIN)' })
+  async loginAdmin(@Body() dto: StoreLoginDto, @Ip() ip: string) {
+    return this.authService.loginAdmin(dto, ip);
   }
 
   // -------------------------------------------------------------------------
@@ -96,13 +105,14 @@ export class AuthController {
 
   @Post('auth/logout')
   @ApiOperation({ summary: 'Đăng xuất và thu hồi Refresh Token trên thiết bị (R1-004)' })
-  @ApiHeader({ name: 'x-user-id' })
-  @ApiHeader({ name: 'x-device-id' })
-  async logout(@Headers('x-user-id') userId: string, @Headers('x-device-id') deviceId: string) {
-    return this.authService.logout(
-      userId || '00000000-0000-0000-0000-000000000001',
-      deviceId || 'default-device',
-    );
+  @ApiHeader({ name: 'x-user-id', required: false })
+  @ApiHeader({ name: 'x-device-id', required: false })
+  async logout(
+    @Headers('x-user-id') userId?: string,
+    @Headers('x-device-id') deviceId?: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.authService.logout(userId, deviceId, authorization);
   }
 
   // -------------------------------------------------------------------------
@@ -110,9 +120,15 @@ export class AuthController {
   // -------------------------------------------------------------------------
 
   @Post('auth/password/change')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Đổi mật khẩu và thu hồi các phiên đăng nhập khác (BR-003, R1-007)' })
-  @ApiHeader({ name: 'x-user-id' })
-  async changePassword(@Headers('x-user-id') userId: string, @Body() dto: ChangePasswordDto) {
+  async changePassword(
+    @CurrentUser('userId') jwtUserId: string,
+    @Headers('x-user-id') headerUserId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    const userId = jwtUserId || headerUserId;
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException(
         'Chưa đăng nhập. Vui lòng đăng nhập để thực hiện đổi mật khẩu.',
@@ -138,9 +154,14 @@ export class AuthController {
   // -------------------------------------------------------------------------
 
   @Get('me/sessions')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách các phiên đăng nhập đang hoạt động (R1-014)' })
-  @ApiHeader({ name: 'x-user-id' })
-  async getSessions(@Headers('x-user-id') userId: string) {
+  async getSessions(
+    @CurrentUser('userId') jwtUserId: string,
+    @Headers('x-user-id') headerUserId: string,
+  ) {
+    const userId = jwtUserId || headerUserId;
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập. Vui lòng đăng nhập để xem phiên hoạt động.');
     }
@@ -148,9 +169,15 @@ export class AuthController {
   }
 
   @Delete('me/sessions/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Thu hồi phiên đăng nhập trên thiết bị cụ thể (R1-014)' })
-  @ApiHeader({ name: 'x-user-id' })
-  async revokeSession(@Headers('x-user-id') userId: string, @Param('id') sessionId: string) {
+  async revokeSession(
+    @CurrentUser('userId') jwtUserId: string,
+    @Headers('x-user-id') headerUserId: string,
+    @Param('id') sessionId: string,
+  ) {
+    const userId = jwtUserId || headerUserId;
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập.');
     }
@@ -158,9 +185,15 @@ export class AuthController {
   }
 
   @Post('me/2fa/toggle')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Bật / Tắt xác thực 2 bước (2FA) (R1-013)' })
-  @ApiHeader({ name: 'x-user-id' })
-  async toggle2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
+  async toggle2fa(
+    @CurrentUser('userId') jwtUserId: string,
+    @Headers('x-user-id') headerUserId: string,
+    @Body() dto: Enable2faDto,
+  ) {
+    const userId = jwtUserId || headerUserId;
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập.');
     }
@@ -168,9 +201,15 @@ export class AuthController {
   }
 
   @Post('me/2fa/enable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Kích hoạt xác thực 2 bước (2FA) (R1-013)' })
-  @ApiHeader({ name: 'x-user-id' })
-  async enable2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
+  async enable2fa(
+    @CurrentUser('userId') jwtUserId: string,
+    @Headers('x-user-id') headerUserId: string,
+    @Body() dto: Enable2faDto,
+  ) {
+    const userId = jwtUserId || headerUserId;
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập.');
     }
@@ -181,9 +220,15 @@ export class AuthController {
   }
 
   @Post('me/2fa/disable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Hủy kích hoạt xác thực 2 bước (2FA) (R1-013)' })
-  @ApiHeader({ name: 'x-user-id' })
-  async disable2fa(@Headers('x-user-id') userId: string, @Body() dto: Enable2faDto) {
+  async disable2fa(
+    @CurrentUser('userId') jwtUserId: string,
+    @Headers('x-user-id') headerUserId: string,
+    @Body() dto: Enable2faDto,
+  ) {
+    const userId = jwtUserId || headerUserId;
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập.');
     }

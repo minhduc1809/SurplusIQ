@@ -4,56 +4,16 @@ import ReactDOM from 'react-dom/client';
 
 import './index.css';
 
-// Chuyển URL gốc tới route Admin hợp lệ.
-if (window.location.pathname === '/') {
+// Chuyển mọi URL ngoài /admin tới route Admin hợp lệ.
+if (
+  window.location.pathname === '/' ||
+  (window.location.pathname !== '/admin' && !window.location.pathname.startsWith('/admin/'))
+) {
   window.history.replaceState(null, '', '/admin/login');
 }
 
-// =====================================================
-// 1. TẢI ỨNG DỤNG THEO TỪNG KHU VỰC
-// =====================================================
-
-/**
- * Tách ứng dụng hiện tại và Super Admin
- * thành hai phần được tải độc lập.
- *
- * Người dùng truy cập Admin không cần tải
- * toàn bộ mã nguồn giao diện Customer/Store.
- */
-const MainApp = lazy(() => import('./App'));
-
 const AdminApp = lazy(() => import('./modules/platform-admin/AdminApp'));
 
-// =====================================================
-// 2. XÁC ĐỊNH KHU VỰC ĐIỀU HƯỚNG
-// =====================================================
-
-/**
- * Kiểm tra URL hiện tại có thuộc khu vực
- * quản trị nền tảng hay không.
- *
- * Ví dụ hợp lệ:
- * /admin
- * /admin/login
- * /admin/overview
- * /admin/merchants
- *
- * Không coi /administrator là /admin.
- */
-function isAdminRoute(pathname: string): boolean {
-  return pathname === '/admin' || pathname.startsWith('/admin/');
-}
-
-// =====================================================
-// 3. GIAO DIỆN TRONG LÚC TẢI ỨNG DỤNG
-// =====================================================
-
-/**
- * Màn hình tải tối giản.
- *
- * Không hiển thị thông tin quản trị khi
- * ứng dụng chưa được khởi tạo hoàn chỉnh.
- */
 function AppLoadingScreen() {
   return (
     <div
@@ -94,34 +54,16 @@ function AppLoadingScreen() {
           fontWeight: 600,
         }}
       >
-        Đang tải SurplusIQ...
+        Đang tải SurplusIQ Admin...
       </p>
     </div>
   );
 }
 
-// =====================================================
-// 4. CHỌN ỨNG DỤNG CẦN HIỂN THỊ
-// =====================================================
-
-/**
- * Chỉ có một ứng dụng được render tại một
- * thời điểm dựa trên đường dẫn hiện tại.
- */
 function RootApplication() {
-  const pathname = window.location.pathname;
-
-  const isAdmin = isAdminRoute(pathname);
-
   return (
     <Suspense fallback={<AppLoadingScreen />}>
-      {isAdmin ? (
-        <AdminApp />
-      ) : (
-        <div data-surplusiq-main-root="" style={{ minHeight: '100vh' }}>
-          <MainApp />
-        </div>
-      )}
+      <AdminApp />
     </Suspense>
   );
 }

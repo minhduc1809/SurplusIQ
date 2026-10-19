@@ -97,6 +97,9 @@ export function saveAdminRecord(
         : adminApi.post('/admin/users', body, postOptions);
     }
     case 'stores': {
+      const latRaw = values.latitude?.trim() ?? '';
+      const lngRaw = values.longitude?.trim() ?? '';
+      const hasCoordinates = latRaw !== '' && lngRaw !== '';
       const body = {
         name: values.name.trim(),
         address: values.address.trim(),
@@ -104,6 +107,12 @@ export function saveAdminRecord(
         logoUrl: values.logoUrl.trim() || null,
         status: values.status,
         ...(!row ? { ownerUserId: values.ownerUserId } : {}),
+        ...(hasCoordinates
+          ? {
+              latitude: Number(latRaw),
+              longitude: Number(lngRaw),
+            }
+          : {}),
       };
       return row
         ? adminApi.patch(`/admin/stores/${id}`, body)

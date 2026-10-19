@@ -4,11 +4,14 @@ import {
   IsEnum,
   IsIn,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -80,6 +83,18 @@ export class UpdateAdminStoreDto {
   @ValidateIf((_, value) => value !== undefined)
   @IsEnum(StoreStatus)
   status?: StoreStatus;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number | null;
 }
 
 export class CreateAdminStoreDto extends UpdateAdminStoreDto {

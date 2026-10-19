@@ -4,6 +4,7 @@ import type { MouseEvent } from 'react';
 import {
   AppBar,
   Avatar,
+  Badge,
   Box,
   Breadcrumbs,
   ButtonBase,
@@ -40,6 +41,7 @@ import {
 
 import { AdminThemeToggle } from '../theme/AdminThemeProvider';
 import { ADMIN_LAYOUT } from '../theme/create-theme';
+import { useOptionalAdminSnapshot } from '../snapshot/AdminSnapshotProvider';
 
 import {
   ADMIN_NAV_ITEMS,
@@ -123,6 +125,62 @@ export function AdminTopbar({
   const [notificationAnchor, setNotificationAnchor] = useState<HTMLElement | null>(null);
 
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
+
+  const snapshotState = useOptionalAdminSnapshot();
+
+  const operationalAlerts = useMemo(() => {
+    const collections = snapshotState?.data?.collections;
+    if (!collections) return [];
+
+    const pendingStores = (collections.stores ?? []).filter(
+      (row) => row.status === 'PENDING_VERIFY',
+    ).length;
+    const pendingComplaints = (collections.complaints ?? []).filter(
+      (row) => row.status === 'PENDING_STORE',
+    ).length;
+    const pendingViolations = (collections.violations ?? []).filter(
+      (row) => row.status === 'PENDING',
+    ).length;
+    const openAnomalies = (collections.anomalies ?? []).filter(
+      (row) => row.status === 'OPEN',
+    ).length;
+
+    return [
+      {
+        key: 'pending-stores',
+        title: 'Cửa hàng chờ duyệt KYC',
+        count: pendingStores,
+        href: ADMIN_ROUTES.merchants,
+        description: `${pendingStores} hồ sơ đối tác đang chờ xác minh`,
+      },
+      {
+        key: 'pending-complaints',
+        title: 'Khiếu nại chờ trọng tài',
+        count: pendingComplaints,
+        href: ADMIN_ROUTES.disputes,
+        description: `${pendingComplaints} khiếu nại cần xử lý hoàn tiền / phán quyết`,
+      },
+      {
+        key: 'pending-violations',
+        title: 'Báo cáo vi phạm mới',
+        count: pendingViolations,
+        href: ADMIN_ROUTES.disputes,
+        description: `${pendingViolations} báo cáo vi phạm đang chờ xem xét`,
+      },
+      {
+        key: 'open-anomalies',
+        title: 'Cảnh báo bất thường AI',
+        count: openAnomalies,
+        href: ADMIN_ROUTES.overview,
+        description: `${openAnomalies} cảnh báo vận hành đang mở trên toàn sàn`,
+      },
+    ].filter((item) => item.count > 0);
+  }, [snapshotState?.data]);
+
+  const totalAlerts = useMemo(
+    () => operationalAlerts.reduce((sum, item) => sum + item.count, 0),
+    [operationalAlerts],
+  );
 
   // ---------------------------------------------------
   // Xác định trang hiện tại
@@ -464,7 +522,9 @@ export function AdminTopbar({
                   height: 40,
                 }}
               >
-                <Bell size={21} />
+                <Badge badgeContent={totalAlerts} color="error" max={99}>
+                  <Bell size={21} />
+                </Badge>
               </IconButton>
             </Tooltip>
 
@@ -823,36 +883,66 @@ export function AdminTopbar({
 
         <Divider />
 
-        <Stack
-          spacing={1.5}
-          sx={{
-            alignItems: 'center',
-            px: 3,
-            py: 5,
-            textAlign: 'center',
-          }}
-        >
-          <Info size={30} color="#98A2B3" />
-
-          <Typography
+        {operationalAlerts.length > 0 ? (
+          <List disablePadding sx={{ py: 1 }}>
+            {operationalAlerts.map((alert) => (
+              <ListItemButton
+                key={alert.key}
+                onClick={() => {
+                  setNotificationAnchor(null);
+                  navigateTo(alert.href);
+                }}
+                sx={{ px: 2.5, py: 1.25 }}
+              >
+                <ListItemText
+                  primary={alert.title}
+                  secondary={alert.description}
+                  slotProps={{
+                    primary: { sx: { fontSize: 13, fontWeight: 700 } },
+                    secondary: { sx: { fontSize: 12, mt: 0.25 } },
+                  }}
+                />
+                <Chip
+                  label={alert.count}
+                  color="warning"
+                  size="small"
+                  sx={{ fontWeight: 700, ml: 1 }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+        ) : (
+          <Stack
+            spacing={1.5}
             sx={{
-              fontSize: 13,
-              fontWeight: 700,
+              alignItems: 'center',
+              px: 3,
+              py: 5,
+              textAlign: 'center',
             }}
           >
-            Chưa có API thông báo Admin
-          </Typography>
+            <Info size={30} color="#98A2B3" />
 
-          <Typography
-            sx={{
-              fontSize: 12,
-              lineHeight: 1.7,
-              color: 'text.secondary',
-            }}
-          >
-            Backend hiện tại chưa có endpoint thông báo toàn sàn dành riêng cho Super Admin.
-          </Typography>
-        </Stack>
+            <Typography
+              sx={{
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              Không có cảnh báo tồn đọng
+            </Typography>
+
+            <Typography
+              sx={{
+                fontSize: 12,
+                lineHeight: 1.7,
+                color: 'text.secondary',
+              }}
+            >
+              Tất cả hồ sơ KYC, khiếu nại và báo cáo vi phạm trên toàn sàn đã được xử lý.
+            </Typography>
+          </Stack>
+        )}
       </Popover>
 
       {/* ============================================

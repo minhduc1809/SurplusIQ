@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -17,5 +17,21 @@ export class AdminSnapshotController {
   @Get('snapshot')
   read() {
     return this.snapshots.read();
+  }
+
+  @Get('collections/:key')
+  readCollection(
+    @Param('key') key: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.snapshots.readCollection(key, {
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 25,
+      search,
+      status,
+    });
   }
 }

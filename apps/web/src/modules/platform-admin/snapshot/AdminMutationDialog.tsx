@@ -48,6 +48,8 @@ function initialValues(collection: string, row: SnapshotRow | null): Values {
         logoUrl: value('logo_url'),
         ownerUserId: '',
         status: value('status', 'PENDING_VERIFY'),
+        latitude: value('latitude'),
+        longitude: value('longitude'),
       };
     case 'complaints':
       return { decision: 'ACCEPT', refundAmount: '', reason: '' };
@@ -199,6 +201,13 @@ export function AdminMutationDialog({
       setError('Cần nhập ít nhất một email hoặc số điện thoại.');
       return;
     }
+    if (
+      collection === 'stores' &&
+      Boolean(values.latitude?.trim()) !== Boolean(values.longitude?.trim())
+    ) {
+      setError('Cần nhập đồng thời cả Vĩ độ (Latitude) và Kinh độ (Longitude) cho tọa độ PostGIS.');
+      return;
+    }
     pending.current = true;
     setSaving(true);
     setError(null);
@@ -328,6 +337,20 @@ export function AdminMutationDialog({
             {input('address', 'Địa chỉ', { required: true, maxLength: 255 })}
             {input('phone', 'Số điện thoại', { required: true, type: 'tel', maxLength: 20 })}
             {input('logoUrl', 'URL ảnh cửa hàng', { type: 'url', maxLength: 500 })}
+            {input('latitude', 'Vĩ độ (Latitude)', {
+              type: 'number',
+              min: -90,
+              max: 90,
+              step: 0.000001,
+              helperText: 'Tùy chọn tọa độ PostGIS (VD TP.HCM: 10.7769).',
+            })}
+            {input('longitude', 'Kinh độ (Longitude)', {
+              type: 'number',
+              min: -180,
+              max: 180,
+              step: 0.000001,
+              helperText: 'Tùy chọn tọa độ PostGIS (VD TP.HCM: 106.7009).',
+            })}
             {select('status', 'Trạng thái', [
               ['PENDING_VERIFY', 'Chờ xác minh'],
               ['ACTIVE', 'Hoạt động'],

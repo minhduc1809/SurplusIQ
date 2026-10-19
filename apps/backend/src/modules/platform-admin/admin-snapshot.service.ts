@@ -1,6 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import * as definitions from './data-collections.json';
+
+export interface AdminCollectionQueryOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+}
 
 @Injectable()
 export class AdminSnapshotService {
@@ -60,5 +67,49 @@ export class AdminSnapshotService {
         collections,
       };
     });
+  }
+
+  async readCollection(key: string, options: AdminCollectionQueryOptions = {}) {
+    if (!Object.prototype.hasOwnProperty.call(definitions, key)) {
+      throw new NotFoundException(`Collection "${key}" không tồn tại.`);
+    }
+    const snapshot = await this.read();
+    const rawRows = snapshot.collections[key] ?? [];
+    const normalizedStatus = options.status?.trim();
+    const normalizedSearch = options.search?.trim().toLowerCase();
+
+    const filtered = rawRows.filter((row) => {
+      if (normalizedStatus && normalizedStatus !== 'ALL') {
+        const rowStatus = String(row.status ?? row.severity ?? row.plan ?? '');
+        if (rowStatus !== normalizedStatus) {
+          return false;
+        }
+      }
+      if (normalizedSearch) {
+        return Object.values(row).some(
+          (val) =>
+            val !== null &&
+            val !== undefined &&
+            String(val).toLowerCase().includes(normalizedSearch),
+        );
+      }
+      return true;
+    });
+
+    const limit = Math.min(Math.max(Number(options.limit) || 25, 1), 200);
+    const total = filtered.length;
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+    const page = Math.min(Math.max(Number(options.page) || 1, 1), totalPages);
+    const start = (page - 1) * limit;
+
+    return {
+      key,
+      exportedAt: snapshot.exportedAt,
+      page,
+      limit,
+      total,
+      totalPages,
+      items: filtered.slice(start, start + limit),
+    };
   }
 }
