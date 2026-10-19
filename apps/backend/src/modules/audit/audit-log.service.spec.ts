@@ -1,4 +1,4 @@
-import { AuditLogService } from './audit-log.service';
+import { AuditLogService, SYSTEM_ACTOR_UUID } from './audit-log.service';
 
 describe('AuditLogService Unit Tests (R2-075, BR-080)', () => {
   let service: AuditLogService;
@@ -17,8 +17,8 @@ describe('AuditLogService Unit Tests (R2-075, BR-080)', () => {
   describe('log (Append-only audit trail)', () => {
     it('should create and save audit log with full context', async () => {
       const params = {
-        storeId: 'store-1',
-        actorId: 'user-1',
+        storeId: '11111111-1111-4111-8111-111111111111',
+        actorId: '22222222-2222-4222-8222-222222222222',
         actorRole: 'OWNER',
         action: 'PRICE_CHANGED',
         targetType: 'OFFER',
@@ -35,6 +35,27 @@ describe('AuditLogService Unit Tests (R2-075, BR-080)', () => {
       expect(mockAuditRepo.save).toHaveBeenCalled();
       expect(result.id).toBe('audit-1');
       expect(result.action).toBe('PRICE_CHANGED');
+    });
+
+    it('should normalize non-UUID system actorId ("SYSTEM") to SYSTEM_ACTOR_UUID for PostgreSQL uuid compatibility', async () => {
+      const result = await service.log({
+        storeId: '11111111-1111-4111-8111-111111111111',
+        actorId: 'SYSTEM',
+        actorRole: 'SYSTEM',
+        action: 'ORDER_HOLD_RELEASED',
+        targetType: 'ORDER',
+        targetId: '33333333-3333-4333-8333-333333333333',
+        newValue: { status: 'HOLD_EXPIRED' },
+      });
+
+      expect(mockAuditRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: SYSTEM_ACTOR_UUID,
+          actorRole: 'SYSTEM',
+          action: 'ORDER_HOLD_RELEASED',
+        }),
+      );
+      expect(result.actorId).toBe(SYSTEM_ACTOR_UUID);
     });
   });
 
