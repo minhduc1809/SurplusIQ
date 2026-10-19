@@ -89,10 +89,10 @@ function SidebarLogo({
   return (
     <Stack
       direction="row"
-      alignItems="center"
-      justifyContent={collapsed ? 'center' : 'flex-start'}
       spacing={1.25}
       sx={{
+        alignItems: 'center',
+        justifyContent: collapsed ? 'center' : 'flex-start',
         px: collapsed ? 1 : 2.5,
         minHeight: ADMIN_LAYOUT.headerHeight,
         borderBottom: `1px solid ${SIDEBAR_BORDER}`,
@@ -122,7 +122,7 @@ function SidebarLogo({
       )}
 
       {!collapsed && (
-        <Stack direction="row" alignItems="center" spacing={0.25} sx={{ minWidth: 0 }}>
+        <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center', minWidth: 0 }}>
           <Typography
             sx={{
               fontSize: 21,
@@ -403,9 +403,9 @@ function SidebarFooter({
       {!collapsed && (
         <Stack
           direction="row"
-          alignItems="center"
           spacing={1.25}
           sx={{
+            alignItems: 'center',
             px: 2.25,
             py: 1.75,
           }}
