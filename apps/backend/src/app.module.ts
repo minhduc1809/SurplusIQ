@@ -31,7 +31,8 @@ import { PlatformAdminModule } from './modules/platform-admin/platform-admin.mod
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../../.env',
+      envFilePath: ['../../.env', '../.env', '.env'],
+      expandVariables: true,
     }),
     SettingsModule,
     AuthModule,
