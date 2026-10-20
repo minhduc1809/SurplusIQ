@@ -91,9 +91,9 @@ ngõ tìm kiếm    Bản đồ OSM & Socket   Rescue Pool nâng   trưởng (KX
 
 ---
 
-### GIAI ĐOẠN 2: Hoàn Thiện Backend Core API & Hậu Mãi Đánh Giá (Ưu tiên P1)
+### GIAI ĐOẠN 2: Hoàn Thiện Backend Core API & Hậu Mãi Đánh Giá (Ưu tiên P1) - [x] ĐÃ HOÀN THÀNH 100%
 
-#### Task 2.1: [Backend + Android] Đánh giá công khai của quán (K15) & Đánh giá của tôi (K38)
+#### Task 2.1: [Backend + Android] Đánh giá công khai của quán (K15) & Đánh giá của tôi (K38) - [x] ĐÃ HOÀN THÀNH
 - **Backend:**
   - Viết `GET customer/stores/:id/reviews` trong `CustomerStoresController` (kèm thống kê sao trung bình, phân bổ 1..5 sao và phân trang).
   - Viết `GET customer/reviews` trong `CustomerInteractionsController` (lấy danh sách đánh giá của user, kèm cờ `canEdit: boolean` trong 24h và phản hồi của quán).
@@ -101,36 +101,21 @@ ngõ tìm kiếm    Bản đồ OSM & Socket   Rescue Pool nâng   trưởng (KX
   - Tạo `StoreReviewsScreen.kt` (K15).
   - Hoàn thiện `MyReviewsScreen.kt` (K38): Hỗ trợ sửa và ẩn đánh giá.
 
-#### Task 2.2: [Backend + Android] Upload Media & Chỉnh sửa hồ sơ (K53, K34/K36)
+#### Task 2.2: [Backend + Android] Upload Media & Chỉnh sửa hồ sơ (K53, K34/K36) - [x] ĐÃ HOÀN THÀNH
 - **Backend:**
   - Triển khai `POST upload/image` nhận multipart/form-data, validate mime-type và dung lượng <= 5MB.
 - **Android:**
   - Tạo `EditProfileScreen.kt` (K53): Đổi avatar, cắt tròn, cập nhật họ tên.
   - Tích hợp bộ chọn ảnh vào `CreateComplaintScreen.kt` và `ComplaintDetailScreen.kt`.
 
-#### Task 2.3: [K57] Màn hình Cài đặt thông báo độc lập
-- **Android:**
-  - Tách thành màn `NotificationSettingsScreen.kt` riêng biệt với 5 nhóm thông báo và giờ yên lặng.
+#### Task 2.3: [K57] Màn hình Cài đặt thông báo độc lập - [x] ĐÃ HOÀN THÀNH
+- **Backend:** Thêm API `GET /customer/notification-settings` và `PUT /customer/notification-settings`.
+- **Android:** Tách thành màn `NotificationSettingsScreen.kt` riêng biệt kết nối trực tiếp `NotificationsViewModel`.
 
-#### Task 2.4: [K08, K10, Backend, Web] Chuyển Đổi Bản Đồ Mở (OpenStreetMap) & Realtime WebSocket Engine
-- **Mục tiêu chiến lược:**
-  - Loại bỏ hoàn toàn sự phụ thuộc vào Google Maps SDK đắt đỏ và rào cản `MAPS_API_KEY` (không cần khai báo thẻ Visa/Billing, chi phí 0 đồng, clone repo là chạy ngay).
-  - Biến bản đồ thành "Bản đồ nhiệt cứu thực phẩm thời gian thực" với WebSocket.
-- **Chi tiết triển khai kỹ thuật (Phương án A - Native Performance):**
-  1. **Android Client (`apps/android`):**
-     - Chuyển đổi từ `com.google.maps.android:maps-compose` sang **MapLibre Android SDK** (hoặc **OsmDroid**) tích hợp Jetpack Compose.
-     - Sử dụng vector/raster tiles từ OpenStreetMap (OSM / CartoDB Voyager).
-     - Tái cấu trúc **K08 (`PinLocationScreen`)**: Kéo ghim tâm bản đồ, chọn bán kính (Radius Circle), tìm kiếm địa chỉ qua Nominatim / OSM Geocoding.
-     - Tái cấu trúc **K10 (`DealMapScreen`)**: Hiển thị Marker quán có deal theo toạ độ thật, cụm Marker (Clustering) khi mật độ dày đặc.
-  2. **Web Dashboard (`apps/web`):**
-     - Tích hợp **Leaflet + OpenStreetMap** (`react-leaflet`) cho giao diện Quản trị Quán & Khám phá đối tác.
-  3. **Realtime WebSocket Engine (`apps/backend` + Client):**
-     - Mở rộng NestJS WebSocket Gateway (`CustomerGateway` / `DealsGateway`) với Redis adapter.
-     - Lắng nghe các sự kiện:
-       - `deal.stock_updated`: Cập nhật trực tiếp số suất còn lại trên Badge của Marker (xanh: còn nhiều, cam: sắp hết < 3, xám: đã hết suất).
-       - `deal.flash_rescue`: Hiệu ứng Marker nảy sáng khi có quán gần đó bất ngờ tung deal xả hàng cận giờ.
-       - `order.hold_reserved`: Đổi trạng thái suất ngay khi có khách khác đặt giữ đơn 10 phút.
-     - Android Client kết nối Socket.io client quản lý qua vòng đời ViewModel (`DiscoveryViewModel`).
+#### Task 2.4: [K08, K10, Backend, Web] Chuyển Đổi Bản Đồ Mở (OpenStreetMap) & Realtime WebSocket Engine - [x] ĐÃ HOÀN THÀNH
+- **Backend:** Gắn WebSocket Server (`ws`) tại `/ws` với các sự kiện: `deal.stock_updated`, `deal.flash_rescue`, `order.hold_reserved`.
+- **Android Client:** Tích hợp `OsmDroid` (`org.osmdroid:osmdroid-android`), chuyển đổi hoàn toàn `PinLocationScreen.kt` (K08) và `DealMapScreen.kt` (K10), loại bỏ rào cản Google Maps API key; kết nối `RealtimeWebSocketClient` cập nhật tức thời số lượng suất trên bản đồ.
+- **Web Dashboard:** Tích hợp `StoreMapLeaflet.tsx` trên nền OpenStreetMap và lắng nghe WebSocket realtime.
 
 ---
 
