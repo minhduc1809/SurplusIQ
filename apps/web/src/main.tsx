@@ -1,20 +1,20 @@
 import React, { Suspense, lazy } from 'react';
-
 import ReactDOM from 'react-dom/client';
-
 import './index.css';
+import './styles/tokens.css';
+import { shimmerKeyframes } from './components/StateViews';
 
-// Chuyển mọi URL ngoài /admin tới route Admin hợp lệ.
-if (
-  window.location.pathname === '/' ||
-  (window.location.pathname !== '/admin' && !window.location.pathname.startsWith('/admin/'))
-) {
-  window.history.replaceState(null, '', '/admin/login');
-}
+const styleTag = document.createElement('style');
+styleTag.textContent = shimmerKeyframes;
+document.head.appendChild(styleTag);
 
 const AdminApp = lazy(() => import('./modules/platform-admin/AdminApp'));
+const MerchantApp = lazy(() => import('./App'));
 
-function AppLoadingScreen() {
+const isAdminPath = () =>
+  window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
+
+function AppLoadingScreen({ label }: { label: string }) {
   return (
     <div
       role="status"
@@ -46,31 +46,24 @@ function AppLoadingScreen() {
       >
         S
       </div>
-
-      <p
-        style={{
-          margin: 0,
-          fontSize: 14,
-          fontWeight: 600,
-        }}
-      >
-        Đang tải SurplusIQ Admin...
-      </p>
+      <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{label}</p>
     </div>
   );
 }
 
+// Hai cổng độc lập trên cùng một origin: /admin/* là Super Admin, còn lại là cổng cửa hàng.
 function RootApplication() {
+  const admin = isAdminPath();
   return (
-    <Suspense fallback={<AppLoadingScreen />}>
-      <AdminApp />
+    <Suspense
+      fallback={
+        <AppLoadingScreen label={admin ? 'Đang tải SurplusIQ Admin…' : 'Đang tải SurplusIQ…'} />
+      }
+    >
+      {admin ? <AdminApp /> : <MerchantApp />}
     </Suspense>
   );
 }
-
-// =====================================================
-// 5. KHỞI TẠO REACT
-// =====================================================
 
 const rootElement = document.getElementById('root');
 

@@ -22,7 +22,19 @@ data class AuthUiState(
     val isOtpSent: Boolean = false,
     val otpSecondsRemaining: Int = 300, // 5 minutes per BR-002
     val isLoggedIn: Boolean = false,
-    val isGuestMode: Boolean = false
+    val isGuestMode: Boolean = false,
+    // Quên mật khẩu (R1-008)
+    val forgotTarget: String = "",
+    val isForgotCodeSent: Boolean = false,
+    val resetOtp: String = "",
+    val newPassword: String = "",
+    val confirmNewPassword: String = "",
+    val isPasswordResetSuccess: Boolean = false,
+    // Đổi mật khẩu từ Hồ sơ (Profile)
+    val currentPassword: String = "",
+    val newChangePassword: String = "",
+    val confirmChangePassword: String = "",
+    val isChangePasswordSuccess: Boolean = false
 )
 
 @HiltViewModel
@@ -84,10 +96,40 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun onGoogleSignInFailed(message: String) {
+        _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = message)
+    }
+
+    fun loginWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            val result = authRepository.loginWithGoogle(idToken)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isLoggedIn = true,
+                        isGuestMode = false
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = error.localizedMessage ?: "Đăng nhập Google thất bại"
+                    )
+                }
+            )
+        }
+    }
+
     fun register() {
         val state = _uiState.value
         if (state.phone.isBlank() || state.password.isBlank() || state.fullName.isBlank()) {
             _uiState.value = state.copy(errorMessage = "Vui lòng điền đầy đủ thông tin Họ tên, SĐT và Mật khẩu")
+            return
+        }
+        if (weakPassword(state.password)) {
+            _uiState.value = state.copy(errorMessage = "Mật khẩu tối thiểu 8 ký tự, gồm cả chữ và số.")
             return
         }
 
@@ -169,6 +211,149 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun onForgotTargetChanged(value: String) {
+        _uiState.value = _uiState.value.copy(forgotTarget = value, errorMessage = null)
+    }
+
+    fun onResetOtpChanged(value: String) {
+        if (value.length <= 6 && value.all { it.isDigit() }) {
+            _uiState.value = _uiState.value.copy(resetOtp = value, errorMessage = null)
+        }
+    }
+
+    fun onNewPasswordChanged(value: String) {
+        _uiState.value = _uiState.value.copy(newPassword = value, errorMessage = null)
+    }
+
+    fun onConfirmNewPasswordChanged(value: String) {
+        _uiState.value = _uiState.value.copy(confirmNewPassword = value, errorMessage = null)
+    }
+
+    fun requestPasswordReset() {
+        val state = _uiState.value
+        if (state.forgotTarget.isBlank()) {
+            _uiState.value = state.copy(errorMessage = "Vui lòng nhập số điện thoại hoặc email.")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            val result = authRepository.forgotPassword(state.forgotTarget.trim())
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(isLoading = false, isForgotCodeSent = true)
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = error.message ?: "Không gửi được mã xác thực."
+                    )
+                }
+            )
+        }
+    }
+
+    fun confirmPasswordReset() {
+        val state = _uiState.value
+        if (state.resetOtp.length < 6) {
+            _uiState.value = state.copy(errorMessage = "Mã OTP phải gồm 6 chữ số.")
+            return
+        }
+        if (weakPassword(state.newPassword)) {
+            _uiState.value = state.copy(errorMessage = "Mật khẩu mới tối thiểu 8 ký tự, gồm cả chữ và số.")
+            return
+        }
+        if (state.newPassword != state.confirmNewPassword) {
+            _uiState.value = state.copy(errorMessage = "Mật khẩu nhập lại không khớp.")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            val result = authRepository.resetPassword(state.forgotTarget.trim(), state.resetOtp, state.newPassword)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(isLoading = false, isPasswordResetSuccess = true)
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = error.message ?: "Không đặt lại được mật khẩu."
+                    )
+                }
+            )
+        }
+    }
+
+    fun resetForgotPasswordFlow() {
+        _uiState.value = _uiState.value.copy(
+            forgotTarget = "",
+            isForgotCodeSent = false,
+            resetOtp = "",
+            newPassword = "",
+            confirmNewPassword = "",
+            isPasswordResetSuccess = false,
+            errorMessage = null
+        )
+    }
+
+    fun onCurrentPasswordChanged(value: String) {
+        _uiState.value = _uiState.value.copy(currentPassword = value, errorMessage = null)
+    }
+
+    fun onNewChangePasswordChanged(value: String) {
+        _uiState.value = _uiState.value.copy(newChangePassword = value, errorMessage = null)
+    }
+
+    fun onConfirmChangePasswordChanged(value: String) {
+        _uiState.value = _uiState.value.copy(confirmChangePassword = value, errorMessage = null)
+    }
+
+    fun changePassword() {
+        val state = _uiState.value
+        if (state.currentPassword.isBlank()) {
+            _uiState.value = state.copy(errorMessage = "Vui lòng nhập mật khẩu hiện tại.")
+            return
+        }
+        if (weakPassword(state.newChangePassword)) {
+            _uiState.value = state.copy(errorMessage = "Mật khẩu mới tối thiểu 8 ký tự, gồm cả chữ và số.")
+            return
+        }
+        if (state.newChangePassword != state.confirmChangePassword) {
+            _uiState.value = state.copy(errorMessage = "Mật khẩu nhập lại không khớp.")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            val result = authRepository.changePassword(state.currentPassword, state.newChangePassword)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isChangePasswordSuccess = true,
+                        currentPassword = "",
+                        newChangePassword = "",
+                        confirmChangePassword = ""
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = error.message ?: "Không đổi được mật khẩu."
+                    )
+                }
+            )
+        }
+    }
+
+    fun resetChangePasswordFlow() {
+        _uiState.value = _uiState.value.copy(
+            currentPassword = "",
+            newChangePassword = "",
+            confirmChangePassword = "",
+            isChangePasswordSuccess = false,
+            errorMessage = null
+        )
+    }
+
     fun continueAsGuest() {
         _uiState.value = _uiState.value.copy(isGuestMode = true, errorMessage = null)
     }
@@ -196,3 +381,5 @@ class AuthViewModel @Inject constructor(
         otpTimerJob?.cancel()
     }
 }
+
+private fun weakPassword(p: String) = p.length < 8 || p.none(Char::isLetter) || p.none(Char::isDigit)

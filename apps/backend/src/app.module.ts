@@ -26,6 +26,11 @@ import { AiModule } from './modules/ai/ai.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SeedModule } from './modules/seed/seed.module';
 import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module';
+import { RewardsModule } from './modules/rewards/rewards.module';
+import { RescueTimelineModule } from './modules/rescue-timeline/rescue-timeline.module';
+import { RescuePoolModule } from './modules/rescue-pool/rescue-pool.module';
+import { RescueBridgeModule } from './modules/rescue-bridge/rescue-bridge.module';
+import { RescueLabModule } from './modules/rescue-lab/rescue-lab.module';
 
 @Module({
   imports: [
@@ -54,6 +59,11 @@ import { PlatformAdminModule } from './modules/platform-admin/platform-admin.mod
     NotificationsModule,
     SeedModule,
     PlatformAdminModule,
+    RewardsModule,
+    RescueTimelineModule,
+    RescuePoolModule,
+    RescueBridgeModule,
+    RescueLabModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

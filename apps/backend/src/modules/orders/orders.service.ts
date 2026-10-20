@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In } from 'typeorm';
+import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
@@ -81,6 +81,8 @@ export class OrdersService {
     customerId: string,
     dto: CreateOrderDto,
     actorId = customerId,
+    /** Cho phép chạy trong transaction bên ngoài (vd. Rescue Pool confirm-offer khóa đợt + đơn cùng lúc). */
+    outerManager?: EntityManager,
   ): Promise<OrderEntity> {
     // 1. Kiểm tra tài khoản có bị khóa đặt hàng hay không (BR-020)
     const lock = await this.orderLockRepo.findOne({
@@ -104,7 +106,7 @@ export class OrdersService {
     }
 
     // 3. Mở Database Transaction với khóa bi quan FOR UPDATE (pessimistic_write) chống bán vượt tồn kho
-    return this.dataSource.transaction(async (manager) => {
+    const work = async (manager: EntityManager): Promise<OrderEntity> => {
       const offer = await manager
         .createQueryBuilder(OfferEntity, 'offer')
         .setLock('pessimistic_write')
@@ -247,7 +249,8 @@ export class OrdersService {
       });
 
       return savedOrder;
-    });
+    };
+    return outerManager ? work(outerManager) : this.dataSource.transaction(work);
   }
 
   /**
@@ -616,7 +619,7 @@ export class OrdersService {
     storeId: string,
     orderId: string,
     dto: CancelOrderDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<OrderEntity> {
     return this.dataSource.transaction(async (manager) => {
       const order = await manager

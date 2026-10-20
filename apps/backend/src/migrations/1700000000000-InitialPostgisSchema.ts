@@ -169,6 +169,7 @@ export class InitialPostgisSchema1700000000000 implements MigrationInterface {
         "search_radius_km" numeric(5,2) NOT NULL DEFAULT 5.0,
         "last_lat" numeric(9,6),
         "last_lng" numeric(9,6),
+        "notification_preferences" jsonb,
         "created_at" timestamptz NOT NULL DEFAULT now(),
         "updated_at" timestamptz NOT NULL DEFAULT now()
       );

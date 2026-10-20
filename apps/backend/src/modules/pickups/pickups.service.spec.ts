@@ -13,6 +13,7 @@ import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
 import { AuditLogService } from '../audit/audit-log.service';
+import { RewardsService } from '../rewards/rewards.service';
 import { QrTokenEngine } from '@surplusiq/core';
 
 describe('PickupsService', () => {
@@ -118,6 +119,10 @@ describe('PickupsService', () => {
         {
           provide: AuditLogService,
           useValue: auditLogService,
+        },
+        {
+          provide: RewardsService,
+          useValue: { awardForOrder: jest.fn() },
         },
         {
           provide: DataSource,

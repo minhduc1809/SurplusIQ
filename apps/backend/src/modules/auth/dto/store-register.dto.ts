@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString, MinLength, IsEmail } from 'class-validator';
+import { IsNotEmpty, IsString, IsEmail } from 'class-validator';
+import { IsStrongPassword } from './password-rule';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class StoreRegisterDto {
@@ -7,10 +8,10 @@ export class StoreRegisterDto {
   @IsEmail({}, { message: 'Email không đúng định dạng' })
   email: string;
 
-  @ApiProperty({ example: 'MatKhau123@', minLength: 6 })
+  @ApiProperty({ example: 'MatKhau123@', minLength: 8 })
   @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
   @IsString()
-  @MinLength(6, { message: 'Mật khẩu tối thiểu 6 ký tự' })
+  @IsStrongPassword()
   password: string;
 
   @ApiProperty({ example: 'Tiệm Bánh ABC' })

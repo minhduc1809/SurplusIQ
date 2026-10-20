@@ -1,5 +1,7 @@
 package com.surplusiq.app.ui.screens.discovery
 
+import com.surplusiq.app.domain.model.viName
+import com.surplusiq.app.domain.model.viTitle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,7 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material3.*
@@ -26,9 +28,7 @@ import com.surplusiq.app.domain.model.DealCategory
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.UserPreferences
 import com.surplusiq.app.ui.theme.CoralRed
-import com.surplusiq.app.ui.theme.ForestGreenDark
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
-import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
 
@@ -66,7 +66,7 @@ fun PreferencesScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Preferences",
+                        text = "Tùy chọn của bạn",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -74,7 +74,7 @@ fun PreferencesScreen(
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
                     }
@@ -99,7 +99,7 @@ fun PreferencesScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Show Magic Bags matching your preferences",
+                        text = "Chỉ hiện suất phù hợp tùy chọn của tôi",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary,
@@ -119,7 +119,7 @@ fun PreferencesScreen(
 
                 // Section 1: Select your preferences below (matching green highlighted container)
                 Text(
-                    text = "Select your preferences below",
+                    text = "Chọn loại món, chế độ ăn và khung giờ nhận bạn thích",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
@@ -156,7 +156,7 @@ fun PreferencesScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = category.displayName,
+                                text = category.viName(),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -188,7 +188,7 @@ fun PreferencesScreen(
 
                 // Section 2: Dietary preferences
                 Text(
-                    text = "Dietary preferences",
+                    text = "Chế độ ăn",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
@@ -247,7 +247,7 @@ fun PreferencesScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Preferred collection times",
+                            text = "Khung giờ nhận ưa thích",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -284,7 +284,7 @@ fun PreferencesScreen(
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                text = slot.title,
+                                                text = slot.viTitle(),
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (isSelected) Color.White else TextPrimary
@@ -333,7 +333,7 @@ fun PreferencesScreen(
                 }
             ) {
                 Text(
-                    text = "Reset all",
+                    text = "Đặt lại",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TextSecondary
@@ -360,7 +360,7 @@ fun PreferencesScreen(
                 )
             ) {
                 Text(
-                    text = "Apply",
+                    text = "Áp dụng",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White

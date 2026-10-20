@@ -13,6 +13,24 @@ data class CustomerAiChatResponse(
     @SerializedName("remainingQuota") val remainingQuota: Int = 30
 )
 
+data class AiMatchedOfferDto(
+    @SerializedName("offerId") val offerId: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("originalPrice") val originalPrice: Long = 0L,
+    @SerializedName("currentPrice") val currentPrice: Long = 0L,
+    @SerializedName("discountPercent") val discountPercent: Int = 0,
+    @SerializedName("pickupStart") val pickupStart: String? = null,
+    @SerializedName("pickupEnd") val pickupEnd: String? = null
+)
+
+data class CustomerAiSearchResponse(
+    @SerializedName("query") val query: String = "",
+    @SerializedName("explanation") val explanation: String = "",
+    @SerializedName("matchedOffers") val matchedOffers: List<AiMatchedOfferDto> = emptyList(),
+    @SerializedName("logId") val logId: String? = null
+)
+
 data class CustomerAiSearchRequest(
     @SerializedName("query") val query: String,
     @SerializedName("latitude") val latitude: Double? = null,

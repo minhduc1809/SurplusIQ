@@ -7,8 +7,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
+import {
+  ItemEntity,
+  ItemStatus,
+  TrustpassVerificationStatus,
+} from '../../entities/catalog/item.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
+import { TrustpassHistoryEntity } from '../../entities/catalog/trustpass-history.entity';
 import {
   CreateItemDto,
   UpdateItemDto,
@@ -16,6 +21,7 @@ import {
   QueryItemStatus,
   ImportCsvItemsDto,
   BatchUpdateItemsDto,
+  UpdateTrustpassDto,
 } from './dto';
 import { CATALOG_CONSTANTS } from './catalog.constants';
 import { AuditLogService } from '../audit/audit-log.service';
@@ -53,6 +59,8 @@ export class CatalogService {
     private readonly itemRepo: Repository<ItemEntity>,
     @InjectRepository(OfferEntity)
     private readonly offerRepo: Repository<OfferEntity>,
+    @InjectRepository(TrustpassHistoryEntity)
+    private readonly trustpassHistoryRepo: Repository<TrustpassHistoryEntity>,
     private readonly auditLogService: AuditLogService,
     private readonly quotaService: QuotaService,
   ) {}
@@ -150,7 +158,11 @@ export class CatalogService {
    * Tạo món ăn mới (R2-020)
    * Kiểm tra ràng buộc giá bội số 500đ (BR-064), giá vốn <= giá gốc, tên duy nhất trong quán.
    */
-  async createItem(storeId: string, dto: CreateItemDto, actorId = 'SYSTEM'): Promise<ItemEntity> {
+  async createItem(
+    storeId: string,
+    dto: CreateItemDto,
+    actorId = '00000000-0000-0000-0000-000000000000',
+  ): Promise<ItemEntity> {
     const trimmedName = dto.name.trim();
 
     // 1. Kiểm tra bội số giá 500 VND (BR-064)
@@ -221,7 +233,7 @@ export class CatalogService {
     storeId: string,
     itemId: string,
     dto: UpdateItemDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<ItemEntity> {
     const item = await this.itemRepo.findOne({
       where: { id: itemId, storeId },
@@ -306,7 +318,11 @@ export class CatalogService {
    * Lưu trữ món ăn không còn kinh doanh (R2-023, BR-051)
    * Tuyệt đối KHÔNG xóa vật lý; từ chối lưu trữ nếu món đang có suất bán OPEN.
    */
-  async archiveItem(storeId: string, itemId: string, actorId = 'SYSTEM'): Promise<ItemEntity> {
+  async archiveItem(
+    storeId: string,
+    itemId: string,
+    actorId = '00000000-0000-0000-0000-000000000000',
+  ): Promise<ItemEntity> {
     const item = await this.itemRepo.findOne({
       where: { id: itemId, storeId },
     });
@@ -354,7 +370,11 @@ export class CatalogService {
    * Khôi phục món đã lưu trữ về trạng thái Đang dùng (R2-024)
    * Kiểm tra tên món không bị trùng với món đang hoạt động khác trong quán.
    */
-  async restoreItem(storeId: string, itemId: string, actorId = 'SYSTEM'): Promise<ItemEntity> {
+  async restoreItem(
+    storeId: string,
+    itemId: string,
+    actorId = '00000000-0000-0000-0000-000000000000',
+  ): Promise<ItemEntity> {
     const item = await this.itemRepo.findOne({
       where: { id: itemId, storeId },
     });
@@ -405,7 +425,7 @@ export class CatalogService {
   async importCsvItems(
     storeId: string,
     dto: ImportCsvItemsDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<CsvImportSummary> {
     const itemsToImport = dto.items;
     const count = itemsToImport.length;
@@ -642,5 +662,106 @@ export class CatalogService {
       failedCount: dto.itemIds.length - storeItems.length,
       updatedItemIds: updatedIds,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // TRUSTPASS MANAGER (CM-B05): hồ sơ minh bạch lô món
+  // -------------------------------------------------------------------------
+
+  /** Các trường trọng yếu phải lưu lịch sử khi thay đổi (BR-B05-06). */
+  private static readonly TRUSTPASS_TRACKED_FIELDS = [
+    'ingredients',
+    'allergens',
+    'expiryAt',
+    'storageInstructions',
+  ] as const;
+
+  async updateTrustpass(
+    storeId: string,
+    itemId: string,
+    dto: UpdateTrustpassDto,
+    actorId = '00000000-0000-0000-0000-000000000000',
+  ): Promise<ItemEntity> {
+    const item = await this.itemRepo.findOne({ where: { id: itemId, storeId } });
+    if (!item) {
+      throw new NotFoundException(`Không tìm thấy món ăn với ID [${itemId}] trong cửa hàng.`);
+    }
+
+    // BR-B05-02: "đã xác minh" chỉ dùng khi có quy trình xác minh cụ thể - không
+    // cho cửa hàng tự đặt informationSource ngoài danh sách cho phép ở DTO đã validate,
+    // nhưng chủ cửa hàng không thể tự tuyên bố VERIFIED, chỉ nền tảng mới được (giữ DECLARED).
+    const historyRows: Partial<TrustpassHistoryEntity>[] = [];
+    const nextValues: Record<string, unknown> = {
+      ingredients: dto.ingredients,
+      allergens: dto.allergens,
+      expiryAt: dto.expiryAt ? new Date(dto.expiryAt) : undefined,
+      storageInstructions: dto.storageInstructions,
+    };
+
+    for (const field of CatalogService.TRUSTPASS_TRACKED_FIELDS) {
+      const nextValue = nextValues[field];
+      if (nextValue === undefined) continue;
+      const oldValue = (item as unknown as Record<string, unknown>)[field];
+      const changed =
+        field === 'allergens'
+          ? JSON.stringify(oldValue) !== JSON.stringify(nextValue)
+          : String(oldValue ?? '') !== String(nextValue ?? '');
+      if (changed) {
+        historyRows.push({
+          itemId: item.id,
+          versionNo: item.trustpassVersion + 1,
+          changedBy: actorId,
+          fieldName: field,
+          oldValue: oldValue ?? null,
+          newValue: nextValue as never,
+          source: dto.informationSource ?? item.informationSource,
+        });
+      }
+      (item as unknown as Record<string, unknown>)[field] = nextValue;
+    }
+
+    if (dto.preparedAt !== undefined) item.preparedAt = new Date(dto.preparedAt);
+    if (dto.informationSource !== undefined) item.informationSource = dto.informationSource;
+
+    if (historyRows.length > 0) {
+      item.trustpassVersion += 1;
+      item.trustpassPublishedAt = new Date();
+    }
+    item.trustpassUpdatedBy = actorId;
+
+    await this.itemRepo.save(item);
+    if (historyRows.length > 0) {
+      await this.trustpassHistoryRepo.save(this.trustpassHistoryRepo.create(historyRows));
+    }
+
+    await this.auditLogService.log({
+      storeId,
+      actorId,
+      actorRole: 'STORE_MEMBER',
+      action: 'TRUSTPASS_UPDATED',
+      targetType: 'ITEM',
+      targetId: item.id,
+      newValue: { version: item.trustpassVersion, fields: historyRows.map((h) => h.fieldName) },
+    });
+
+    return item;
+  }
+
+  /**
+   * Chỉ nền tảng/quy trình xác minh được chuyển verificationStatus sang VERIFIED
+   * (BR-B05-01, BR-B05-02). Không expose qua endpoint cửa hàng.
+   */
+  async setTrustpassVerificationStatus(
+    itemId: string,
+    status: TrustpassVerificationStatus,
+    actorId: string,
+  ): Promise<ItemEntity> {
+    const item = await this.itemRepo.findOne({ where: { id: itemId } });
+    if (!item) {
+      throw new NotFoundException(`Không tìm thấy món ăn với ID [${itemId}].`);
+    }
+    item.verificationStatus = status;
+    item.trustpassUpdatedBy = actorId;
+    return this.itemRepo.save(item);
   }
 }

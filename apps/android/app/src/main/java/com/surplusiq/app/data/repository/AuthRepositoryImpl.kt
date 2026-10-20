@@ -2,14 +2,23 @@ package com.surplusiq.app.data.repository
 
 import com.surplusiq.app.data.remote.SessionManager
 import com.surplusiq.app.data.remote.api.AuthApiService
+import com.surplusiq.app.data.remote.dto.ChangePasswordRequest
 import com.surplusiq.app.data.remote.dto.CustomerLoginRequest
 import com.surplusiq.app.data.remote.dto.CustomerRegisterRequest
+import com.surplusiq.app.data.remote.dto.ForgotPasswordRequest
+import com.surplusiq.app.data.remote.dto.GoogleLoginRequest
 import com.surplusiq.app.data.remote.dto.ResendOtpRequest
+import com.surplusiq.app.data.remote.dto.ResetPasswordRequest
 import com.surplusiq.app.data.remote.dto.VerifyOtpRequest
 import com.surplusiq.app.domain.repository.AuthRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Nguyên tắc bắt buộc (rule 0.1): KHÔNG tự tạo "fake success" khi API lỗi/mất
+ * mạng. Mọi exception trả Result.failure với lý do thật, để UI hiển thị lỗi +
+ * thử lại - không âm thầm đăng nhập giả bằng JWT bịa.
+ */
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val authApiService: AuthApiService,
@@ -26,31 +35,61 @@ class AuthRepositoryImpl @Inject constructor(
                     deviceId = sessionManager.getDeviceId()
                 )
             )
-            if (response.isSuccessful && response.body() != null) {
-                val body = response.body()!!
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
                 sessionManager.saveSession(
                     accessToken = body.accessToken,
                     refreshToken = body.refreshToken,
-                    userId = body.user?.id ?: "22222222-2222-2222-2222-222222222222",
+                    userId = body.user?.id ?: "",
                     phone = phone,
-                    fullName = body.user?.fullName ?: "Khách hàng SurplusIQ"
+                    fullName = body.user?.fullName ?: ""
                 )
                 Result.success(true)
             } else {
-                val rawError = response.errorBody()?.string()
-                val friendlyMessage = extractErrorMessage(rawError, "Đăng nhập không thành công (${response.code()})")
-                Result.failure(Exception(friendlyMessage))
+                Result.failure(
+                    Exception(
+                        extractErrorMessage(
+                            response.errorBody()?.string(),
+                            friendlyStatusMessage(response.code(), "Đăng nhập không thành công.")
+                        )
+                    )
+                )
             }
         } catch (e: Exception) {
-            // Local fallback simulation for smooth offline/dev mode
-            sessionManager.saveSession(
-                accessToken = "simulated_jwt_token_${System.currentTimeMillis()}",
-                refreshToken = "simulated_refresh_token",
-                userId = "22222222-2222-2222-2222-222222222222",
-                phone = phone,
-                fullName = "Trần Minh Đức"
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
+        }
+    }
+
+    override suspend fun loginWithGoogle(idToken: String): Result<Boolean> {
+        return try {
+            val response = authApiService.loginWithGoogle(
+                GoogleLoginRequest(
+                    idToken = idToken,
+                    deviceId = sessionManager.getDeviceId()
+                )
             )
-            Result.success(true)
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                sessionManager.saveSession(
+                    accessToken = body.accessToken,
+                    refreshToken = body.refreshToken,
+                    userId = body.user?.id ?: "",
+                    phone = body.user?.phone ?: "",
+                    fullName = body.user?.fullName ?: ""
+                )
+                Result.success(true)
+            } else {
+                Result.failure(
+                    Exception(
+                        extractErrorMessage(
+                            response.errorBody()?.string(),
+                            friendlyStatusMessage(response.code(), "Đăng nhập Google không thành công.")
+                        )
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
         }
     }
 
@@ -60,18 +99,24 @@ class AuthRepositoryImpl @Inject constructor(
                 CustomerRegisterRequest(
                     phone = phone,
                     password = password,
-                    fullName = fullName
+                    fullName = fullName,
+                    deviceId = sessionManager.getDeviceId()
                 )
             )
             if (response.isSuccessful) {
                 Result.success(true)
             } else {
-                val rawError = response.errorBody()?.string()
-                val friendlyMessage = extractErrorMessage(rawError, "Đăng ký không thành công")
-                Result.failure(Exception(friendlyMessage))
+                Result.failure(
+                    Exception(
+                        extractErrorMessage(
+                            response.errorBody()?.string(),
+                            friendlyStatusMessage(response.code(), "Đăng ký không thành công.")
+                        )
+                    )
+                )
             }
         } catch (e: Exception) {
-            Result.success(true)
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
         }
     }
 
@@ -80,34 +125,81 @@ class AuthRepositoryImpl @Inject constructor(
             val response = authApiService.verifyOtp(
                 VerifyOtpRequest(target = phone, code = otp, purpose = "VERIFY")
             )
-            if (response.isSuccessful && response.body() != null) {
-                val body = response.body()!!
-                sessionManager.saveSession(
-                    accessToken = body.accessToken,
-                    refreshToken = body.refreshToken,
-                    userId = body.user?.id ?: "22222222-2222-2222-2222-222222222222",
-                    phone = phone,
-                    fullName = body.user?.fullName
-                )
+            if (response.isSuccessful) {
                 Result.success(true)
             } else {
-                val rawError = response.errorBody()?.string()
-                val friendlyMessage = extractErrorMessage(rawError, "Mã OTP không chính xác")
-                Result.failure(Exception(friendlyMessage))
+                Result.failure(
+                    Exception(
+                        extractErrorMessage(
+                            response.errorBody()?.string(),
+                            friendlyStatusMessage(response.code(), "Mã OTP không chính xác.")
+                        )
+                    )
+                )
             }
         } catch (e: Exception) {
-            Result.success(true)
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
         }
     }
 
     override suspend fun resendOtp(phone: String): Result<Boolean> {
         return try {
-            val response = authApiService.resendOtp(
-                ResendOtpRequest(target = phone, purpose = "VERIFY")
-            )
-            Result.success(response.isSuccessful)
+            val response = authApiService.resendOtp(ResendOtpRequest(target = phone, purpose = "VERIFY"))
+            if (response.isSuccessful) Result.success(true)
+            else Result.failure(Exception(friendlyStatusMessage(response.code(), "Không gửi lại được mã OTP.")))
         } catch (e: Exception) {
-            Result.success(true)
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
+        }
+    }
+
+    override suspend fun forgotPassword(target: String): Result<Boolean> {
+        return try {
+            val response = authApiService.forgotPassword(ForgotPasswordRequest(target))
+            if (response.isSuccessful) Result.success(true)
+            else Result.failure(Exception(friendlyStatusMessage(response.code(), "Không gửi được mã xác thực.")))
+        } catch (e: Exception) {
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
+        }
+    }
+
+    override suspend fun resetPassword(target: String, otpCode: String, newPassword: String): Result<Boolean> {
+        return try {
+            val response = authApiService.resetPassword(ResetPasswordRequest(target, otpCode, newPassword))
+            if (response.isSuccessful) Result.success(true)
+            else Result.failure(
+                Exception(
+                    extractErrorMessage(
+                        response.errorBody()?.string(),
+                        friendlyStatusMessage(response.code(), "Không đặt lại được mật khẩu.")
+                    )
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
+        }
+    }
+
+    override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Boolean> {
+        val userId = sessionManager.getUserId()
+        if (userId.isNullOrBlank()) {
+            return Result.failure(Exception("Bạn cần đăng nhập lại để đổi mật khẩu."))
+        }
+        return try {
+            val response = authApiService.changePassword(
+                userId,
+                ChangePasswordRequest(currentPassword, newPassword)
+            )
+            if (response.isSuccessful) Result.success(true)
+            else Result.failure(
+                Exception(
+                    extractErrorMessage(
+                        response.errorBody()?.string(),
+                        friendlyStatusMessage(response.code(), "Không đổi được mật khẩu.")
+                    )
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
         }
     }
 
@@ -116,7 +208,9 @@ class AuthRepositoryImpl @Inject constructor(
         if (userId != null) {
             try {
                 authApiService.logout(userId, sessionManager.getDeviceId())
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                // Đăng xuất phía server là best-effort; vẫn xóa phiên cục bộ dù lỗi mạng.
+            }
         }
         sessionManager.clearSession()
         return Result.success(true)
@@ -125,6 +219,16 @@ class AuthRepositoryImpl @Inject constructor(
     override fun isLoggedIn(): Boolean = sessionManager.isLoggedIn()
 
     override fun getCurrentUserName(): String = sessionManager.getFullName()
+
+    private fun friendlyStatusMessage(code: Int, fallback: String): String = when (code) {
+        400 -> fallback
+        401 -> "Sai thông tin đăng nhập."
+        404 -> "Không tìm thấy tài khoản."
+        409 -> "Thông tin đã tồn tại, vui lòng kiểm tra lại."
+        429 -> "Bạn đang thao tác quá nhanh, vui lòng thử lại sau một chút."
+        in 500..599 -> "Hệ thống đang gặp sự cố. Vui lòng thử lại sau."
+        else -> fallback
+    }
 
     private fun extractErrorMessage(rawError: String?, defaultMessage: String): String {
         if (rawError.isNullOrBlank()) return defaultMessage
@@ -147,11 +251,7 @@ class AuthRepositoryImpl @Inject constructor(
                 else -> defaultMessage
             }
         } catch (_: Exception) {
-            if (rawError.trim().startsWith("{") && rawError.trim().endsWith("}")) {
-                defaultMessage
-            } else {
-                rawError.trim()
-            }
+            defaultMessage
         }
     }
 }

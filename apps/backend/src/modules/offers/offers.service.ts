@@ -153,7 +153,7 @@ export class OffersService {
   async createOffer(
     storeId: string,
     dto: CreateOfferDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<OfferEntity> {
     // 1. Kiểm tra món ăn nếu là suất thông thường REGULAR
     if (dto.itemId) {
@@ -332,7 +332,7 @@ export class OffersService {
   async cloneYesterdayOffers(
     storeId: string,
     dto: CloneYesterdayOffersDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<CloneSummary> {
     const now = new Date();
     const yesterdayStart = new Date(now);
@@ -449,7 +449,7 @@ export class OffersService {
     storeId: string,
     offerId: string,
     dto: UpdateOfferDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<OfferEntity> {
     const offer = await this.offerRepo.findOne({
       where: { id: offerId, storeId },
@@ -605,7 +605,7 @@ export class OffersService {
     storeId: string,
     offerId: string,
     dto: AdjustStockDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<OfferEntity> {
     const offer = await this.offerRepo.findOne({
       where: { id: offerId, storeId },
@@ -691,7 +691,7 @@ export class OffersService {
     storeId: string,
     offerId: string,
     dto: CloseOfferDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<OfferEntity> {
     const offer = await this.offerRepo.findOne({
       where: { id: offerId, storeId },
@@ -744,7 +744,7 @@ export class OffersService {
     storeId: string,
     offerId: string,
     dto: CancelOfferDto,
-    actorId = 'SYSTEM',
+    actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<OfferEntity> {
     const offer = await this.offerRepo.findOne({
       where: { id: offerId, storeId },
@@ -899,7 +899,11 @@ export class OffersService {
   /**
    * Áp dụng giá đề xuất động
    */
-  async applyPricingRecommendation(storeId: string, offerId: string, actorId = 'SYSTEM') {
+  async applyPricingRecommendation(
+    storeId: string,
+    offerId: string,
+    actorId = '00000000-0000-0000-0000-000000000000',
+  ) {
     const recData = await this.getPricingRecommendation(offerId);
     if (!recData.recommendation.canPropose) {
       throw new BadRequestException(recData.recommendation.explanation);

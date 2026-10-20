@@ -44,6 +44,7 @@ import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../entities/auth/user.entity';
+import { RewardsService } from '../rewards/rewards.service';
 
 type EntityClass = new () => object;
 type Row = Record<string, unknown>;
@@ -293,6 +294,7 @@ describe('AdminOperationsService complaint decisions', () => {
       null,
       null,
       h.dataSource as unknown as DataSource,
+      { reverseForOrder: jest.fn() } as unknown as RewardsService,
     );
     const results = await Promise.allSettled([
       h.service.resolveComplaint('complaint-1', 'admin-1', { decision: 'ACCEPT' }),

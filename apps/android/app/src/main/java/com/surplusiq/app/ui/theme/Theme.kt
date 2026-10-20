@@ -1,6 +1,5 @@
 package com.surplusiq.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -26,25 +25,28 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = SkyBlueLight,
+    primary = DarkCoral,
     onPrimary = DarkBackground,
     primaryContainer = SkyBlueDark,
-    onPrimaryContainer = SkyBlueContainer,
-    secondary = SkyBlueAccent,
+    onPrimaryContainer = DarkCoral,
+    secondary = DarkMint,
     onSecondary = DarkBackground,
     background = DarkBackground,
     onBackground = DarkTextPrimary,
     surface = DarkSurface,
     onSurface = DarkTextPrimary,
-    surfaceVariant = DarkSurface,
+    surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkTextSecondary,
-    outline = DividerColor.copy(alpha = 0.2f),
+    outline = DarkLine,
     error = CoralRed
 )
 
 @Composable
 fun SurplusIQTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    // shortcut: ép light theme mặc định vì mới chỉ audit màu cho light; theo hệ
+    // thống (isSystemInDarkTheme()) sẽ lộ màn chưa style dark -> nâng cấp khi
+    // audit xong toàn bộ 60+ màn cho dark mode.
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

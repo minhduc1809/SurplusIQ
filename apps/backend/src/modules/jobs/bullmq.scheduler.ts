@@ -66,6 +66,12 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
               return this.jobsService.cleanupExpiredRetentionData();
             case JOBS_CONSTANTS.JOB_NAMES.ACCOUNT_ANONYMIZE:
               return this.jobsService.anonymizePendingDeleteAccounts();
+            case JOBS_CONSTANTS.JOB_NAMES.RESCUE_TIMELINE_RECALC:
+              return this.jobsService.recalculateRescueTimelines();
+            case JOBS_CONSTANTS.JOB_NAMES.RESCUE_POOL_DEADLINES:
+              return this.jobsService.processRescuePoolDeadlines();
+            case JOBS_CONSTANTS.JOB_NAMES.RESCUE_BRIDGE_DEADLINES:
+              return this.jobsService.processRescueBridgeDeadlines();
             default:
               return this.jobsService.processAllBackgroundJobs();
           }
@@ -98,10 +104,27 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
         {},
         { repeat: { every: 60 * 1000 } },
       );
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.RESCUE_POOL_DEADLINES,
+        {},
+        { repeat: { every: 60 * 1000 } },
+      );
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.RESCUE_BRIDGE_DEADLINES,
+        {},
+        { repeat: { every: 60 * 1000 } },
+      );
 
       // 5 phút: Tự chấp nhận khiếu nại quá hạn
       await this.queue.add(
         JOBS_CONSTANTS.JOB_NAMES.COMPLAINTS_AUTO_ACCEPT,
+        {},
+        { repeat: { every: 5 * 60 * 1000 } },
+      );
+
+      // 5 phút: Tính lại Rescue Timeline (CM-B01)
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.RESCUE_TIMELINE_RECALC,
         {},
         { repeat: { every: 5 * 60 * 1000 } },
       );

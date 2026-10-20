@@ -29,4 +29,44 @@ interface ProfileApiService {
     suspend fun removeFavorite(
         @Path("storeId") storeId: String
     ): Response<Map<String, Any>>
+
+    @GET("customer/saved-places")
+    suspend fun getSavedPlaces(): Response<List<SavedPlaceDto>>
+
+    @POST("customer/saved-places")
+    suspend fun createSavedPlace(@Body request: CreateSavedPlaceRequest): Response<SavedPlaceDto>
+
+    @DELETE("customer/saved-places/{id}")
+    suspend fun deleteSavedPlace(@Path("id") id: String): Response<Map<String, Any>>
+
+    @GET("customer/consents")
+    suspend fun getConsents(): Response<List<ConsentDto>>
+
+    @POST("customer/consents")
+    suspend fun recordConsent(
+        @Body request: RecordConsentRequest
+    ): Response<ConsentDto>
+
+    @POST("customer/delete-request")
+    suspend fun requestAccountDelete(): Response<AccountDeleteResponse>
+
+    @DELETE("customer/delete-request")
+    suspend fun cancelAccountDelete(): Response<AccountDeleteResponse>
+
+    @POST("customer/data-export")
+    suspend fun exportUserData(): Response<DataExportResponse>
+
+    @GET("customer/transactions")
+    suspend fun getTransactions(): Response<List<PaymentTransactionRecordDto>>
+
+    @GET("customer/order-lock")
+    suspend fun getOrderLockStatus(): Response<OrderLockStatusDto>
+
+    @GET("customer/promotions/wallet")
+    suspend fun getPromotionWallet(): Response<List<PromotionWalletItemDto>>
+
+    @POST("customer/promotions/{id}/claim")
+    suspend fun claimPromotion(
+        @Path("id") promotionId: String
+    ): Response<Map<String, Any>>
 }

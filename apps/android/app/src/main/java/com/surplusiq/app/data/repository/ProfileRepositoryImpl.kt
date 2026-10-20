@@ -2,6 +2,13 @@ package com.surplusiq.app.data.repository
 
 import com.surplusiq.app.data.remote.SessionManager
 import com.surplusiq.app.data.remote.api.ProfileApiService
+import com.surplusiq.app.data.remote.dto.AccountDeleteResponse
+import com.surplusiq.app.data.remote.dto.ConsentDto
+import com.surplusiq.app.data.remote.dto.DataExportResponse
+import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
+import com.surplusiq.app.data.remote.dto.PaymentTransactionRecordDto
+import com.surplusiq.app.data.remote.dto.PromotionWalletItemDto
+import retrofit2.Response
 import com.surplusiq.app.data.remote.dto.UpdateDietaryProfileRequest
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.UserImpactStats
@@ -23,10 +30,10 @@ class ProfileRepositoryImpl @Inject constructor(
                 val dto = response.body()!!
                 val statsDto = dto.impactStats
                 val stats = UserImpactStats(
-                    totalSavedMoneyVnd = statsDto?.moneySavedVnd ?: 4820000L,
-                    totalRescuedKg = statsDto?.foodSavedKg ?: 18.5,
-                    totalReducedCo2Kg = statsDto?.co2AvoidedKg ?: 46.2,
-                    totalRescuedBags = 14
+                    totalSavedMoneyVnd = statsDto?.moneySavedVnd ?: 0L,
+                    totalRescuedKg = statsDto?.foodSavedKg ?: 0.0,
+                    totalReducedCo2Kg = statsDto?.co2AvoidedKg ?: 0.0,
+                    totalRescuedBags = 0
                 )
                 Result.success(
                     UserProfile(
@@ -45,46 +52,124 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateDietaryPreferences(dietaryType: DietaryType, allergies: List<String>): Result<Boolean> {
-        return try {
-            val response = profileApiService.updateDietaryProfile(
+    override suspend fun getDietaryProfile(): Result<com.surplusiq.app.data.remote.dto.DietaryProfileDto> =
+        com.surplusiq.app.data.remote.apiCall("Không thể tải hồ sơ ăn uống", { profileApiService.getDietaryProfile() }) { it }
+
+    override suspend fun updateDietaryProfile(allergens: List<String>, excludedItems: List<String>): Result<Boolean> =
+        com.surplusiq.app.data.remote.apiCall("Không thể cập nhật hồ sơ ăn uống", {
+            profileApiService.updateDietaryProfile(
                 UpdateDietaryProfileRequest(
-                    dietaryPreferences = listOf(dietaryType.name),
-                    allergies = allergies
+                    allergens = allergens,
+                    excludedItems = excludedItems
                 )
             )
-            Result.success(response.isSuccessful)
-        } catch (_: Exception) {
-            Result.success(true)
+        }) { true }
+
+    override suspend fun updateDietaryPreferences(dietaryType: DietaryType, allergies: List<String>): Result<Boolean> {
+        val excluded = if (dietaryType != DietaryType.NONE) listOf(dietaryType.name) else emptyList()
+        return updateDietaryProfile(allergens = allergies, excludedItems = excluded)
+    }
+
+    override suspend fun getFavoriteStoreIds(): Result<Set<String>> =
+        com.surplusiq.app.data.remote.apiCall("Không thể tải cửa hàng yêu thích", { profileApiService.getFavorites() }) { list ->
+            list.map { it.storeId }.toSet()
+        }
+
+    override suspend fun getConsents(): Result<List<ConsentDto>> {
+        return try {
+            val response = profileApiService.getConsents()
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Không thể tải lịch sử chấp thuận (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
-    override suspend fun getFavoriteStoreIds(): Result<Set<String>> {
+    override suspend fun requestAccountDelete(): Result<AccountDeleteResponse> {
         return try {
-            val response = profileApiService.getFavorites()
+            val response = profileApiService.requestAccountDelete()
             if (response.isSuccessful && response.body() != null) {
-                val ids = response.body()!!.map { it.storeId }.toSet()
-                Result.success(ids)
+                Result.success(response.body()!!)
             } else {
-                Result.success(setOf("store-01", "store-04"))
+                Result.failure(Exception("Không thể gửi yêu cầu xóa tài khoản (${response.code()})"))
             }
-        } catch (_: Exception) {
-            Result.success(setOf("store-01", "store-04"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun cancelAccountDelete(): Result<AccountDeleteResponse> {
+        return try {
+            val response = profileApiService.cancelAccountDelete()
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Không thể hủy yêu cầu xóa tài khoản (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun exportUserData(): Result<DataExportResponse> {
+        return try {
+            val response = profileApiService.exportUserData()
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Không thể xuất dữ liệu cá nhân (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getTransactions(): Result<List<PaymentTransactionRecordDto>> =
+        call("Không thể tải lịch sử giao dịch") { profileApiService.getTransactions() }
+
+    override suspend fun getOrderLockStatus(): Result<OrderLockStatusDto> =
+        call("Không thể tải trạng thái khóa đặt") { profileApiService.getOrderLockStatus() }
+
+    override suspend fun getPromotionWallet(): Result<List<PromotionWalletItemDto>> =
+        call("Không thể tải ví ưu đãi") { profileApiService.getPromotionWallet() }
+
+    override suspend fun claimPromotion(promotionId: String): Result<Boolean> {
+        return try {
+            val response = profileApiService.claimPromotion(promotionId)
+            when {
+                response.isSuccessful -> Result.success(true)
+                response.code() == 404 -> Result.failure(Exception("Mã ưu đãi không tồn tại hoặc đã kết thúc."))
+                response.code() == 409 -> Result.failure(Exception("Bạn đã thu thập mã ưu đãi này rồi."))
+                // Promotion id là UUID; mã sai định dạng có thể bị DB từ chối với 500.
+                else -> Result.failure(Exception("Mã ưu đãi không hợp lệ (${response.code()})."))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại.", e))
+        }
+    }
+
+    /** Gọi API trả body bắt buộc; lỗi HTTP/mạng -> Result.failure với thông báo thật. */
+    private suspend fun <T> call(errorPrefix: String, request: suspend () -> Response<T>): Result<T> {
+        return try {
+            val response = request()
+            val body = response.body()
+            if (response.isSuccessful && body != null) Result.success(body)
+            else Result.failure(Exception("$errorPrefix (${response.code()})"))
+        } catch (e: Exception) {
+            Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại.", e))
         }
     }
 
     private fun createFallbackProfile(): UserProfile {
         return UserProfile(
-            id = sessionManager.getUserId() ?: "usr-demo-01",
-            phone = sessionManager.getPhone() ?: "0901234567",
+            id = sessionManager.getUserId() ?: "",
+            phone = sessionManager.getPhone() ?: "",
             fullName = sessionManager.getFullName(),
-            avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-            impactStats = UserImpactStats(
-                totalSavedMoneyVnd = 4820000L,
-                totalRescuedKg = 18.5,
-                totalReducedCo2Kg = 46.2,
-                totalRescuedBags = 14
-            )
+            avatarUrl = null,
+            impactStats = UserImpactStats(0L, 0.0, 0.0, 0)
         )
     }
 }

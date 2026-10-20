@@ -2,6 +2,7 @@ package com.surplusiq.app.di
 
 import com.surplusiq.app.data.remote.AuthInterceptor
 import com.surplusiq.app.data.remote.SessionManager
+import com.surplusiq.app.data.remote.TokenAuthenticator
 import com.surplusiq.app.data.remote.api.*
 import dagger.Module
 import dagger.Provides
@@ -30,10 +31,12 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor,
+        tokenAuthenticator: TokenAuthenticator,
         loggingInterceptor: HttpLoggingInterceptor
     ): OkHttpClient {
         return OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .authenticator(tokenAuthenticator)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
@@ -88,4 +91,24 @@ object NetworkModule {
     @Singleton
     fun provideInteractionsApiService(retrofit: Retrofit): InteractionsApiService =
         retrofit.create(InteractionsApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun providePaymentsApiService(retrofit: Retrofit): PaymentsApiService =
+        retrofit.create(PaymentsApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideRewardsApiService(retrofit: Retrofit): RewardsApiService =
+        retrofit.create(RewardsApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideNotificationsApiService(retrofit: Retrofit): NotificationsApiService =
+        retrofit.create(NotificationsApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideRescuePoolApiService(retrofit: Retrofit): RescuePoolApiService =
+        retrofit.create(RescuePoolApiService::class.java)
 }

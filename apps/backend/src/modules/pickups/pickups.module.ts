@@ -10,6 +10,7 @@ import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
 import { AuditModule } from '../audit/audit.module';
+import { RewardsModule } from '../rewards/rewards.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuditModule } from '../audit/audit.module';
       UserEntity,
     ]),
     AuditModule,
+    RewardsModule,
   ],
   controllers: [StorePickupsController, CustomerPickupsController],
   providers: [PickupsService],

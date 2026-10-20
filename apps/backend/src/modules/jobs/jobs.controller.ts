@@ -130,6 +130,39 @@ export class JobsController {
     return this.jobsService.anonymizePendingDeleteAccounts();
   }
 
+  @Post('rescue-timeline-recalculate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Tính lại mức nguy cơ Rescue Timeline cho mọi cửa hàng có lô đang hoạt động (CM-B01)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Đã tính lại Rescue Timeline (kèm danh sách cửa hàng lỗi để xử lý lại)',
+  })
+  async rescueTimelineRecalculate() {
+    return this.jobsService.recalculateRescueTimelines();
+  }
+
+  @Post('rescue-pool-deadlines')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Xử lý hạn Rescue Pool: đóng đăng ký, hết hạn chờ cửa hàng, hết hạn đề nghị (CM-B02)',
+  })
+  @ApiResponse({ status: 200, description: 'Số đợt đã chuyển trạng thái' })
+  async rescuePoolDeadlines() {
+    return this.jobsService.processRescuePoolDeadlines();
+  }
+
+  @Post('rescue-bridge-deadlines')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Xử lý hạn nhận Rescue Bridge: quá hạn → Hủy/Thất bại hoặc chuyển vận hành (CM-B03)',
+  })
+  @ApiResponse({ status: 200, description: 'Số đề nghị đã xử lý' })
+  async rescueBridgeDeadlines() {
+    return this.jobsService.processRescueBridgeDeadlines();
+  }
+
   @Post('run-all')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

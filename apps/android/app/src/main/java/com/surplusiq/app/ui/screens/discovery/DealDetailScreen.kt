@@ -3,6 +3,7 @@ package com.surplusiq.app.ui.screens.discovery
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,13 +13,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,23 +30,44 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.surplusiq.app.domain.model.Deal
-import com.surplusiq.app.ui.theme.CoralRed
-import com.surplusiq.app.ui.theme.ForestGreenDark
-import com.surplusiq.app.ui.theme.ForestGreenPrimary
-import com.surplusiq.app.ui.theme.TextMuted
-import com.surplusiq.app.ui.theme.TextPrimary
-import com.surplusiq.app.ui.theme.TextSecondary
+import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.domain.model.TrustpassInfo
+import com.surplusiq.app.ui.theme.*
 
 @Composable
 fun DealDetailScreen(
     deal: Deal,
     onBackClick: () -> Unit,
     onReserveClick: (Deal) -> Unit,
+    trustpass: TrustpassInfo? = null,
+    isTrustpassLoading: Boolean = false,
+    trustpassErrorMessage: String? = null,
+    onLoadTrustpass: () -> Unit = {},
+    // K17: lưu deal xem sau; K14: mở trang cửa hàng
+    isSaved: Boolean = false,
+    onToggleSaved: (() -> Unit)? = null,
+    onOpenStore: (() -> Unit)? = null,
+    userAllergens: List<String> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     var isFavorite by remember { mutableStateOf(deal.isFavorite) }
     var showFavoriteToast by remember { mutableStateOf(false) }
+    var showTrustpass by remember { mutableStateOf(false) }
+    var showAiTips by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    val dealAllergens = remember(deal.allergens, trustpass?.allergens) {
+        (deal.allergens + (trustpass?.allergens ?: emptyList())).distinct()
+    }
+    val matchedAllergens = remember(userAllergens, dealAllergens) {
+        userAllergens.filter { ua ->
+            dealAllergens.any { da ->
+                da.equals(ua, ignoreCase = true) ||
+                da.contains(ua, ignoreCase = true) ||
+                ua.contains(da, ignoreCase = true)
+            }
+        }
+    }
 
     Box(
         modifier = modifier
@@ -74,7 +93,7 @@ fun DealDetailScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Top Actions (Back & Favorite)
+                // Top Actions (Back, Share, Bookmark, Favorite)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -90,29 +109,71 @@ fun DealDetailScreen(
                             .background(Color.Black.copy(alpha = 0.4f))
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = Color.White
                         )
                     }
 
-                    IconButton(
-                        onClick = {
-                            isFavorite = !isFavorite
-                            if (isFavorite) {
-                                showFavoriteToast = true
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Nút chia sẻ deal
+                        IconButton(
+                            onClick = {
+                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(
+                                        android.content.Intent.EXTRA_TEXT,
+                                        "Cùng giải cứu suất ăn '${deal.title}' tại ${deal.storeName} với giá chỉ ${String.format("%,d", deal.discountPrice)} ₫ (giảm ${deal.discountPercent}%) trên SurplusIQ!"
+                                    )
+                                }
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Chia sẻ deal cứu hộ"))
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.4f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Chia sẻ",
+                                tint = Color.White
+                            )
+                        }
+
+                        if (onToggleSaved != null) {
+                            IconButton(
+                                onClick = onToggleSaved,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.4f))
+                            ) {
+                                Icon(
+                                    imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                    contentDescription = if (isSaved) "Bỏ lưu deal" else "Lưu deal",
+                                    tint = Color.White
+                                )
                             }
-                        },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.4f))
-                    ) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = "Favorite",
-                            tint = if (isFavorite) CoralRed else Color.White
-                        )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                isFavorite = !isFavorite
+                                if (isFavorite) {
+                                    showFavoriteToast = true
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.4f))
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                contentDescription = "Favorite",
+                                tint = if (isFavorite) CoralRed else Color.White
+                            )
+                        }
                     }
                 }
 
@@ -136,7 +197,13 @@ fun DealDetailScreen(
 
             // Store Info & Title
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = onOpenStore != null) { onOpenStore?.invoke() }
+                ) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -154,8 +221,12 @@ fun DealDetailScreen(
                         text = deal.storeName,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f)
                     )
+                    if (onOpenStore != null) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Xem cửa hàng", tint = TextMuted)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -200,11 +271,49 @@ fun DealDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "%.1f (%d)".format(deal.rating, deal.reviewCount),
+                        text = if (deal.reviewCount > 0) "%.1f (%d)".format(deal.rating, deal.reviewCount) else "Chưa có đánh giá",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
+                }
+
+                // Cảnh báo dị ứng cá nhân hóa theo hồ sơ người dùng (K58 / K13)
+                if (matchedAllergens.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = CoralRedLight),
+                        border = BorderStroke(1.dp, CoralRed)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Cảnh báo dị ứng",
+                                tint = CoralRed,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "CẢNH BÁO DỊ ỨNG",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = CoralRed
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Món này có chứa: ${matchedAllergens.joinToString(", ")} trùng với hồ sơ ăn uống của bạn. Vui lòng kiểm tra kỹ!",
+                                    fontSize = 13.sp,
+                                    color = TextPrimary
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -249,7 +358,7 @@ fun DealDetailScreen(
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
                                 Text(
-                                    text = "Today",
+                                    text = "Hôm nay",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -303,62 +412,49 @@ fun DealDetailScreen(
                     )
                 }
 
-                Divider(
+                HorizontalDivider(
                     modifier = Modifier.padding(vertical = 14.dp),
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                 )
 
                 // WHAT YOU COULD GET Section
-                Text(
-                    text = "WHAT YOU COULD GET",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary,
-                    letterSpacing = 0.5.sp
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = deal.whatYouCouldGet,
-                    fontSize = 14.sp,
-                    color = TextPrimary,
-                    lineHeight = 20.sp
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Category Tag
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(ForestGreenPrimary.copy(alpha = 0.1f))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
+                if (deal.whatYouCouldGet.isNotBlank()) {
                     Text(
-                        text = deal.category.displayName,
+                        text = "TRONG TÚI CÓ GÌ",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ForestGreenPrimary
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = deal.whatYouCouldGet,
+                        fontSize = 14.sp,
+                        color = TextPrimary,
+                        lineHeight = 20.sp
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 14.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                     )
                 }
 
-                Divider(
-                    modifier = Modifier.padding(vertical = 14.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                )
-
-                // Ingredients & Allergens
+                // TrustPass (CM-C03): hồ sơ minh bạch món - không phải chứng nhận an toàn tuyệt đối
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { }
+                        .clickable {
+                            showTrustpass = !showTrustpass
+                            if (showTrustpass) onLoadTrustpass()
+                        }
                         .padding(vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Ingredients & allergens",
+                            text = "Thành phần, dị ứng & TrustPass",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = TextPrimary
@@ -371,47 +467,152 @@ fun DealDetailScreen(
                     }
                     Icon(
                         imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Expand",
+                        contentDescription = "Mở rộng",
                         tint = TextMuted
                     )
                 }
 
-                Divider(
+                AnimatedVisibility(visible = showTrustpass) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = ForestGreenPrimary.copy(alpha = 0.05f))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            when {
+                                isTrustpassLoading -> {
+                                    Text("Đang tải hồ sơ TrustPass...", fontSize = 13.sp, color = TextSecondary)
+                                }
+                                trustpassErrorMessage != null -> {
+                                    Text(trustpassErrorMessage, fontSize = 13.sp, color = CoralRed)
+                                }
+                                trustpass != null -> {
+                                    TrustpassField("Thành phần", trustpass.ingredients)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    TrustpassAllergensField(trustpass.allergens)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    TrustpassField("Hạn dùng", trustpass.expiryAt)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    TrustpassField("Bảo quản", trustpass.storageInstructions)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = trustpass.pickupWindowNote,
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = "Nguồn thông tin: ${trustpass.informationSource} • Trạng thái: ${trustpass.verificationStatus}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = ForestGreenDark
+                                    )
+                                }
+                                else -> {
+                                    Text("Chưa có dữ liệu TrustPass.", fontSize = 13.sp, color = TextSecondary)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(
                     modifier = Modifier.padding(vertical = 14.dp),
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                 )
 
-                // WHAT OTHER PEOPLE ARE SAYING
-                Text(
-                    text = "WHAT OTHER PEOPLE ARE SAYING",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary,
-                    letterSpacing = 0.5.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // SaveBite AI Tips: Mẹo bảo quản & tái chế (K13)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showAiTips = !showAiTips }
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(LilacAccent.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color(0xFF6B58C4),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Mẹo bảo quản & Công thức từ AI",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Gợi ý cách hâm nóng & tận dụng tối đa từ SaveBite AI",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
                     Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Rating",
-                        tint = ForestGreenPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "%.1f / 5.0".format(deal.rating),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = TextPrimary
+                        imageVector = if (showAiTips) Icons.Default.KeyboardArrowUp else Icons.Default.ChevronRight,
+                        contentDescription = "Mở rộng",
+                        tint = TextMuted
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "TOP 3 HIGHLIGHTS: Bánh tươi trong ngày • Cửa hàng thân thiện • Tiết kiệm 67%",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = ForestGreenPrimary
-                )
+
+                AnimatedVisibility(visible = showAiTips) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = LilacWash)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "💡 Hướng dẫn hâm nóng & Bảo quản:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF513F9E)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            val storageGuide = when (deal.category) {
+                                DealCategory.BAKED_GOODS -> "• Làm nóng: Xịt một chút nước lên vỏ bánh rồi nướng ở 180°C trong 3-4 phút để vỏ giòn rụm như mới ra lò.\n• Bảo quản: Để ngăn đông nếu không dùng hết trong 24h, khi ăn chỉ cần rã đông ở nhiệt độ phòng."
+                                DealCategory.MEALS -> "• Hâm nóng: Sử dụng chảo với một chút dầu/nước, hoặc đậy kín trong lò vi sóng để món ăn không bị khô.\n• Bảo quản: Giữ ở ngăn mát tủ lạnh (dưới 5°C) và dùng tốt nhất trong vòng 24 giờ."
+                                DealCategory.GROCERIES -> "• Sơ chế: Rửa sạch và để ráo nước trước khi cho vào hộp kín trong ngăn mát.\n• Ý tưởng chế biến: Có thể nấu canh soup thanh nhiệt, làm salad trộn sốt mè rang hoặc làm sinh tố trái cây."
+                                DealCategory.OTHER -> "• Bảo quản nơi khô ráo, thoáng mát hoặc ngăn mát tủ lạnh tùy tính chất thực phẩm.\n• Dùng hết trong khung thời gian khuyến nghị để đảm bảo hương vị chuẩn nhất."
+                            }
+                            Text(
+                                text = storageGuide,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                color = TextPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "🌿 Cùng SurplusIQ giảm phát thải CO2 và bảo vệ môi trường!",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ForestGreenDark
+                            )
+                        }
+                    }
+                }
+
             }
         }
 
@@ -434,7 +635,7 @@ fun DealDetailScreen(
                 )
             ) {
                 Text(
-                    text = "Reserve",
+                    text = "Đặt giữ suất",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -469,11 +670,49 @@ fun DealDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Great! This store was added to your list of favourites",
+                        text = "Đã thêm cửa hàng vào danh sách yêu thích",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
+                }
+            }
+        }
+    }
+}
+
+/** BR-C03-02: null = "Chưa được cung cấp" - không suy diễn thành "Không có". */
+@Composable
+private fun TrustpassField(label: String, value: String?) {
+    Column {
+        Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+        Text(
+            text = value ?: "Chưa được cung cấp",
+            fontSize = 13.sp,
+            color = if (value != null) TextPrimary else TextMuted
+        )
+    }
+}
+
+/** allergens == null -> "Chưa được cung cấp"; allergens == [] -> khai báo rõ là không có (BR-C03-02). */
+@Composable
+private fun TrustpassAllergensField(allergens: List<String>?) {
+    Column {
+        Text(text = "Dị ứng", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+        when {
+            allergens == null -> Text("Chưa được cung cấp", fontSize = 13.sp, color = TextMuted)
+            allergens.isEmpty() -> Text("Cửa hàng khai báo rõ: không có chất gây dị ứng", fontSize = 13.sp, color = TextPrimary)
+            else -> Row(modifier = Modifier.padding(top = 4.dp)) {
+                allergens.forEach { allergen ->
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CoralRed.copy(alpha = 0.1f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = allergen, fontSize = 12.sp, color = CoralRed)
+                    }
                 }
             }
         }

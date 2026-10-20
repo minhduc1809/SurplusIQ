@@ -6,8 +6,22 @@ data class CustomerRegisterRequest(
     @SerializedName("phone") val phone: String,
     @SerializedName("password") val password: String,
     @SerializedName("fullName") val fullName: String,
-    @SerializedName("termsAccepted") val termsAccepted: Boolean = true,
-    @SerializedName("privacyAccepted") val privacyAccepted: Boolean = true
+    @SerializedName("deviceId") val deviceId: String
+)
+
+data class ForgotPasswordRequest(
+    @SerializedName("target") val target: String
+)
+
+data class ResetPasswordRequest(
+    @SerializedName("target") val target: String,
+    @SerializedName("otpCode") val otpCode: String,
+    @SerializedName("newPassword") val newPassword: String
+)
+
+data class ChangePasswordRequest(
+    @SerializedName("currentPassword") val currentPassword: String,
+    @SerializedName("newPassword") val newPassword: String
 )
 
 data class CustomerLoginRequest(
@@ -31,8 +45,10 @@ data class ResendOtpRequest(
     @SerializedName("phone") val phone: String = target
 )
 
-data class RefreshTokenRequest(
-    @SerializedName("refreshToken") val refreshToken: String
+data class GoogleLoginRequest(
+    @SerializedName("idToken") val idToken: String,
+    @SerializedName("deviceId") val deviceId: String,
+    @SerializedName("deviceName") val deviceName: String? = null
 )
 
 data class AuthResponse(

@@ -58,7 +58,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     const scope = options?.scope || req.route?.path || req.path || 'default';
-    const userId = req.user?.userId || 'anonymous';
+    // Cột user_id là uuid — không dùng chuỗi 'anonymous' vì sẽ gây lỗi QueryFailedError cho
+    // request chưa đăng nhập; anonymous request có đóng góp chống double-submit nên bỏ qua lookup.
+    const userId = req.user?.userId;
+    if (!idempotencyKey || !userId) {
+      return next.handle();
+    }
     const requestHash = crypto
       .createHash('sha256')
       .update(JSON.stringify(req.body || {}))
