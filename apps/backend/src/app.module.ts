@@ -31,6 +31,7 @@ import { RescueTimelineModule } from './modules/rescue-timeline/rescue-timeline.
 import { RescuePoolModule } from './modules/rescue-pool/rescue-pool.module';
 import { RescueBridgeModule } from './modules/rescue-bridge/rescue-bridge.module';
 import { RescueLabModule } from './modules/rescue-lab/rescue-lab.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { RescueLabModule } from './modules/rescue-lab/rescue-lab.module';
     RescuePoolModule,
     RescueBridgeModule,
     RescueLabModule,
+    UploadModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
