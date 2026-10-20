@@ -20,13 +20,13 @@ data class ImpactStatsDto(
 )
 
 data class DietaryProfileDto(
-    @SerializedName("dietaryPreferences") val dietaryPreferences: List<String> = emptyList(),
-    @SerializedName("allergies") val allergies: List<String> = emptyList()
+    @SerializedName("allergens") val allergens: List<String> = emptyList(),
+    @SerializedName("excludedItems") val excludedItems: List<String> = emptyList()
 )
 
 data class UpdateDietaryProfileRequest(
-    @SerializedName("dietaryPreferences") val dietaryPreferences: List<String>,
-    @SerializedName("allergies") val allergies: List<String>
+    @SerializedName("allergens") val allergens: List<String>,
+    @SerializedName("excludedItems") val excludedItems: List<String>
 )
 
 /** Backend chỉ trả bản ghi liên kết (id, userId, storeId, createdAt); thông tin quán lấy từ customer/stores/:id. */

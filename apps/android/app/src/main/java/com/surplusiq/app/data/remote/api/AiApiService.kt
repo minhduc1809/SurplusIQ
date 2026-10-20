@@ -15,7 +15,7 @@ interface AiApiService {
     @POST("customer/ai/search")
     suspend fun searchDealsWithAi(
         @Body request: CustomerAiSearchRequest
-    ): Response<List<DealItemDto>>
+    ): Response<CustomerAiSearchResponse>
 
     @POST("customer/ai/allergy-check")
     suspend fun checkAllergies(

@@ -21,6 +21,8 @@ interface DiscoveryApiService {
         @Query("category") category: String? = null,
         @Query("dietary") dietary: String? = null,
         @Query("maxPrice") maxPrice: Double? = null,
+        @Query("minDiscountPercent") minDiscountPercent: Int? = null,
+        @Query("sortBy") sortBy: String? = null,
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20
     ): Response<NearbyDealsResponse>

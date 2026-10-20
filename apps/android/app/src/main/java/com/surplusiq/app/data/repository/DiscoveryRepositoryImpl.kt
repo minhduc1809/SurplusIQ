@@ -60,11 +60,20 @@ class DiscoveryRepositoryImpl @Inject constructor(
         longitude: Double?,
         radiusKm: Double,
         searchQuery: String?,
-        preferences: UserPreferences?
+        preferences: UserPreferences?,
+        minDiscountPercent: Int?,
+        sortBy: String?
     ): Result<List<Deal>> =
         // Bán kính đã lọc ở backend (PostGIS) khi có tọa độ; danh sách rỗng/lỗi trả nguyên trạng, không thay bằng dữ liệu mẫu.
         apiCall("Không thể tải danh sách deal", {
-            discoveryApiService.findNearbyDeals(latitude = latitude, longitude = longitude, radiusKm = radiusKm, search = searchQuery)
+            discoveryApiService.findNearbyDeals(
+                latitude = latitude,
+                longitude = longitude,
+                radiusKm = radiusKm,
+                search = searchQuery,
+                minDiscountPercent = minDiscountPercent,
+                sortBy = sortBy
+            )
         }) { body -> applyLocalFilters(body.data.map { mapDtoToDeal(it) }, searchQuery, 0.0, preferences) }
 
     override suspend fun getDealDetail(id: String): Result<Deal> {

@@ -6,11 +6,14 @@ import com.surplusiq.app.data.remote.dto.DataExportResponse
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
 import com.surplusiq.app.data.remote.dto.PaymentTransactionRecordDto
 import com.surplusiq.app.data.remote.dto.PromotionWalletItemDto
+import com.surplusiq.app.data.remote.dto.DietaryProfileDto
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.UserProfile
 
 interface ProfileRepository {
     suspend fun getProfile(): Result<UserProfile>
+    suspend fun getDietaryProfile(): Result<DietaryProfileDto>
+    suspend fun updateDietaryProfile(allergens: List<String>, excludedItems: List<String>): Result<Boolean>
     suspend fun updateDietaryPreferences(dietaryType: DietaryType, allergies: List<String>): Result<Boolean>
     suspend fun getFavoriteStoreIds(): Result<Set<String>>
 
