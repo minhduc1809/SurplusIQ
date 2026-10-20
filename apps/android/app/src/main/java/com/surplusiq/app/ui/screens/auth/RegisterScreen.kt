@@ -53,7 +53,7 @@ fun RegisterScreen(
             label = "Mật khẩu",
             value = state.password,
             onValueChange = onPasswordChange,
-            placeholder = "Từ 6 ký tự",
+            placeholder = "Từ 8 ký tự, gồm chữ và số",
             keyboardType = KeyboardType.Password,
             visualTransformation = PasswordVisualTransformation()
         )

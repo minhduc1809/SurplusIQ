@@ -128,6 +128,10 @@ class AuthViewModel @Inject constructor(
             _uiState.value = state.copy(errorMessage = "Vui lòng điền đầy đủ thông tin Họ tên, SĐT và Mật khẩu")
             return
         }
+        if (weakPassword(state.password)) {
+            _uiState.value = state.copy(errorMessage = "Mật khẩu tối thiểu 8 ký tự, gồm cả chữ và số.")
+            return
+        }
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
@@ -254,8 +258,8 @@ class AuthViewModel @Inject constructor(
             _uiState.value = state.copy(errorMessage = "Mã OTP phải gồm 6 chữ số.")
             return
         }
-        if (state.newPassword.length < 6) {
-            _uiState.value = state.copy(errorMessage = "Mật khẩu mới phải từ 6 ký tự.")
+        if (weakPassword(state.newPassword)) {
+            _uiState.value = state.copy(errorMessage = "Mật khẩu mới tối thiểu 8 ký tự, gồm cả chữ và số.")
             return
         }
         if (state.newPassword != state.confirmNewPassword) {
@@ -309,8 +313,8 @@ class AuthViewModel @Inject constructor(
             _uiState.value = state.copy(errorMessage = "Vui lòng nhập mật khẩu hiện tại.")
             return
         }
-        if (state.newChangePassword.length < 6) {
-            _uiState.value = state.copy(errorMessage = "Mật khẩu mới phải từ 6 ký tự.")
+        if (weakPassword(state.newChangePassword)) {
+            _uiState.value = state.copy(errorMessage = "Mật khẩu mới tối thiểu 8 ký tự, gồm cả chữ và số.")
             return
         }
         if (state.newChangePassword != state.confirmChangePassword) {
@@ -377,3 +381,5 @@ class AuthViewModel @Inject constructor(
         otpTimerJob?.cancel()
     }
 }
+
+private fun weakPassword(p: String) = p.length < 8 || p.none(Char::isLetter) || p.none(Char::isDigit)

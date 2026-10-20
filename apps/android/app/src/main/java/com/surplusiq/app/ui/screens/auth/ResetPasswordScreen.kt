@@ -74,7 +74,7 @@ fun ResetPasswordScreen(
             label = "Mật khẩu mới",
             value = state.newPassword,
             onValueChange = onNewPasswordChange,
-            placeholder = "Từ 6 ký tự",
+            placeholder = "Từ 8 ký tự, gồm chữ và số",
             keyboardType = KeyboardType.Password,
             visualTransformation = PasswordVisualTransformation()
         )
