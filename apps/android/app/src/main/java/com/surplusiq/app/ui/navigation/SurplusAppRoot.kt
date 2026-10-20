@@ -22,13 +22,18 @@ import com.surplusiq.app.domain.model.UserImpactStats
 import com.surplusiq.app.ui.components.NavTab
 import kotlinx.coroutines.launch
 import com.surplusiq.app.ui.components.SurplusBottomNav
+import com.surplusiq.app.ui.screens.ai.AiChatHistoryScreen
 import com.surplusiq.app.ui.screens.ai.SaveBiteAiSheet
+import com.surplusiq.app.ui.viewmodel.AiViewModel
 import com.surplusiq.app.ui.screens.auth.ForgotPasswordScreen
 import com.surplusiq.app.ui.screens.auth.LoginScreen
 import com.surplusiq.app.ui.screens.auth.OtpVerificationScreen
 import com.surplusiq.app.ui.screens.auth.RegisterScreen
 import com.surplusiq.app.ui.screens.auth.ResetPasswordScreen
 import com.surplusiq.app.ui.screens.auth.WelcomeScreen
+import com.surplusiq.app.ui.screens.basket.RescueBasketScreen
+import com.surplusiq.app.ui.screens.basket.BasketDetailScreen
+import com.surplusiq.app.ui.screens.basket.BasketCheckoutScreen
 import com.surplusiq.app.ui.screens.checkout.OrderHoldCheckoutScreen
 import com.surplusiq.app.ui.screens.discovery.BrowseScreen
 import com.surplusiq.app.ui.screens.discovery.DealDetailScreen
@@ -47,6 +52,8 @@ import com.surplusiq.app.ui.screens.profile.DietaryProfileScreen
 import com.surplusiq.app.ui.screens.profile.ImpactScreen
 import com.surplusiq.app.ui.screens.profile.PrivacyDataScreen
 import com.surplusiq.app.ui.screens.profile.ProfileScreen
+import com.surplusiq.app.ui.screens.profile.RefundBankAccountScreen
+import com.surplusiq.app.ui.screens.onboarding.OnboardingScreen
 import com.surplusiq.app.ui.screens.basket.RescueBasketScreen
 import com.surplusiq.app.ui.screens.rewards.RewardsScreen
 import com.surplusiq.app.ui.screens.support.HelpCenterScreen
@@ -62,6 +69,7 @@ import com.surplusiq.app.ui.viewmodel.NotificationsViewModel
 import com.surplusiq.app.ui.viewmodel.RescuePoolViewModel
 import com.surplusiq.app.ui.screens.pool.RescuePoolDetailScreen
 import com.surplusiq.app.ui.screens.pool.RescuePoolListScreen
+import com.surplusiq.app.ui.screens.pool.MyRescueDemandsScreen
 import com.surplusiq.app.domain.model.DealAlert
 import com.surplusiq.app.ui.screens.alerts.DealAlertEditScreen
 import com.surplusiq.app.ui.screens.alerts.DealAlertsScreen
@@ -103,13 +111,17 @@ sealed class AppDestination {
     object ChangePassword : AppDestination()
     object Rewards : AppDestination()
     object RescueBasket : AppDestination()
+    object BasketDetail : AppDestination()
+    object BasketCheckout : AppDestination()
     object Notifications : AppDestination()
     object SupportTickets : AppDestination()
     data class SupportTicketDetail(val ticketId: String) : AppDestination()
     object RescuePoolList : AppDestination()
     data class RescuePoolDetail(val poolId: String) : AppDestination()
+    object MyRescueDemands : AppDestination()
     object Impact : AppDestination()
     object AiChat : AppDestination()
+    object AiChatHistory : AppDestination()
     object PrivacyData : AppDestination()
     object HelpCenter : AppDestination()
     data class OrderReceipt(val order: ActiveOrder) : AppDestination()
@@ -135,6 +147,10 @@ sealed class AppDestination {
     data class StoreReviews(val storeId: String, val back: AppDestination = MainTabs) : AppDestination()
     object EditProfile : AppDestination()
     object NotificationSettings : AppDestination()
+    // KX01: Quản lý tài khoản ngân hàng hoàn tiền VietQR
+    object RefundBankAccount : AppDestination()
+    // KX09: Onboarding 4 slide vuốt ngang
+    object Onboarding : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -160,13 +176,15 @@ fun SurplusAppRoot(
     placesViewModel: PlacesViewModel = hiltViewModel(),
     storeViewModel: StoreViewModel = hiltViewModel(),
     savedDealsViewModel: SavedDealsViewModel = hiltViewModel(),
-    dealAlertsViewModel: DealAlertsViewModel = hiltViewModel()
+    dealAlertsViewModel: DealAlertsViewModel = hiltViewModel(),
+    aiViewModel: AiViewModel = hiltViewModel()
 ) {
     val placesState by placesViewModel.uiState.collectAsState()
     val storeState by storeViewModel.uiState.collectAsState()
     val savedDealsState by savedDealsViewModel.uiState.collectAsState()
     val dealAlertsState by dealAlertsViewModel.uiState.collectAsState()
     val rescuePoolState by rescuePoolViewModel.uiState.collectAsState()
+    val aiUiState by aiViewModel.uiState.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val authState by authViewModel.uiState.collectAsState()
@@ -195,7 +213,15 @@ fun SurplusAppRoot(
     LaunchedEffect(authState.isLoggedIn) { if (authState.isLoggedIn) profileViewModel.loadProfile() }
     var selectedTab by remember { mutableStateOf(NavTab.DISCOVER) }
     LaunchedEffect(selectedTab, authState.isLoggedIn) { if (selectedTab == NavTab.ME && authState.isLoggedIn) interactionsViewModel.loadImpact() }
-    var currentDestination by remember { mutableStateOf<AppDestination>(AppDestination.MainTabs) }
+    val onboardingPrefs = remember { context.getSharedPreferences("surplusiq_session_prefs", android.content.Context.MODE_PRIVATE) }
+    val initialDestination = remember {
+        if (!onboardingPrefs.getBoolean("key_onboarding_completed", false)) {
+            AppDestination.Onboarding
+        } else {
+            AppDestination.MainTabs
+        }
+    }
+    var currentDestination by remember { mutableStateOf<AppDestination>(initialDestination) }
     var authScreenState by remember { mutableStateOf(AuthScreenState.WELCOME) }
     
     // K06: lần đầu vào app (đăng nhập hoặc khách) mà chưa thiết lập vị trí -> màn quyền vị trí & bán kính.
@@ -320,6 +346,9 @@ fun SurplusAppRoot(
                 }
             }
             val isSaved = dest.deal.id in savedDealsState.savedIds
+            LaunchedEffect(dest.deal.id) {
+                discoveryViewModel.loadBackInStockStatus(dest.deal.id)
+            }
             DealDetailScreen(
                 deal = dest.deal,
                 onBackClick = { currentDestination = dest.back },
@@ -340,7 +369,14 @@ fun SurplusAppRoot(
                 isTrustpassLoading = discoveryState.isTrustpassLoading,
                 trustpassErrorMessage = discoveryState.trustpassErrorMessage,
                 onLoadTrustpass = { discoveryViewModel.loadTrustpass(dest.deal.id) },
-                userAllergens = profileUiState.allergens
+                userAllergens = profileUiState.allergens,
+                isBackInStockSubscribed = discoveryState.isBackInStockSubscribed,
+                isTogglingBackInStock = discoveryState.isTogglingBackInStock,
+                onToggleBackInStock = { discoveryViewModel.toggleBackInStock(dest.deal.id) },
+                priceHistory = discoveryState.priceHistory,
+                isPriceHistoryLoading = discoveryState.isPriceHistoryLoading,
+                priceHistoryError = discoveryState.priceHistoryError,
+                onLoadPriceHistory = { discoveryViewModel.loadPriceHistory(dest.deal.id) }
             )
         }
 
@@ -415,7 +451,10 @@ fun SurplusAppRoot(
                 proxyCodeError = myOrdersState.proxyCodeError,
                 onLoadProxyCode = { orderId -> myOrdersViewModel.loadProxyCode(orderId) },
                 onCreateProxyCode = { orderId -> myOrdersViewModel.createProxyCode(orderId) },
-                onRevokeProxyCode = { orderId -> myOrdersViewModel.revokeProxyCode(orderId) }
+                onRevokeProxyCode = { orderId -> myOrdersViewModel.revokeProxyCode(orderId) },
+                onAttachPaymentProof = { orderId, proofUrl -> myOrdersViewModel.attachPaymentProof(orderId, proofUrl) },
+                onUpdatePickupSlot = { orderId, newSlotIso -> myOrdersViewModel.updatePickupSlot(orderId, newSlotIso) },
+                onResetActionStates = { myOrdersViewModel.resetActionStates() }
             )
         }
 
@@ -472,16 +511,6 @@ fun SurplusAppRoot(
             )
         }
 
-        is AppDestination.RescueBasket -> {
-            RescueBasketScreen(
-                suggestions = discoveryState.basketSuggestions,
-                isLoading = discoveryState.isBasketLoading,
-                errorMessage = discoveryState.basketErrorMessage,
-                onBackClick = { currentDestination = AppDestination.MainTabs },
-                onSuggest = { budgetMax, peopleCount -> discoveryViewModel.suggestBasket(budgetMax, peopleCount) }
-            )
-        }
-
         is AppDestination.Notifications -> {
             NotificationsScreen(
                 state = notificationsState,
@@ -521,6 +550,57 @@ fun SurplusAppRoot(
             )
         }
 
+        is AppDestination.RescueBasket -> {
+            RescueBasketScreen(
+                suggestions = discoveryState.basketSuggestions,
+                isLoading = discoveryState.isBasketLoading,
+                errorMessage = discoveryState.basketErrorMessage,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onSuggest = { budget, people -> discoveryViewModel.suggestBasket(budget, people) },
+                onSelectBasket = { basket ->
+                    discoveryViewModel.initCustomBasket(basket, discoveryState.deals)
+                    currentDestination = AppDestination.BasketDetail
+                }
+            )
+        }
+
+        is AppDestination.BasketDetail -> {
+            BasketDetailScreen(
+                storeName = discoveryState.activeBasketStoreName ?: "Cửa hàng",
+                items = discoveryState.customBasketItems,
+                userAllergens = profileUiState.allergens,
+                availableSubstitutes = discoveryState.availableSubstitutes,
+                isSubstitutesLoading = discoveryState.isSubstitutesLoading,
+                substitutesError = discoveryState.substitutesErrorMessage,
+                onBackClick = { currentDestination = AppDestination.RescueBasket },
+                onQuantityChange = { offerId, qty -> discoveryViewModel.updateBasketItemQuantity(offerId, qty) },
+                onRemoveItem = { offerId -> discoveryViewModel.removeBasketItem(offerId) },
+                onRequestSubstitutes = {
+                    discoveryViewModel.loadSubstitutes(profileUiState.allergens)
+                },
+                onApplySubstitute = { oldOfferId, sub -> discoveryViewModel.substituteItem(oldOfferId, sub) },
+                onProceedToCheckout = { currentDestination = AppDestination.BasketCheckout }
+            )
+        }
+
+        is AppDestination.BasketCheckout -> {
+            BasketCheckoutScreen(
+                storeName = discoveryState.activeBasketStoreName ?: "Cửa hàng",
+                items = discoveryState.customBasketItems,
+                isCheckingOut = discoveryState.isCheckingOutBasket,
+                checkoutResult = discoveryState.basketCheckoutResult,
+                checkoutError = discoveryState.basketCheckoutError,
+                onBackClick = { currentDestination = AppDestination.BasketDetail },
+                onConfirmCheckout = { pickupWindow, notes ->
+                    discoveryViewModel.checkoutBasket(pickupWindow, notes)
+                },
+                onNavigateToMyOrders = {
+                    myOrdersViewModel.loadOrders()
+                    currentDestination = AppDestination.MyOrders
+                }
+            )
+        }
+
         is AppDestination.RescuePoolList -> {
             RescuePoolListScreen(
                 state = rescuePoolState,
@@ -529,6 +609,42 @@ fun SurplusAppRoot(
                 onPoolClick = { pool ->
                     rescuePoolViewModel.openPool(pool.id)
                     currentDestination = AppDestination.RescuePoolDetail(pool.id)
+                }
+            )
+        }
+
+        is AppDestination.MyRescueDemands -> {
+            MyRescueDemandsScreen(
+                pools = rescuePoolState.pools,
+                isLoading = rescuePoolState.isListLoading,
+                errorMessage = rescuePoolState.listError,
+                actionMessage = rescuePoolState.actionMessage,
+                actionError = rescuePoolState.actionError,
+                isSubmitting = rescuePoolState.isSubmitting,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onRetry = { rescuePoolViewModel.loadPools() },
+                onOpenPoolDetail = { poolId ->
+                    rescuePoolViewModel.openPool(poolId)
+                    currentDestination = AppDestination.RescuePoolDetail(poolId)
+                },
+                onOpenOrderDetail = { orderId ->
+                    myOrdersViewModel.loadOrders()
+                    val order = knownOrders.find { it.id == orderId }
+                    if (order != null) {
+                        currentDestination = AppDestination.OrderDetail(order)
+                    } else {
+                        currentDestination = AppDestination.MyOrders
+                    }
+                },
+                onUpdateDemand = { poolId, qty, budget, start, end ->
+                    rescuePoolViewModel.updateRegistration(poolId, qty, budget, start, end)
+                },
+                onWithdrawDemand = { poolId, reason ->
+                    rescuePoolViewModel.withdraw(poolId, reason)
+                },
+                onExplorePoolsClick = {
+                    rescuePoolViewModel.loadPools()
+                    currentDestination = AppDestination.RescuePoolList
                 }
             )
         }
@@ -854,9 +970,34 @@ fun SurplusAppRoot(
 
         is AppDestination.AiChat -> {
             SaveBiteAiSheet(
-                allDeals = dealsList,
+                state = aiUiState,
+                onSendMessage = { text -> aiViewModel.sendMessage(text, dealsList) },
+                onOpenHistory = {
+                    aiViewModel.loadConversations()
+                    currentDestination = AppDestination.AiChatHistory
+                },
+                onNewChat = { aiViewModel.startNewChat() },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal) },
                 onClose = { currentDestination = AppDestination.MainTabs }
+            )
+        }
+
+        is AppDestination.AiChatHistory -> {
+            AiChatHistoryScreen(
+                state = aiUiState,
+                onBackClick = { currentDestination = AppDestination.AiChat },
+                onSelectConversation = { convId ->
+                    aiViewModel.openConversation(convId)
+                    currentDestination = AppDestination.AiChat
+                },
+                onNewChatClick = {
+                    aiViewModel.startNewChat()
+                    currentDestination = AppDestination.AiChat
+                },
+                onDeleteConversation = { convId -> aiViewModel.deleteConversation(convId) },
+                onClearAllConversations = { aiViewModel.clearAllConversations() },
+                onUpdateMemorySetting = { remember -> aiViewModel.updateMemorySetting(remember) },
+                onConsumeMessage = { aiViewModel.consumeActionMessage() }
             )
         }
 
@@ -881,6 +1022,38 @@ fun SurplusAppRoot(
                 onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) },
                 userLatitude = discoveryState.location.latitude,
                 userLongitude = discoveryState.location.longitude
+            )
+        }
+
+        is AppDestination.RefundBankAccount -> {
+            LaunchedEffect(Unit) {
+                profileViewModel.loadRefundBankAccount()
+            }
+            RefundBankAccountScreen(
+                refundBankAccount = profileUiState.refundBankAccount,
+                isLoading = profileUiState.isBankLoading,
+                errorMessage = profileUiState.bankError,
+                isSaving = profileUiState.isSavingBank,
+                saveSuccess = profileUiState.bankSuccess,
+                onBackClick = {
+                    profileViewModel.resetBankSuccess()
+                    currentDestination = AppDestination.MainTabs
+                },
+                onRetry = { profileViewModel.loadRefundBankAccount() },
+                onSave = { bin, name, accNum, holder ->
+                    profileViewModel.saveRefundBankAccount(bin, name, accNum, holder)
+                },
+                onDismissSuccess = { profileViewModel.resetBankSuccess() }
+            )
+        }
+
+        is AppDestination.Onboarding -> {
+            OnboardingScreen(
+                onFinishOnboarding = {
+                    context.getSharedPreferences("surplusiq_session_prefs", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("key_onboarding_completed", true).apply()
+                    currentDestination = AppDestination.MainTabs
+                }
             )
         }
 
@@ -1011,6 +1184,13 @@ fun SurplusAppRoot(
                                     profileViewModel.loadTransactions()
                                     currentDestination = AppDestination.TransactionHistory
                                 },
+                                onOpenRefundBankAccount = {
+                                    profileViewModel.loadRefundBankAccount()
+                                    currentDestination = AppDestination.RefundBankAccount
+                                },
+                                onOpenOnboarding = {
+                                    currentDestination = AppDestination.Onboarding
+                                },
                                 onOpenOrderLock = {
                                     profileViewModel.loadOrderLock()
                                     currentDestination = AppDestination.OrderLockStatus
@@ -1027,6 +1207,13 @@ fun SurplusAppRoot(
                                 onOpenRescuePool = {
                                     rescuePoolViewModel.loadPools()
                                     currentDestination = AppDestination.RescuePoolList
+                                },
+                                onOpenMyRescueDemands = {
+                                    rescuePoolViewModel.loadPools()
+                                    currentDestination = AppDestination.MyRescueDemands
+                                },
+                                onOpenRescueBasket = {
+                                    currentDestination = AppDestination.RescueBasket
                                 },
                                 onOpenImpact = {
                                     interactionsViewModel.loadImpact()

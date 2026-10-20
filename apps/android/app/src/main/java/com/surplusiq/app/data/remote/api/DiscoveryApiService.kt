@@ -100,4 +100,30 @@ interface DiscoveryApiService {
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 10
     ): Response<StoreReviewsResponseDto>
+
+    @POST("customer/baskets/substitutes")
+    suspend fun getBasketSubstitutes(
+        @Body request: BasketSubstitutesRequest
+    ): Response<BasketSubstitutesResponse>
+
+    @POST("customer/baskets/checkout")
+    suspend fun checkoutBasket(
+        @Body request: BasketCheckoutRequest
+    ): Response<BasketCheckoutResponse>
+
+    @POST("customer/deals/{id}/back-in-stock")
+    suspend fun toggleBackInStock(
+        @Path("id") id: String
+    ): Response<BackInStockResponseDto>
+
+    @GET("customer/deals/{id}/back-in-stock")
+    suspend fun getBackInStockStatus(
+        @Path("id") id: String
+    ): Response<BackInStockStatusDto>
+
+    @GET("customer/deals/{id}/price-history")
+    suspend fun getPriceHistory(
+        @Path("id") id: String
+    ): Response<PriceHistoryDto>
 }
+

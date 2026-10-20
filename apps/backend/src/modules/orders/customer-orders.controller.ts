@@ -13,7 +13,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
-import { CreateOrderDto, CancelOrderDto, QueryOrdersDto, UpdatePickupSlotDto } from './dto';
+import {
+  CreateOrderDto,
+  CancelOrderDto,
+  QueryOrdersDto,
+  UpdatePickupSlotDto,
+  AttachPaymentProofDto,
+} from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -163,5 +169,19 @@ export class CustomerOrdersController {
   @ApiResponse({ status: 400, description: 'Món đã hết suất hoặc chưa mở suất hôm nay' })
   async reorderShortcut(@CurrentUser() user: RequestUser, @Param('oldOrderId') oldOrderId: string) {
     return this.ordersService.reorderShortcut(user?.userId, oldOrderId);
+  }
+
+  @Post(':id/payment-proof')
+  @ApiOperation({
+    summary: 'Đính kèm biên lai chuyển khoản khi đối soát tự động chưa nhận được webhook (KX02)',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật biên lai thanh toán thành công' })
+  @ApiResponse({ status: 400, description: 'Đơn hàng không ở trạng thái chờ/đã thanh toán' })
+  async attachPaymentProof(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: AttachPaymentProofDto,
+  ) {
+    return this.ordersService.attachPaymentProof(user?.userId, id, dto.proofUrl);
   }
 }

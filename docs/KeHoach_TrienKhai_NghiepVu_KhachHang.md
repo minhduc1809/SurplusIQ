@@ -119,29 +119,40 @@ ngõ tìm kiếm    Bản đồ OSM & Socket   Rescue Pool nâng   trưởng (KX
 
 ---
 
-### GIAI ĐOẠN 3: Nâng Cấp Rescue Basket, Pool & Trợ Lý AI (Ưu tiên P2)
+### GIAI ĐOẠN 3: Nâng Cấp Rescue Basket, Pool & Trợ Lý AI (Ưu tiên P2) - [x] ĐÃ HOÀN THÀNH 100%
 
-#### Task 3.1: [KC03, KC04] Rescue Basket (Giỏ Cứu)
-- **Backend:** Thêm endpoint `POST customer/baskets/checkout` đặt nhiều món đồng thời.
-- **Android:** Dựng `BasketDetailScreen.kt` (thay món, bỏ món) và `BasketCheckoutScreen.kt` (kiểm tra trước khi đặt, đếm ngược 10 phút).
+#### Task 3.1: [KC03, KC04] Rescue Basket (Giỏ Cứu) - [x] ĐÃ HOÀN THÀNH
+- **Backend:** Thêm endpoint `POST customer/baskets/substitutes` (gợi ý món thay thế cùng quán) và `POST customer/baskets/checkout` (đặt giữ nguyên tử 10 phút cả giỏ).
+- **Android:** Dựng `BasketDetailScreen.kt` (thay món, bỏ món) và `BasketCheckoutScreen.kt` (kiểm tra trước khi đặt, đếm ngược 10 phút, đặt giữ nguyên tử).
 
-#### Task 3.2: [KC08] Màn hình "Nhu cầu của tôi" (Rescue Pool)
-- **Android:** Dựng màn hình 2 tab: "Nhu cầu đang chờ gom" & "Đơn hàng từ đợt gom".
+#### Task 3.2: [KC08] Màn hình "Nhu cầu của tôi" (Rescue Pool) - [x] ĐÃ HOÀN THÀNH
+- **Android:** Dựng `MyRescueDemandsScreen.kt` 2 tab: "Nhu cầu đang chờ gom" & "Đơn hàng từ đợt gom", cho phép chỉnh sửa ngân sách/khung giờ, rút nhu cầu (kèm chọn lý do) và chuyển trực tiếp sang Chi tiết đơn hàng.
 
-#### Task 3.3: [K51] Quản lý Lịch sử hội thoại AI
-- **Backend:** Tạo bảng `ai_chat_sessions`, `ai_chat_messages` và API quản lý.
-- **Android:** Dựng màn `AiChatHistoryScreen.kt` (xem, xóa từng phiên, xóa tất cả).
+#### Task 3.3: [K51] Quản lý Lịch sử hội thoại AI & Ghi nhớ ngữ cảnh (R1-091) - [x] ĐÃ HOÀN THÀNH
+- **Backend:** CRUD phiên hội thoại (`GET/DELETE customer/ai/conversations`, `GET customer/ai/conversations/:id/messages`, `GET/PUT customer/ai/memory-setting`), tích hợp ngữ cảnh 5 tin nhắn vào prompt Gemini.
+- **Android:** Dựng `AiChatHistoryScreen.kt` (xem danh sách, chuyển phiên, xóa từng phiên, xóa tất cả, switch bật/tắt ghi nhớ ngữ cảnh), nâng cấp `SaveBiteAiSheet.kt` với icon Lịch sử chat và phiên mới.
 
 ---
 
-### GIAI ĐOẠN 4: Tính Năng Mở Rộng & Tăng Trưởng (Ưu tiên P3 - Backlog)
+### GIAI ĐOẠN 4: Tính Năng Mở Rộng & Tăng Trưởng (Ưu tiên P3 - Backlog) - [x] ĐÃ HOÀN THÀNH 100%
 
-- **KX01:** Tài khoản nhận hoàn tiền và theo dõi hoàn tiền VietQR.
-- **KX02:** Đính kèm biên lai chuyển khoản khi đối soát tự động chưa nhận được webhook.
-- **KX04:** Xin gia hạn giờ nhận hàng (+15 phút, +30 phút qua `PATCH customer/orders/:id/pickup-slot`).
-- **KX06:** Đăng ký nhận tin khi deal hết hàng ("Báo tôi khi có lại").
-- **KX07:** Lịch sử giá và theo dõi biến động giá.
-- **KX09:** Hành trình khách hàng mới (Onboarding 4 slide vuốt ngang).
+- [x] **KX01:** Tài khoản nhận hoàn tiền và theo dõi hoàn tiền VietQR:
+  - **Backend:** `GET /customer/refund-bank-account`, `PUT /customer/refund-bank-account` (JSONB column trong `CustomerProfileEntity`, chuẩn hóa số tài khoản & viết hoa tên chủ thẻ).
+  - **Android:** Màn hình `RefundBankAccountScreen.kt` độc lập với danh mục ngân hàng Napas/VietQR, hỗ trợ cập nhật và lưu tài khoản nhận tiền hoàn nhanh.
+- [x] **KX02:** Đính kèm biên lai chuyển khoản khi đối soát tự động chưa nhận được webhook:
+  - **Backend:** `POST /customer/orders/:id/payment-proof` lưu `paymentProofUrl` và `paymentProofUploadedAt`, ghi Audit Log.
+  - **Android:** Dialog đính kèm biên lai chuyển khoản trong `OrderDetailScreen.kt`, gọi `MyOrdersViewModel.attachPaymentProof`.
+- [x] **KX04:** Xin gia hạn giờ nhận hàng (+15 phút, +30 phút):
+  - **Backend:** `PATCH /customer/orders/:id/pickup-slot` validate khung giờ mở của quán và ca cứu món.
+  - **Android:** BottomSheet xin gia hạn khung giờ trong `OrderDetailScreen.kt`, gọi `MyOrdersViewModel.updatePickupSlot`.
+- [x] **KX06:** Đăng ký nhận tin khi deal hết hàng ("Báo tôi khi có lại"):
+  - **Backend:** `POST /customer/deals/:id/back-in-stock` (toggle) và `GET /customer/deals/:id/back-in-stock` kiểm tra trạng thái thông báo.
+  - **Android:** Nút "Báo tôi khi có hàng lại" trong `DealDetailScreen.kt` khi deal hết suất, đồng bộ tức thời với `DiscoveryViewModel`.
+- [x] **KX07:** Lịch sử giá và theo dõi biến động giá minh bạch:
+  - **Backend:** `GET /customer/deals/:id/price-history` tính toán mức giảm hiện tại, trả về timeline các mốc điều chỉnh giá và cam kết minh bạch.
+  - **Android:** Card & BottomSheet "Biến động & Lịch sử giá (Minh bạch)" trong `DealDetailScreen.kt`.
+- [x] **KX09:** Hành trình khách hàng mới (Onboarding 4 slide vuốt ngang):
+  - **Android:** Màn hình `OnboardingScreen.kt` với `HorizontalPager`, dot indicator động, các hành động Bỏ qua/Tiếp tục/Bắt đầu, lưu trạng thái `KEY_ONBOARDING_COMPLETED` qua `SessionManager`.
 
 ---
 

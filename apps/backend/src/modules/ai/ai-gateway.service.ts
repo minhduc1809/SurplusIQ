@@ -15,6 +15,7 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import {
   StoreAiChatDto,
   DescribeItemDto,
@@ -56,6 +57,8 @@ export class AiGatewayService {
     private readonly complaintRepo: Repository<ComplaintEntity>,
     @InjectRepository(StoreEntity)
     private readonly storeRepo: Repository<StoreEntity>,
+    @InjectRepository(CustomerProfileEntity)
+    private readonly customerProfileRepo: Repository<CustomerProfileEntity>,
     private readonly quotaService: QuotaService,
   ) {}
 
@@ -719,8 +722,28 @@ export class AiGatewayService {
         'Chào bạn! Mình là SaveBite AI – trợ lý cứu thực phẩm thông minh. Mình có thể giúp bạn kiểm tra tình trạng đơn hàng thật, giờ nhận món, mẹo hâm nóng, thành phần dị ứng hoặc đề xuất món ngon giá tốt hôm nay. Bạn cần mình hỗ trợ gì?';
     }
 
+    // Kiểm tra cài đặt ghi nhớ ngữ cảnh (R1-091, K51)
+    const memorySetting = await this.getMemorySetting(userId);
+    let contextHistoryPrompt = '';
+    if (memorySetting.rememberContext) {
+      const pastMessages = await this.messageRepo.find({
+        where: { conversationId: conversation.id },
+        order: { createdAt: 'DESC' },
+        take: 5,
+      });
+      if (pastMessages.length > 1) {
+        const previous = pastMessages.slice(1).reverse();
+        contextHistoryPrompt =
+          `Lịch sử hội thoại trước đó giữa bạn và khách hàng:\n` +
+          previous
+            .map((m) => `${m.sender === AiMessageSender.USER ? 'Khách' : 'AI'}: ${m.content}`)
+            .join('\n') +
+          `\n\n`;
+      }
+    }
+
     const geminiCustomer = await this.callGemini(
-      `Bạn là trợ lý SaveBite AI của ứng dụng giải cứu thực phẩm SurplusIQ dành cho khách hàng Việt Nam. Dữ liệu ngữ cảnh hệ thống: "${fallbackReply}". Hãy trả lời câu hỏi của khách hàng "${dto.message}" một cách thân thiện, ngắn gọn bằng tiếng Việt.`,
+      `Bạn là trợ lý SaveBite AI của ứng dụng giải cứu thực phẩm SurplusIQ dành cho khách hàng Việt Nam. ${contextHistoryPrompt}Dữ liệu nghiệp vụ hệ thống: "${fallbackReply}". Hãy trả lời câu hỏi của khách hàng "${dto.message}" một cách thân thiện, hữu ích và ngắn gọn bằng tiếng Việt.`,
       fallbackReply,
       process.env.GEMINI_CHAT_MODEL,
     );
@@ -1114,5 +1137,130 @@ export class AiGatewayService {
       availableItems,
       suggestedCombos: suggestions,
     };
+  }
+
+  // --- Quản lý lịch sử hội thoại AI & Ghi nhớ ngữ cảnh (K51, R1-091) ---
+
+  async listCustomerConversations(userId: string) {
+    const conversations = await this.conversationRepo.find({
+      where: { userId, role: AiUserRole.CUSTOMER, status: AiConversationStatus.ACTIVE },
+      order: { updatedAt: 'DESC' },
+    });
+
+    const result = await Promise.all(
+      conversations.map(async (conv) => {
+        const [lastMsg, count] = await Promise.all([
+          this.messageRepo.findOne({
+            where: { conversationId: conv.id },
+            order: { createdAt: 'DESC' },
+          }),
+          this.messageRepo.count({
+            where: { conversationId: conv.id },
+          }),
+        ]);
+
+        return {
+          id: conv.id,
+          title: conv.title,
+          createdAt: conv.createdAt,
+          updatedAt: conv.updatedAt,
+          messageCount: count,
+          lastMessage: lastMsg
+            ? {
+                content: lastMsg.content,
+                sender: lastMsg.sender,
+                createdAt: lastMsg.createdAt,
+              }
+            : null,
+        };
+      }),
+    );
+
+    return result;
+  }
+
+  async getConversationMessages(userId: string, conversationId: string) {
+    const conv = await this.conversationRepo.findOne({
+      where: { id: conversationId, userId, role: AiUserRole.CUSTOMER },
+    });
+    if (!conv) {
+      throw new NotFoundException('Cuộc trò chuyện không tồn tại.');
+    }
+
+    const messages = await this.messageRepo.find({
+      where: { conversationId },
+      order: { createdAt: 'ASC' },
+    });
+
+    return {
+      conversation: {
+        id: conv.id,
+        title: conv.title,
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt,
+      },
+      messages: messages.map((m) => ({
+        id: m.id,
+        sender: m.sender,
+        content: m.content,
+        createdAt: m.createdAt,
+      })),
+    };
+  }
+
+  async deleteCustomerConversation(userId: string, conversationId: string) {
+    const conv = await this.conversationRepo.findOne({
+      where: { id: conversationId, userId, role: AiUserRole.CUSTOMER },
+    });
+    if (!conv) {
+      throw new NotFoundException('Cuộc trò chuyện không tồn tại.');
+    }
+
+    await this.messageRepo.delete({ conversationId });
+    await this.conversationRepo.delete({ id: conversationId });
+    return { success: true, message: 'Đã xóa phiên hội thoại.' };
+  }
+
+  async clearAllCustomerConversations(userId: string) {
+    const convs = await this.conversationRepo.find({
+      where: { userId, role: AiUserRole.CUSTOMER },
+      select: ['id'],
+    });
+
+    const ids = convs.map((c) => c.id);
+    if (ids.length > 0) {
+      await this.messageRepo.delete({ conversationId: In(ids) });
+      await this.conversationRepo.delete({ id: In(ids) });
+    }
+
+    return { success: true, count: ids.length, message: 'Đã xóa toàn bộ lịch sử hội thoại.' };
+  }
+
+  async getMemorySetting(userId: string): Promise<{ rememberContext: boolean }> {
+    const profile = await this.customerProfileRepo.findOne({ where: { userId } });
+    const remember = profile?.notificationPreferences?.ai_remember_context ?? true;
+    return { rememberContext: remember };
+  }
+
+  async updateMemorySetting(
+    userId: string,
+    rememberContext: boolean,
+  ): Promise<{ rememberContext: boolean }> {
+    let profile = await this.customerProfileRepo.findOne({ where: { userId } });
+    if (!profile) {
+      profile = this.customerProfileRepo.create({
+        userId,
+        fullName: 'Khách hàng',
+        searchRadiusKm: 5.0,
+        notificationPreferences: { ai_remember_context: rememberContext },
+      });
+    } else {
+      profile.notificationPreferences = {
+        ...(profile.notificationPreferences || {}),
+        ai_remember_context: rememberContext,
+      };
+    }
+    await this.customerProfileRepo.save(profile);
+    return { rememberContext };
   }
 }

@@ -4,11 +4,13 @@ import com.google.gson.annotations.SerializedName
 
 data class CustomerAiChatRequest(
     @SerializedName("message") val message: String,
-    @SerializedName("contextDealId") val contextDealId: String? = null
+    @SerializedName("contextDealId") val contextDealId: String? = null,
+    @SerializedName("conversationId") val conversationId: String? = null
 )
 
 data class CustomerAiChatResponse(
     @SerializedName("reply") val reply: String,
+    @SerializedName("conversationId") val conversationId: String? = null,
     @SerializedName("recommendedDealIds") val recommendedDealIds: List<String> = emptyList(),
     @SerializedName("remainingQuota") val remainingQuota: Int = 30
 )
@@ -49,3 +51,40 @@ data class CustomerAllergyCheckResponse(
     @SerializedName("matchedAllergens") val matchedAllergens: List<String> = emptyList(),
     @SerializedName("explanation") val explanation: String
 )
+
+// --- Lịch sử hội thoại AI & Ghi nhớ ngữ cảnh (K51, R1-091) ---
+data class AiConversationDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("createdAt") val createdAt: String,
+    @SerializedName("updatedAt") val updatedAt: String,
+    @SerializedName("messageCount") val messageCount: Int = 0,
+    @SerializedName("lastMessage") val lastMessage: AiConversationLastMessageDto? = null
+)
+
+data class AiConversationLastMessageDto(
+    @SerializedName("content") val content: String,
+    @SerializedName("sender") val sender: String,
+    @SerializedName("createdAt") val createdAt: String
+)
+
+data class AiMessageDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("sender") val sender: String,
+    @SerializedName("content") val content: String,
+    @SerializedName("createdAt") val createdAt: String
+)
+
+data class AiConversationDetailResponse(
+    @SerializedName("conversation") val conversation: AiConversationDto,
+    @SerializedName("messages") val messages: List<AiMessageDto> = emptyList()
+)
+
+data class AiMemorySettingRequest(
+    @SerializedName("rememberContext") val rememberContext: Boolean
+)
+
+data class AiMemorySettingResponse(
+    @SerializedName("rememberContext") val rememberContext: Boolean
+)
+

@@ -38,6 +38,7 @@ import com.surplusiq.app.ui.theme.AmberAccent
 import com.surplusiq.app.ui.theme.CoralRed
 import com.surplusiq.app.ui.theme.ForestGreenDark
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
+import com.surplusiq.app.ui.theme.PrimaryOrange
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
@@ -63,11 +64,19 @@ fun OrderDetailScreen(
     onLoadProxyCode: ((String) -> Unit)? = null,
     onCreateProxyCode: ((String) -> Unit)? = null,
     onRevokeProxyCode: ((String) -> Unit)? = null,
+    // KX02: Đính kèm biên lai chuyển khoản
+    onAttachPaymentProof: ((orderId: String, proofUrl: String) -> Unit)? = null,
+    // KX04: Gia hạn giờ nhận
+    onUpdatePickupSlot: ((orderId: String, newSlotIso: String) -> Unit)? = null,
+    onResetActionStates: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var showCancelSheet by remember { mutableStateOf(false) }
     var showRevokeDialog by remember { mutableStateOf(false) }
+    var showAttachProofDialog by remember { mutableStateOf(false) }
+    var showUpdateSlotSheet by remember { mutableStateOf(false) }
+    var proofUrlInput by remember { mutableStateOf("") }
     val openCancel = {
         onPrepareCancel(order.id)
         showCancelSheet = true
@@ -247,6 +256,24 @@ fun OrderDetailScreen(
                         onCreateClick = { onCreateProxyCode?.invoke(order.id) },
                         onRevokeClick = { showRevokeDialog = true }
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = { showUpdateSlotSheet = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Xin gia hạn giờ nhận hàng (+15p/+30p)",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
                 OrderStatus.PENDING_PAYMENT -> {
@@ -259,6 +286,43 @@ fun OrderDetailScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = AmberAccent)
                     ) {
                         Text(text = "Tiếp tục thanh toán VietQR", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = { showAttachProofDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryOrange)
+                    ) {
+                        Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Đính kèm biên lai chuyển khoản (KX02)",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = { showUpdateSlotSheet = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Xin gia hạn giờ nhận hàng (KX04)",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -359,6 +423,140 @@ fun OrderDetailScreen(
             }
         )
     }
+    if (showAttachProofDialog) {
+        AlertDialog(
+            onDismissRequest = { showAttachProofDialog = false },
+            title = { Text("Đính kèm biên lai chuyển khoản", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Nếu bạn đã chuyển khoản nhưng hệ thống ngân hàng chậm gửi webhook, hãy cung cấp link hoặc mã giao dịch ảnh chụp biên lai để nhân viên quán đối soát.",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                    OutlinedTextField(
+                        value = proofUrlInput,
+                        onValueChange = { proofUrlInput = it },
+                        placeholder = { Text("Nhập link ảnh hoặc mã giao dịch...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    if (ordersState.attachProofError != null) {
+                        Text(ordersState.attachProofError ?: "", color = CoralRed, fontSize = 12.sp)
+                    }
+                    if (ordersState.attachProofSuccess) {
+                        Text("Đã gửi biên lai thành công!", color = ForestGreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (proofUrlInput.isNotBlank()) {
+                            onAttachPaymentProof?.invoke(order.id, proofUrlInput.trim())
+                        }
+                    },
+                    enabled = !ordersState.isAttachingProof && proofUrlInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryOrange)
+                ) {
+                    if (ordersState.isAttachingProof) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Xác nhận gửi")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAttachProofDialog = false
+                    onResetActionStates?.invoke()
+                }) {
+                    Text("Đóng")
+                }
+            }
+        )
+    }
+
+    if (showUpdateSlotSheet) {
+        ModalBottomSheet(onDismissRequest = {
+            showUpdateSlotSheet = false
+            onResetActionStates?.invoke()
+        }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Xin gia hạn giờ hẹn nhận hàng (KX04)",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "Bạn có thể lùi mốc hẹn nhận thêm 15 hoặc 30 phút trong khung giờ mở cửa của quán. Yêu cầu sửa trước mốc đã chọn ít nhất 30 phút.",
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    lineHeight = 18.sp
+                )
+
+                if (ordersState.updatePickupSlotError != null) {
+                    Text(ordersState.updatePickupSlotError ?: "", color = CoralRed, fontSize = 12.sp)
+                }
+
+                if (ordersState.updatePickupSlotSuccess) {
+                    Surface(
+                        color = ForestGreenPrimary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Gia hạn giờ nhận hàng thành công!",
+                            color = ForestGreenPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val newSlot = java.time.Instant.now().plusSeconds(15 * 60).toString()
+                            onUpdatePickupSlot?.invoke(order.id, newSlot)
+                        },
+                        enabled = !ordersState.isUpdatingPickupSlot,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryOrange)
+                    ) {
+                        Text("+15 phút", fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            val newSlot = java.time.Instant.now().plusSeconds(30 * 60).toString()
+                            onUpdatePickupSlot?.invoke(order.id, newSlot)
+                        },
+                        enabled = !ordersState.isUpdatingPickupSlot,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+                    ) {
+                        Text("+30 phút", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+
 }
 
 private fun proxyStatusLabel(status: String): Pair<String, Color> = when (status) {

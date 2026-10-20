@@ -87,4 +87,30 @@ interface DiscoveryRepository {
 
     /** K15: xem danh sách đánh giá công khai của quán kèm phân bổ sao. */
     suspend fun getStoreReviews(storeId: String, rating: Int? = null, page: Int = 1, limit: Int = 10): Result<com.surplusiq.app.data.remote.dto.StoreReviewsResponseDto>
+
+    /** KC03: gợi ý món thay thế cùng quán khi chỉnh sửa giỏ Rescue Basket. */
+    suspend fun getBasketSubstitutes(
+        storeId: String,
+        excludeOfferIds: List<String>,
+        maxPrice: Double? = null,
+        avoidAllergens: List<String> = emptyList()
+    ): Result<List<com.surplusiq.app.domain.model.BasketSubstituteItem>>
+
+    /** KC04: đặt giữ cả giỏ hàng (nguyên tử) trong 10 phút. */
+    suspend fun checkoutBasket(
+        storeId: String,
+        items: List<Pair<String, Int>>,
+        pickupTimeWindow: String? = null,
+        notes: String? = null
+    ): Result<com.surplusiq.app.domain.model.BasketHoldResult>
+
+    /** KX06: Đăng ký/hủy báo tin khi deal có hàng lại */
+    suspend fun toggleBackInStock(offerId: String): Result<com.surplusiq.app.data.remote.dto.BackInStockResponseDto>
+
+    /** KX06: Trạng thái đăng ký báo khi có hàng lại */
+    suspend fun getBackInStockStatus(offerId: String): Result<Boolean>
+
+    /** KX07: Lịch sử giá và biến động giá cứu món */
+    suspend fun getPriceHistory(offerId: String): Result<com.surplusiq.app.data.remote.dto.PriceHistoryDto>
 }
+

@@ -12,6 +12,7 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { QuotaService } from '../subscriptions/quota.service';
 
 describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
@@ -26,6 +27,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
   let reviewRepo: any;
   let complaintRepo: any;
   let storeRepo: any;
+  let customerProfileRepo: any;
   let quotaService: any;
 
   beforeEach(async () => {
@@ -37,6 +39,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
     messageRepo = {
       create: jest.fn().mockImplementation((d) => ({ id: 'msg-1', ...d })),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'msg-1', ...d })),
+      find: jest.fn().mockResolvedValue([]),
     };
     logRepo = {
       findOne: jest.fn(),
@@ -72,6 +75,14 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
     storeRepo = {
       findOne: jest.fn().mockResolvedValue({ id: 'store-1', name: 'Tiệm Bánh Mì Việt' }),
     };
+    customerProfileRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        userId: 'user-1',
+        notificationPreferences: { ai_remember_context: true },
+      }),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
+    };
     quotaService = {
       checkQuota: jest.fn().mockResolvedValue({
         isExceeded: false,
@@ -94,6 +105,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
         { provide: getRepositoryToken(ComplaintEntity), useValue: complaintRepo },
         { provide: getRepositoryToken(StoreEntity), useValue: storeRepo },
+        { provide: getRepositoryToken(CustomerProfileEntity), useValue: customerProfileRepo },
         { provide: QuotaService, useValue: quotaService },
       ],
     }).compile();

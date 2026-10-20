@@ -74,4 +74,12 @@ interface ProfileApiService {
     suspend fun claimPromotion(
         @Path("id") promotionId: String
     ): Response<Map<String, Any>>
+
+    @GET("customer/refund-bank-account")
+    suspend fun getRefundBankAccount(): Response<RefundBankAccountDto?>
+
+    @PUT("customer/refund-bank-account")
+    suspend fun updateRefundBankAccount(
+        @Body body: RefundBankAccountDto
+    ): Response<RefundBankAccountDto>
 }

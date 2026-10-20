@@ -11,6 +11,8 @@ import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
 import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
+import { OrdersService } from '../orders/orders.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 describe('DiscoveryService', () => {
   let service: DiscoveryService;
@@ -22,6 +24,8 @@ describe('DiscoveryService', () => {
   let savedFilterRepo: any;
   let viewHistoryRepo: any;
   let reviewRepo: any;
+  let ordersService: any;
+  let realtimeService: any;
 
   const mockQueryBuilder = {
     innerJoin: jest.fn().mockReturnThis(),
@@ -62,6 +66,7 @@ describe('DiscoveryService', () => {
       avg_rating: '4.8',
       review_count: '15',
     }),
+    getOne: jest.fn().mockResolvedValue(null),
   };
 
   beforeEach(async () => {
@@ -71,12 +76,27 @@ describe('DiscoveryService', () => {
     };
     itemRepo = {
       findOne: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
     };
     storeRepo = {
       findOne: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
     };
     savedDealRepo = {
       findOne: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
       find: jest.fn(),
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'saved-1', ...d })),
@@ -86,6 +106,11 @@ describe('DiscoveryService', () => {
       count: jest.fn().mockResolvedValue(0),
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'alert-1', ...d })),
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -94,6 +119,11 @@ describe('DiscoveryService', () => {
       count: jest.fn().mockResolvedValue(0),
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'filter-1', ...d })),
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -101,12 +131,23 @@ describe('DiscoveryService', () => {
     viewHistoryRepo = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'view-1', ...d })),
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     reviewRepo = {
       createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
+    };
+    ordersService = {
+      createHoldOrder: jest.fn(),
+    };
+    realtimeService = {
+      broadcast: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -120,7 +161,14 @@ describe('DiscoveryService', () => {
         { provide: getRepositoryToken(SavedFilterEntity), useValue: savedFilterRepo },
         { provide: getRepositoryToken(ViewHistoryEntity), useValue: viewHistoryRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
-        { provide: DataSource, useValue: {} },
+        {
+          provide: DataSource,
+          useValue: {
+            getRepository: jest.fn().mockReturnValue({ find: jest.fn().mockResolvedValue([]) }),
+          },
+        },
+        { provide: OrdersService, useValue: ordersService },
+        { provide: RealtimeService, useValue: realtimeService },
       ],
     }).compile();
 
@@ -342,6 +390,62 @@ describe('DiscoveryService', () => {
       expect(res.dealId).toBe('off-share-1');
       expect(res.shareUrl).toContain('off-share-1');
       expect(res.shareText).toContain('Cơm tấm sườn');
+    });
+  });
+
+  describe('back-in-stock alert (KX06)', () => {
+    it('đăng ký nhận tin khi deal có hàng lại thành công', async () => {
+      offerRepo.findOne.mockResolvedValueOnce({
+        id: 'off-sold-out',
+        storeId: 'store-1',
+        itemId: 'item-1',
+      });
+      itemRepo.findOne.mockResolvedValueOnce({ name: 'Bánh Mì' });
+      dealAlertRepo.createQueryBuilder.mockReturnValueOnce({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      });
+
+      const res = await service.toggleBackInStockAlert('u1', 'off-sold-out');
+      expect(res.subscribed).toBe(true);
+      expect(dealAlertRepo.save).toHaveBeenCalled();
+    });
+
+    it('kiểm tra trạng thái đăng ký báo hàng', async () => {
+      dealAlertRepo.createQueryBuilder.mockReturnValueOnce({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({ isActive: true }),
+      });
+
+      const res = await service.getBackInStockStatus('u1', 'off-1');
+      expect(res.subscribed).toBe(true);
+    });
+  });
+
+  describe('price history (KX07)', () => {
+    it('trả về timeline biến động giá và cam kết minh bạch', async () => {
+      offerRepo.findOne.mockResolvedValueOnce({
+        id: 'off-1',
+        originalPrice: 80000,
+        currentPrice: 40000,
+        floorPrice: 30000,
+        priceChangeCount: 1,
+        createdAt: new Date('2026-10-10T08:00:00Z'),
+        updatedAt: new Date('2026-10-10T11:00:00Z'),
+        itemId: 'item-1',
+      });
+      itemRepo.findOne.mockResolvedValueOnce({ name: 'Set Sushi' });
+
+      const res = await service.getPriceHistory('off-1');
+      expect(res.offerId).toBe('off-1');
+      expect(res.itemName).toBe('Set Sushi');
+      expect(res.originalPrice).toBe(80000);
+      expect(res.currentPrice).toBe(40000);
+      expect(res.discountPercent).toBe(50);
+      expect(res.timeline.length).toBeGreaterThanOrEqual(2);
+      expect(res.transparencyCommitment).toBeDefined();
     });
   });
 });

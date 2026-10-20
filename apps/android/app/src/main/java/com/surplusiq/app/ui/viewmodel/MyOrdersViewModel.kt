@@ -39,7 +39,15 @@ data class MyOrdersUiState(
     val reorderDeal: Deal? = null,
     val isReorderLoading: Boolean = false,
     val reorderError: String? = null,
-    val reorderChecked: Boolean = false
+    val reorderChecked: Boolean = false,
+    // KX02: Đính kèm biên lai chuyển khoản
+    val isAttachingProof: Boolean = false,
+    val attachProofError: String? = null,
+    val attachProofSuccess: Boolean = false,
+    // KX04: Gia hạn giờ nhận hàng
+    val isUpdatingPickupSlot: Boolean = false,
+    val updatePickupSlotError: String? = null,
+    val updatePickupSlotSuccess: Boolean = false
 )
 
 @HiltViewModel
@@ -228,5 +236,78 @@ class MyOrdersViewModel @Inject constructor(
                 }
             )
         }
+    }
+
+    /**
+     * KX02: Đính kèm biên lai chuyển khoản khi ngân hàng chậm webhook
+     */
+    fun attachPaymentProof(orderId: String, proofUrl: String, onComplete: (Boolean, String?) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isAttachingProof = true,
+                attachProofError = null,
+                attachProofSuccess = false
+            )
+            val result = orderRepository.attachPaymentProof(orderId, proofUrl)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isAttachingProof = false,
+                        attachProofSuccess = true
+                    )
+                    loadOrders()
+                    onComplete(true, null)
+                },
+                onFailure = { err ->
+                    val errorMsg = err.localizedMessage ?: "Không thể gửi biên lai thanh toán"
+                    _uiState.value = _uiState.value.copy(
+                        isAttachingProof = false,
+                        attachProofError = errorMsg
+                    )
+                    onComplete(false, errorMsg)
+                }
+            )
+        }
+    }
+
+    /**
+     * KX04: Gia hạn giờ nhận hàng (+15 phút, +30 phút)
+     */
+    fun updatePickupSlot(orderId: String, newSlotIso: String, onComplete: (Boolean, String?) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isUpdatingPickupSlot = true,
+                updatePickupSlotError = null,
+                updatePickupSlotSuccess = false
+            )
+            val result = orderRepository.updatePickupSlot(orderId, newSlotIso)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isUpdatingPickupSlot = false,
+                        updatePickupSlotSuccess = true
+                    )
+                    loadOrders()
+                    onComplete(true, null)
+                },
+                onFailure = { err ->
+                    val errorMsg = err.localizedMessage ?: "Không thể gia hạn giờ nhận hàng"
+                    _uiState.value = _uiState.value.copy(
+                        isUpdatingPickupSlot = false,
+                        updatePickupSlotError = errorMsg
+                    )
+                    onComplete(false, errorMsg)
+                }
+            )
+        }
+    }
+
+    fun resetActionStates() {
+        _uiState.value = _uiState.value.copy(
+            attachProofSuccess = false,
+            attachProofError = null,
+            updatePickupSlotSuccess = false,
+            updatePickupSlotError = null
+        )
     }
 }

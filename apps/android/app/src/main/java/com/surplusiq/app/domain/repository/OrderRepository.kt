@@ -52,4 +52,10 @@ interface OrderRepository {
 
     /** Đặt lại từ đơn cũ (R1-051): null khi món chưa có suất mở (server trả 400). */
     suspend fun reorder(oldOrderId: String): Result<ReorderResponseDto?>
+
+    /** KX02: Đính kèm biên lai chuyển khoản */
+    suspend fun attachPaymentProof(orderId: String, proofUrl: String): Result<Boolean>
+
+    /** KX04: Gia hạn / đổi giờ hẹn nhận hàng */
+    suspend fun updatePickupSlot(orderId: String, pickupSlot: String): Result<Boolean>
 }

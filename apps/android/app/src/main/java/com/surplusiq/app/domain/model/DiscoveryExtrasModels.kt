@@ -124,3 +124,45 @@ data class DealAlert(
 
 /** Cửa hàng tìm được để chọn trong form cảnh báo (K20). */
 data class StoreOption(val id: String, val name: String, val address: String)
+
+// --- Rescue Basket Tùy chỉnh & Đặt giữ (KC03, KC04) ---
+data class BasketCustomItem(
+    val offerId: String,
+    val title: String,
+    val price: Int,
+    val quantity: Int = 1,
+    val imageUrl: String? = null,
+    val allergens: List<String> = emptyList()
+)
+
+data class BasketSubstituteItem(
+    val id: String,
+    val title: String,
+    val currentPrice: Int,
+    val originalPrice: Int,
+    val discountPercent: Int,
+    val remainingQuantity: Int,
+    val imageUrl: String?,
+    val category: String?,
+    val allergens: List<String>
+)
+
+data class BasketHeldItem(
+    val offerId: String,
+    val orderId: String,
+    val title: String,
+    val quantity: Int,
+    val unitPrice: Int,
+    val totalPrice: Int
+)
+
+data class BasketHoldResult(
+    val success: Boolean,
+    val storeId: String,
+    val orderIds: List<String>,
+    val totalAmount: Int,
+    val holdExpiresAt: String,
+    val items: List<BasketHeldItem>,
+    val message: String?
+)
+

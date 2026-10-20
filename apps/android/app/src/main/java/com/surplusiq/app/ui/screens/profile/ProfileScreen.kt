@@ -53,11 +53,15 @@ fun ProfileScreen(
     onOpenRewards: () -> Unit = {},
     onOpenPromotionWallet: () -> Unit = {},
     onOpenTransactions: () -> Unit = {},
+    onOpenRefundBankAccount: () -> Unit = {},
+    onOpenOnboarding: () -> Unit = {},
     onOpenOrderLock: () -> Unit = {},
     onOpenComplaints: () -> Unit = {},
     onOpenMyReviews: () -> Unit = {},
     onOpenSupportTickets: () -> Unit = {},
     onOpenRescuePool: () -> Unit = {},
+    onOpenRescueBasket: () -> Unit = {},
+    onOpenMyRescueDemands: () -> Unit = {},
     onOpenImpact: () -> Unit = {},
     onOpenPrivacyData: () -> Unit = {},
     onOpenHelpCenter: () -> Unit = {},
@@ -193,7 +197,11 @@ fun ProfileScreen(
         MenuGroup {
             ProfileMenuItem(Icons.AutoMirrored.Filled.ReceiptLong, "Đơn hàng của tôi", "Lịch sử mua hàng", onOpenMyOrders)
             HorizontalDivider(color = divider)
-            ProfileMenuItem(Icons.Default.Groups, "Mua chung theo đợt", "Đăng ký nhu cầu với cửa hàng", onOpenRescuePool)
+            ProfileMenuItem(Icons.Default.ShoppingBasket, "Giỏ cứu tự động", "Gợi ý tổ hợp suất theo ngân sách", onOpenRescueBasket)
+            HorizontalDivider(color = divider)
+            ProfileMenuItem(Icons.Default.Groups, "Mua chung theo đợt (Rescue Pool)", "Đăng ký nhu cầu với cửa hàng", onOpenRescuePool)
+            HorizontalDivider(color = divider)
+            ProfileMenuItem(Icons.Default.ListAlt, "Nhu cầu của tôi", "Theo dõi đợt gom & đơn hàng", onOpenMyRescueDemands)
             HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.ConfirmationNumber, "Ví ưu đãi", "Mã giảm giá của bạn", onOpenPromotionWallet)
             HorizontalDivider(color = divider)
@@ -220,12 +228,14 @@ fun ProfileScreen(
                     Triple(Icons.Default.Notifications, "Cài đặt thông báo", onOpenNotificationSettings),
                     Triple(Icons.Default.RestaurantMenu, "Hồ sơ ăn uống & dị ứng", onOpenDietaryProfile),
                     Triple(Icons.Default.AccountBalanceWallet, "Thanh toán & hoàn tiền", onOpenTransactions),
+                    Triple(Icons.Default.AccountBalance, "Tài khoản nhận hoàn tiền VietQR", onOpenRefundBankAccount),
                     Triple(Icons.Default.ReportProblem, "Khiếu nại của tôi", onOpenComplaints),
                     Triple(Icons.Default.RateReview, "Đánh giá của tôi", onOpenMyReviews),
                     Triple(Icons.Default.GppMaybe, "Trạng thái khóa đặt", onOpenOrderLock),
                     Triple(Icons.Default.AutoAwesome, "Trợ lý AI Cứu Món", onOpenAiChat),
                     Triple(Icons.Default.SupportAgent, "Hỗ trợ", onOpenSupportTickets),
                     Triple(Icons.AutoMirrored.Filled.HelpOutline, "Câu hỏi thường gặp", onOpenHelpCenter),
+                    Triple(Icons.Default.Info, "Giới thiệu & hướng dẫn ứng dụng", onOpenOnboarding),
                     Triple(Icons.Default.Shield, "Quyền riêng tư & dữ liệu", onOpenPrivacyData),
                     Triple(Icons.Default.Lock, "Đổi mật khẩu", onOpenChangePassword)
                 ).forEach { (icon, title, action) ->
