@@ -2,8 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
-import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
+import {
+  ItemEntity,
+  ItemStatus,
+  TrustpassInformationSource,
+  TrustpassVerificationStatus,
+  TrustpassReviewStatus,
+} from '../../entities/catalog/item.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
+import { TrustpassHistoryEntity } from '../../entities/catalog/trustpass-history.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
@@ -36,6 +43,15 @@ describe('CatalogService', () => {
     description: 'Bánh thơm bơ',
     nutritionEstimate: { cal: 350 },
     status: ItemStatus.ACTIVE,
+    preparedAt: null,
+    expiryAt: null,
+    storageInstructions: null,
+    informationSource: TrustpassInformationSource.STORE,
+    verificationStatus: TrustpassVerificationStatus.DECLARED,
+    trustpassVersion: 1,
+    trustpassPublishedAt: null,
+    trustpassUpdatedBy: null,
+    reviewStatus: TrustpassReviewStatus.NONE,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -90,6 +106,10 @@ describe('CatalogService', () => {
         {
           provide: getRepositoryToken(OfferEntity),
           useValue: mockOfferRepo,
+        },
+        {
+          provide: getRepositoryToken(TrustpassHistoryEntity),
+          useValue: { create: jest.fn(), save: jest.fn() },
         },
         {
           provide: AuditLogService,

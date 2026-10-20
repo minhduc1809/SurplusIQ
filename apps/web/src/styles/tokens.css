@@ -1,0 +1,173 @@
+/* SURPLUSIQ Design Tokens — nguồn: doc/SURPLUSIQ_Design_Code_Rules.md mục 2–4
+   Soft Market Intelligence: nền sáng, pastel có chiều sâu, dữ liệu vận hành rõ. */
+:root {
+  /* 2.1 Palette cốt lõi */
+  --sq-ink: #243033;
+  --sq-ink-soft: #536164;
+  --sq-ink-muted: #879394;
+  --sq-canvas: #fff9f2;
+  --sq-surface: #ffffff;
+  --sq-surface-soft: #f7f1ea;
+  --sq-line: #e9e1d9;
+
+  --sq-coral: #f2766a;
+  --sq-coral-deep: #d95a58;
+  --sq-coral-wash: #ffe3de;
+
+  --sq-butter: #f6c85f;
+  --sq-butter-wash: #fff1c9;
+
+  --sq-mint: #71c7a3;
+  --sq-mint-deep: #318a6a;
+  --sq-mint-wash: #ddf3e8;
+
+  --sq-lilac: #a99ae9;
+  --sq-lilac-wash: #ece8ff;
+
+  --sq-sky: #8ac8e8;
+  --sq-sky-wash: #e1f2fa;
+
+  --sq-error: #c84e56;
+  --sq-warning: #a96b18;
+  --sq-info: #3d73a8;
+  --sq-overlay: rgba(28, 35, 36, 0.42);
+
+  /* 2.2 Gradient có kiểm soát - chỉ dùng cho CTA hero/deal nổi bật/Pro */
+  --sq-gradient-coral: linear-gradient(135deg, #f2766a 0%, #ff9a83 100%);
+  --sq-gradient-mint: linear-gradient(135deg, #71c7a3 0%, #a9dec3 100%);
+  --sq-gradient-lilac: linear-gradient(135deg, #a99ae9 0%, #c7bdf4 100%);
+  --sq-gradient-butter: linear-gradient(135deg, #f6c85f 0%, #ffe49a 100%);
+
+  /* 2.3 Elevation - shadow mềm, không bóng đen dày */
+  --sq-elevation-low: 0 3px 12px rgba(67, 52, 42, 0.055);
+  --sq-elevation-mid: 0 8px 24px rgba(67, 52, 42, 0.09);
+  --sq-elevation-high: 0 16px 40px rgba(67, 52, 42, 0.14);
+  --sq-elevation-coral: 0 7px 20px rgba(242, 118, 106, 0.22);
+
+  /* 4.2 Radius */
+  --sq-radius-xs: 6px;
+  --sq-radius-sm: 10px;
+  --sq-radius-md: 14px;
+  --sq-radius-lg: 18px;
+  --sq-radius-xl: 24px;
+  --sq-radius-2xl: 30px;
+  --sq-radius-pill: 999px;
+
+  /* 4.1 Spacing scale */
+  --sq-space-1: 4px;
+  --sq-space-2: 8px;
+  --sq-space-3: 12px;
+  --sq-space-4: 16px;
+  --sq-space-5: 20px;
+  --sq-space-6: 24px;
+  --sq-space-8: 32px;
+  --sq-space-10: 40px;
+  --sq-space-12: 48px;
+  --sq-space-14: 56px;
+  --sq-space-16: 64px;
+
+  /* 11. Motion */
+  --sq-duration-fast: 120ms;
+  --sq-duration-standard: 180ms;
+  --sq-duration-emphasis: 240ms;
+  --sq-duration-page: 300ms;
+
+  --sq-font: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* 2.4 Dark theme tùy chọn - ánh xạ chính thức, không phải đảo màu */
+:root[data-theme='dark'] {
+  --sq-canvas: #191b1b;
+  --sq-surface: #232626;
+  --sq-surface-soft: #2c3030;
+  --sq-line: #414846;
+  --sq-ink: #f7f2ea;
+  --sq-ink-soft: #c2c8c4;
+  --sq-ink-muted: #919a96;
+  --sq-coral: #ff8b7f;
+  --sq-mint: #82d6b0;
+  --sq-butter: #ffd477;
+  --sq-lilac: #b9acf5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--sq-canvas);
+  color: var(--sq-ink);
+  font-family: var(--sq-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 450;
+}
+
+/* 3.2 Typography scale */
+.sq-display {
+  font-size: 32px;
+  font-weight: 750;
+  line-height: 1.12;
+}
+.sq-h1 {
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.18;
+}
+.sq-h2 {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.sq-h3 {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.sq-body-lg {
+  font-size: 16px;
+  font-weight: 450;
+  line-height: 1.5;
+}
+.sq-body-medium {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.sq-caption {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--sq-ink-muted);
+}
+.sq-overline {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Số tiền/số lượng/% dùng tabular numerals theo rule 3.2 */
+.sq-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--sq-coral-wash);
+}

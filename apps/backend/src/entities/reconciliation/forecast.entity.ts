@@ -17,6 +17,7 @@ export enum ForecastConfidence {
 export enum ForecastMethod {
   DOW_AVG = 'DOW_AVG',
   YESTERDAY_FALLBACK = 'YESTERDAY_FALLBACK',
+  MANUAL_REQUIRED = 'MANUAL_REQUIRED',
 }
 
 @Entity('forecasts')

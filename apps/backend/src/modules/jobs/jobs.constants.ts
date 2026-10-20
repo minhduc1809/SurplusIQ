@@ -13,6 +13,9 @@ export const JOBS_CONSTANTS = {
     NOTIFY_PICKUP_REMINDER: 'notify.pickup-reminder',
     RETENTION_CLEANUP: 'retention.cleanup',
     ACCOUNT_ANONYMIZE: 'account.anonymize',
+    RESCUE_TIMELINE_RECALC: 'rescue-timeline.recalculate',
+    RESCUE_POOL_DEADLINES: 'rescue-pool.deadlines',
+    RESCUE_BRIDGE_DEADLINES: 'rescue-bridge.deadlines',
   },
   JOB_NAMES: {
     RELEASE_HOLDS: 'orders.release-holds',
@@ -27,6 +30,9 @@ export const JOBS_CONSTANTS = {
     NOTIFY_PICKUP_REMINDER: 'notify.pickup-reminder',
     RETENTION_CLEANUP: 'retention.cleanup',
     ACCOUNT_ANONYMIZE: 'account.anonymize',
+    RESCUE_TIMELINE_RECALC: 'rescue-timeline.recalculate',
+    RESCUE_POOL_DEADLINES: 'rescue-pool.deadlines',
+    RESCUE_BRIDGE_DEADLINES: 'rescue-bridge.deadlines',
   },
   /**
    * Thời gian giữ suất tối đa là 10 phút (BR-017)

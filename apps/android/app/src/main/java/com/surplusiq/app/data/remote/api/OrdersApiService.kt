@@ -8,7 +8,8 @@ interface OrdersApiService {
 
     @POST("customer/orders")
     suspend fun holdOrder(
-        @Body request: CreateOrderRequest
+        @Body request: CreateOrderRequest,
+        @Header("Idempotency-Key") idempotencyKey: String
     ): Response<OrderResponseDto>
 
     @GET("customer/orders")
@@ -36,4 +37,29 @@ interface OrdersApiService {
     suspend fun notifyArriving(
         @Path("id") id: String
     ): Response<Map<String, Any>>
+
+    @POST("customer/orders/{id}/proxy-code")
+    suspend fun createProxyCode(
+        @Path("id") id: String
+    ): Response<ProxyCodeResponse>
+
+    @GET("customer/orders/{id}/proxy-code")
+    suspend fun getProxyCode(
+        @Path("id") id: String
+    ): Response<ProxyCodeResponse?>
+
+    @DELETE("customer/orders/{id}/proxy-code")
+    suspend fun revokeProxyCode(
+        @Path("id") id: String
+    ): Response<Map<String, Any>>
+
+    @GET("customer/orders/{id}/receipt")
+    suspend fun getOrderReceipt(
+        @Path("id") id: String
+    ): Response<OrderReceiptDto>
+
+    @POST("customer/orders/reorder/{oldOrderId}")
+    suspend fun reorder(
+        @Path("oldOrderId") oldOrderId: String
+    ): Response<ReorderResponseDto>
 }

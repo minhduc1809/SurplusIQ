@@ -11,6 +11,7 @@ import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
 import { AuditLogService } from '../audit/audit-log.service';
+import { RewardsService } from '../rewards/rewards.service';
 import { QrTokenEngine, BackupPinEngine } from '@surplusiq/core';
 import { VerifyPickupDto, VerifyProxyCodeDto } from './dto';
 import { ORDERS_CONSTANTS } from '../orders/orders.constants';
@@ -63,6 +64,7 @@ export class PickupsService {
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     private readonly auditLogService: AuditLogService,
+    private readonly rewardsService: RewardsService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -223,6 +225,14 @@ export class PickupsService {
           { status: PickupTokenStatus.USED, usedAt: now },
         );
       }
+
+      // 5b. Cộng điểm thưởng Rescue Rewards cho đơn đã nhận thành công (CM-C04, BR-C04-01)
+      await this.rewardsService.awardForOrder(
+        savedOrder.customerId,
+        savedOrder.id,
+        savedOrder.totalAmount,
+        manager,
+      );
 
       // 6. Lấy tên món và thông tin đối chiếu tại quầy
       let itemName = 'Món ăn Surplus';
@@ -410,6 +420,14 @@ export class PickupsService {
       order.pickedUpAt = now;
       order.pickedUpBy = actorId;
       const savedOrder = await manager.save(order);
+
+      // 3b. Cộng điểm thưởng Rescue Rewards cho đơn đã nhận thành công (CM-C04, BR-C04-01)
+      await this.rewardsService.awardForOrder(
+        savedOrder.customerId,
+        savedOrder.id,
+        savedOrder.totalAmount,
+        manager,
+      );
 
       // 4. Lấy chi tiết món ăn & khách hàng để trả về cho quầy
       const offer = await manager.findOne(OfferEntity, { where: { id: order.offerId } });

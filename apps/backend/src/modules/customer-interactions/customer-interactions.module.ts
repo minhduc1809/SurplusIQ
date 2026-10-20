@@ -15,9 +15,11 @@ import { SupportTicketEntity } from '../../entities/complaints/support-ticket.en
 import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
 import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
+import { RewardsModule } from '../rewards/rewards.module';
 
 @Module({
   imports: [
+    RewardsModule,
     TypeOrmModule.forFeature([
       ComplaintEntity,
       ComplaintAttachmentEntity,

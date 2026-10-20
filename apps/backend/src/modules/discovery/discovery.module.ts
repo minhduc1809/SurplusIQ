@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DiscoveryService } from './discovery.service';
 import { CustomerDealsController } from './customer-deals.controller';
 import { CustomerStoresController } from './customer-stores.controller';
+import { CustomerBasketsController } from './customer-baskets.controller';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
@@ -25,7 +26,7 @@ import { ReviewEntity } from '../../entities/complaints/review.entity';
       ReviewEntity,
     ]),
   ],
-  controllers: [CustomerDealsController, CustomerStoresController],
+  controllers: [CustomerDealsController, CustomerStoresController, CustomerBasketsController],
   providers: [DiscoveryService],
   exports: [DiscoveryService],
 })

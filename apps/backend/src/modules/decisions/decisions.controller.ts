@@ -19,7 +19,6 @@ import {
   CreateSpecialEventDto,
   SimulatePolicyDto,
   CompareSimulationsDto,
-  CreateDonationRecordDto,
   QueryAnomalyDto,
 } from './dto/decisions.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -209,20 +208,13 @@ export class DecisionsController {
     return this.decisionsService.getDonationSuggestions(storeId);
   }
 
-  @Post('donations')
-  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
-  @ApiOperation({ summary: 'Ghi nhận suất ăn đã quyên góp từ thiện (R2-121)' })
-  @ApiResponse({ status: 201, description: 'Đã ghi nhận quyên góp' })
-  async createDonationRecord(
-    @CurrentStore() storeId: string,
-    @Body() dto: CreateDonationRecordDto,
-  ) {
-    return this.decisionsService.createDonationRecord(storeId, dto);
-  }
-
+  // Ghi nhận quyên góp thủ công (POST donations) đã bỏ: nó không trừ tồn nên có thể tính trùng với lượng đã bán.
+  // Bàn giao đi qua Rescue Bridge (/store/rescue-bridge), lần hoàn tất được ghi vào donation_records (BR-B03-07).
   @Get('donations')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
-  @ApiOperation({ summary: 'Xem lịch sử các đợt quyên góp từ thiện của quán (R2-121)' })
+  @ApiOperation({
+    summary: 'Sổ các lần bàn giao từ thiện đã hoàn tất qua Rescue Bridge (R2-121, CM-B03)',
+  })
   @ApiResponse({ status: 200, description: 'Lịch sử quyên góp' })
   async getDonationRecords(@CurrentStore() storeId: string) {
     return this.decisionsService.getDonationRecords(storeId);

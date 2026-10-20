@@ -439,6 +439,8 @@ export class MarketingService {
       remainingQuantity: dto.totalQuantity,
       pickupStart: new Date(dto.pickupStart),
       pickupEnd: new Date(dto.pickupEnd),
+      // offers.expires_at NOT NULL - cùng mặc định với offers.service (hết khung nhận + 1 giờ).
+      expiresAt: new Date(new Date(dto.pickupEnd).getTime() + 60 * 60 * 1000),
       status: OfferStatus.OPEN,
       priceChangeCount: 0,
     });

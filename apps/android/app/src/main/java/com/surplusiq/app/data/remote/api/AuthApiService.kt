@@ -28,14 +28,30 @@ interface AuthApiService {
         @Body request: CustomerLoginRequest
     ): Response<AuthResponse>
 
-    @POST("auth/refresh")
-    suspend fun refreshAccessToken(
-        @Body request: RefreshTokenRequest
+    @POST("auth/customer/google")
+    suspend fun loginWithGoogle(
+        @Body request: GoogleLoginRequest
     ): Response<AuthResponse>
 
     @POST("auth/logout")
     suspend fun logout(
         @Header("x-user-id") userId: String,
         @Header("x-device-id") deviceId: String
+    ): Response<Map<String, Any>>
+
+    @POST("auth/password/forgot")
+    suspend fun forgotPassword(
+        @Body request: ForgotPasswordRequest
+    ): Response<Map<String, Any>>
+
+    @POST("auth/password/reset")
+    suspend fun resetPassword(
+        @Body request: ResetPasswordRequest
+    ): Response<Map<String, Any>>
+
+    @POST("auth/password/change")
+    suspend fun changePassword(
+        @Header("x-user-id") userId: String,
+        @Body request: ChangePasswordRequest
     ): Response<Map<String, Any>>
 }

@@ -159,42 +159,6 @@ export class SimulatePolicyDto {
   dynamicPricing?: boolean;
 }
 
-export class CreateDonationRecordDto {
-  @ApiProperty({
-    description: 'ID của suất/món ăn surplus cần quyên góp (R2-121)',
-    example: '00000000-0000-0000-0000-000000000001',
-  })
-  @IsNotEmpty()
-  @IsUUID('4')
-  offerId: string;
-
-  @ApiProperty({
-    description: 'Số lượng phần quà/suất ăn quyên góp',
-    example: 10,
-    minimum: 1,
-  })
-  @IsNotEmpty()
-  @IsInt()
-  @Min(1)
-  quantity: number;
-
-  @ApiProperty({
-    description: 'Tên tổ chức/bếp ăn từ thiện tiếp nhận',
-    example: 'Mái ấm Ánh Sáng / Bếp cơm Nụ Cười',
-  })
-  @IsNotEmpty()
-  @IsString()
-  recipientName: string;
-
-  @ApiPropertyOptional({
-    description: 'Ghi chú bàn giao hoặc thông tin liên hệ',
-    example: 'Bàn giao lúc 21:30 cho đại diện mái ấm',
-  })
-  @IsOptional()
-  @IsString()
-  note?: string;
-}
-
 export class QueryAnomalyDto {
   @ApiPropertyOptional({
     description: 'Độ nhạy phát hiện bất thường (LOW, MEDIUM, HIGH) (R2-112)',

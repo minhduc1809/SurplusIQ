@@ -38,6 +38,10 @@ import { AiLogEntity } from '../../entities/ai/ai-log.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { SettingsService } from '../settings/settings.service';
+import { RewardsService } from '../rewards/rewards.service';
+import { RescueTimelineService } from '../rescue-timeline/rescue-timeline.service';
+import { RescuePoolService } from '../rescue-pool/rescue-pool.service';
+import { RescueBridgeService } from '../rescue-bridge/rescue-bridge.service';
 
 describe('JobsService (All 12 Background Jobs)', () => {
   let service: JobsService;
@@ -174,6 +178,10 @@ describe('JobsService (All 12 Background Jobs)', () => {
         { provide: getRepositoryToken(AiLogEntity), useValue: aiLogRepo },
         { provide: getRepositoryToken(ViewHistoryEntity), useValue: viewHistoryRepo },
         { provide: AuditLogService, useValue: auditLogService },
+        { provide: RewardsService, useValue: { reverseForOrder: jest.fn() } },
+        { provide: RescueTimelineService, useValue: { recalculateAll: jest.fn() } },
+        { provide: RescuePoolService, useValue: { processDeadlines: jest.fn() } },
+        { provide: RescueBridgeService, useValue: { processDeadlines: jest.fn() } },
         { provide: DataSource, useValue: dataSource },
         { provide: SettingsService, useValue: settingsService },
       ],

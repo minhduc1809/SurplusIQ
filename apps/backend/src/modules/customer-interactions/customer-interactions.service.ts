@@ -20,6 +20,7 @@ import { SupportMessageEntity } from '../../entities/complaints/support-message.
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { decideComplaint } from './complaint-decision';
+import { RewardsService } from '../rewards/rewards.service';
 import {
   UpdateReviewDto,
   AddComplaintAttachmentsDto,
@@ -65,6 +66,7 @@ export class CustomerInteractionsService {
     @InjectRepository(PaymentTransactionEntity)
     private readonly paymentTxnRepo: Repository<PaymentTransactionEntity>,
     private readonly dataSource: DataSource,
+    private readonly rewardsService: RewardsService,
   ) {}
 
   /**
@@ -767,6 +769,13 @@ export class CustomerInteractionsService {
         storeId,
         'STORE_REFUND',
       );
+      if (complaint.status === ComplaintStatus.ACCEPTED && complaint.refundAmount > 0) {
+        await this.rewardsService.reverseForOrder(
+          complaint.orderId,
+          `Hoàn tiền do khiếu nại ${complaint.id} được chấp nhận`,
+          manager,
+        );
+      }
       return { success: true, message: 'Giải quyết khiếu nại thành công.', complaint };
     });
   }
