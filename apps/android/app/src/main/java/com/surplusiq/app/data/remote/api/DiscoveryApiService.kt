@@ -21,6 +21,8 @@ interface DiscoveryApiService {
         @Query("category") category: String? = null,
         @Query("dietary") dietary: String? = null,
         @Query("maxPrice") maxPrice: Double? = null,
+        @Query("minDiscountPercent") minDiscountPercent: Int? = null,
+        @Query("sortBy") sortBy: String? = null,
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20
     ): Response<NearbyDealsResponse>
@@ -90,4 +92,38 @@ interface DiscoveryApiService {
 
     @DELETE("customer/deal-alerts/{id}")
     suspend fun deleteDealAlert(@Path("id") id: String): Response<Map<String, Any>>
+
+    @GET("customer/stores/{id}/reviews")
+    suspend fun getStoreReviews(
+        @Path("id") storeId: String,
+        @Query("rating") rating: Int? = null,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 10
+    ): Response<StoreReviewsResponseDto>
+
+    @POST("customer/baskets/substitutes")
+    suspend fun getBasketSubstitutes(
+        @Body request: BasketSubstitutesRequest
+    ): Response<BasketSubstitutesResponse>
+
+    @POST("customer/baskets/checkout")
+    suspend fun checkoutBasket(
+        @Body request: BasketCheckoutRequest
+    ): Response<BasketCheckoutResponse>
+
+    @POST("customer/deals/{id}/back-in-stock")
+    suspend fun toggleBackInStock(
+        @Path("id") id: String
+    ): Response<BackInStockResponseDto>
+
+    @GET("customer/deals/{id}/back-in-stock")
+    suspend fun getBackInStockStatus(
+        @Path("id") id: String
+    ): Response<BackInStockStatusDto>
+
+    @GET("customer/deals/{id}/price-history")
+    suspend fun getPriceHistory(
+        @Path("id") id: String
+    ): Response<PriceHistoryDto>
 }
+

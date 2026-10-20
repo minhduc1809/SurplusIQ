@@ -605,6 +605,8 @@ data class OrderDto(
     val cancelReason: String? = null,
     val cancelledBy: String? = null,
     val arrivingNotifiedAt: String? = null,
+    val paymentProofUrl: String? = null,
+    val paymentProofUploadedAt: String? = null,
     val offer: OfferDto? = null
 )
 

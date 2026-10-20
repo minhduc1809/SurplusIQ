@@ -120,9 +120,10 @@ dependencies {
     implementation("androidx.camera:camera-view:1.3.3")
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
 
-    // Maps Compose
+    // Maps Compose & OpenStreetMap (OsmDroid)
     implementation("com.google.maps.android:maps-compose:4.3.3")
     implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
 
     // Google Sign-In (Credential Manager)
     implementation("androidx.credentials:credentials:1.3.0")

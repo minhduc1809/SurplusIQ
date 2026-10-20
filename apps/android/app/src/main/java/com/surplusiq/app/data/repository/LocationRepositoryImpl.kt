@@ -148,7 +148,7 @@ class LocationRepositoryImpl @Inject constructor(
         return SavedPlace(dto.id, dto.label, lat, lng, dto.radiusKm, reverseGeocode(lat, lng))
     }
 
-    private fun geocoder() = Geocoder(context, Locale("vi", "VN"))
+    private fun geocoder() = Geocoder(context, Locale.forLanguageTag("vi-VN"))
 
     private companion object {
         const val KEY_CONFIGURED = "key_location_configured"

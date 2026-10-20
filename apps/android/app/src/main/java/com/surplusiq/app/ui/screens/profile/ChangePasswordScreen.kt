@@ -31,7 +31,7 @@ fun ChangePasswordScreen(
         if (state.isChangePasswordSuccess) onSuccess()
     }
 
-    AuthShellCard(onBackClick = onBackClick) {
+    AuthShellCard(modifier = modifier, onBackClick = onBackClick) {
         AuthHeading(title = "Đổi mật khẩu", subtitle = "Cập nhật mật khẩu đăng nhập của bạn.")
 
         AuthField(

@@ -7,8 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -69,7 +69,7 @@ fun CompareDealsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("So sánh deal", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại") } },
+                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
@@ -79,7 +79,7 @@ fun CompareDealsScreen(
             isLoading = isLoading,
             errorMessage = errorMessage,
             isEmpty = deals.isEmpty(),
-            emptyIcon = Icons.Default.CompareArrows,
+            emptyIcon = Icons.AutoMirrored.Filled.CompareArrows,
             emptyTitle = "Chưa có deal để so sánh",
             emptyMessage = "Chọn 2-3 deal trong mục Đã lưu hoặc Xem gần đây.",
             onRetry = onRetry,

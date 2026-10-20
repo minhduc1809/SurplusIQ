@@ -1,21 +1,33 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
 import { TrustpassView } from './trustpass-view.interface';
 import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
+import { AuditLogEntity } from '../../entities/stores/audit-log.entity';
 import { SavedDealEntity } from '../../entities/auth/saved-deal.entity';
 import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
 import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { QueryDealsDto, DealSortBy } from './dto/query-deals.dto';
 import { QueryMapDealsDto } from './dto/query-map-deals.dto';
+import { QueryStoreReviewsDto } from './dto/query-store-reviews.dto';
 import { CreateDealAlertDto, UpdateDealAlertDto } from './dto/deal-alert.dto';
 import { CreateSavedFilterDto } from './dto/saved-filter.dto';
 import { QueryRadarDto } from './dto/query-radar.dto';
 import { SuggestBasketDto } from './dto/suggest-basket.dto';
+import { BasketSubstitutesQueryDto, BasketCheckoutDto } from './dto/basket-checkout.dto';
+import { OrdersService } from '../orders/orders.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 export interface DealResponseItem {
   id: string;
@@ -60,6 +72,8 @@ export class DiscoveryService {
     @InjectRepository(ReviewEntity)
     private readonly reviewRepo: Repository<ReviewEntity>,
     private readonly dataSource: DataSource,
+    private readonly ordersService: OrdersService,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   /**
@@ -365,7 +379,7 @@ export class DiscoveryService {
         logoUrl: store.logoUrl,
         openHours: store.openHours,
         status: store.status,
-        averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 5.0,
+        averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 0,
         reviewsCount: reviewStats?.review_count ? Number(reviewStats.review_count) : 0,
       },
     };
@@ -475,7 +489,7 @@ export class DiscoveryService {
         logoUrl: store.logoUrl,
         openHours: store.openHours,
         status: store.status,
-        averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 5.0,
+        averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 0,
         reviewsCount: reviewStats?.review_count ? Number(reviewStats.review_count) : 0,
       },
       activeDeals: activeOffers.map((o) => {
@@ -495,6 +509,103 @@ export class DiscoveryService {
           pickupEnd: new Date(o.pickup_end),
         };
       }),
+    };
+  }
+
+  /**
+   * Xem danh sách đánh giá công khai và phân bổ sao của cửa hàng (K15, R1-027)
+   */
+  async getStoreReviews(storeId: string, query: QueryStoreReviewsDto) {
+    const store = await this.storeRepo.findOne({
+      where: { id: storeId },
+    });
+
+    if (!store) {
+      throw new NotFoundException('Cửa hàng không tồn tại.');
+    }
+
+    const page = query.page && query.page > 0 ? Number(query.page) : 1;
+    const limit = query.limit && query.limit > 0 ? Number(query.limit) : 10;
+    const skip = (page - 1) * limit;
+
+    // 1. Thống kê toàn bộ đánh giá đang hiển thị của cửa hàng
+    const allStoreReviews = await this.reviewRepo.find({
+      where: { storeId, status: ReviewStatus.VISIBLE },
+      select: ['id', 'rating'],
+    });
+
+    const totalReviews = allStoreReviews.length;
+    const averageRating =
+      totalReviews > 0
+        ? Number((allStoreReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1))
+        : 0;
+
+    const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    allStoreReviews.forEach((r) => {
+      if (r.rating >= 1 && r.rating <= 5) {
+        distribution[r.rating] = (distribution[r.rating] || 0) + 1;
+      }
+    });
+
+    // 2. Query danh sách review có lọc và phân trang
+    const qb = this.reviewRepo
+      .createQueryBuilder('r')
+      .leftJoin(CustomerProfileEntity, 'cp', 'cp.user_id = r.customer_id')
+      .where('r.store_id = :storeId', { storeId })
+      .andWhere('r.status = :status', { status: ReviewStatus.VISIBLE });
+
+    if (query.rating) {
+      qb.andWhere('r.rating = :rating', { rating: Number(query.rating) });
+    }
+
+    qb.orderBy('r.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .select([
+        'r.id AS id',
+        'r.rating AS rating',
+        'r.comment AS comment',
+        'r.store_reply AS store_reply',
+        'r.store_reply_at AS store_reply_at',
+        'r.created_at AS created_at',
+        'cp.full_name AS customer_name',
+        'cp.avatar_url AS customer_avatar',
+      ]);
+
+    const rawReviews = await qb.getRawMany();
+
+    const maskName = (name?: string | null) => {
+      if (!name || !name.trim()) return 'Khách hàng';
+      const parts = name.trim().split(/\s+/);
+      if (parts.length === 1) {
+        return parts[0].length > 2 ? `${parts[0][0]}***` : parts[0];
+      }
+      const first = parts[0];
+      const last = parts[parts.length - 1];
+      return `${first[0]}*** ${last}`;
+    };
+
+    const reviews = rawReviews.map((item) => ({
+      id: item.id,
+      rating: Number(item.rating),
+      comment: item.comment,
+      storeReply: item.store_reply,
+      storeReplyAt: item.store_reply_at ? new Date(item.store_reply_at) : null,
+      createdAt: new Date(item.created_at),
+      customerName: maskName(item.customer_name),
+      customerAvatar: item.customer_avatar || null,
+    }));
+
+    return {
+      storeId,
+      storeName: store.name,
+      averageRating,
+      totalReviews,
+      distribution,
+      page,
+      limit,
+      totalPages: Math.ceil(totalReviews / limit) || 1,
+      reviews,
     };
   }
 
@@ -1119,6 +1230,325 @@ export class DiscoveryService {
       imageUrl: deal.item?.imageUrl,
       shareUrl: `https://surplusiq.vn/deals/${deal.id}`,
       shareText: `[SurplusIQ] Cứu món ${title} tại ${storeName} chỉ với ${deal.currentPrice.toLocaleString('vi-VN')}đ (-${deal.discountPercent}%)!`,
+    };
+  }
+
+  /**
+   * Lấy danh sách suất cứu thay thế cùng cửa hàng (KC03, CM-C01)
+   */
+  async getBasketSubstitutes(dto: BasketSubstitutesQueryDto) {
+    const qb = this.offerRepo
+      .createQueryBuilder('o')
+      .innerJoin(StoreEntity, 's', 's.id = o.store_id')
+      .leftJoin(ItemEntity, 'i', 'i.id = o.item_id')
+      .where('o.store_id = :storeId', { storeId: dto.storeId })
+      .andWhere('o.id != :currentOfferId', { currentOfferId: dto.currentOfferId })
+      .andWhere('o.status = :status', { status: OfferStatus.OPEN })
+      .andWhere('o.remaining_quantity > 0')
+      .andWhere('o.pickup_end > NOW()');
+
+    if (dto.maxPrice && dto.maxPrice > 0) {
+      qb.andWhere('o.current_price <= :maxPrice', { maxPrice: dto.maxPrice });
+    }
+
+    const offers = await qb
+      .select([
+        'o.id AS offer_id',
+        'o.current_price AS current_price',
+        'o.original_price AS original_price',
+        'o.discount_percent AS discount_percent',
+        'o.remaining_quantity AS remaining_quantity',
+        'o.pickup_start AS pickup_start',
+        'o.pickup_end AS pickup_end',
+        'i.name AS item_name',
+        'i.image_url AS image_url',
+        'i.allergens AS allergens',
+      ])
+      .getRawMany();
+
+    return offers.map((o) => ({
+      offerId: o.offer_id,
+      title: o.item_name || 'Suất cứu thay thế',
+      price: Number(o.current_price),
+      originalPrice: Number(o.original_price),
+      discountPercent: Number(o.discount_percent),
+      remainingStock: Number(o.remaining_quantity),
+      imageUrl: o.image_url,
+      allergens: o.allergens || [],
+      pickupStart: o.pickup_start,
+      pickupEnd: o.pickup_end,
+    }));
+  }
+
+  /**
+   * Đặt toàn bộ giỏ cứu món (KC04, CM-C01) với giữ suất 10 phút và kiểm tra tồn kho nguyên tử
+   */
+  async checkoutBasket(customerId: string, dto: BasketCheckoutDto) {
+    if (!dto.items || dto.items.length === 0) {
+      throw new BadRequestException('Giỏ cứu không có món nào để đặt hàng.');
+    }
+
+    // 1. Kiểm tra tồn kho và hạn của từng món trước
+    const checkedItems: Array<{ offer: OfferEntity; quantity: number }> = [];
+    for (const item of dto.items) {
+      const offer = await this.offerRepo.findOne({
+        where: { id: item.offerId, storeId: dto.storeId },
+      });
+
+      if (!offer) {
+        throw new NotFoundException(
+          `Suất cứu món với mã ${item.offerId} không tồn tại tại cửa hàng này.`,
+        );
+      }
+
+      if (offer.status !== OfferStatus.OPEN || new Date(offer.pickupEnd) <= new Date()) {
+        throw new ConflictException({
+          errorCode: 'BASKET_ITEM_EXPIRED',
+          message: `Suất món "${offer.id}" đã hết hạn nhận hàng.`,
+          unavailableOfferId: item.offerId,
+        });
+      }
+
+      if (offer.remainingQuantity < item.quantity) {
+        throw new ConflictException({
+          errorCode: 'BASKET_ITEM_OUT_OF_STOCK',
+          message: `Suất món "${offer.id}" chỉ còn ${offer.remainingQuantity} suất (bạn đặt ${item.quantity}).`,
+          unavailableOfferId: item.offerId,
+          availableStock: offer.remainingQuantity,
+        });
+      }
+
+      checkedItems.push({ offer, quantity: item.quantity });
+    }
+
+    // 2. Tạo đơn cho từng món thông qua ordersService trong database transaction
+    const createdOrders: any[] = [];
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      for (const checked of checkedItems) {
+        const order = await this.ordersService.holdOrder(
+          customerId,
+          {
+            offerId: checked.offer.id,
+            quantity: checked.quantity,
+            promotionId: dto.promotionId,
+            note: 'Đặt qua Rescue Basket (CM-C01)',
+          },
+          customerId,
+          queryRunner.manager,
+        );
+        createdOrders.push(order);
+      }
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+
+    const totalAmount = createdOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const holdExpiresAt = createdOrders[0]?.holdExpiresAt || new Date(Date.now() + 10 * 60 * 1000);
+
+    return {
+      success: true,
+      storeId: dto.storeId,
+      orders: createdOrders.map((o) => ({
+        id: o.id,
+        code: o.code,
+        offerId: o.offerId,
+        quantity: o.quantity,
+        totalAmount: o.totalAmount,
+      })),
+      totalAmount,
+      holdExpiresAt: holdExpiresAt.toISOString(),
+      itemsCount: dto.items.reduce((sum, i) => sum + i.quantity, 0),
+      message: 'Đặt giữ cả giỏ cứu thành công! Suất của bạn được giữ trong 10 phút.',
+    };
+  }
+
+  /**
+   * Đăng ký hoặc hủy nhận thông báo khi món có hàng lại (KX06)
+   */
+  async toggleBackInStockAlert(userId: string, offerId: string) {
+    const offer = await this.offerRepo.findOne({ where: { id: offerId } });
+    if (!offer) {
+      throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
+    }
+
+    const existing = await this.dealAlertRepo
+      .createQueryBuilder('alert')
+      .where('alert.user_id = :userId', { userId })
+      .andWhere("alert.criteria->>'offerId' = :offerId", { offerId })
+      .getOne();
+
+    if (existing) {
+      existing.isActive = !existing.isActive;
+      await this.dealAlertRepo.save(existing);
+      return {
+        subscribed: existing.isActive,
+        message: existing.isActive
+          ? 'Đã bật nhận thông báo khi deal có hàng lại'
+          : 'Đã hủy thông báo khi deal có hàng lại',
+      };
+    }
+
+    const activeCount = await this.dealAlertRepo.count({
+      where: { userId, isActive: true },
+    });
+    if (activeCount >= 10) {
+      throw new BadRequestException(
+        'Mỗi khách hàng chỉ được bật tối đa 10 cảnh báo deal đồng thời (R1-031).',
+      );
+    }
+
+    let title = 'Deal cứu món';
+    if (offer.itemId) {
+      const item = await this.itemRepo.findOne({ where: { id: offer.itemId } });
+      if (item) title = item.name;
+    }
+
+    const alert = this.dealAlertRepo.create({
+      userId,
+      criteria: {
+        offerId,
+        storeId: offer.storeId,
+        backInStock: true,
+        title,
+      },
+      isActive: true,
+    });
+    await this.dealAlertRepo.save(alert);
+
+    return {
+      subscribed: true,
+      message: 'Đã đăng ký nhận tin khi deal có hàng lại',
+    };
+  }
+
+  /**
+   * Kiểm tra trạng thái đã đăng ký nhận thông báo có hàng lại hay chưa (KX06)
+   */
+  async getBackInStockStatus(userId: string, offerId: string) {
+    const alert = await this.dealAlertRepo
+      .createQueryBuilder('alert')
+      .where('alert.user_id = :userId', { userId })
+      .andWhere("alert.criteria->>'offerId' = :offerId", { offerId })
+      .getOne();
+
+    return {
+      subscribed: !!alert?.isActive,
+    };
+  }
+
+  /**
+   * Xem lịch sử giá và theo dõi biến động giá của deal (KX07)
+   */
+  async getPriceHistory(offerId: string) {
+    const offer = await this.offerRepo.findOne({ where: { id: offerId } });
+    if (!offer) {
+      throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
+    }
+
+    let itemName = 'Món cứu cứu';
+    if (offer.itemId) {
+      const item = await this.itemRepo.findOne({ where: { id: offer.itemId } });
+      if (item) itemName = item.name;
+    }
+
+    const auditLogs = await this.dataSource.getRepository(AuditLogEntity).find({
+      where: {
+        targetType: 'OFFER',
+        targetId: offer.id,
+      },
+      order: { createdAt: 'ASC' },
+      take: 10,
+    });
+
+    const timeline: Array<{
+      label: string;
+      price: number;
+      timestamp: string;
+      discountPercent: number;
+      note?: string;
+    }> = [];
+
+    // Mốc 1: Giá gốc ban đầu
+    timeline.push({
+      label: 'Giá gốc niêm yết',
+      price: offer.originalPrice,
+      timestamp: offer.createdAt ? offer.createdAt.toISOString() : new Date().toISOString(),
+      discountPercent: 0,
+      note: 'Giá gốc niêm yết của quán',
+    });
+
+    // Mốc 2: Giá mở bán
+    const initialOfferPrice =
+      auditLogs.length > 0 && auditLogs[0].oldValue?.currentPrice
+        ? Number(auditLogs[0].oldValue.currentPrice)
+        : offer.currentPrice;
+
+    if (initialOfferPrice !== offer.originalPrice) {
+      const initialDiscount = Math.round(
+        ((offer.originalPrice - initialOfferPrice) / offer.originalPrice) * 100,
+      );
+      timeline.push({
+        label: 'Giá mở bán cứu món',
+        price: initialOfferPrice,
+        timestamp: offer.createdAt ? offer.createdAt.toISOString() : new Date().toISOString(),
+        discountPercent: initialDiscount,
+        note: `Tiết kiệm ${initialDiscount}% ngay khi mở bán`,
+      });
+    }
+
+    // Các lần đổi giá từ Audit Log
+    for (const log of auditLogs) {
+      if (log.newValue && log.newValue.currentPrice) {
+        const newPrice = Number(log.newValue.currentPrice);
+        const discount = Math.round(((offer.originalPrice - newPrice) / offer.originalPrice) * 100);
+        timeline.push({
+          label: 'Giảm giá giờ chót (Flash Sale)',
+          price: newPrice,
+          timestamp: log.createdAt.toISOString(),
+          discountPercent: discount,
+          note: `Giảm thêm trong khung giờ cứu`,
+        });
+      }
+    }
+
+    // Đảm bảo mức giá hiện tại có trong timeline
+    const lastPoint = timeline[timeline.length - 1];
+    if (lastPoint.price !== offer.currentPrice) {
+      const currentDiscount = Math.round(
+        ((offer.originalPrice - offer.currentPrice) / offer.originalPrice) * 100,
+      );
+      timeline.push({
+        label: 'Giá hiện tại (Tốt nhất hôm nay)',
+        price: offer.currentPrice,
+        timestamp: offer.updatedAt ? offer.updatedAt.toISOString() : new Date().toISOString(),
+        discountPercent: currentDiscount,
+        note: `Mức giá tốt nhất đang áp dụng`,
+      });
+    }
+
+    const currentDiscount = Math.round(
+      ((offer.originalPrice - offer.currentPrice) / offer.originalPrice) * 100,
+    );
+
+    return {
+      offerId: offer.id,
+      itemName,
+      originalPrice: offer.originalPrice,
+      currentPrice: offer.currentPrice,
+      floorPrice: offer.floorPrice,
+      discountPercent: currentDiscount,
+      priceChangeCount: offer.priceChangeCount,
+      timeline,
+      transparencyCommitment:
+        'SurplusIQ cam kết hiển thị giá thực tế từ đối tác, không nâng giá để tạo khuyến mãi ảo.',
     };
   }
 }

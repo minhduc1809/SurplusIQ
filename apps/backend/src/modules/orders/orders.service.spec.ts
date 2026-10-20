@@ -64,6 +64,8 @@ describe('OrdersService', () => {
     arrivingNotifiedAt: null,
     paidAt: null,
     pickedUpAt: null,
+    paymentProofUrl: null,
+    paymentProofUploadedAt: null,
     pickedUpBy: null,
     cancelledAt: null,
     cancelReason: null,
@@ -685,6 +687,52 @@ describe('OrdersService', () => {
       await expect(service.reorderShortcut(mockCustomerId, 'old-order-1')).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('attachPaymentProof (KX02)', () => {
+    it('đính kèm ảnh biên lai thanh toán thành công cho đơn PENDING_PAYMENT', async () => {
+      const mockOrder = {
+        id: mockOrderId,
+        customerId: mockCustomerId,
+        storeId: mockStoreId,
+        status: OrderStatus.PENDING_PAYMENT,
+        paymentProofUrl: null,
+      };
+      mockOrderRepo.findOne.mockResolvedValueOnce(mockOrder);
+      mockOrderRepo.save.mockImplementation((o: any) => Promise.resolve(o));
+
+      const res = await service.attachPaymentProof(
+        mockCustomerId,
+        mockOrderId,
+        'https://storage.surplusiq.vn/proof.jpg',
+      );
+
+      expect(res.paymentProofUrl).toBe('https://storage.surplusiq.vn/proof.jpg');
+      expect(res.paymentProofUploadedAt).toBeDefined();
+      expect(mockOrderRepo.save).toHaveBeenCalled();
+      expect(mockAuditLogService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PAYMENT_PROOF_ATTACHED',
+          targetId: mockOrderId,
+        }),
+      );
+    });
+
+    it('báo lỗi khi đơn hàng đã bị hủy', async () => {
+      mockOrderRepo.findOne.mockResolvedValueOnce({
+        id: mockOrderId,
+        customerId: mockCustomerId,
+        status: OrderStatus.CANCELLED,
+      });
+
+      await expect(
+        service.attachPaymentProof(
+          mockCustomerId,
+          mockOrderId,
+          'https://storage.surplusiq.vn/proof.jpg',
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

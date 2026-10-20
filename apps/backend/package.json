@@ -13,7 +13,8 @@
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/data-source.ts",
-    "seed": "ts-node src/seed-runner.ts"
+    "seed": "npx ts-node src/seed-runner.ts",
+    "seed:hanoi": "npx ts-node src/seed-hanoi-runner.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.8",
@@ -36,7 +37,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.0",
-    "typeorm": "^0.3.20"
+    "typeorm": "^0.3.20",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.3.2",

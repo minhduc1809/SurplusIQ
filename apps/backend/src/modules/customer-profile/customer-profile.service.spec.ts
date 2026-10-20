@@ -220,4 +220,43 @@ describe('CustomerProfileService (Full Customer Features)', () => {
       await expect(service.claimPromotion('u1', 'promo-1')).rejects.toThrow(ConflictException);
     });
   });
+
+  describe('refund bank account (KX01)', () => {
+    it('lấy thông tin tài khoản hoàn tiền của khách hàng', async () => {
+      profileRepo.findOne.mockResolvedValueOnce({
+        userId: 'u1',
+        refundBankAccount: {
+          bankBin: '970422',
+          bankName: 'MB Bank',
+          accountNumber: '0388123456',
+          accountHolder: 'NGUYEN VAN A',
+        },
+      });
+
+      const res = await service.getRefundBankAccount('u1');
+      expect(res?.bankBin).toBe('970422');
+      expect(res?.bankName).toBe('MB Bank');
+      expect(res?.accountNumber).toBe('0388123456');
+    });
+
+    it('cập nhật tài khoản hoàn tiền thành công và viết hoa tên chủ thẻ', async () => {
+      const mockProfile = {
+        userId: 'u1',
+        refundBankAccount: null,
+      };
+      profileRepo.findOne.mockResolvedValueOnce(mockProfile);
+
+      const res = await service.updateRefundBankAccount('u1', {
+        bankBin: '970436',
+        bankName: 'Vietcombank',
+        accountNumber: '0071001234567',
+        accountHolder: 'nguyen van a',
+      });
+
+      expect(res.bankBin).toBe('970436');
+      expect(res.accountHolder).toBe('NGUYEN VAN A');
+      expect(res.updatedAt).toBeDefined();
+      expect(profileRepo.save).toHaveBeenCalled();
+    });
+  });
 });

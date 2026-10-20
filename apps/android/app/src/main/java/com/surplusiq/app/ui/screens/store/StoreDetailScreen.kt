@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Favorite
@@ -57,7 +57,8 @@ fun StoreDetailScreen(
     onToggleFavorite: (storeId: String) -> Unit,
     onReport: (storeId: String, reason: String) -> Unit,
     onDealClick: (Deal) -> Unit,
-    onConsumeMessage: () -> Unit
+    onConsumeMessage: () -> Unit,
+    onOpenReviews: (storeId: String) -> Unit = {}
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -74,7 +75,7 @@ fun StoreDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(store?.name ?: "Cửa hàng", fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1) },
-                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại") } },
+                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") } },
                 actions = {
                     if (store != null) {
                         IconButton(onClick = { onToggleFavorite(store.id) }) {
@@ -117,7 +118,7 @@ fun StoreDetailScreen(
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                item { StoreHeader(detail) }
+                item { StoreHeader(detail, onOpenReviews = onOpenReviews) }
                 item {
                     TabRow(
                         selectedTabIndex = selectedTab,
@@ -180,7 +181,7 @@ fun StoreDetailScreen(
 }
 
 @Composable
-private fun StoreHeader(store: StoreDetail) {
+private fun StoreHeader(store: StoreDetail, onOpenReviews: (String) -> Unit = {}) {
     val context = LocalContext.current
     Column {
         // Backend chưa có ảnh bìa cửa hàng: dùng dải màu thương hiệu làm nền cho logo.
@@ -215,14 +216,20 @@ private fun StoreHeader(store: StoreDetail) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 44.dp, bottom = 12.dp)) {
             Text(store.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onOpenReviews(store.id) }
+                    .padding(vertical = 4.dp, horizontal = 2.dp)
+            ) {
                 Icon(Icons.Default.Star, contentDescription = null, tint = AmberAccent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
                 Text(
                     store.averageRating?.let { "%.1f (%d đánh giá)".format(it, store.reviewsCount) } ?: "Chưa có đánh giá",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
+                    color = if (store.reviewsCount > 0) ForestGreenPrimary else TextPrimary
                 )
             }
             Spacer(Modifier.height(10.dp))

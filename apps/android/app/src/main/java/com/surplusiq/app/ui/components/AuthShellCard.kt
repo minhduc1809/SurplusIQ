@@ -51,10 +51,11 @@ private val FieldFillColor = Color(0xFFF1EBE0)
  */
 @Composable
 fun AuthShellCard(
+    modifier: Modifier = Modifier,
     onBackClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize().background(SurfaceWhite)) {
+    Box(modifier = modifier.fillMaxSize().background(SurfaceWhite)) {
         if (onBackClick != null) {
             IconButton(
                 onClick = onBackClick,

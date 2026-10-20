@@ -8,6 +8,9 @@ import com.surplusiq.app.data.remote.dto.DataExportResponse
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
 import com.surplusiq.app.data.remote.dto.PaymentTransactionRecordDto
 import com.surplusiq.app.data.remote.dto.PromotionWalletItemDto
+import com.surplusiq.app.data.remote.dto.RefundBankAccountDto
+import com.surplusiq.app.data.remote.dto.UpdateCustomerProfileRequest
+import com.surplusiq.app.data.remote.dto.CustomerProfileDto
 import retrofit2.Response
 import com.surplusiq.app.data.remote.dto.UpdateDietaryProfileRequest
 import com.surplusiq.app.domain.model.DietaryType
@@ -27,23 +30,7 @@ class ProfileRepositoryImpl @Inject constructor(
         return try {
             val response = profileApiService.getProfile()
             if (response.isSuccessful && response.body() != null) {
-                val dto = response.body()!!
-                val statsDto = dto.impactStats
-                val stats = UserImpactStats(
-                    totalSavedMoneyVnd = statsDto?.moneySavedVnd ?: 0L,
-                    totalRescuedKg = statsDto?.foodSavedKg ?: 0.0,
-                    totalReducedCo2Kg = statsDto?.co2AvoidedKg ?: 0.0,
-                    totalRescuedBags = 0
-                )
-                Result.success(
-                    UserProfile(
-                        id = dto.id,
-                        phone = dto.phone,
-                        fullName = dto.fullName,
-                        avatarUrl = dto.avatarUrl,
-                        impactStats = stats
-                    )
-                )
+                Result.success(mapToUserProfile(response.body()!!))
             } else {
                 Result.success(createFallbackProfile())
             }
@@ -52,18 +39,49 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateDietaryPreferences(dietaryType: DietaryType, allergies: List<String>): Result<Boolean> {
+    override suspend fun updateProfile(
+        fullName: String?,
+        avatarUrl: String?,
+        searchRadiusKm: Double?
+    ): Result<UserProfile> {
         return try {
-            val response = profileApiService.updateDietaryProfile(
+            val request = UpdateCustomerProfileRequest(
+                fullName = fullName,
+                avatarUrl = avatarUrl,
+                searchRadiusKm = searchRadiusKm
+            )
+            val response = profileApiService.updateProfile(request)
+            if (response.isSuccessful && response.body() != null) {
+                val updated = mapToUserProfile(response.body()!!)
+                // Cập nhật session cache nếu fullName thay đổi
+                if (!fullName.isNullOrBlank()) {
+                    sessionManager.updateFullName(updated.fullName)
+                }
+                Result.success(updated)
+            } else {
+                Result.failure(Exception("Không thể cập nhật hồ sơ (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Lỗi kết nối khi cập nhật hồ sơ", e))
+        }
+    }
+
+    override suspend fun getDietaryProfile(): Result<com.surplusiq.app.data.remote.dto.DietaryProfileDto> =
+        com.surplusiq.app.data.remote.apiCall("Không thể tải hồ sơ ăn uống", { profileApiService.getDietaryProfile() }) { it }
+
+    override suspend fun updateDietaryProfile(allergens: List<String>, excludedItems: List<String>): Result<Boolean> =
+        com.surplusiq.app.data.remote.apiCall("Không thể cập nhật hồ sơ ăn uống", {
+            profileApiService.updateDietaryProfile(
                 UpdateDietaryProfileRequest(
-                    dietaryPreferences = listOf(dietaryType.name),
-                    allergies = allergies
+                    allergens = allergens,
+                    excludedItems = excludedItems
                 )
             )
-            Result.success(response.isSuccessful)
-        } catch (_: Exception) {
-            Result.success(true)
-        }
+        }) { true }
+
+    override suspend fun updateDietaryPreferences(dietaryType: DietaryType, allergies: List<String>): Result<Boolean> {
+        val excluded = if (dietaryType != DietaryType.NONE) listOf(dietaryType.name) else emptyList()
+        return updateDietaryProfile(allergens = allergies, excludedItems = excluded)
     }
 
     override suspend fun getFavoriteStoreIds(): Result<Set<String>> =
@@ -159,13 +177,70 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getRefundBankAccount(): Result<RefundBankAccountDto?> {
+        return try {
+            val response = profileApiService.getRefundBankAccount()
+            if (response.isSuccessful) {
+                Result.success(response.body())
+            } else {
+                Result.failure(Exception("Không lấy được thông tin tài khoản hoàn tiền (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Lỗi kết nối khi tải tài khoản hoàn tiền", e))
+        }
+    }
+
+    override suspend fun updateRefundBankAccount(
+        bankBin: String,
+        bankName: String,
+        accountNumber: String,
+        accountHolder: String
+    ): Result<RefundBankAccountDto> {
+        return try {
+            val dto = RefundBankAccountDto(
+                bankBin = bankBin,
+                bankName = bankName,
+                accountNumber = accountNumber,
+                accountHolder = accountHolder
+            )
+            val response = profileApiService.updateRefundBankAccount(dto)
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                Result.success(body)
+            } else {
+                Result.failure(Exception("Cập nhật tài khoản hoàn tiền thất bại (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Lỗi kết nối khi lưu tài khoản hoàn tiền", e))
+        }
+    }
+
     private fun createFallbackProfile(): UserProfile {
         return UserProfile(
             id = sessionManager.getUserId() ?: "",
             phone = sessionManager.getPhone() ?: "",
             fullName = sessionManager.getFullName(),
             avatarUrl = null,
+            searchRadiusKm = 5.0,
             impactStats = UserImpactStats(0L, 0.0, 0.0, 0)
+        )
+    }
+
+    private fun mapToUserProfile(dto: CustomerProfileDto): UserProfile {
+        val statsDto = dto.impactStats
+        val stats = UserImpactStats(
+            totalSavedMoneyVnd = statsDto?.moneySavedVnd ?: 0L,
+            totalRescuedKg = statsDto?.foodSavedKg ?: 0.0,
+            totalReducedCo2Kg = statsDto?.co2AvoidedKg ?: 0.0,
+            totalRescuedBags = 0
+        )
+        return UserProfile(
+            id = dto.id,
+            phone = dto.phone,
+            fullName = dto.fullName,
+            avatarUrl = dto.avatarUrl,
+            searchRadiusKm = dto.searchRadiusKm ?: 5.0,
+            impactStats = stats
         )
     }
 }

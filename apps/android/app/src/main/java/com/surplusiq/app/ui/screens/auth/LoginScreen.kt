@@ -41,7 +41,7 @@ fun LoginScreen(
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
 
-    AuthShellCard(onBackClick = onBackClick) {
+    AuthShellCard(modifier = modifier, onBackClick = onBackClick) {
         AuthHeading(title = "Chào mừng trở lại!", subtitle = "Đăng nhập để tiếp tục cứu món cùng SurplusIQ.")
 
         AuthField(

@@ -16,6 +16,8 @@ import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
 import { CreateSavedPlaceDto } from './dto/saved-place.dto';
 import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
+import { UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
+import { UpdateRefundBankAccountDto } from './dto/refund-bank-account.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -144,6 +146,16 @@ export class CustomerProfileController {
     return this.profileService.getNotificationSettings(user?.userId);
   }
 
+  @Put('notification-settings')
+  @ApiOperation({ summary: 'Cập nhật cài đặt nhận thông báo (R1-010, K57)' })
+  @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
+  async updateNotificationSettings(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateNotificationSettingsDto,
+  ) {
+    return this.profileService.updateNotificationSettings(user?.userId, dto);
+  }
+
   @Post('delete-request')
   @ApiOperation({ summary: 'Yêu cầu xóa tài khoản cá nhân (R1-011, R1-019, BR-007)' })
   async requestAccountDelete(@CurrentUser() user: RequestUser) {
@@ -202,5 +214,26 @@ export class CustomerProfileController {
   @ApiOperation({ summary: 'Thu thập mã ưu đãi vào ví (R1-079)' })
   async claimPromotion(@CurrentUser() user: RequestUser, @Param('id') promoId: string) {
     return this.profileService.claimPromotion(user?.userId, promoId);
+  }
+
+  @Get('refund-bank-account')
+  @ApiOperation({
+    summary: 'Lấy thông tin tài khoản ngân hàng nhận tiền hoàn VietQR (KX01)',
+  })
+  @ApiResponse({ status: 200, description: 'Thông tin tài khoản nhận hoàn tiền' })
+  async getRefundBankAccount(@CurrentUser() user: RequestUser) {
+    return this.profileService.getRefundBankAccount(user?.userId);
+  }
+
+  @Put('refund-bank-account')
+  @ApiOperation({
+    summary: 'Cập nhật tài khoản ngân hàng nhận tiền hoàn VietQR (KX01)',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
+  async updateRefundBankAccount(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateRefundBankAccountDto,
+  ) {
+    return this.profileService.updateRefundBankAccount(user?.userId, dto);
   }
 }

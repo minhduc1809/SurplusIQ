@@ -16,6 +16,7 @@ import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
 import { AiFeatureGuard } from './ai-feature.guard';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       ComplaintEntity,
       StoreEntity,
       StoreSettingsEntity,
+      CustomerProfileEntity,
     ]),
     SubscriptionsModule,
   ],

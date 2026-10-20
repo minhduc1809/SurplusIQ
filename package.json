@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "packages/core",
+    "apps/backend",
+    "apps/web",
+    "apps/simulation"
   ],
   "scripts": {
     "infra:up": "docker compose --env-file .env -f docker/docker-compose.yml up -d",
@@ -14,7 +16,9 @@
     "build:core": "npm --workspace=@surplusiq/core run build",
     "migration:run": "npm --workspace=@surplusiq/backend run migration:run",
     "migration:revert": "npm --workspace=@surplusiq/backend run migration:revert",
-    "seed": "npm --workspace=@surplusiq/backend run seed",
+    "seed": "npx ts-node apps/backend/src/seed-hanoi-runner.ts",
+    "seed:hanoi": "npx ts-node apps/backend/src/seed-hanoi-runner.ts",
+    "seed:default": "npx ts-node apps/backend/src/seed-runner.ts",
     "dev:backend": "npm --workspace=@surplusiq/backend run start:dev",
     "dev:web": "npm --workspace=@surplusiq/web run dev",
     "dev:simulation": "npm --workspace=@surplusiq/simulation run start",

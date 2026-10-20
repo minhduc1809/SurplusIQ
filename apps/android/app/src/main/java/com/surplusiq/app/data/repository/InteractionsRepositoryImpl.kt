@@ -250,6 +250,28 @@ class InteractionsRepositoryImpl @Inject constructor(
             interactionsApiService.createViolationReport(CreateViolationReportRequest("STORE", storeId, reason))
         }) { }
 
+    override suspend fun getCustomerReviews(): Result<List<com.surplusiq.app.data.remote.dto.CustomerReviewDto>> =
+        apiCall("Không thể tải danh sách đánh giá của bạn", {
+            interactionsApiService.getCustomerReviews()
+        }) { it }
+
+    override suspend fun updateReview(
+        reviewId: String,
+        rating: Int,
+        comment: String?
+    ): Result<ReviewResponse> =
+        apiCall("Không thể cập nhật đánh giá", {
+            interactionsApiService.updateReview(
+                reviewId,
+                com.surplusiq.app.data.remote.dto.UpdateReviewRequest(rating, comment)
+            )
+        }) { it }
+
+    override suspend fun hideReview(reviewId: String): Result<Boolean> =
+        apiCall("Không thể ẩn đánh giá", {
+            interactionsApiService.hideReview(reviewId)
+        }) { true }
+
     private fun apiError(code: Int, body: String?): Exception {
         val message = when (code) {
             400 -> "Yêu cầu không hợp lệ, vui lòng kiểm tra lại thông tin."

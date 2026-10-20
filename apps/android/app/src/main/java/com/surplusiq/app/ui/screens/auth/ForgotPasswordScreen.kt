@@ -25,7 +25,7 @@ fun ForgotPasswordScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    AuthShellCard(onBackClick = onBackClick) {
+    AuthShellCard(modifier = modifier, onBackClick = onBackClick) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             AuthIllustration(kind = AuthIllustrationKind.FORGOT_PASSWORD)
         }

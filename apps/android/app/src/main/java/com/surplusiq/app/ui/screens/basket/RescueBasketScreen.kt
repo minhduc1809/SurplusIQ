@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +34,7 @@ fun RescueBasketScreen(
     errorMessage: String?,
     onBackClick: () -> Unit,
     onSuggest: (budgetMax: Double, peopleCount: Int) -> Unit,
+    onSelectBasket: (BasketSuggestion) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var budgetText by remember { mutableStateOf("100000") }
@@ -48,7 +49,7 @@ fun RescueBasketScreen(
             title = { Text("Rescue Basket", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             }
         )
@@ -105,7 +106,12 @@ fun RescueBasketScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(suggestions) { basket -> BasketCard(basket) }
+                    items(suggestions) { basket ->
+                        BasketCard(
+                            basket = basket,
+                            onSelect = { onSelectBasket(basket) }
+                        )
+                    }
                 }
             }
         }
@@ -113,8 +119,16 @@ fun RescueBasketScreen(
 }
 
 @Composable
-private fun BasketCard(basket: BasketSuggestion) {
-    Card(shape = RoundedCornerShape(12.dp)) {
+private fun BasketCard(
+    basket: BasketSuggestion,
+    onSelect: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             Text(basket.storeName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
             Spacer(modifier = Modifier.height(6.dp))
@@ -144,6 +158,16 @@ private fun BasketCard(basket: BasketSuggestion) {
             basket.rankingReasons.forEach { reason ->
                 Text("• $reason", fontSize = 11.sp, color = TextMuted)
             }
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = onSelect,
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                Text("Xem & Tùy chỉnh giỏ này", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
+

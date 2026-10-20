@@ -12,11 +12,11 @@ export class UpdateCustomerProfileDto {
   fullName?: string;
 
   @ApiPropertyOptional({
-    description: 'Đường dẫn ảnh đại diện (URL)',
-    example: 'https://example.com/avatar.jpg',
+    description: 'Đường dẫn ảnh đại diện (URL hoặc đường dẫn tương đối /uploads/...)',
+    example: '/uploads/img_12345.jpg',
   })
   @IsOptional()
-  @IsUrl({}, { message: 'avatarUrl phải là định dạng URL hợp lệ.' })
+  @IsString({ message: 'avatarUrl phải là chuỗi ký tự hợp lệ.' })
   avatarUrl?: string;
 
   @ApiPropertyOptional({

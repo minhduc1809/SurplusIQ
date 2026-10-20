@@ -252,3 +252,92 @@ data class DealAlertRequest(
     @SerializedName("criteria") val criteria: Map<String, Any>? = null,
     @SerializedName("isActive") val isActive: Boolean? = null
 )
+
+// --- Rescue Basket Tùy chỉnh & Đặt giữ (KC03, KC04) ---
+data class BasketSubstitutesRequest(
+    @SerializedName("storeId") val storeId: String,
+    @SerializedName("excludeOfferIds") val excludeOfferIds: List<String> = emptyList(),
+    @SerializedName("maxPrice") val maxPrice: Double? = null,
+    @SerializedName("avoidAllergens") val avoidAllergens: List<String> = emptyList()
+)
+
+data class BasketSubstituteItemDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("currentPrice") val currentPrice: Double,
+    @SerializedName("originalPrice") val originalPrice: Double,
+    @SerializedName("discountPercent") val discountPercent: Int = 0,
+    @SerializedName("remainingQuantity") val remainingQuantity: Int = 0,
+    @SerializedName("imageUrl") val imageUrl: String? = null,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("allergens") val allergens: List<String> = emptyList()
+)
+
+data class BasketSubstitutesResponse(
+    @SerializedName("storeId") val storeId: String,
+    @SerializedName("count") val count: Int,
+    @SerializedName("substitutes") val substitutes: List<BasketSubstituteItemDto> = emptyList()
+)
+
+data class BasketCheckoutItemRequest(
+    @SerializedName("offerId") val offerId: String,
+    @SerializedName("quantity") val quantity: Int = 1
+)
+
+data class BasketCheckoutRequest(
+    @SerializedName("storeId") val storeId: String,
+    @SerializedName("items") val items: List<BasketCheckoutItemRequest>,
+    @SerializedName("pickupTimeWindow") val pickupTimeWindow: String? = null,
+    @SerializedName("notes") val notes: String? = null
+)
+
+data class BasketCheckoutHeldItemDto(
+    @SerializedName("offerId") val offerId: String,
+    @SerializedName("orderId") val orderId: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("quantity") val quantity: Int,
+    @SerializedName("unitPrice") val unitPrice: Double,
+    @SerializedName("totalPrice") val totalPrice: Double
+)
+
+data class BasketCheckoutResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("storeId") val storeId: String,
+    @SerializedName("orderIds") val orderIds: List<String> = emptyList(),
+    @SerializedName("totalAmount") val totalAmount: Double,
+    @SerializedName("holdExpiresAt") val holdExpiresAt: String,
+    @SerializedName("items") val items: List<BasketCheckoutHeldItemDto> = emptyList(),
+    @SerializedName("message") val message: String? = null
+)
+
+/** KX06: Báo khi có hàng lại */
+data class BackInStockResponseDto(
+    @SerializedName("subscribed") val subscribed: Boolean,
+    @SerializedName("message") val message: String? = null
+)
+
+data class BackInStockStatusDto(
+    @SerializedName("subscribed") val subscribed: Boolean
+)
+
+/** KX07: Lịch sử và biến động giá cứu món */
+data class PricePointDto(
+    @SerializedName("label") val label: String,
+    @SerializedName("price") val price: Long,
+    @SerializedName("timestamp") val timestamp: String,
+    @SerializedName("discountPercent") val discountPercent: Int,
+    @SerializedName("note") val note: String? = null
+)
+
+data class PriceHistoryDto(
+    @SerializedName("offerId") val offerId: String,
+    @SerializedName("itemName") val itemName: String,
+    @SerializedName("originalPrice") val originalPrice: Long,
+    @SerializedName("currentPrice") val currentPrice: Long,
+    @SerializedName("floorPrice") val floorPrice: Long,
+    @SerializedName("discountPercent") val discountPercent: Int,
+    @SerializedName("priceChangeCount") val priceChangeCount: Int,
+    @SerializedName("timeline") val timeline: List<PricePointDto> = emptyList(),
+    @SerializedName("transparencyCommitment") val transparencyCommitment: String? = null
+)
+

@@ -1,4 +1,4 @@
-package com.surplusiq.app.ui.viewmodel
+    package com.surplusiq.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,7 +18,10 @@ data class NotificationsUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val settings: NotificationSettings = NotificationSettings(),
-    val isSavingSettings: Boolean = false
+    val isSettingsLoading: Boolean = false,
+    val isSavingSettings: Boolean = false,
+    val settingsError: String? = null,
+    val saveSettingsSuccess: Boolean = false
 )
 
 @HiltViewModel
@@ -51,6 +54,27 @@ class NotificationsViewModel @Inject constructor(
         }
     }
 
+    fun loadSettings() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSettingsLoading = true, settingsError = null)
+            val result = notificationsRepository.getSettings()
+            result.fold(
+                onSuccess = { s ->
+                    _uiState.value = _uiState.value.copy(
+                        settings = s,
+                        isSettingsLoading = false
+                    )
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isSettingsLoading = false,
+                        settingsError = err.localizedMessage ?: "Không thể tải cài đặt thông báo"
+                    )
+                }
+            )
+        }
+    }
+
     fun markAsRead(id: String) {
         viewModelScope.launch {
             val result = notificationsRepository.markAsRead(id)
@@ -74,14 +98,38 @@ class NotificationsViewModel @Inject constructor(
         }
     }
 
-    fun saveSettings(settings: NotificationSettings) {
+    fun saveSettings(settings: NotificationSettings, onComplete: ((Boolean) -> Unit)? = null) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isSavingSettings = true)
-            val result = notificationsRepository.updateSettings(settings)
             _uiState.value = _uiState.value.copy(
-                isSavingSettings = false,
-                settings = result.getOrNull() ?: _uiState.value.settings
+                isSavingSettings = true,
+                settingsError = null,
+                saveSettingsSuccess = false
+            )
+            val result = notificationsRepository.updateSettings(settings)
+            result.fold(
+                onSuccess = { updated ->
+                    _uiState.value = _uiState.value.copy(
+                        isSavingSettings = false,
+                        settings = updated,
+                        saveSettingsSuccess = true
+                    )
+                    onComplete?.invoke(true)
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isSavingSettings = false,
+                        settingsError = err.localizedMessage ?: "Không thể lưu cài đặt thông báo"
+                    )
+                    onComplete?.invoke(false)
+                }
             )
         }
+    }
+
+    fun clearSettingsStatus() {
+        _uiState.value = _uiState.value.copy(
+            settingsError = null,
+            saveSettingsSuccess = false
+        )
     }
 }

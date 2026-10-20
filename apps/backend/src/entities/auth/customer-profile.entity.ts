@@ -36,6 +36,15 @@ export class CustomerProfileEntity {
   @Column({ type: 'jsonb', nullable: true, name: 'notification_preferences' })
   notificationPreferences: Record<string, boolean> | null;
 
+  @Column({ type: 'jsonb', nullable: true, name: 'refund_bank_account' })
+  refundBankAccount: {
+    bankBin: string;
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    updatedAt?: string;
+  } | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt: Date;
 

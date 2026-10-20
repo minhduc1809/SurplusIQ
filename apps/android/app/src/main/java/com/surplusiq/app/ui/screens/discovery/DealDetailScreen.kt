@@ -3,6 +3,7 @@ package com.surplusiq.app.ui.screens.discovery
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,14 +13,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.Verified
+import com.surplusiq.app.data.remote.dto.PriceHistoryDto
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,14 +33,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.surplusiq.app.domain.model.Deal
+import com.surplusiq.app.domain.model.DealCategory
 import com.surplusiq.app.domain.model.TrustpassInfo
-import com.surplusiq.app.ui.theme.CoralRed
-import com.surplusiq.app.ui.theme.ForestGreenDark
-import com.surplusiq.app.ui.theme.ForestGreenPrimary
-import com.surplusiq.app.ui.theme.TextMuted
-import com.surplusiq.app.ui.theme.TextPrimary
-import com.surplusiq.app.ui.theme.TextSecondary
+import com.surplusiq.app.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DealDetailScreen(
     deal: Deal,
@@ -55,12 +51,37 @@ fun DealDetailScreen(
     isSaved: Boolean = false,
     onToggleSaved: (() -> Unit)? = null,
     onOpenStore: (() -> Unit)? = null,
+    userAllergens: List<String> = emptyList(),
+    // KX06: Báo khi có hàng lại
+    isBackInStockSubscribed: Boolean = false,
+    isTogglingBackInStock: Boolean = false,
+    onToggleBackInStock: (() -> Unit)? = null,
+    // KX07: Lịch sử giá minh bạch
+    priceHistory: PriceHistoryDto? = null,
+    isPriceHistoryLoading: Boolean = false,
+    priceHistoryError: String? = null,
+    onLoadPriceHistory: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isFavorite by remember { mutableStateOf(deal.isFavorite) }
     var showFavoriteToast by remember { mutableStateOf(false) }
     var showTrustpass by remember { mutableStateOf(false) }
+    var showAiTips by remember { mutableStateOf(false) }
+    var showPriceHistorySheet by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    val dealAllergens = remember(deal.allergens, trustpass?.allergens) {
+        (deal.allergens + (trustpass?.allergens ?: emptyList())).distinct()
+    }
+    val matchedAllergens = remember(userAllergens, dealAllergens) {
+        userAllergens.filter { ua ->
+            dealAllergens.any { da ->
+                da.equals(ua, ignoreCase = true) ||
+                da.contains(ua, ignoreCase = true) ||
+                ua.contains(da, ignoreCase = true)
+            }
+        }
+    }
 
     Box(
         modifier = modifier
@@ -86,7 +107,7 @@ fun DealDetailScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Top Actions (Back & Favorite)
+                // Top Actions (Back, Share, Bookmark, Favorite)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -102,46 +123,71 @@ fun DealDetailScreen(
                             .background(Color.Black.copy(alpha = 0.4f))
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = Color.White
                         )
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (onToggleSaved != null) {
+                        // Nút chia sẻ deal
                         IconButton(
-                            onClick = onToggleSaved,
+                            onClick = {
+                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(
+                                        android.content.Intent.EXTRA_TEXT,
+                                        "Cùng giải cứu suất ăn '${deal.title}' tại ${deal.storeName} với giá chỉ ${String.format("%,d", deal.discountPrice)} ₫ (giảm ${deal.discountPercent}%) trên SurplusIQ!"
+                                    )
+                                }
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Chia sẻ deal cứu hộ"))
+                            },
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = 0.4f))
                         ) {
                             Icon(
-                                imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                                contentDescription = if (isSaved) "Bỏ lưu deal" else "Lưu deal",
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Chia sẻ",
                                 tint = Color.White
                             )
                         }
-                    }
-                    IconButton(
-                        onClick = {
-                            isFavorite = !isFavorite
-                            if (isFavorite) {
-                                showFavoriteToast = true
+
+                        if (onToggleSaved != null) {
+                            IconButton(
+                                onClick = onToggleSaved,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.4f))
+                            ) {
+                                Icon(
+                                    imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                    contentDescription = if (isSaved) "Bỏ lưu deal" else "Lưu deal",
+                                    tint = Color.White
+                                )
                             }
-                        },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.4f))
-                    ) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = "Favorite",
-                            tint = if (isFavorite) CoralRed else Color.White
-                        )
-                    }
+                        }
+
+                        IconButton(
+                            onClick = {
+                                isFavorite = !isFavorite
+                                if (isFavorite) {
+                                    showFavoriteToast = true
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.4f))
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                contentDescription = "Favorite",
+                                tint = if (isFavorite) CoralRed else Color.White
+                            )
+                        }
                     }
                 }
 
@@ -246,6 +292,44 @@ fun DealDetailScreen(
                     )
                 }
 
+                // Cảnh báo dị ứng cá nhân hóa theo hồ sơ người dùng (K58 / K13)
+                if (matchedAllergens.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = CoralRedLight),
+                        border = BorderStroke(1.dp, CoralRed)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Cảnh báo dị ứng",
+                                tint = CoralRed,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "CẢNH BÁO DỊ ỨNG",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = CoralRed
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Món này có chứa: ${matchedAllergens.joinToString(", ")} trùng với hồ sơ ăn uống của bạn. Vui lòng kiểm tra kỹ!",
+                                    fontSize = 13.sp,
+                                    color = TextPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // Highlighted Collection Time Box (matching red frame from screenshot)
@@ -342,7 +426,7 @@ fun DealDetailScreen(
                     )
                 }
 
-                Divider(
+                HorizontalDivider(
                     modifier = Modifier.padding(vertical = 14.dp),
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                 )
@@ -363,7 +447,7 @@ fun DealDetailScreen(
                         color = TextPrimary,
                         lineHeight = 20.sp
                     )
-                    Divider(
+                    HorizontalDivider(
                         modifier = Modifier.padding(vertical = 14.dp),
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                     )
@@ -448,6 +532,163 @@ fun DealDetailScreen(
                     }
                 }
 
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 14.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                )
+
+                // SaveBite AI Tips: Mẹo bảo quản & tái chế (K13)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showAiTips = !showAiTips }
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(LilacAccent.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color(0xFF6B58C4),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Mẹo bảo quản & Công thức từ AI",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Gợi ý cách hâm nóng & tận dụng tối đa từ SaveBite AI",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = if (showAiTips) Icons.Default.KeyboardArrowUp else Icons.Default.ChevronRight,
+                        contentDescription = "Mở rộng",
+                        tint = TextMuted
+                    )
+                }
+
+                AnimatedVisibility(visible = showAiTips) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = LilacWash)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "💡 Hướng dẫn hâm nóng & Bảo quản:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF513F9E)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            val storageGuide = when (deal.category) {
+                                DealCategory.BAKED_GOODS -> "• Làm nóng: Xịt một chút nước lên vỏ bánh rồi nướng ở 180°C trong 3-4 phút để vỏ giòn rụm như mới ra lò.\n• Bảo quản: Để ngăn đông nếu không dùng hết trong 24h, khi ăn chỉ cần rã đông ở nhiệt độ phòng."
+                                DealCategory.MEALS -> "• Hâm nóng: Sử dụng chảo với một chút dầu/nước, hoặc đậy kín trong lò vi sóng để món ăn không bị khô.\n• Bảo quản: Giữ ở ngăn mát tủ lạnh (dưới 5°C) và dùng tốt nhất trong vòng 24 giờ."
+                                DealCategory.GROCERIES -> "• Sơ chế: Rửa sạch và để ráo nước trước khi cho vào hộp kín trong ngăn mát.\n• Ý tưởng chế biến: Có thể nấu canh soup thanh nhiệt, làm salad trộn sốt mè rang hoặc làm sinh tố trái cây."
+                                DealCategory.OTHER -> "• Bảo quản nơi khô ráo, thoáng mát hoặc ngăn mát tủ lạnh tùy tính chất thực phẩm.\n• Dùng hết trong khung thời gian khuyến nghị để đảm bảo hương vị chuẩn nhất."
+                            }
+                            Text(
+                                text = storageGuide,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                color = TextPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "🌿 Cùng SurplusIQ giảm phát thải CO2 và bảo vệ môi trường!",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ForestGreenDark
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 14.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                )
+
+                // KX07: Lịch sử và Biến động giá cứu món (Minh bạch)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable {
+                            showPriceHistorySheet = true
+                            onLoadPriceHistory?.invoke()
+                        },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(ForestGreenPrimary.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TrendingDown,
+                                    contentDescription = null,
+                                    tint = ForestGreenPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Biến động & Lịch sử giá (Minh bạch)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Tiết kiệm ${deal.discountPercent}% so với giá niêm yết • Bấm xem chi tiết",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Chi tiết",
+                            tint = TextMuted
+                        )
+                    }
+                }
+
             }
         }
 
@@ -459,22 +700,50 @@ fun DealDetailScreen(
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 20.dp, vertical = 14.dp)
         ) {
-            Button(
-                onClick = { onReserveClick(deal) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(26.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ForestGreenPrimary
-                )
-            ) {
-                Text(
-                    text = "Đặt giữ suất",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+            if (deal.remainingStock <= 0) {
+                Button(
+                    onClick = { onToggleBackInStock?.invoke() },
+                    enabled = !isTogglingBackInStock,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isBackInStockSubscribed) ForestGreenPrimary else PrimaryOrange
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (isBackInStockSubscribed) Icons.Default.Check else Icons.Default.NotificationsActive,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isBackInStockSubscribed) "✓ Đang nhận báo khi có hàng lại" else "🔔 Báo tôi khi có hàng lại (Hết hàng)",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            } else {
+                Button(
+                    onClick = { onReserveClick(deal) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ForestGreenPrimary
+                    )
+                ) {
+                    Text(
+                        text = "Đặt giữ suất",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
         // Toast Notification Overlay: "Great! This store was added to your list of favourites" (Image 2 Screen 1)
@@ -514,7 +783,162 @@ fun DealDetailScreen(
             }
         }
     }
+
+    if (showPriceHistorySheet) {
+        ModalBottomSheet(onDismissRequest = { showPriceHistorySheet = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Lịch sử biến động giá",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    IconButton(onClick = { showPriceHistorySheet = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Đóng")
+                    }
+                }
+
+                // Banner cam kết minh bạch (KX07)
+                Surface(
+                    color = ForestGreenPrimary.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Default.Verified, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(24.dp))
+                        Text(
+                            text = priceHistory?.transparencyCommitment ?: "SurplusIQ cam kết hiển thị giá thực tế từ đối tác, không nâng giá để tạo khuyến mãi ảo.",
+                            fontSize = 12.sp,
+                            color = ForestGreenDark,
+                            lineHeight = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                when {
+                    isPriceHistoryLoading -> {
+                        Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = PrimaryOrange)
+                        }
+                    }
+                    priceHistoryError != null && priceHistory == null -> {
+                        Text(priceHistoryError ?: "Không thể tải lịch sử giá", color = CoralRed, fontSize = 13.sp)
+                    }
+                    else -> {
+                        val history = priceHistory
+                        // Bảng tóm tắt giá
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("Giá gốc", fontSize = 11.sp, color = TextMuted)
+                                    Text(
+                                        "${String.format("%,d", history?.originalPrice ?: deal.originalPrice.toLong())} đ",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextSecondary,
+                                        style = androidx.compose.ui.text.TextStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+                                    )
+                                }
+                            }
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                colors = CardDefaults.cardColors(containerColor = PrimaryOrange.copy(alpha = 0.12f)),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("Giá cứu món", fontSize = 11.sp, color = PrimaryOrange, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "${String.format("%,d", history?.currentPrice ?: deal.discountPrice.toLong())} đ",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = PrimaryOrange
+                                    )
+                                }
+                            }
+                        }
+
+                        // Danh sách mốc biến động
+                        Text("Các mốc thời gian điều chỉnh:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+
+                        val timeline = history?.timeline ?: listOf(
+                            com.surplusiq.app.data.remote.dto.PricePointDto(
+                                label = "Giá gốc niêm yết",
+                                price = deal.originalPrice.toLong(),
+                                timestamp = "Trước mở bán",
+                                discountPercent = 0,
+                                note = "Giá niêm yết tại quán"
+                            ),
+                            com.surplusiq.app.data.remote.dto.PricePointDto(
+                                label = "Giá mở bán cứu món",
+                                price = deal.discountPrice.toLong(),
+                                timestamp = "Hôm nay",
+                                discountPercent = deal.discountPercent,
+                                note = "Tiết kiệm ${deal.discountPercent}%"
+                            )
+                        )
+
+                        timeline.forEachIndexed { idx, point ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .padding(top = 4.dp)
+                                        .clip(CircleShape)
+                                        .background(if (idx == timeline.size - 1) PrimaryOrange else ForestGreenPrimary)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(point.label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextPrimary)
+                                        Text("${String.format("%,d", point.price)} đ", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = PrimaryOrange)
+                                    }
+                                    if (!point.note.isNullOrBlank()) {
+                                        Text(point.note, fontSize = 12.sp, color = TextSecondary)
+                                    }
+                                    Text(point.timestamp, fontSize = 11.sp, color = TextMuted)
+                                    if (idx < timeline.size - 1) {
+                                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+        }
+    }
 }
+
 
 /** BR-C03-02: null = "Chưa được cung cấp" - không suy diễn thành "Không có". */
 @Composable

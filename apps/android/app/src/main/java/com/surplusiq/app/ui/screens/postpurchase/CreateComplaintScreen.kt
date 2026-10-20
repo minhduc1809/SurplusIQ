@@ -1,5 +1,8 @@
 package com.surplusiq.app.ui.screens.postpurchase
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,7 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
@@ -22,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,17 +40,20 @@ import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import java.io.InputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateComplaintScreen(
     order: ActiveOrder,
     interactionsRepository: InteractionsRepository,
+    onUploadEvidence: ((ByteArray, String, (Boolean, String?) -> Unit) -> Unit)? = null,
     onBackClick: () -> Unit,
     onSubmitSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val complaintCategories = listOf(
         "Thức ăn ôi thiu / biến chất (An toàn thực phẩm)",
@@ -60,9 +67,38 @@ fun CreateComplaintScreen(
     var description by remember { mutableStateOf("") }
     val evidenceImages = remember { mutableStateListOf<String>() }
     var isSubmitting by remember { mutableStateOf(false) }
+    var isUploadingPhoto by remember { mutableStateOf(false) }
     var generatedComplaintCode by remember { mutableStateOf("") }
     var showSuccessDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+                val bytes = inputStream?.use { it.readBytes() }
+                if (bytes != null && bytes.isNotEmpty()) {
+                    if (onUploadEvidence != null) {
+                        isUploadingPhoto = true
+                        onUploadEvidence(bytes, "evidence_${System.currentTimeMillis()}.jpg") { success, uploadedUrl ->
+                            isUploadingPhoto = false
+                            if (success && uploadedUrl != null) {
+                                evidenceImages.add(uploadedUrl)
+                            } else {
+                                errorMessage = "Không thể tải ảnh bằng chứng lên máy chủ."
+                            }
+                        }
+                    } else {
+                        evidenceImages.add(uri.toString())
+                    }
+                }
+            } catch (e: Exception) {
+                errorMessage = "Lỗi khi đọc file ảnh: ${e.localizedMessage}"
+            }
+        }
+    }
 
     val sampleEvidencePhotos = listOf(
         "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500",
@@ -86,7 +122,7 @@ fun CreateComplaintScreen(
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back"
                     )
                 }
@@ -292,13 +328,14 @@ fun CreateComplaintScreen(
             ) {
                 // Display attached photos
                 evidenceImages.forEachIndexed { index, url ->
+                    val fullUrl = if (url.startsWith("http") || url.startsWith("content://")) url else "http://10.0.2.2:3000$url"
                     Box(
                         modifier = Modifier
                             .size(90.dp)
                             .clip(RoundedCornerShape(12.dp))
                     ) {
                         AsyncImage(
-                            model = url,
+                            model = fullUrl,
                             contentDescription = "Evidence $index",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
@@ -329,25 +366,37 @@ fun CreateComplaintScreen(
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surface)
                             .clickable {
-                                val nextPhoto = sampleEvidencePhotos.getOrNull(evidenceImages.size)
-                                    ?: sampleEvidencePhotos.first()
-                                evidenceImages.add(nextPhoto)
+                                if (onUploadEvidence != null) {
+                                    photoPickerLauncher.launch("image/*")
+                                } else {
+                                    val nextPhoto = sampleEvidencePhotos.getOrNull(evidenceImages.size)
+                                        ?: sampleEvidencePhotos.first()
+                                    evidenceImages.add(nextPhoto)
+                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.AddPhotoAlternate,
-                                contentDescription = "Add Photo",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(24.dp)
+                        if (isUploadingPhoto) {
+                            CircularProgressIndicator(
+                                color = ForestGreenPrimary,
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Tải ảnh",
-                                fontSize = 11.sp,
-                                color = TextSecondary
-                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.AddPhotoAlternate,
+                                    contentDescription = "Add Photo",
+                                    tint = ForestGreenPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Tải ảnh",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                            }
                         }
                     }
                 }

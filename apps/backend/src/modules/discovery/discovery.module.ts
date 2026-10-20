@@ -4,6 +4,7 @@ import { DiscoveryService } from './discovery.service';
 import { CustomerDealsController } from './customer-deals.controller';
 import { CustomerStoresController } from './customer-stores.controller';
 import { CustomerBasketsController } from './customer-baskets.controller';
+import { OrdersModule } from '../orders/orders.module';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
@@ -25,6 +26,7 @@ import { ReviewEntity } from '../../entities/complaints/review.entity';
       ViewHistoryEntity,
       ReviewEntity,
     ]),
+    OrdersModule,
   ],
   controllers: [CustomerDealsController, CustomerStoresController, CustomerBasketsController],
   providers: [DiscoveryService],

@@ -9,6 +9,11 @@ interface ProfileApiService {
     @GET("customer/profile")
     suspend fun getProfile(): Response<CustomerProfileDto>
 
+    @PUT("customer/profile")
+    suspend fun updateProfile(
+        @Body request: UpdateCustomerProfileRequest
+    ): Response<CustomerProfileDto>
+
     @GET("customer/dietary-profile")
     suspend fun getDietaryProfile(): Response<DietaryProfileDto>
 
@@ -69,4 +74,12 @@ interface ProfileApiService {
     suspend fun claimPromotion(
         @Path("id") promotionId: String
     ): Response<Map<String, Any>>
+
+    @GET("customer/refund-bank-account")
+    suspend fun getRefundBankAccount(): Response<RefundBankAccountDto?>
+
+    @PUT("customer/refund-bank-account")
+    suspend fun updateRefundBankAccount(
+        @Body body: RefundBankAccountDto
+    ): Response<RefundBankAccountDto>
 }

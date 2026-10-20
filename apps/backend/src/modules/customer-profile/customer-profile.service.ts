@@ -23,7 +23,9 @@ import { PromotionEntity, PromotionStatus } from '../../entities/marketing/promo
 import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
 import { CreateSavedPlaceDto } from './dto/saved-place.dto';
 import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
+import { UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
+import { UpdateRefundBankAccountDto } from './dto/refund-bank-account.dto';
 
 function maskEmail(email: string | null): string | null {
   if (!email) return null;
@@ -294,13 +296,76 @@ export class CustomerProfileService {
    * Cài đặt nhận thông báo (R1-010)
    */
   async getNotificationSettings(userId: string) {
+    const profile = await this.profileRepo.findOne({ where: { userId } });
     const fcm = await this.fcmRepo.findOne({ where: { userId } });
+    const prefs = profile?.notificationPreferences || {};
+    const orderUpdates =
+      prefs.orderUpdates !== undefined
+        ? prefs.orderUpdates
+        : prefs.transactionPush !== undefined
+          ? prefs.transactionPush
+          : true;
+    const dealAlerts = prefs.dealAlerts !== undefined ? prefs.dealAlerts : fcm ? fcm.enabled : true;
+    const promotions =
+      prefs.promotions !== undefined
+        ? prefs.promotions
+        : prefs.promoPush !== undefined
+          ? prefs.promoPush
+          : true;
+    const reminders =
+      prefs.reminders !== undefined
+        ? prefs.reminders
+        : prefs.reminderPush !== undefined
+          ? prefs.reminderPush
+          : true;
+
     return {
-      orderUpdates: true, // Bắt buộc luôn bật theo BRD
-      dealAlerts: fcm ? fcm.enabled : true,
-      promotions: true,
+      orderUpdates,
+      dealAlerts,
+      promotions,
+      reminders,
+      transactionPush: orderUpdates,
+      promoPush: promotions,
+      reminderPush: reminders,
       quietHours: { start: '22:00', end: '07:00' },
     };
+  }
+
+  /**
+   * Cập nhật cài đặt nhận thông báo (R1-010, K57)
+   */
+  async updateNotificationSettings(userId: string, dto: UpdateNotificationSettingsDto) {
+    let profile = await this.profileRepo.findOne({ where: { userId } });
+    if (!profile) {
+      profile = this.profileRepo.create({ userId, fullName: 'Khách hàng' });
+    }
+    const currentPrefs = profile.notificationPreferences || {};
+    const resolvedOrder = dto.orderUpdates !== undefined ? dto.orderUpdates : dto.transactionPush;
+    const resolvedPromo = dto.promotions !== undefined ? dto.promotions : dto.promoPush;
+    const resolvedReminder = dto.reminders !== undefined ? dto.reminders : dto.reminderPush;
+
+    const updatedPrefs = {
+      ...currentPrefs,
+      ...(resolvedOrder !== undefined
+        ? { orderUpdates: resolvedOrder, transactionPush: resolvedOrder }
+        : {}),
+      ...(dto.dealAlerts !== undefined ? { dealAlerts: dto.dealAlerts } : {}),
+      ...(resolvedPromo !== undefined
+        ? { promotions: resolvedPromo, promoPush: resolvedPromo }
+        : {}),
+      ...(resolvedReminder !== undefined
+        ? { reminders: resolvedReminder, reminderPush: resolvedReminder }
+        : {}),
+    };
+    profile.notificationPreferences = updatedPrefs;
+    await this.profileRepo.save(profile);
+
+    // Cập nhật fcmRepo nếu có thay đổi dealAlerts
+    if (dto.dealAlerts !== undefined) {
+      await this.fcmRepo.update({ userId }, { enabled: dto.dealAlerts });
+    }
+
+    return this.getNotificationSettings(userId);
   }
 
   /**
@@ -498,5 +563,37 @@ export class CustomerProfileService {
     });
 
     return this.walletRepo.save(item);
+  }
+
+  /**
+   * Xem thông tin tài khoản nhận hoàn tiền VietQR (KX01)
+   */
+  async getRefundBankAccount(userId: string) {
+    const profile = await this.profileRepo.findOne({ where: { userId } });
+    if (!profile) {
+      throw new NotFoundException('Hồ sơ khách hàng không tồn tại');
+    }
+    return profile.refundBankAccount || null;
+  }
+
+  /**
+   * Cập nhật thông tin tài khoản nhận hoàn tiền VietQR (KX01)
+   */
+  async updateRefundBankAccount(userId: string, dto: UpdateRefundBankAccountDto) {
+    const profile = await this.profileRepo.findOne({ where: { userId } });
+    if (!profile) {
+      throw new NotFoundException('Hồ sơ khách hàng không tồn tại');
+    }
+
+    profile.refundBankAccount = {
+      bankBin: dto.bankBin,
+      bankName: dto.bankName,
+      accountNumber: dto.accountNumber,
+      accountHolder: dto.accountHolder.trim().toUpperCase(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await this.profileRepo.save(profile);
+    return profile.refundBankAccount;
   }
 }

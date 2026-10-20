@@ -9,6 +9,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,23 +36,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextOverflow
 
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     userName: String = "",
     userPhone: String = "",
+    avatarUrl: String? = null,
     stats: UserImpactStats? = null,
     onOpenAiChat: () -> Unit,
+    onOpenEditProfile: () -> Unit = {},
     onOpenMyOrders: () -> Unit = {},
     onOpenChangePassword: () -> Unit = {},
     onOpenRewards: () -> Unit = {},
     onOpenPromotionWallet: () -> Unit = {},
     onOpenTransactions: () -> Unit = {},
+    onOpenRefundBankAccount: () -> Unit = {},
+    onOpenOnboarding: () -> Unit = {},
     onOpenOrderLock: () -> Unit = {},
     onOpenComplaints: () -> Unit = {},
     onOpenMyReviews: () -> Unit = {},
     onOpenSupportTickets: () -> Unit = {},
     onOpenRescuePool: () -> Unit = {},
+    onOpenRescueBasket: () -> Unit = {},
+    onOpenMyRescueDemands: () -> Unit = {},
     onOpenImpact: () -> Unit = {},
     onOpenPrivacyData: () -> Unit = {},
     onOpenHelpCenter: () -> Unit = {},
@@ -57,6 +69,8 @@ fun ProfileScreen(
     onOpenSavedDeals: () -> Unit = {},
     onOpenDealAlerts: () -> Unit = {},
     onOpenPreferences: () -> Unit = {},
+    onOpenDietaryProfile: () -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -70,20 +84,44 @@ fun ProfileScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .padding(top = 16.dp, bottom = 96.dp), // chừa chỗ cho chatbot nổi và bottom nav
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Hồ sơ (R1-005)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Hồ sơ (R1-005, R1-006, K53)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable { onOpenEditProfile() }
+                .padding(vertical = 4.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(60.dp)
                     .clip(CircleShape)
                     .background(ForestGreenPrimary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Person, contentDescription = "Avatar", tint = ForestGreenPrimary, modifier = Modifier.size(32.dp))
+                if (!avatarUrl.isNullOrBlank()) {
+                    val fullAvatar = if (avatarUrl.startsWith("http")) avatarUrl else "http://10.0.2.2:3000$avatarUrl"
+                    AsyncImage(
+                        model = fullAvatar,
+                        contentDescription = "Avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = "Avatar",
+                        tint = ForestGreenPrimary,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = userName.ifBlank { "Khách" },
@@ -97,15 +135,34 @@ fun ProfileScreen(
                     Text(text = userPhone, fontSize = 13.sp, color = TextSecondary, maxLines = 1)
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(ForestGreenPrimary.copy(alpha = 0.1f))
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text("Thành viên SurplusIQ", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = ForestGreenPrimary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ForestGreenPrimary.copy(alpha = 0.1f))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            "Thành viên SurplusIQ",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ForestGreenPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Sửa hồ sơ",
+                        fontSize = 12.sp,
+                        color = ForestGreenPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Chỉnh sửa",
+                tint = TextMuted
+            )
         }
 
         // Thành tích sống xanh: chỉ 3 chỉ số, chi tiết ở trang con
@@ -138,12 +195,16 @@ fun ProfileScreen(
 
         // Lối tắt chính
         MenuGroup {
-            ProfileMenuItem(Icons.Default.ReceiptLong, "Đơn hàng của tôi", "Lịch sử mua hàng", onOpenMyOrders)
-            Divider(color = divider)
-            ProfileMenuItem(Icons.Default.Groups, "Mua chung theo đợt", "Đăng ký nhu cầu với cửa hàng", onOpenRescuePool)
-            Divider(color = divider)
+            ProfileMenuItem(Icons.AutoMirrored.Filled.ReceiptLong, "Đơn hàng của tôi", "Lịch sử mua hàng", onOpenMyOrders)
+            HorizontalDivider(color = divider)
+            ProfileMenuItem(Icons.Default.ShoppingBasket, "Giỏ cứu tự động", "Gợi ý tổ hợp suất theo ngân sách", onOpenRescueBasket)
+            HorizontalDivider(color = divider)
+            ProfileMenuItem(Icons.Default.Groups, "Mua chung theo đợt (Rescue Pool)", "Đăng ký nhu cầu với cửa hàng", onOpenRescuePool)
+            HorizontalDivider(color = divider)
+            ProfileMenuItem(Icons.Default.ListAlt, "Nhu cầu của tôi", "Theo dõi đợt gom & đơn hàng", onOpenMyRescueDemands)
+            HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.ConfirmationNumber, "Ví ưu đãi", "Mã giảm giá của bạn", onOpenPromotionWallet)
-            Divider(color = divider)
+            HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.Stars, "Điểm thưởng", "Số dư và lịch sử tích điểm", onOpenRewards)
         }
 
@@ -164,25 +225,28 @@ fun ProfileScreen(
                     Triple(Icons.Default.LocationOn, "Vị trí & địa điểm", onOpenLocationSettings),
                     Triple(Icons.Default.Bookmarks, "Deal đã lưu & đã xem", onOpenSavedDeals),
                     Triple(Icons.Default.NotificationsActive, "Cảnh báo deal", onOpenDealAlerts),
-                    Triple(Icons.Default.RestaurantMenu, "Hồ sơ ăn uống & dị ứng", onOpenPreferences),
+                    Triple(Icons.Default.Notifications, "Cài đặt thông báo", onOpenNotificationSettings),
+                    Triple(Icons.Default.RestaurantMenu, "Hồ sơ ăn uống & dị ứng", onOpenDietaryProfile),
                     Triple(Icons.Default.AccountBalanceWallet, "Thanh toán & hoàn tiền", onOpenTransactions),
+                    Triple(Icons.Default.AccountBalance, "Tài khoản nhận hoàn tiền VietQR", onOpenRefundBankAccount),
                     Triple(Icons.Default.ReportProblem, "Khiếu nại của tôi", onOpenComplaints),
                     Triple(Icons.Default.RateReview, "Đánh giá của tôi", onOpenMyReviews),
                     Triple(Icons.Default.GppMaybe, "Trạng thái khóa đặt", onOpenOrderLock),
                     Triple(Icons.Default.AutoAwesome, "Trợ lý AI Cứu Món", onOpenAiChat),
                     Triple(Icons.Default.SupportAgent, "Hỗ trợ", onOpenSupportTickets),
-                    Triple(Icons.Default.HelpOutline, "Câu hỏi thường gặp", onOpenHelpCenter),
+                    Triple(Icons.AutoMirrored.Filled.HelpOutline, "Câu hỏi thường gặp", onOpenHelpCenter),
+                    Triple(Icons.Default.Info, "Giới thiệu & hướng dẫn ứng dụng", onOpenOnboarding),
                     Triple(Icons.Default.Shield, "Quyền riêng tư & dữ liệu", onOpenPrivacyData),
                     Triple(Icons.Default.Lock, "Đổi mật khẩu", onOpenChangePassword)
                 ).forEach { (icon, title, action) ->
-                    Divider(color = divider)
+                    HorizontalDivider(color = divider)
                     ProfileMenuItem(icon, title, "", action)
                 }
             }
         }
 
         TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Logout, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text("Đăng xuất", color = TextSecondary, fontWeight = FontWeight.SemiBold)
         }

@@ -36,7 +36,7 @@ fun RegisterScreen(
     // BR-005: đồng ý điều khoản phải là lựa chọn chủ động, không mặc định bật.
     var termsAccepted by remember { mutableStateOf(false) }
 
-    AuthShellCard(onBackClick = onBackToLogin) {
+    AuthShellCard(modifier = modifier, onBackClick = onBackToLogin) {
         AuthHeading(title = "Tạo tài khoản mới", subtitle = "Tham gia SurplusIQ để tìm deal gần bạn mỗi ngày.")
 
         AuthField(label = "Họ và tên", value = state.fullName, onValueChange = onFullNameChange, placeholder = "Nguyễn Văn A")

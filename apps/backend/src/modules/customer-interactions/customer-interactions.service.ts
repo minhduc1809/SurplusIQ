@@ -570,6 +570,62 @@ export class CustomerInteractionsService {
     return { success: true, message: 'Đã ẩn đánh giá thành công (R1-066).' };
   }
 
+  /**
+   * Xem danh sách lịch sử đánh giá của tôi (K38, R1-065/R1-066)
+   */
+  async getCustomerReviews(customerId: string) {
+    const rawReviews = await this.reviewRepo
+      .createQueryBuilder('r')
+      .innerJoin(StoreEntity, 's', 's.id = r.store_id')
+      .innerJoin(OrderEntity, 'o', 'o.id = r.order_id')
+      .where('r.customer_id = :customerId', { customerId })
+      .orderBy('r.created_at', 'DESC')
+      .select([
+        'r.id AS id',
+        'r.order_id AS order_id',
+        'o.code AS order_code',
+        'r.store_id AS store_id',
+        's.name AS store_name',
+        's.logo_url AS store_logo_url',
+        's.address AS store_address',
+        'r.rating AS rating',
+        'r.comment AS comment',
+        'r.status AS status',
+        'r.store_reply AS store_reply',
+        'r.store_reply_at AS store_reply_at',
+        'r.created_at AS created_at',
+        'r.updated_at AS updated_at',
+      ])
+      .getRawMany();
+
+    const now = Date.now();
+    return rawReviews.map((r) => {
+      const createdTime = new Date(r.created_at).getTime();
+      const diffHours = (now - createdTime) / (1000 * 60 * 60);
+      const canEdit = r.status === ReviewStatus.VISIBLE && diffHours <= 24;
+
+      return {
+        id: r.id,
+        orderId: r.order_id,
+        orderCode: r.order_code,
+        store: {
+          id: r.store_id,
+          name: r.store_name,
+          logoUrl: r.store_logo_url || null,
+          address: r.store_address,
+        },
+        rating: Number(r.rating),
+        comment: r.comment,
+        status: r.status,
+        storeReply: r.store_reply,
+        storeReplyAt: r.store_reply_at ? new Date(r.store_reply_at) : null,
+        createdAt: new Date(r.created_at),
+        updatedAt: new Date(r.updated_at),
+        canEdit,
+      };
+    });
+  }
+
   // -------------------------------------------------------------------------
   // BÁO CÁO VI PHẠM (VIOLATION REPORTS - R1-069)
   // -------------------------------------------------------------------------

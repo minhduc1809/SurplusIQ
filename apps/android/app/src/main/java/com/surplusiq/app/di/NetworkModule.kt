@@ -4,6 +4,7 @@ import com.surplusiq.app.data.remote.AuthInterceptor
 import com.surplusiq.app.data.remote.SessionManager
 import com.surplusiq.app.data.remote.TokenAuthenticator
 import com.surplusiq.app.data.remote.api.*
+import com.surplusiq.app.data.remote.api.UploadApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -18,6 +19,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideGson(): com.google.gson.Gson {
+        return com.google.gson.Gson()
+    }
 
     @Provides
     @Singleton
@@ -111,4 +118,9 @@ object NetworkModule {
     @Singleton
     fun provideRescuePoolApiService(retrofit: Retrofit): RescuePoolApiService =
         retrofit.create(RescuePoolApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideUploadApiService(retrofit: Retrofit): UploadApiService =
+        retrofit.create(UploadApiService::class.java)
 }

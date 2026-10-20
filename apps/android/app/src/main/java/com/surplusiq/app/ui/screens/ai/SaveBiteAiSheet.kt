@@ -8,9 +8,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.app.domain.model.Deal
@@ -27,6 +29,7 @@ import com.surplusiq.app.ui.theme.ForestGreenPrimary
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
+import com.surplusiq.app.ui.viewmodel.AiUiState
 
 data class ChatMessage(
     val sender: String, // "user" or "ai"
@@ -37,21 +40,15 @@ data class ChatMessage(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SaveBiteAiSheet(
-    allDeals: List<Deal>,
+    state: AiUiState,
+    onSendMessage: (String) -> Unit,
+    onOpenHistory: () -> Unit,
+    onNewChat: () -> Unit,
     onDealClick: (Deal) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var queryText by remember { mutableStateOf("") }
-    var remainingAiQuota by remember { mutableStateOf(28) } // 30 ops/day in GOI-KH
-    val messages = remember {
-        mutableStateListOf(
-            ChatMessage(
-                sender = "ai",
-                text = "Xin chào! Tôi là Trợ lý Cứu Món SaveBite AI. Bạn có thể hỏi tôi bất kỳ điều gì, ví dụ: 'Tìm bánh ngọt dưới 35k gần Quận 1 sau 19h' hoặc hỏi về thành phần dị ứng món ăn!"
-            )
-        )
-    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -60,8 +57,19 @@ fun SaveBiteAiSheet(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Trợ Lý Cứu Món AI", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Còn $remainingAiQuota/30 lượt hôm nay", fontSize = 11.sp, color = TextSecondary)
+                        Text(
+                            text = state.activeConversationTitle ?: "Trợ Lý Cứu Món AI",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Còn ${state.remainingQuota}/30 lượt hôm nay • ${if (state.rememberContext) "Đang ghi nhớ" else "Không ghi nhớ"}",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
                     }
                 },
                 navigationIcon = {
@@ -69,115 +77,141 @@ fun SaveBiteAiSheet(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
+                actions = {
+                    IconButton(onClick = onNewChat) {
+                        Icon(
+                            imageVector = Icons.Default.AddComment,
+                            contentDescription = "Hội thoại mới",
+                            tint = ForestGreenPrimary
+                        )
+                    }
+                    IconButton(onClick = onOpenHistory) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "Lịch sử hội thoại",
+                            tint = TextPrimary
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { inner ->
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(inner)
-            .imePadding()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        // Chat Messages
-        LazyColumn(
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .fillMaxSize()
+                .padding(inner)
+                .imePadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            items(messages) { msg ->
-                val isAi = msg.sender == "ai"
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = if (isAi) Alignment.Start else Alignment.End
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isAi) ForestGreenPrimary.copy(alpha = 0.08f) else ForestGreenPrimary)
-                            .padding(12.dp)
+            // Chat Messages List
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(state.messages) { msg ->
+                    val isAi = msg.sender.equals("ai", ignoreCase = true)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = if (isAi) Alignment.Start else Alignment.End
                     ) {
-                        Text(
-                            text = msg.text,
-                            fontSize = 13.sp,
-                            color = if (isAi) TextPrimary else Color.White,
-                            lineHeight = 18.sp
-                        )
-                    }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isAi) ForestGreenPrimary.copy(alpha = 0.08f) else ForestGreenPrimary)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = msg.text,
+                                fontSize = 13.sp,
+                                color = if (isAi) TextPrimary else Color.White,
+                                lineHeight = 18.sp
+                            )
+                        }
 
-                    if (msg.recommendedDeals.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        msg.recommendedDeals.forEach { deal ->
-                            DealCard(
-                                deal = deal,
-                                onDealClick = onDealClick,
-                                onFavoriteToggle = {},
-                                modifier = Modifier.padding(vertical = 4.dp)
+                        if (msg.recommendedDeals.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            msg.recommendedDeals.forEach { deal ->
+                                DealCard(
+                                    deal = deal,
+                                    onDealClick = onDealClick,
+                                    onFavoriteToggle = {},
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (state.isChatLoading) {
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(ForestGreenPrimary.copy(alpha = 0.08f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = ForestGreenPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "SaveBite AI đang suy nghĩ...",
+                                fontSize = 12.sp,
+                                color = TextSecondary
                             )
                         }
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        // Input Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = queryText,
-                onValueChange = { queryText = it },
-                placeholder = { Text("Hỏi deal, dinh dưỡng, dị ứng...", fontSize = 13.sp) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(24.dp),
-                maxLines = 2
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            IconButton(
-                onClick = {
-                    if (queryText.isNotBlank() && remainingAiQuota > 0) {
-                        val userQuestion = queryText.trim()
-                        messages.add(ChatMessage(sender = "user", text = userQuestion))
-                        queryText = ""
-                        remainingAiQuota--
-
-                        // Smart reasoning response matching R1-082/R1-084
-                        val filtered = allDeals.filter {
-                            userQuestion.contains("bánh", ignoreCase = true) ||
-                            userQuestion.contains("croissant", ignoreCase = true) ||
-                            userQuestion.contains("tiệm", ignoreCase = true)
-                        }.ifEmpty { allDeals.take(1) }
-
-                        messages.add(
-                            ChatMessage(
-                                sender = "ai",
-                                text = "Dựa trên sở thích và yêu cầu của bạn, tôi tìm thấy ${filtered.size} suất Cứu Món phù hợp trong khung giờ tối nay:",
-                                recommendedDeals = filtered
-                            )
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(ForestGreenPrimary)
+            // Input Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Send,
-                    contentDescription = "Send",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
+                OutlinedTextField(
+                    value = queryText,
+                    onValueChange = { queryText = it },
+                    placeholder = { Text("Hỏi deal, dinh dưỡng, dị ứng...", fontSize = 13.sp) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(24.dp),
+                    maxLines = 2,
+                    enabled = !state.isChatLoading
                 )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = {
+                        val text = queryText.trim()
+                        if (text.isNotBlank() && state.remainingQuota > 0 && !state.isChatLoading) {
+                            queryText = ""
+                            onSendMessage(text)
+                        }
+                    },
+                    enabled = queryText.isNotBlank() && !state.isChatLoading && state.remainingQuota > 0,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(if (queryText.isNotBlank() && !state.isChatLoading) ForestGreenPrimary else TextMuted)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
-    }
     }
 }
