@@ -65,6 +65,7 @@ import com.surplusiq.app.ui.viewmodel.NotificationsViewModel
 import com.surplusiq.app.ui.viewmodel.RescuePoolViewModel
 import com.surplusiq.app.ui.screens.pool.RescuePoolDetailScreen
 import com.surplusiq.app.ui.screens.pool.RescuePoolListScreen
+import com.surplusiq.app.ui.screens.pool.MyRescueDemandsScreen
 import com.surplusiq.app.domain.model.DealAlert
 import com.surplusiq.app.ui.screens.alerts.DealAlertEditScreen
 import com.surplusiq.app.ui.screens.alerts.DealAlertsScreen
@@ -113,6 +114,7 @@ sealed class AppDestination {
     data class SupportTicketDetail(val ticketId: String) : AppDestination()
     object RescuePoolList : AppDestination()
     data class RescuePoolDetail(val poolId: String) : AppDestination()
+    object MyRescueDemands : AppDestination()
     object Impact : AppDestination()
     object AiChat : AppDestination()
     object PrivacyData : AppDestination()
@@ -575,6 +577,42 @@ fun SurplusAppRoot(
                 onPoolClick = { pool ->
                     rescuePoolViewModel.openPool(pool.id)
                     currentDestination = AppDestination.RescuePoolDetail(pool.id)
+                }
+            )
+        }
+
+        is AppDestination.MyRescueDemands -> {
+            MyRescueDemandsScreen(
+                pools = rescuePoolState.pools,
+                isLoading = rescuePoolState.isListLoading,
+                errorMessage = rescuePoolState.listError,
+                actionMessage = rescuePoolState.actionMessage,
+                actionError = rescuePoolState.actionError,
+                isSubmitting = rescuePoolState.isSubmitting,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onRetry = { rescuePoolViewModel.loadPools() },
+                onOpenPoolDetail = { poolId ->
+                    rescuePoolViewModel.openPool(poolId)
+                    currentDestination = AppDestination.RescuePoolDetail(poolId)
+                },
+                onOpenOrderDetail = { orderId ->
+                    myOrdersViewModel.loadOrders()
+                    val order = knownOrders.find { it.id == orderId }
+                    if (order != null) {
+                        currentDestination = AppDestination.OrderDetail(order)
+                    } else {
+                        currentDestination = AppDestination.MyOrders
+                    }
+                },
+                onUpdateDemand = { poolId, qty, budget, start, end ->
+                    rescuePoolViewModel.updateRegistration(poolId, qty, budget, start, end)
+                },
+                onWithdrawDemand = { poolId, reason ->
+                    rescuePoolViewModel.withdraw(poolId, reason)
+                },
+                onExplorePoolsClick = {
+                    rescuePoolViewModel.loadPools()
+                    currentDestination = AppDestination.RescuePoolList
                 }
             )
         }
@@ -1073,6 +1111,10 @@ fun SurplusAppRoot(
                                 onOpenRescuePool = {
                                     rescuePoolViewModel.loadPools()
                                     currentDestination = AppDestination.RescuePoolList
+                                },
+                                onOpenMyRescueDemands = {
+                                    rescuePoolViewModel.loadPools()
+                                    currentDestination = AppDestination.MyRescueDemands
                                 },
                                 onOpenRescueBasket = {
                                     currentDestination = AppDestination.RescueBasket

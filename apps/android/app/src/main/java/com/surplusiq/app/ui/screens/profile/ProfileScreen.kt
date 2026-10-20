@@ -199,7 +199,7 @@ fun ProfileScreen(
             HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.Groups, "Mua chung theo đợt (Rescue Pool)", "Đăng ký nhu cầu với cửa hàng", onOpenRescuePool)
             HorizontalDivider(color = divider)
-            ProfileMenuItem(Icons.AutoMirrored.Filled.Assignment, "Nhu cầu của tôi", "Theo dõi đợt gom & đơn hàng", onOpenMyRescueDemands)
+            ProfileMenuItem(Icons.Default.ListAlt, "Nhu cầu của tôi", "Theo dõi đợt gom & đơn hàng", onOpenMyRescueDemands)
             HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.ConfirmationNumber, "Ví ưu đãi", "Mã giảm giá của bạn", onOpenPromotionWallet)
             HorizontalDivider(color = divider)
