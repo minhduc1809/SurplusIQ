@@ -81,6 +81,12 @@ export class OrderEntity {
   @Column({ type: 'varchar', length: 200, nullable: true })
   note: string | null;
 
+  @Column({ type: 'varchar', length: 500, nullable: true, name: 'payment_proof_url' })
+  paymentProofUrl: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true, name: 'payment_proof_uploaded_at' })
+  paymentProofUploadedAt: Date | null;
+
   @Column({ type: 'timestamptz', nullable: true, name: 'arriving_notified_at' })
   arrivingNotifiedAt: Date | null;
 

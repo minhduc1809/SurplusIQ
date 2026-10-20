@@ -998,4 +998,47 @@ export class OrdersService {
       pickupEnd: currentOffer.pickupEnd,
     };
   }
+
+  /**
+   * Đính kèm biên lai chuyển khoản khi đối soát tự động chưa nhận được webhook (KX02)
+   */
+  async attachPaymentProof(
+    customerId: string,
+    orderId: string,
+    proofUrl: string,
+  ): Promise<OrderEntity> {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId, customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID [${orderId}].`);
+    }
+
+    if (order.status !== OrderStatus.PENDING_PAYMENT && order.status !== OrderStatus.PAID) {
+      throw new BadRequestException(
+        `Chỉ có thể đính kèm biên lai thanh toán cho đơn hàng đang chờ hoặc đã thanh toán. Trạng thái hiện tại: [${order.status}].`,
+      );
+    }
+
+    order.paymentProofUrl = proofUrl;
+    order.paymentProofUploadedAt = new Date();
+
+    const saved = await this.orderRepo.save(order);
+
+    await this.auditLogService.log({
+      storeId: order.storeId,
+      actorId: customerId,
+      actorRole: 'CUSTOMER',
+      action: 'PAYMENT_PROOF_ATTACHED',
+      targetType: 'ORDER',
+      targetId: order.id,
+      newValue: {
+        paymentProofUrl: proofUrl,
+        paymentProofUploadedAt: order.paymentProofUploadedAt,
+      },
+    });
+
+    return saved;
+  }
 }

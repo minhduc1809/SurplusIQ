@@ -25,6 +25,7 @@ import { CreateSavedPlaceDto } from './dto/saved-place.dto';
 import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
 import { UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
+import { UpdateRefundBankAccountDto } from './dto/refund-bank-account.dto';
 
 function maskEmail(email: string | null): string | null {
   if (!email) return null;
@@ -562,5 +563,37 @@ export class CustomerProfileService {
     });
 
     return this.walletRepo.save(item);
+  }
+
+  /**
+   * Xem thông tin tài khoản nhận hoàn tiền VietQR (KX01)
+   */
+  async getRefundBankAccount(userId: string) {
+    const profile = await this.profileRepo.findOne({ where: { userId } });
+    if (!profile) {
+      throw new NotFoundException('Hồ sơ khách hàng không tồn tại');
+    }
+    return profile.refundBankAccount || null;
+  }
+
+  /**
+   * Cập nhật thông tin tài khoản nhận hoàn tiền VietQR (KX01)
+   */
+  async updateRefundBankAccount(userId: string, dto: UpdateRefundBankAccountDto) {
+    const profile = await this.profileRepo.findOne({ where: { userId } });
+    if (!profile) {
+      throw new NotFoundException('Hồ sơ khách hàng không tồn tại');
+    }
+
+    profile.refundBankAccount = {
+      bankBin: dto.bankBin,
+      bankName: dto.bankName,
+      accountNumber: dto.accountNumber,
+      accountHolder: dto.accountHolder.trim().toUpperCase(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await this.profileRepo.save(profile);
+    return profile.refundBankAccount;
   }
 }
