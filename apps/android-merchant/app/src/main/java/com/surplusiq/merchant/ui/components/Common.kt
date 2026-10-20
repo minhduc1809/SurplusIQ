@@ -1,5 +1,10 @@
 package com.surplusiq.merchant.ui.components
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.draw.alpha
+import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -56,6 +61,16 @@ private val STATUS_MAP = mapOf(
     "PAID" to (SqMintWash to SqMintDeep to "Đã thanh toán"),
     "PICKED_UP" to (SqMintWash to SqMintDeep to "Đã nhận hàng"),
     "PICKUP_EXPIRED" to (SqSurfaceSoft to SqInkMuted to "Quá hạn nhận"),
+    "PAUSED" to (SqButterWash to SqButter to "Tạm dừng"),
+    "ENDED" to (SqSurfaceSoft to SqInkMuted to "Đã kết thúc"),
+    "SCHEDULED" to (SqButterWash to SqButter to "Đã lên lịch"),
+    "SENT" to (SqMintWash to SqMintDeep to "Đã gửi"),
+    "PENDING_STORE" to (SqLilacWash to SqCoralDeep to "Chờ quán xử lý"),
+    "ACCEPTED" to (SqMintWash to SqMintDeep to "Đã chấp nhận"),
+    "REJECTED" to (SqCoralWash to SqCoralDeep to "Đã từ chối"),
+    "VISIBLE" to (SqMintWash to SqMintDeep to "Đang hiển thị"),
+    "HIDDEN" to (SqSurfaceSoft to SqInkMuted to "Đã ẩn"),
+    "REPORTED" to (SqLilacWash to SqCoralDeep to "Đã báo cáo"),
     "REFUNDED" to (SqCoralWash to SqCoralDeep to "Đã hoàn tiền"),
     "ACTIVE" to (SqMintWash to SqMintDeep to "Hoạt động"),
     "ARCHIVED" to (SqSurfaceSoft to SqInkMuted to "Đã lưu trữ"),
@@ -72,10 +87,18 @@ fun StatusBadge(status: String) {
     }
 }
 
+/** Khung chờ dạng skeleton (nhấp nháy nhẹ) thay vòng xoay toàn màn hình, giữ bố cục ổn định khi dữ liệu về. */
 @Composable
 fun FullScreenLoading() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = SqCoral)
+    val alpha by androidx.compose.animation.core.rememberInfiniteTransition(label = "skeleton").animateFloat(
+        initialValue = 0.45f, targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "alpha"
+    )
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).semantics { contentDescription = "Đang tải" }, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(3) {
+            Box(Modifier.fillMaxWidth().height(84.dp).alpha(alpha).clip(RoundedCornerShape(18.dp)).background(SqSurfaceSoft))
+        }
     }
 }
 
@@ -96,15 +119,17 @@ fun ErrorState(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-fun EmptyState(title: String, message: String) {
+fun EmptyState(title: String, message: String, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Outlined.Inbox) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(32.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(modifier = Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(SqButterWash))
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SqInk)
-        Spacer(modifier = Modifier.height(4.dp))
+        Box(Modifier.size(72.dp).clip(CircleShape).background(SqCoralWash), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = SqCoral, modifier = Modifier.size(34.dp))
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SqInk, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(4.dp))
         Text(text = message, fontSize = 13.sp, color = SqInkSoft, textAlign = TextAlign.Center)
     }
 }

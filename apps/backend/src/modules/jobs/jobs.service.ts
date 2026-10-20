@@ -6,6 +6,7 @@ import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { OfferEventEntity, OfferEventType } from '../../entities/catalog/offer-event.entity';
 import { NoshowRecordEntity } from '../../entities/orders/noshow-record.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { PromotionEntity } from '../../entities/marketing/promotion.entity';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import {
   PaymentTransactionEntity,
@@ -53,6 +54,7 @@ import { RewardsService } from '../rewards/rewards.service';
 import { RescueTimelineService } from '../rescue-timeline/rescue-timeline.service';
 import { RescuePoolService } from '../rescue-pool/rescue-pool.service';
 import { RescueBridgeService } from '../rescue-bridge/rescue-bridge.service';
+import { MarketingService } from '../marketing/marketing.service';
 import { JOBS_CONSTANTS } from './jobs.constants';
 import {
   ReconciliationEngine,
@@ -183,6 +185,7 @@ export class JobsService {
     private readonly rescueTimelineService: RescueTimelineService,
     private readonly rescuePoolService: RescuePoolService,
     private readonly rescueBridgeService: RescueBridgeService,
+    private readonly marketingService: MarketingService,
     private readonly dataSource: DataSource,
     private readonly settingsService: SettingsService,
   ) {}
@@ -231,6 +234,9 @@ export class JobsService {
             offer.status = OfferStatus.OPEN;
           }
           await manager.save(offer);
+        }
+        if (lockedOrder.promotionId) {
+          await manager.decrement(PromotionEntity, { id: lockedOrder.promotionId }, 'usedCount', 1);
         }
 
         await this.auditLogService.log({
@@ -800,8 +806,10 @@ export class JobsService {
    * Tác vụ 8 (22:00 hằng ngày): Chạy dự báo tự động cho các cửa hàng Pro (R2-036..R2-043, BR-060)
    */
   async generateDailyForecasts(now: Date = new Date()) {
-    const targetDate = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const targetDayOfWeek = new Date(now.getTime() + 24 * 60 * 60 * 1000).getDay();
+    // Ngày mai theo giờ Việt Nam (UTC+7)
+    const tomorrowVn = new Date(now.getTime() + 31 * 60 * 60 * 1000);
+    const targetDate = tomorrowVn.toISOString().split('T')[0];
+    const targetDayOfWeek = tomorrowVn.getUTCDay();
 
     const proSubs = await this.subscriptionRepo.find({
       where: [
@@ -823,7 +831,7 @@ export class JobsService {
 
         const history: DailySalesRecord[] = actuals.map((a) => ({
           date: a.date,
-          dayOfWeek: new Date(a.date).getDay(),
+          dayOfWeek: new Date(a.date).getUTCDay(),
           produced: a.produced,
           soldApp: a.soldApp,
           soldOffline: a.soldOffline,
@@ -1075,6 +1083,11 @@ export class JobsService {
    */
   async processRescueBridgeDeadlines(now: Date = new Date()) {
     return this.rescueBridgeService.processDeadlines(now);
+  }
+
+  /** Gửi các chiến dịch thông báo đã đến giờ (R2-092) */
+  async dispatchDueCampaigns(now: Date = new Date()) {
+    return this.marketingService.dispatchDueCampaigns(now);
   }
 
   /**

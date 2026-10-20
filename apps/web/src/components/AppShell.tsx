@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
@@ -17,8 +18,10 @@ import {
   Settings,
   Bell,
   LogOut,
+  Menu,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import '../styles/app-shell.css';
 
 /** Sidebar merchant web theo rule 7.2 - nhóm menu cố định, top bar có trạng thái cửa hàng. */
 const NAV_ITEMS = [
@@ -41,24 +44,27 @@ const NAV_ITEMS = [
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+
+  // Ngăn kéo (màn hẹp) tự đóng khi đổi trang hoặc bấm Esc.
+  useEffect(() => setMenuOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--sq-canvas)' }}>
-      <aside
-        style={{
-          width: 248,
-          flexShrink: 0,
-          background: 'var(--sq-surface)',
-          borderRight: '1px solid var(--sq-line)',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: 'var(--sq-space-5) var(--sq-space-4)',
-          position: 'sticky',
-          top: 0,
-          height: '100vh',
-          overflowY: 'auto',
-        }}
-      >
+    <div className="sq-shell">
+      <div
+        className="sq-scrim"
+        data-open={menuOpen}
+        onClick={() => setMenuOpen(false)}
+        aria-hidden="true"
+      />
+      <aside id="sq-sidebar" className="sq-sidebar" data-open={menuOpen}>
         <div
           style={{
             display: 'flex',
@@ -137,22 +143,21 @@ export function AppShell() {
         </button>
       </aside>
 
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <header
-          style={{
-            height: 64,
-            flexShrink: 0,
-            borderBottom: '1px solid var(--sq-line)',
-            background: 'var(--sq-surface)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 'var(--sq-space-4)',
-            padding: '0 var(--sq-space-6)',
-          }}
-        >
+      <div className="sq-content">
+        <header className="sq-topbar">
+          <button
+            type="button"
+            className="sq-menu-btn"
+            aria-label="Mở menu"
+            aria-expanded={menuOpen}
+            aria-controls="sq-sidebar"
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <Menu size={22} strokeWidth={1.8} />
+          </button>
+          <div className="sq-topbar-spacer" />
           <Bell size={20} color="var(--sq-ink-soft)" strokeWidth={1.8} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="sq-user">
             <div
               style={{
                 width: 32,
@@ -169,11 +174,11 @@ export function AppShell() {
             >
               {(user?.email || user?.phone || '?')[0]?.toUpperCase()}
             </div>
-            <span className="sq-body-medium">{user?.email || user?.phone}</span>
+            <span className="sq-body-medium sq-user-email">{user?.email || user?.phone}</span>
           </div>
         </header>
 
-        <main style={{ flex: 1, padding: 'var(--sq-space-8)', minWidth: 0 }}>
+        <main className="sq-main">
           <Outlet />
         </main>
       </div>

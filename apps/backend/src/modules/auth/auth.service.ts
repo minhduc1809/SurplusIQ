@@ -356,6 +356,7 @@ export class AuthService {
       // 1. Tạo tài khoản User
       const user = manager.create(UserEntity, {
         email: dto.email,
+        fullName: dto.ownerName?.trim() || null,
         passwordHash,
         role: UserRole.STORE_USER,
         status: UserStatus.PENDING_VERIFY,

@@ -58,6 +58,54 @@ class StoreRepository(private val api: StoreApiService) {
     suspend fun failBridgeTransfer(id: String, reason: String) = runCatchingCall { api.failBridgeTransfer(id, mapOf("reason" to reason)) }
     suspend fun cancelBridgeTransfer(id: String, reason: String) = runCatchingCall { api.cancelBridgeTransfer(id, mapOf("reason" to reason)) }
     suspend fun getBridgeReport() = runCatchingCall { api.getBridgeReport() }
+    suspend fun getLabScenarios() = runCatchingCall { api.getLabScenarios() }
+
+    suspend fun getLabScenario(id: String) = runCatchingCall { api.getLabScenario(id) }
+
+    suspend fun createLabScenario(request: LabCreateScenario) = runCatchingCall { api.createLabScenario(request) }
+
+    suspend fun createLabVersion(scenarioId: String, request: LabVersionParams) = runCatchingCall { api.createLabVersion(scenarioId, request) }
+
+    suspend fun runLabVersion(id: String) = runCatchingCall { api.runLabVersion(id) }
+
+    suspend fun applyLabVersion(id: String, request: LabApplyRequest) = runCatchingCall { api.applyLabVersion(id, request) }
+
+    suspend fun getLabObservation(id: String) = runCatchingCall { api.getLabObservation(id) }
+
+    suspend fun compareLabVersions(versionIds: List<String>) = runCatchingCall { api.compareLabVersions(LabCompareRequest(versionIds)) }
+
+    suspend fun getPromotions() = runCatchingCall { api.getPromotions() }
+
+    suspend fun createPromotion(request: CreatePromotionRequest) = runCatchingCall { api.createPromotion(request) }
+
+    suspend fun updatePromotion(id: String, request: UpdatePromotionRequest) = runCatchingCall { api.updatePromotion(id, request) }
+
+    suspend fun setPromotionStatus(id: String, status: String) = runCatchingCall { api.setPromotionStatus(id, UpdatePromotionStatusRequest(status)) }
+
+    suspend fun getCampaigns() = runCatchingCall { api.getCampaigns() }
+
+    suspend fun createCampaign(request: CreateCampaignRequest) = runCatchingCall { api.createCampaign(request) }
+
+    suspend fun updateCampaign(id: String, request: UpdateCampaignRequest) = runCatchingCall { api.updateCampaign(id, request) }
+
+    suspend fun getCampaignAnalytics(id: String) = runCatchingCall { api.getCampaignAnalytics(id) }
+
+    suspend fun getItemReports(start: String, end: String) = runCatchingCall { api.getItemReports(start, end) }
+
+    suspend fun getHourlyDistribution(start: String, end: String) = runCatchingCall { api.getHourlyDistribution(start, end) }
+
+    suspend fun getPricingEfficacy() = runCatchingCall { api.getPricingEfficacy() }
+
+    suspend fun comparePeriods(request: ComparePeriodsRequest) = runCatchingCall { api.comparePeriods(request) }
+
+    suspend fun getPublicImpactLink() = runCatchingCall { api.getPublicImpactLink() }
+
+    suspend fun getReconciliation() = runCatchingCall { api.getReconciliation() }
+
+    suspend fun getStatement(id: String) = runCatchingCall { api.getStatement(id) }
+
+    suspend fun getStatementCsv(id: String) = runCatchingCall { api.getStatementCsv(id) }
+
     suspend fun getDailyOverview() = runCatchingCall { api.getDailyOverview() }
 
     suspend fun getTodayTasks() = runCatchingCall { api.getTodayTasks() }
@@ -86,6 +134,24 @@ class StoreRepository(private val api: StoreApiService) {
     // shortcut: chỉ lấy 100 món đầu (giới hạn MAX_PAGE_SIZE backend); tải thêm trang khi quán có >100 món.
     suspend fun getItemLookup(): Result<Map<String, ItemDto>> =
         getItems(status = "ALL", sortBy = "name", sortOrder = "ASC", limit = 100).map { r -> r.data.associateBy { it.id } }
+
+    suspend fun updateTrustpass(id: String, request: TrustpassRequest) = runCatchingCall { api.updateTrustpass(id, request) }
+
+    suspend fun getTrustpassHistory(id: String) = runCatchingCall { api.getTrustpassHistory(id) }
+
+    suspend fun uploadImage(file: okhttp3.MultipartBody.Part) = runCatchingCall { api.uploadImage(file) }
+
+    suspend fun getSupportTickets() = runCatchingCall { api.getSupportTickets() }
+
+    suspend fun createSupportTicket(subject: String, message: String, category: String, attachments: List<String> = emptyList()) =
+        runCatchingCall { api.createSupportTicket(CreateTicketRequest(subject, message, category, attachments)) }
+
+    suspend fun getSupportTicket(id: String) = runCatchingCall { api.getSupportTicket(id) }
+
+    suspend fun sendSupportMessage(id: String, message: String, attachments: List<String> = emptyList()) =
+        runCatchingCall { api.sendSupportMessage(id, SupportMessageRequest(message, attachments)) }
+
+    suspend fun closeSupportTicket(id: String) = runCatchingCall { api.closeSupportTicket(id) }
 
     suspend fun getItem(id: String) = runCatchingCall { api.getItem(id) }
 
@@ -170,7 +236,20 @@ class StoreRepository(private val api: StoreApiService) {
 
     suspend fun getPickupSchedule() = runCatchingCall { api.getPickupSchedule() }
 
-    suspend fun getComplaints() = runCatchingCall { api.getComplaints() }
+    suspend fun getComplaints(status: String? = null) = runCatchingCall { api.getComplaints(status) }
+
+    suspend fun getComplaint(id: String) = runCatchingCall { api.getComplaint(id) }
+
+    suspend fun resolveComplaint(id: String, refundAmount: Long?, note: String?) =
+        runCatchingCall { api.resolveComplaint(id, ResolveComplaintRequest(refundAmount, note?.ifBlank { null })) }
+
+    suspend fun rejectComplaint(id: String, reason: String) = runCatchingCall { api.rejectComplaint(id, RejectComplaintRequest(reason)) }
+
+    suspend fun extendComplaint(id: String) = runCatchingCall { api.extendComplaint(id) }
+
+    suspend fun getReviews(rating: Int?, hasReply: Boolean?) = runCatchingCall { api.getReviews(rating, hasReply) }
+
+    suspend fun replyReview(id: String, reply: String) = runCatchingCall { api.replyReview(id, ReplyReviewRequest(reply)) }
 
     // --- Hồ sơ & vận hành ---
 
@@ -199,12 +278,70 @@ class StoreRepository(private val api: StoreApiService) {
 
     suspend fun getStoreSettingsHistory(storeId: String) = runCatchingCall { api.getStoreSettingsHistory(storeId) }
 
-    suspend fun getAuditLogs(action: String?, from: String?, to: String?, page: Int) =
-        runCatchingCall { api.getAuditLogs(action, from, to, page) }
+    suspend fun getAuditLogs(action: String?, from: String?, to: String?, page: Int, actorId: String? = null) =
+        runCatchingCall { api.getAuditLogs(action, from, to, page, actorId = actorId) }
+
+    suspend fun aiChat(message: String, conversationId: String?) = runCatchingCall { api.aiChat(AiChatRequest(message, conversationId)) }
+
+    suspend fun getAiConversations() = runCatchingCall { api.getAiConversations() }
+
+    suspend fun getAiConversation(id: String) = runCatchingCall { api.getAiConversation(id) }
+
+    suspend fun deleteAiConversation(id: String) = runCatchingCall { api.deleteAiConversation(id) }
+
+    suspend fun deleteAllAiConversations() = runCatchingCall { api.deleteAllAiConversations() }
+
+    suspend fun aiWeeklySummary() = runCatchingCall { api.aiWeeklySummary() }
+
+    suspend fun aiFeedback(logId: String, helpful: Boolean) = runCatchingCall { api.aiFeedback(AiFeedbackRequest(logId, if (helpful) "HELPFUL" else "UNHELPFUL")) }
+
+    suspend fun getAiLogs(page: Int) = runCatchingCall { api.getAiLogs(page) }
+
+    suspend fun getAnomalies() = runCatchingCall { api.getAnomalies() }
+
+    suspend fun getActionCards() = runCatchingCall { api.getActionCards() }
+
+    suspend fun applyActionCard(id: String) = runCatchingCall { api.applyActionCard(id) }
+
+    suspend fun dismissActionCard(id: String) = runCatchingCall { api.dismissActionCard(id) }
+
+    suspend fun getAiConfig() = runCatchingCall { api.getAiConfig() }
+
+    suspend fun updateAiConfig(config: AiConfigDto) = runCatchingCall { api.updateAiConfig(config) }
+
+    suspend fun getAnomalyWhy(date: String) = runCatchingCall { api.getAnomalyWhy(date) }
+
+    suspend fun getSegmentConfig() = runCatchingCall { api.getSegmentConfig() }
+
+    suspend fun updateSegmentConfig(config: SegmentConfigDto) = runCatchingCall { api.updateSegmentConfig(config) }
+
+    suspend fun getCustomerDetail(id: String) = runCatchingCall { api.getCustomerDetail(id) }
+
+    suspend fun getCustomers() = runCatchingCall { api.getCustomers() }
+
+    suspend fun saveCustomerNote(id: String, note: String) = runCatchingCall { api.saveCustomerNote(id, CustomerNoteRequest(note)) }
+
+    suspend fun getSegments() = runCatchingCall { api.getSegments() }
+
+    suspend fun getFrequentNoShow() = runCatchingCall { api.getFrequentNoShow() }
+
+    suspend fun getFavoritesCount() = runCatchingCall { api.getFavoritesCount() }
+
+    suspend fun getStaff() = runCatchingCall { api.getStaff() }
+
+    suspend fun inviteStaff(fullName: String, email: String, permission: String) =
+        runCatchingCall { api.inviteStaff(InviteStaffRequest(fullName, email, permission)) }
+
+    suspend fun updateStaff(id: String, permission: String, status: String?, reason: String? = null) =
+        runCatchingCall { api.updateStaff(id, UpdateStaffRequest(permission, status, reason)) }
+
+    suspend fun removeStaff(id: String) = runCatchingCall { api.removeStaff(id) }
 
     // --- Gói dịch vụ ---
 
     suspend fun getSubscription() = runCatchingCall { api.getSubscription() }
+
+    suspend fun getPlanCatalog() = runCatchingCall { api.getPlanCatalog() }
 
     suspend fun getQuotas() = runCatchingCall { api.getQuotas() }
 

@@ -29,10 +29,10 @@ import kotlinx.coroutines.launch
 
 /**
  * actionUrl backend (đường dẫn web) -> route NavHost của app.
- * shortcut: /complaints chưa có màn trên app nên chưa có nút; thêm route khi nhóm Khiếu nại xong.
  */
 fun taskRoute(actionUrl: String): String? = when (actionUrl) {
     "/offers" -> "offers"
+    "/complaints" -> "complaints"
     "/forecasting" -> "forecast-actuals"
     else -> null
 }

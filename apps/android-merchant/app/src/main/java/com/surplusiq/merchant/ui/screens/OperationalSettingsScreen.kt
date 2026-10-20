@@ -172,7 +172,7 @@ fun OperationalSettingsScreen(repository: StoreRepository, onBack: () -> Unit) {
                         ModeCard("Duyệt tay", "Hệ thống chỉ đề xuất giá, bạn duyệt từng lần.", pricingMode == "MANUAL", true) { pricingMode = "MANUAL" }
                         Spacer(modifier = Modifier.height(8.dp))
                         ModeCard(
-                            "Tự động", if (isPro) "Tự áp dụng đề xuất trong khoảng giá sàn – giá gốc." else "Chỉ dành cho gói Pro.",
+                            "Tự động", if (isPro) "Tự áp dụng đề xuất trong khoảng giá sàn – giá gốc." else "Chỉ dành cho gói Chuyên nghiệp.",
                             pricingMode == "AUTO", isPro
                         ) { pricingMode = "AUTO" }
                     }

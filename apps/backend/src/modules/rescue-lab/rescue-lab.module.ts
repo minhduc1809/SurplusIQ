@@ -12,6 +12,7 @@ import { PriceProposalEntity } from '../../entities/reconciliation/price-proposa
 import { SpecialEventEntity } from '../../entities/reconciliation/special-event.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { AuditModule } from '../audit/audit.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AuditModule } from '../audit/audit.module';
       StoreMemberEntity,
     ]),
     AuditModule,
+    SubscriptionsModule,
   ],
   controllers: [RescueLabController],
   providers: [RescueLabService],

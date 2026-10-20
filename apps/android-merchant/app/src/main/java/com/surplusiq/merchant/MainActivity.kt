@@ -1,5 +1,12 @@
 package com.surplusiq.merchant
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.Color
+import com.surplusiq.merchant.ui.theme.SqMintDeep
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.outlined.GridView
+import com.surplusiq.merchant.ui.components.ProRoute
+import com.surplusiq.merchant.ui.components.AiFab
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -73,11 +80,15 @@ private val SCREENS_WITHOUT_HEADER = setOf("notifications", "account", "tasks")
 
 private val TABS = listOf(
     Tab("today", "Hôm nay", Icons.Filled.Home, Icons.Outlined.Home),
-    Tab("items", "Món", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
+    Tab("orders", "Đơn hàng", Icons.AutoMirrored.Filled.ReceiptLong, Icons.AutoMirrored.Outlined.ReceiptLong),
     Tab("verify", "Quét QR", Icons.Filled.QrCodeScanner, Icons.Filled.QrCodeScanner),
-    Tab("offers", "Suất", Icons.Filled.Inventory2, Icons.Outlined.Inventory2),
-    Tab("orders", "Đơn", Icons.AutoMirrored.Filled.ReceiptLong, Icons.AutoMirrored.Outlined.ReceiptLong),
+    Tab("items", "Thực phẩm", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
+    Tab("more", "Thêm", Icons.Filled.GridView, Icons.Outlined.GridView),
 )
+
+/** Các route thuộc một tab: "Thực phẩm" gồm cả Suất. */
+private val TAB_ROUTES = TABS.map { it.route }.toSet() + "offers"
+private fun tabOf(route: String?): String? = if (route == "offers") "items" else route
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -151,7 +162,9 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
     val currentEntry by navController.currentBackStackEntryAsState()
     var unreadCount by remember { mutableIntStateOf(0) }
     var storeName by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) { repository.getStoreProfile().onSuccess { storeName = it.store.name } }
+    var storePaused by remember { mutableStateOf(false) }
+    // Tải lại mỗi lần đổi màn để chấm trạng thái đúng sau khi tạm ngưng/mở lại.
+    LaunchedEffect(currentEntry?.destination?.route) { repository.getStoreProfile().onSuccess { storeName = it.store.name; storePaused = it.isPausedToday } }
 
     // Làm mới số chưa đọc mỗi khi đổi màn (gồm cả khi rời màn Thông báo sau khi đọc).
     LaunchedEffect(currentEntry?.destination?.route) {
@@ -166,11 +179,18 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
         }
     }
 
+    // Chuyển giữa các tab chính không chồng thêm lớp; màn con thì đẩy vào ngăn xếp.
+    fun nav(route: String) = open(route, tab = route in TAB_ROUTES)
+
     Scaffold(
         containerColor = com.surplusiq.merchant.ui.theme.SqCanvas,
+        floatingActionButton = {
+            val route = currentEntry?.destination?.route
+            if (route in TAB_ROUTES && route != "verify" && session.getPermission() != "COUNTER") AiFab { open("ai") }
+        },
         topBar = {
             val route = currentEntry?.destination?.route
-            val isTab = TABS.any { it.route == route }
+            val isTab = route in TAB_ROUTES && route != "more" // "Thêm" có thẻ tài khoản riêng, không lặp lời chào
             if (isTab) {
                 TopAppBar(
                     title = {
@@ -178,15 +198,19 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { open("account") }
                         ) {
-                            Box(
-                                modifier = Modifier.size(44.dp).clip(CircleShape).background(SqCoralWash).border(2.dp, SqCoral.copy(alpha = 0.4f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = storeName.trim().take(1).ifEmpty { "?" }.uppercase(),
-                                    fontWeight = FontWeight.Bold,
-                                    color = SqCoral
-                                )
+                            Box(Modifier.size(44.dp)) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape).background(SqCoralWash).border(2.dp, SqCoral.copy(alpha = 0.4f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = storeName.trim().take(1).ifEmpty { "?" }.uppercase(),
+                                        fontWeight = FontWeight.Bold,
+                                        color = SqCoral
+                                    )
+                                }
+                                // Chấm trạng thái: xanh = đang hoạt động, cam = tạm ngưng hôm nay.
+                                Box(Modifier.align(Alignment.BottomEnd).size(14.dp).clip(CircleShape).background(Color.White).padding(2.dp).clip(CircleShape).background(if (storePaused) SqCoral else SqMintDeep))
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
@@ -242,7 +266,7 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
             val currentRoute = backStackEntry?.destination
             SqBottomBar(
                 items = TABS.filter { it.route != "verify" }.map { BottomBarItem(it.route, it.label, it.selectedIcon, it.icon) },
-                selectedKey = TABS.firstOrNull { tab -> currentRoute?.hierarchy?.any { it.route == tab.route } == true }?.route,
+                selectedKey = TABS.firstOrNull { tab -> currentRoute?.hierarchy?.any { tabOf(it.route) == tab.route } == true }?.route,
                 onSelect = { open(it, tab = true) },
                 accent = SqCoral,
                 inactive = SqInkMuted,
@@ -252,41 +276,45 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
         }
     ) { padding ->
         NavHost(navController = navController, startDestination = "today", modifier = Modifier.padding(padding)) {
-            composable("today") { TodayScreen(repository, onOpenTasks = { open("tasks") }, onNavigate = ::open) }
-            composable("tasks") { TasksScreen(repository, onNavigate = ::open) }
+            composable("today") { TodayScreen(repository, onOpenTasks = { open("tasks") }, onNavigate = ::nav) }
+            composable("tasks") { TasksScreen(repository, onNavigate = ::nav) }
             composable("notifications") {
-                NotificationsScreen(repository, canMarkAll = session.getPermission() != "COUNTER", onNavigate = ::open)
+                NotificationsScreen(repository, canMarkAll = session.getPermission() != "COUNTER", onNavigate = ::nav)
+            }
+            composable("more") {
+                StoreMenuScreen(onNavigate = ::nav, onBack = null, storeName = storeName, email = session.getUserEmail().orEmpty())
             }
             composable("account") { AccountScreen(repository, session, onLogout, onOpenStoreMenu = { open("store-menu") }) }
-            composable("items") { ItemsScreen(repository, onNavigate = ::open) }
-            composable("offers") { OffersScreen(repository, onNavigate = ::open) }
-            composable("orders") { OrdersScreen(repository, onNavigate = ::open) }
+            composable("items") { ItemsScreen(repository, onNavigate = ::nav) }
+            composable("offers") { OffersScreen(repository, onNavigate = ::nav) }
+            composable("orders") { OrdersScreen(repository, onNavigate = ::nav) }
             composable("verify") { PickupVerifyScreen(repository) }
 
             // Hồ sơ & vận hành (S09-S15) + Gói dịch vụ (S16-S19)
             val back: () -> Unit = { navController.popBackStack() }
             composable("rescue-bridge") { RescueBridgeScreen(repository, onBack = back) }
+            composable("rescue-lab") { ProRoute(repository, "Phòng mô phỏng", { open("subscription") }, back) { RescueLabScreen(repository, onBack = back) } }
             composable("rescue-pool") { RescuePoolScreen(repository, onBack = back) }
             composable("rescue-timeline") { RescueTimelineScreen(repository, onBack = back) }
-            composable("store-menu") { StoreMenuScreen(onNavigate = ::open, onBack = back) }
+            composable("store-menu") { StoreMenuScreen(onNavigate = ::nav, onBack = back) }
             composable("store-profile") { StoreProfileScreen(repository, onBack = back) }
             composable("store-settings") { OperationalSettingsScreen(repository, onBack = back) }
             composable("store-pause") { StorePauseScreen(repository, onOpenSchedule = { open("store-schedule") }, onBack = back) }
             composable("store-schedule") { StoreScheduleScreen(repository, onBack = back) }
             composable("data-export") { DataExportScreen(repository, onBack = back) }
             composable("activity-log") { ActivityLogScreen(repository, onBack = back) }
-            composable("subscription") { SubscriptionScreen(repository, onNavigate = ::open, onBack = back) }
+            composable("subscription") { SubscriptionScreen(repository, onNavigate = ::nav, onBack = back) }
             composable("subscription-renew") { SubscriptionRenewScreen(repository, onBack = back) }
             composable("invoices") { InvoicesScreen(repository, onBack = back) }
             composable("quotas") { UsageQuotasScreen(repository, onUpgrade = { open("subscription") }, onBack = back) }
 
             // Dự báo và định giá (S32-S37)
-            composable("forecast") { ForecastScreen(repository, onNavigate = ::open, onBack = back) }
-            composable("forecast-actuals") { DailyActualsScreen(repository, onBack = back) }
-            composable("special-events") { SpecialEventsScreen(repository, onBack = back) }
-            composable("forecast-trends") { ForecastTrendsScreen(repository, onNavigate = ::open, onBack = back) }
-            composable("price-proposals") { PriceProposalsScreen(repository, onNavigate = ::open, onBack = back) }
-            composable("price-history") { PriceHistoryScreen(repository, onBack = back) }
+            composable("forecast") { ForecastScreen(repository, onNavigate = ::nav, onBack = back) }
+            composable("forecast-actuals") { ProRoute(repository, "Số thực tế cuối ngày", { open("subscription") }, back) { DailyActualsScreen(repository, onBack = back) } }
+            composable("special-events") { ProRoute(repository, "Sự kiện đặc biệt", { open("subscription") }, back) { SpecialEventsScreen(repository, onBack = back) } }
+            composable("forecast-trends") { ForecastTrendsScreen(repository, onNavigate = ::nav, onBack = back) }
+            composable("price-proposals") { PriceProposalsScreen(repository, onNavigate = ::nav, onBack = back) }
+            composable("price-history") { ProRoute(repository, "Lịch sử quyết định giá", { open("subscription") }, back) { PriceHistoryScreen(repository, onBack = back) } }
 
             // Đơn và nhận hàng (S40, S42)
             composable("order/{id}") { entry ->
@@ -297,20 +325,56 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
                     onBack = back
                 )
             }
+            // Trợ lý AI (S66-S70, S72)
+            composable("ai") { AiScreen(repository, isOwner = session.getPermission() == "OWNER", onOpenQuotas = { open("quotas") }, onUpgrade = { open("subscription") }, onBack = back) }
+
+            // Khách của cửa hàng (S56-S58)
+            composable("customers") { CustomersScreen(repository, canEditNote = session.getPermission() != "COUNTER", isOwner = session.getPermission() == "OWNER", onUpgrade = { open("subscription") }, onBack = back) }
+
+            // Nhân viên (S63-S65)
+            composable("staff") { StaffScreen(repository, onBack = back) }
+            composable("staff-activity") { StaffActivityScreen(repository, onBack = back) }
+
+            // Ưu đãi và chiến dịch (S59-S62)
+            composable("promotions") { PromotionsScreen(repository, onBack = back) }
+            composable("campaigns") { CampaignsScreen(repository, onBack = back) }
+
+            // Báo cáo và đối soát (S46-S52, S54)
+            composable("reports") { ReportsScreen(repository, onUpgrade = { open("subscription") }, onBack = back) }
+            composable("reconciliation") { ReconciliationScreen(repository, onOpen = { open("statement/$it") }, onBack = back) }
+            composable("statement/{id}") { entry ->
+                StatementDetailScreen(repository, entry.arguments?.getString("id").orEmpty(), onBack = back)
+            }
+            composable("impact") { ImpactScreen(repository, onBack = back) }
+
+            // Khiếu nại và đánh giá (S43-S45)
+            composable("complaints") { ComplaintsScreen(repository, onOpen = { open("complaint/$it") }, onBack = back) }
+            composable("complaint/{id}") { entry ->
+                ComplaintDetailScreen(
+                    repository,
+                    complaintId = entry.arguments?.getString("id").orEmpty(),
+                    canHandle = session.getPermission() != "COUNTER",
+                    onOpenOrder = { open("order/$it") },
+                    onBack = back
+                )
+            }
+            composable("reviews") { ReviewsScreen(repository, canReply = session.getPermission() != "COUNTER", onBack = back) }
             composable("pickup-schedule") { PickupScheduleScreen(repository, onOpenOrder = { open("order/$it") }, onBack = back) }
 
             // Danh mục món (S20-S24) - vào từ tab "Món"
             /** Sau khi tạo xong: thay màn form bằng màn chi tiết để Back về danh sách. */
             fun replace(from: String, to: String) = navController.navigate(to) { popUpTo(from) { inclusive = true } }
             composable("item/{id}") { entry ->
-                ItemDetailScreen(repository, itemId = entry.arguments?.getString("id").orEmpty(), onNavigate = ::open, onBack = back)
+                ItemDetailScreen(repository, itemId = entry.arguments?.getString("id").orEmpty(), onNavigate = ::nav, onBack = back)
             }
+            composable("trustpass/{id}") { entry -> TrustPassScreen(repository, entry.arguments?.getString("id").orEmpty(), onBack = back) }
+            composable("support") { SupportScreen(repository, myUserId = session.getUserId().orEmpty(), onBack = back) }
             composable("item-new") { ItemFormScreen(repository, itemId = null, onSaved = { replace("item-new", "item/$it") }, onBack = back) }
             composable("item-edit/{id}") { entry ->
                 ItemFormScreen(repository, itemId = entry.arguments?.getString("id").orEmpty(), onSaved = { back() }, onBack = back)
             }
             composable("items-import") { ItemImportScreen(repository, onBack = back) }
-            composable("items-quality") { DataQualityScreen(repository, onNavigate = ::open, onBack = back) }
+            composable("items-quality") { DataQualityScreen(repository, onNavigate = ::nav, onBack = back) }
 
             // Suất và tồn kho (S25-S31) - vào từ tab "Suất"
             composable(
@@ -323,14 +387,14 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
                 )
             }
             composable("offer/{id}") { entry ->
-                OfferDetailScreen(repository, offerId = entry.arguments?.getString("id").orEmpty(), onNavigate = ::open, onBack = back)
+                OfferDetailScreen(repository, offerId = entry.arguments?.getString("id").orEmpty(), onNavigate = ::nav, onBack = back)
             }
             composable("offer-history/{id}") { entry ->
                 OfferHistoryScreen(repository, offerId = entry.arguments?.getString("id").orEmpty(), onBack = back)
             }
             composable("offers-clone") { CloneYesterdayScreen(repository, onDone = back, onBack = back) }
-            composable("surprise-bags") { SurpriseBagScreen(repository, onNavigate = ::open, onBack = back) }
-            composable("donation-suggestions") { DonationSuggestionsScreen(repository, onNavigate = ::open, onBack = back) }
+            composable("surprise-bags") { SurpriseBagScreen(repository, onNavigate = ::nav, onBack = back) }
+            composable("donation-suggestions") { DonationSuggestionsScreen(repository, onNavigate = ::nav, onBack = back) }
         }
     }
 }

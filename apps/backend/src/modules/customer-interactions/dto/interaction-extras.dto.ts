@@ -9,6 +9,9 @@ import {
   IsArray,
   ArrayMaxSize,
   IsEnum,
+  IsIn,
+  MinLength,
+  IsUrl,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -104,7 +107,28 @@ export class CreateSupportTicketDto {
   })
   @IsNotEmpty({ message: 'Nội dung không được để trống.' })
   @IsString()
+  @MinLength(10, { message: 'Nội dung yêu cầu từ 10 đến 1000 ký tự.' })
+  @MaxLength(1000, { message: 'Nội dung yêu cầu từ 10 đến 1000 ký tự.' })
   message: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Loại yêu cầu: PAYMENT (thanh toán), BUG (lỗi), DISPUTE (tranh chấp), OTHER (khác)',
+    example: 'PAYMENT',
+  })
+  @IsOptional()
+  @IsIn(['PAYMENT', 'BUG', 'DISPUTE', 'OTHER'], { message: 'Loại yêu cầu không hợp lệ.' })
+  category?: string;
+
+  @ApiPropertyOptional({
+    description: 'Địa chỉ ảnh đính kèm đã tải lên (tối đa 3)',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3, { message: 'Đính kèm tối đa 3 ảnh.' })
+  @IsUrl({ protocols: ['https'], require_protocol: true }, { each: true })
+  attachmentUrls?: string[];
 }
 
 export class SendSupportMessageDto {
@@ -114,7 +138,18 @@ export class SendSupportMessageDto {
   })
   @IsNotEmpty({ message: 'Nội dung tin nhắn không được để trống.' })
   @IsString()
+  @MaxLength(1000, { message: 'Tin nhắn tối đa 1000 ký tự.' })
   message: string;
+
+  @ApiPropertyOptional({
+    description: 'Địa chỉ ảnh đính kèm đã tải lên (tối đa 3)',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3, { message: 'Đính kèm tối đa 3 ảnh.' })
+  @IsUrl({ protocols: ['https'], require_protocol: true }, { each: true })
+  attachmentUrls?: string[];
 }
 
 export class ResolveComplaintDto {

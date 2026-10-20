@@ -72,6 +72,8 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
               return this.jobsService.processRescuePoolDeadlines();
             case JOBS_CONSTANTS.JOB_NAMES.RESCUE_BRIDGE_DEADLINES:
               return this.jobsService.processRescueBridgeDeadlines();
+            case JOBS_CONSTANTS.JOB_NAMES.CAMPAIGN_DISPATCH:
+              return this.jobsService.dispatchDueCampaigns();
             default:
               return this.jobsService.processAllBackgroundJobs();
           }
@@ -111,6 +113,11 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
       );
       await this.queue.add(
         JOBS_CONSTANTS.JOB_NAMES.RESCUE_BRIDGE_DEADLINES,
+        {},
+        { repeat: { every: 60 * 1000 } },
+      );
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.CAMPAIGN_DISPATCH,
         {},
         { repeat: { every: 60 * 1000 } },
       );

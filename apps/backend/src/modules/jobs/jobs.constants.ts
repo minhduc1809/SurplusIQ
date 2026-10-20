@@ -16,6 +16,7 @@ export const JOBS_CONSTANTS = {
     RESCUE_TIMELINE_RECALC: 'rescue-timeline.recalculate',
     RESCUE_POOL_DEADLINES: 'rescue-pool.deadlines',
     RESCUE_BRIDGE_DEADLINES: 'rescue-bridge.deadlines',
+    CAMPAIGN_DISPATCH: 'campaigns.dispatch',
   },
   JOB_NAMES: {
     RELEASE_HOLDS: 'orders.release-holds',
@@ -33,6 +34,7 @@ export const JOBS_CONSTANTS = {
     RESCUE_TIMELINE_RECALC: 'rescue-timeline.recalculate',
     RESCUE_POOL_DEADLINES: 'rescue-pool.deadlines',
     RESCUE_BRIDGE_DEADLINES: 'rescue-bridge.deadlines',
+    CAMPAIGN_DISPATCH: 'campaigns.dispatch',
   },
   /**
    * Thời gian giữ suất tối đa là 10 phút (BR-017)

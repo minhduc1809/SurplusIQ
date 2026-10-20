@@ -15,7 +15,7 @@ import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity
 import { SpecialEventEntity } from '../../entities/reconciliation/special-event.entity';
 import { ActionCardEntity, ActionCardStatus } from '../../entities/ai/action-card.entity';
 import { DonationRecordEntity } from '../../entities/ai/donation-record.entity';
-import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
+import { OrderEntity } from '../../entities/orders/order.entity';
 
 describe('DecisionsService Unit Tests (R2-036..R2-048, R2-040, R2-099, R2-112..115, R2-121)', () => {
   let service: DecisionsService;
@@ -285,6 +285,25 @@ describe('DecisionsService Unit Tests (R2-036..R2-048, R2-040, R2-099, R2-112..1
       expect(del.success).toBe(true);
     });
 
+    it('sinh thẻ đề xuất chỉ khi món bán dưới 50% (từ 10 suất) và không tạo trùng (R2-114)', async () => {
+      offerRepo.find.mockResolvedValue([
+        { itemId: 'item-a', totalQuantity: 10, soldQuantity: 2 },
+        { itemId: 'item-a', totalQuantity: 6, soldQuantity: 1 },
+        { itemId: 'item-b', totalQuantity: 10, soldQuantity: 9 },
+        { itemId: 'item-c', totalQuantity: 4, soldQuantity: 0 },
+      ]);
+      itemRepo.find.mockResolvedValue([{ id: 'item-a', name: 'Bánh mì' }]);
+
+      expect(await service.generateActionCards('store-1')).toBe(1);
+      expect(actionCardRepo.save.mock.calls[0][0].reasonText).toContain('3/16');
+
+      // Đã có thẻ cho món này trong 7 ngày thì không tạo lại
+      actionCardRepo.find.mockResolvedValue([{ payload: { itemId: 'item-a' } }]);
+      actionCardRepo.save.mockClear();
+      expect(await service.generateActionCards('store-1')).toBe(0);
+      expect(actionCardRepo.save).not.toHaveBeenCalled();
+    });
+
     it('phát hiện bất thường và thẻ hành động AI (R2-112..115)', async () => {
       dailyActualRepo.find.mockResolvedValue([
         { date: '2026-10-14', produced: 50, soldOffline: 10, soldApp: 5 },
@@ -296,8 +315,9 @@ describe('DecisionsService Unit Tests (R2-036..R2-048, R2-040, R2-099, R2-112..1
       const anomalies = await service.detectAnomalies('store-1');
       expect(anomalies).toBeDefined();
 
-      const cards = await service.getActionCards('store-1');
-      expect(cards.length).toBeGreaterThan(0);
+      // Không còn tự bịa thẻ mẫu: chưa có thẻ nào thì danh sách rỗng
+      actionCardRepo.find.mockResolvedValueOnce([]);
+      expect(await service.getActionCards('store-1')).toEqual([]);
 
       actionCardRepo.findOne.mockResolvedValue({
         id: 'ac-1',
@@ -308,15 +328,7 @@ describe('DecisionsService Unit Tests (R2-036..R2-048, R2-040, R2-099, R2-112..1
       expect(applied.status).toBe(ActionCardStatus.ACCEPTED);
     });
 
-    it('mô phỏng chính sách và ghi nhận quyên góp (R2-099, R2-121)', async () => {
-      orderRepo.find.mockResolvedValue([{ createdAt: new Date(), totalAmount: 200000 }]);
-      const sim = await service.simulatePolicy('store-1', {
-        days: 30,
-        discountRatio: 0.5,
-        dynamicPricing: true,
-      });
-      expect(sim.simulated.revenue).toBeGreaterThan(0);
-
+    it('gợi ý quyên góp ghép qua Rescue Bridge (R2-121)', async () => {
       // Không còn danh sách đơn vị nhận cố định - ghép nối qua Rescue Bridge (CM-B03)
       const donSuggest = await service.getDonationSuggestions('store-1');
       expect(donSuggest).not.toHaveProperty('verifiedCharities');

@@ -1,12 +1,20 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, Between } from 'typeorm';
+import { Repository, In, Not, Between, LessThanOrEqual } from 'typeorm';
 import {
   PromotionEntity,
   PromotionStatus,
   PromotionType,
 } from '../../entities/marketing/promotion.entity';
 import { CampaignEntity, CampaignStatus } from '../../entities/marketing/campaign.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { CampaignDeliveryEntity } from '../../entities/marketing/campaign-delivery.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { ConsentEntity, ConsentType } from '../../entities/auth/consent.entity';
+import {
+  NotificationEntity,
+  NotificationType,
+} from '../../entities/notifications/notification.entity';
 import { CustomerSegmentEntity, SegmentType } from '../../entities/stores/customer-segment.entity';
 import { SurpriseBagItemEntity } from '../../entities/catalog/surprise-bag-item.entity';
 import { OfferEntity, OfferKind, OfferStatus } from '../../entities/catalog/offer.entity';
@@ -17,11 +25,29 @@ import {
   UpdatePromotionDto,
   CreateCampaignDto,
   CreateSurpriseBagDto,
+  UpdateSegmentConfigDto,
   UpdateCampaignDto,
 } from './dto/marketing.dto';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
 import { CustomerSegmentationEngine } from '@surplusiq/core';
+
+export interface SegmentConfig {
+  loyalMinOrders: number;
+  loyalMaxDaysSinceLastOrder: number;
+  atRiskMinOrders: number;
+  atRiskDaysThreshold: number;
+  highNoShowRatioPercent: number;
+}
+
+/** Mặc định trùng engine phân nhóm: thân thiết từ 3 đơn trong 14 ngày, nguy cơ rời sau 30 ngày, không đến từ 20%. */
+export const DEFAULT_SEGMENT_CONFIG: SegmentConfig = {
+  loyalMinOrders: 3,
+  loyalMaxDaysSinceLastOrder: 14,
+  atRiskMinOrders: 2,
+  atRiskDaysThreshold: 30,
+  highNoShowRatioPercent: 20,
+};
 
 @Injectable()
 export class MarketingService {
@@ -42,8 +68,100 @@ export class MarketingService {
     private readonly itemRepo: Repository<ItemEntity>,
     @InjectRepository(OrderEntity)
     private readonly orderRepo: Repository<OrderEntity>,
+    @InjectRepository(StoreSettingsEntity)
+    private readonly settingsRepo: Repository<StoreSettingsEntity>,
+    @InjectRepository(CampaignDeliveryEntity)
+    private readonly deliveryRepo: Repository<CampaignDeliveryEntity>,
+    @InjectRepository(FavoriteStoreEntity)
+    private readonly favoriteRepo: Repository<FavoriteStoreEntity>,
+    @InjectRepository(ConsentEntity)
+    private readonly consentRepo: Repository<ConsentEntity>,
+    @InjectRepository(NotificationEntity)
+    private readonly notifRepo: Repository<NotificationEntity>,
     private readonly quotaService: QuotaService,
   ) {}
+
+  /**
+   * Gửi các chiến dịch đã đến giờ (R2-092). Đối tượng là khách yêu thích cửa hàng và đã đồng ý nhận ưu đãi;
+   * chiến dịch theo nhóm (LOYAL, AT_RISK...) chỉ gửi cho khách thuộc nhóm đó. Mỗi người nhận có một dòng
+   * campaign_deliveries để đo mở và đơn phát sinh (R2-094).
+   */
+  async getSegmentConfig(storeId: string): Promise<SegmentConfig> {
+    const row = await this.settingsRepo.findOne({ where: { storeId } });
+    return {
+      ...DEFAULT_SEGMENT_CONFIG,
+      ...((row?.segmentationConfig as Partial<SegmentConfig>) ?? {}),
+    };
+  }
+
+  /** Chủ chỉnh ngưỡng phân nhóm khách; áp dụng từ lần phân nhóm kế tiếp (R2-087). */
+  async updateSegmentConfig(storeId: string, dto: UpdateSegmentConfigDto): Promise<SegmentConfig> {
+    const config: SegmentConfig = { ...dto };
+    const row = await this.settingsRepo.findOne({ where: { storeId } });
+    if (!row) throw new NotFoundException('Cửa hàng chưa có cài đặt vận hành.');
+    row.segmentationConfig = config as unknown as Record<string, unknown>;
+    await this.settingsRepo.save(row);
+    return config;
+  }
+
+  async dispatchDueCampaigns(now: Date = new Date()): Promise<number> {
+    const due = await this.campaignRepo.find({
+      where: { status: CampaignStatus.SCHEDULED, scheduledAt: LessThanOrEqual(now) },
+    });
+    let sent = 0;
+    for (const campaign of due) {
+      // Giành quyền gửi trước để hai tiến trình không gửi trùng
+      const claimed = await this.campaignRepo.update(
+        { id: campaign.id, status: CampaignStatus.SCHEDULED },
+        { status: CampaignStatus.SENT },
+      );
+      if (!claimed.affected) continue;
+
+      const favorites = await this.favoriteRepo.find({ where: { storeId: campaign.storeId } });
+      let userIds = favorites.map((f) => f.userId);
+      if (userIds.length > 0) {
+        const consents = await this.consentRepo.find({
+          where: { userId: In(userIds), type: ConsentType.PROMOTION, granted: true },
+        });
+        const consented = new Set(consents.map((c) => c.userId));
+        userIds = userIds.filter((id) => consented.has(id));
+      }
+      if (userIds.length > 0 && campaign.target !== 'ALL' && campaign.target !== 'FAVORITES') {
+        const segs = await this.segmentRepo.find({
+          where: {
+            storeId: campaign.storeId,
+            customerId: In(userIds),
+            segment: campaign.target as SegmentType,
+          },
+        });
+        const inSegment = new Set(segs.map((x) => x.customerId));
+        userIds = userIds.filter((id) => inSegment.has(id));
+      }
+
+      if (userIds.length > 0) {
+        await this.notifRepo.save(
+          userIds.map((userId) =>
+            this.notifRepo.create({
+              userId,
+              storeId: null,
+              type: NotificationType.PROMOTION,
+              title: campaign.title,
+              body: campaign.content,
+              data: { campaignId: campaign.id, storeId: campaign.storeId },
+              isRead: false,
+            }),
+          ),
+        );
+        await this.deliveryRepo.save(
+          userIds.map((customerId) =>
+            this.deliveryRepo.create({ campaignId: campaign.id, customerId, sentAt: now }),
+          ),
+        );
+      }
+      sent++;
+    }
+    return sent;
+  }
 
   /**
    * Danh sách các chương trình ưu đãi của quán kèm số liệu hiệu quả (R2-088, R2-089)
@@ -94,6 +212,11 @@ export class MarketingService {
     });
     if (!promo) {
       throw new NotFoundException('Chương trình ưu đãi không tồn tại hoặc không thuộc cửa hàng.');
+    }
+    if (promo.usedCount > 0) {
+      throw new BadRequestException(
+        'Ưu đãi đã có lượt dùng nên không sửa được. Hãy tạm dừng hoặc kết thúc sớm (R2-090).',
+      );
     }
 
     if (dto.startAt && dto.endAt) {
@@ -289,10 +412,18 @@ export class MarketingService {
       noShowCount: data.noShowOrders,
     }));
 
+    const cfg = await this.getSegmentConfig(storeId);
     const segmentationResult = CustomerSegmentationEngine.segment({
       storeId,
       customers: inputCustomers,
       now: new Date(),
+      config: {
+        loyalMinOrders: cfg.loyalMinOrders,
+        loyalMaxDaysSinceLastOrder: cfg.loyalMaxDaysSinceLastOrder,
+        atRiskMinOrders: cfg.atRiskMinOrders,
+        atRiskDaysThreshold: cfg.atRiskDaysThreshold,
+        highNoShowRatioThreshold: cfg.highNoShowRatioPercent / 100,
+      },
     });
 
     // Lưu vào cơ sở dữ liệu nếu đủ điều kiện phân nhóm (tối thiểu 20 khách hàng)
@@ -579,28 +710,25 @@ export class MarketingService {
       throw new NotFoundException('Chiến dịch thông báo không tồn tại.');
     }
 
-    const scheduledDate = new Date(campaign.scheduledAt);
-    const dayAfter = new Date(scheduledDate.getTime() + 24 * 60 * 60 * 1000);
+    // Chỉ tính người đã nhận thông báo; chưa có dòng gửi thì mọi số đều là 0
+    const deliveries = await this.deliveryRepo.find({ where: { campaignId } });
+    const sentAt = deliveries.length
+      ? new Date(Math.min(...deliveries.map((d) => new Date(d.sentAt).getTime())))
+      : new Date(campaign.scheduledAt);
+    const recipientIds = deliveries.map((d) => d.customerId);
+    const orders = recipientIds.length
+      ? await this.orderRepo.find({
+          where: {
+            storeId,
+            customerId: In(recipientIds),
+            createdAt: Between(sentAt, new Date(sentAt.getTime() + 24 * 60 * 60 * 1000)),
+            status: In([OrderStatus.PAID, OrderStatus.PICKED_UP]),
+          },
+        })
+      : [];
 
-    const ordersWithin24h = await this.orderRepo.find({
-      where: {
-        storeId,
-        createdAt: Between(scheduledDate, dayAfter),
-        status: In([OrderStatus.PAID, OrderStatus.PICKED_UP]),
-      },
-    });
-
-    const ordersCount = ordersWithin24h.length;
-    const revenueGenerated = ordersWithin24h.reduce(
-      (sum, ord) => sum + Number(ord.unitPrice) * ord.quantity,
-      0,
-    );
-
-    // Dữ liệu lượt tiếp cận dựa trên quy mô đối tượng target
-    const estimatedRecipients = campaign.target === 'ALL' ? 120 : 35;
-    const openedEstimate = Math.round(estimatedRecipients * 0.45);
-    const openRatePercent =
-      estimatedRecipients > 0 ? Math.round((openedEstimate / estimatedRecipients) * 100) : 0;
+    const recipientsCount = deliveries.length;
+    const openedCount = deliveries.filter((d) => d.openedAt).length;
 
     return {
       campaignId: campaign.id,
@@ -609,11 +737,12 @@ export class MarketingService {
       scheduledAt: campaign.scheduledAt,
       status: campaign.status,
       metrics: {
-        recipientsCount: estimatedRecipients,
-        openedCount: openedEstimate,
-        openRatePercent,
-        ordersWithin24h: ordersCount,
-        revenueGeneratedVnd: revenueGenerated,
+        recipientsCount,
+        openedCount,
+        openRatePercent:
+          recipientsCount > 0 ? Math.round((openedCount / recipientsCount) * 100) : 0,
+        ordersWithin24h: orders.length,
+        revenueGeneratedVnd: orders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
       },
     };
   }

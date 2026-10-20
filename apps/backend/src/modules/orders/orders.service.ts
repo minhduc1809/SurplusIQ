@@ -17,9 +17,12 @@ import {
 } from '../../entities/orders/payment-transaction.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { CustomerSegmentEntity } from '../../entities/stores/customer-segment.entity';
 import {
   PromotionEntity,
   PromotionStatus,
+  PromotionTarget,
   PromotionType,
 } from '../../entities/marketing/promotion.entity';
 import { AuditLogService } from '../audit/audit-log.service';
@@ -186,6 +189,21 @@ export class OrdersService {
           );
         }
 
+        // Ưu đãi chỉ dành cho đúng nhóm khách đã chọn
+        if (promo.target !== PromotionTarget.ALL) {
+          const eligible =
+            promo.target === PromotionTarget.FAVORITES
+              ? await manager.exists(FavoriteStoreEntity, {
+                  where: { userId: customerId, storeId: offer.storeId },
+                })
+              : await manager.exists(CustomerSegmentEntity, {
+                  where: { storeId: offer.storeId, customerId, segment: promo.target as never },
+                });
+          if (!eligible) {
+            throw new BadRequestException('Ưu đãi này không dành cho tài khoản của bạn.');
+          }
+        }
+
         // Tính toán số tiền chiết khấu theo loại ưu đãi
         if (promo.type === PromotionType.PERCENT) {
           discountAmount = Math.round((subtotal * promo.value) / 100);
@@ -193,8 +211,11 @@ export class OrdersService {
           discountAmount = Math.min(promo.value, subtotal);
         }
 
-        // Giới hạn giảm giá không vượt quá tổng tiền
-        discountAmount = Math.min(discountAmount, subtotal);
+        // Ưu đãi không đưa giá xuống dưới giá sàn của suất (BR-019)
+        discountAmount = Math.min(
+          discountAmount,
+          Math.max(0, subtotal - offer.floorPrice * dto.quantity),
+        );
 
         // Tăng số lượt sử dụng của promotion
         promo.usedCount += 1;
@@ -346,6 +367,7 @@ export class OrdersService {
         }
         await manager.save(offer);
       }
+      await this.releasePromotion(manager, order);
 
       // 3. Ghi nhật ký kiểm toán
       await this.auditLogService.log({
@@ -414,6 +436,7 @@ export class OrdersService {
           }
           await manager.save(offer);
         }
+        await this.releasePromotion(manager, lockedOrder);
 
         releasedCount++;
       });
@@ -429,6 +452,13 @@ export class OrdersService {
   /**
    * Xem chi tiết đơn hàng phía khách hàng (R1-046)
    */
+  /** Hủy hoặc hết hạn giữ suất thì trả lại lượt dùng ưu đãi (BR-019). */
+  private async releasePromotion(manager: EntityManager, order: OrderEntity) {
+    if (order.promotionId) {
+      await manager.decrement(PromotionEntity, { id: order.promotionId }, 'usedCount', 1);
+    }
+  }
+
   async getOrderById(
     customerId: string,
     orderId: string,
@@ -666,6 +696,7 @@ export class OrdersService {
           }
           await manager.save(offer);
         }
+        await this.releasePromotion(manager, order);
       }
 
       // Ghi nhật ký kiểm toán

@@ -14,9 +14,11 @@ import { ActionCardEntity } from '../../entities/ai/action-card.entity';
 import { DonationRecordEntity } from '../../entities/ai/donation-record.entity';
 import { OrderEntity } from '../../entities/orders/order.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
+    SubscriptionsModule,
     TypeOrmModule.forFeature([
       ItemEntity,
       OfferEntity,

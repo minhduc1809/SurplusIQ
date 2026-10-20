@@ -203,7 +203,7 @@ export function calculateRisk(input: RiskInput): RiskResult {
     velocityPoints = pointsFor(cfg.PROJECTED_UNSOLD_POINTS, (r) => unsoldRatio >= r.minRatio);
     factors.push({
       code: 'SALES_VELOCITY',
-      label: `Tốc độ bán ~${perHour.toFixed(1)} suất/giờ, dự kiến dư ${projectedUnsold} suất`,
+      label: `Tốc độ bán ~${perHour.toFixed(1).replace('.', ',')} suất/giờ, dự kiến dư ${projectedUnsold} suất`,
       value: { perHour: Number(perHour.toFixed(2)), projectedUnsold, unsoldRatio },
       points: velocityPoints,
     });

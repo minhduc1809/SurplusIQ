@@ -6,6 +6,7 @@ import { OrdersService } from './orders.service';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus, OfferKind } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { PromotionEntity } from '../../entities/marketing/promotion.entity';
 import {
   ProxyPickupCodeEntity,
   ProxyPickupCodeStatus,
@@ -150,6 +151,8 @@ describe('OrdersService', () => {
       create: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
+      exists: jest.fn(),
+      decrement: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -265,6 +268,56 @@ describe('OrdersService', () => {
       await expect(service.holdOrder(mockCustomerId, validDto)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    describe('ưu đãi (BR-019)', () => {
+      const promo = (extra: object = {}) => ({
+        id: 'promo-1',
+        storeId: mockStoreId,
+        status: 'ACTIVE',
+        type: 'PERCENT',
+        value: 50,
+        target: 'ALL',
+        maxUses: 10,
+        usedCount: 0,
+        minOrderAmount: 0,
+        startAt: new Date(Date.now() - 1000),
+        endAt: new Date(Date.now() + 3600 * 1000),
+        ...extra,
+      });
+      const hold = (p: object) => {
+        mockOrderLockRepo.findOne.mockResolvedValue(null);
+        mockTransactionManager.createQueryBuilder.mockReturnValue(
+          createMockQueryBuilder({ ...mockOffer, remainingQuantity: 5 }),
+        );
+        mockTransactionManager.findOne.mockImplementation(async (cls: any) =>
+          cls === PromotionEntity ? p : { status: 'ACTIVE' },
+        );
+        mockTransactionManager.create.mockImplementation((_c: any, dto: any) => ({
+          ...dto,
+          id: 'o',
+        }));
+        mockTransactionManager.save.mockImplementation(async (e: any) => e);
+        return service.holdOrder(mockCustomerId, { ...validDto, promotionId: 'promo-1' });
+      };
+
+      it('không cho ưu đãi đưa giá xuống dưới giá sàn', async () => {
+        // 2 suất x 20.000 = 40.000, giá sàn 16.000/suất = 32.000 -> giảm tối đa 8.000 dù ưu đãi 50%
+        const result = await hold(promo());
+        expect(result.discountAmount).toBe(8000);
+        expect(result.totalAmount).toBe(32000);
+      });
+
+      it('từ chối khi khách không thuộc nhóm của ưu đãi', async () => {
+        mockTransactionManager.exists.mockResolvedValue(false);
+        await expect(hold(promo({ target: 'FAVORITES' }))).rejects.toThrow('không dành cho');
+      });
+
+      it('cho dùng khi khách thuộc nhóm của ưu đãi', async () => {
+        mockTransactionManager.exists.mockResolvedValue(true);
+        const result = await hold(promo({ target: 'FAVORITES', type: 'FIXED', value: 4000 }));
+        expect(result.discountAmount).toBe(4000);
+      });
     });
 
     it('từ chối đơn mới khi Admin đã tạm ngưng cửa hàng, không trừ tồn kho', async () => {

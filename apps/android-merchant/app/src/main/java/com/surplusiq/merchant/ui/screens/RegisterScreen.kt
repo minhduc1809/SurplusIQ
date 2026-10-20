@@ -35,6 +35,7 @@ fun RegisterScreen(
     onRegistered: (email: String) -> Unit
 ) {
     var step by remember { mutableIntStateOf(1) }
+    var ownerName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
@@ -47,7 +48,7 @@ fun RegisterScreen(
     val scope = rememberCoroutineScope()
 
     fun stepError(): String? = when (step) {
-        1 -> if (!Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) "Email không đúng định dạng." else passwordError(password, confirm)
+        1 -> if (ownerName.trim().length !in 2..60) "Họ tên từ 2 đến 60 ký tự." else if (!Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) "Email không đúng định dạng." else passwordError(password, confirm)
         2 -> when {
             storeName.trim().length !in 2..80 -> "Tên cửa hàng từ 2 đến 80 ký tự."
             storeAddress.isBlank() -> "Vui lòng nhập địa chỉ cửa hàng."
@@ -65,7 +66,7 @@ fun RegisterScreen(
         scope.launch {
             val target = email.trim()
             val result = repository.registerStore(
-                StoreRegisterRequest(target, password, storeName.trim(), storeAddress.trim(), storePhone)
+                StoreRegisterRequest(target, password, storeName.trim(), storeAddress.trim(), storePhone, ownerName.trim())
             )
             isLoading = false
             result.fold(onSuccess = { onRegistered(target) }, onFailure = { error = it.message })
@@ -91,6 +92,8 @@ fun RegisterScreen(
 
         when (step) {
             1 -> {
+                MerchantField(value = ownerName, onValueChange = { ownerName = it.take(60) }, placeholder = "Họ tên chủ cửa hàng", icon = Icons.Default.Storefront)
+                Spacer(modifier = Modifier.height(12.dp))
                 MerchantField(value = email, onValueChange = { email = it }, placeholder = "Email", icon = Icons.Default.Mail, keyboardType = KeyboardType.Email)
                 Spacer(modifier = Modifier.height(12.dp))
                 PasswordField(value = password, onValueChange = { password = it })

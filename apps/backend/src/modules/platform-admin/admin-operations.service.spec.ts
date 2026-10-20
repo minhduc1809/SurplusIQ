@@ -295,6 +295,7 @@ describe('AdminOperationsService complaint decisions', () => {
       null,
       h.dataSource as unknown as DataSource,
       { reverseForOrder: jest.fn() } as unknown as RewardsService,
+      null as never,
     );
     const results = await Promise.allSettled([
       h.service.resolveComplaint('complaint-1', 'admin-1', { decision: 'ACCEPT' }),

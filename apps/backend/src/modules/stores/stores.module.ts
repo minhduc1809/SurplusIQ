@@ -22,6 +22,7 @@ import { UserEntity } from '../../entities/auth/user.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { PriceProposalEntity } from '../../entities/reconciliation/price-proposal.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       UserEntity,
     ]),
     SubscriptionsModule,
+    AuditModule,
   ],
   controllers: [StoreOperationsController, StoreStaffController],
   providers: [StoresService, StoreStaffService],

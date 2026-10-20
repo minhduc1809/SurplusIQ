@@ -1,5 +1,12 @@
 package com.surplusiq.merchant.ui.screens
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -39,10 +46,12 @@ private fun localTime(iso: String): String = try {
     iso
 }
 
-/** Loại thông báo -> route liên quan. shortcut: chưa có màn khiếu nại; thêm khi nhóm Khiếu nại xong. */
+/** Loại thông báo -> route liên quan. */
 private fun notificationRoute(type: String): String? = when (type) {
     "ORDER", "PICKUP_REMINDER" -> "orders"
     "PRICE_PROPOSAL" -> "price-proposals"
+    "COMPLAINT" -> "complaints"
+    "REVIEW" -> "reviews"
     else -> null
 }
 
@@ -96,12 +105,8 @@ fun NotificationsScreen(repository: StoreRepository, canMarkAll: Boolean, onNavi
 
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TYPE_FILTERS.forEach { (type, label) ->
-                FilterChip(
-                    selected = filter == type,
-                    onClick = { filter = type },
-                    label = { Text(label) },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = SqCoralWash, selectedLabelColor = SqCoralDeep)
-                )
+                val unread = items.orEmpty().count { !it.isRead && (type == null || it.type == type) }
+                SqChip(if (unread > 0) "$label ($unread)" else label, filter == type) { filter = type }
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -130,11 +135,18 @@ private fun NotificationRow(n: NotificationDto, onClick: () -> Unit) {
             .padding(14.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Box(
-            modifier = Modifier.padding(top = 6.dp).size(8.dp).clip(CircleShape)
-                .background(if (n.isRead) SqSurface else SqCoral)
-        )
-        Spacer(modifier = Modifier.width(10.dp))
+        val (icon, tint) = when (n.type) {
+            "ORDER", "PICKUP_REMINDER" -> Icons.Default.ShoppingBag to SqCoral
+            "COMPLAINT" -> Icons.Default.ReportProblem to SqCoralDeep
+            "REVIEW" -> Icons.Default.Star to SqButter
+            "PRICE_PROPOSAL" -> Icons.Default.LocalOffer to SqMintDeep
+            else -> Icons.Default.Info to SqInkSoft
+        }
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(SqSurfaceSoft), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            if (!n.isRead) Box(Modifier.align(Alignment.TopEnd).size(9.dp).clip(CircleShape).background(SqCoral))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = n.title, fontSize = 14.sp, fontWeight = if (n.isRead) FontWeight.Medium else FontWeight.Bold, color = SqInk)
             Spacer(modifier = Modifier.height(2.dp))

@@ -39,7 +39,7 @@ export class StoreStaffController {
   @Channel('STORE')
   @Roles(UserRole.STORE_USER)
   @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard, StorePermissionGuard)
-  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @Permissions(StorePermission.OWNER)
   @ApiOperation({ summary: 'Danh sách nhân viên cửa hàng và thư mời đang chờ (R2-076)' })
   @ApiResponse({ status: 200, description: 'Danh sách nhân viên' })
   async getStaffList(@CurrentStore() storeId: string) {
@@ -50,7 +50,7 @@ export class StoreStaffController {
   @Channel('STORE')
   @Roles(UserRole.STORE_USER)
   @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard, StorePermissionGuard)
-  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @Permissions(StorePermission.OWNER)
   @ApiOperation({ summary: 'Mời nhân viên mới qua Email (kiểm tra quota gói) (R2-076, BR-076)' })
   @ApiResponse({ status: 201, description: 'Đã gửi lời mời thành công' })
   async inviteStaff(@CurrentStore() storeId: string, @Body() dto: InviteStaffDto) {
@@ -68,8 +68,9 @@ export class StoreStaffController {
     @CurrentStore() storeId: string,
     @Param('id') id: string,
     @Body() dto: UpdateStaffDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.staffService.updateStaffRole(storeId, id, dto);
+    return this.staffService.updateStaffRole(storeId, id, dto, user.userId);
   }
 
   @Delete(':id')

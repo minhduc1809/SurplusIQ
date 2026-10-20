@@ -42,6 +42,7 @@ import { RewardsService } from '../rewards/rewards.service';
 import { RescueTimelineService } from '../rescue-timeline/rescue-timeline.service';
 import { RescuePoolService } from '../rescue-pool/rescue-pool.service';
 import { RescueBridgeService } from '../rescue-bridge/rescue-bridge.service';
+import { MarketingService } from '../marketing/marketing.service';
 
 describe('JobsService (All 12 Background Jobs)', () => {
   let service: JobsService;
@@ -182,6 +183,7 @@ describe('JobsService (All 12 Background Jobs)', () => {
         { provide: RescueTimelineService, useValue: { recalculateAll: jest.fn() } },
         { provide: RescuePoolService, useValue: { processDeadlines: jest.fn() } },
         { provide: RescueBridgeService, useValue: { processDeadlines: jest.fn() } },
+        { provide: MarketingService, useValue: { dispatchDueCampaigns: jest.fn() } },
         { provide: DataSource, useValue: dataSource },
         { provide: SettingsService, useValue: settingsService },
       ],

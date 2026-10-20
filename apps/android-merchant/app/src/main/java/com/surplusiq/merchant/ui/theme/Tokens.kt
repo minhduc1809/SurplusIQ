@@ -33,6 +33,14 @@ val SqError = Color(0xFFD9534F)
 
 @Composable
 fun SurplusIqMerchantTheme(content: @Composable () -> Unit) {
+    // Nền sáng nên biểu tượng thanh trạng thái phải tối, nếu không giờ/pin bị chìm vào nền.
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        androidx.compose.runtime.SideEffect {
+            val window = (view.context as? android.app.Activity)?.window
+            if (window != null) androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
+        }
+    }
     val colorScheme = lightColorScheme(
         primary = SqCoral,
         onPrimary = Color.White,

@@ -31,6 +31,7 @@ import { SettingsModule } from '../settings/settings.module';
 import { RewardsModule } from '../rewards/rewards.module';
 import { RescueTimelineModule } from '../rescue-timeline/rescue-timeline.module';
 import { RescuePoolModule } from '../rescue-pool/rescue-pool.module';
+import { MarketingModule } from '../marketing/marketing.module';
 import { RescueBridgeModule } from '../rescue-bridge/rescue-bridge.module';
 
 @Module({
@@ -39,6 +40,7 @@ import { RescueBridgeModule } from '../rescue-bridge/rescue-bridge.module';
     RescueTimelineModule,
     RescuePoolModule,
     RescueBridgeModule,
+    MarketingModule,
     TypeOrmModule.forFeature([
       OrderEntity,
       OfferEntity,

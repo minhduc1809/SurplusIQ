@@ -8,6 +8,7 @@ import { ComplaintAttachmentEntity } from '../../entities/complaints/complaint-a
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { ViolationReportEntity } from '../../entities/complaints/violation-report.entity';
 import { SupportTicketEntity, TicketStatus } from '../../entities/complaints/support-ticket.entity';
+import { CloudinaryService } from '../uploads/cloudinary.service';
 import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
 import { ViolationTargetType } from './dto/interaction-extras.dto';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
@@ -125,6 +126,13 @@ describe('CustomerInteractionsService', () => {
         { provide: getRepositoryToken(ComplaintAttachmentEntity), useValue: attachmentRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
         { provide: getRepositoryToken(ViolationReportEntity), useValue: violationReportRepo },
+        {
+          provide: CloudinaryService,
+          useValue: {
+            isOwnImageUrl: (u: string) =>
+              u.startsWith('https://res.cloudinary.com/demo/image/upload/'),
+          },
+        },
         { provide: getRepositoryToken(SupportTicketEntity), useValue: supportTicketRepo },
         { provide: getRepositoryToken(SupportMessageEntity), useValue: supportMessageRepo },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
@@ -331,6 +339,44 @@ describe('CustomerInteractionsService', () => {
 
       expect(res.id).toBe('tick-1');
       expect(supportMessageRepo.create).toHaveBeenCalled();
+    });
+
+    it('đánh dấu yêu cầu có phản hồi mới khi tin gần nhất là của bộ phận hỗ trợ', async () => {
+      supportTicketRepo.find.mockResolvedValue([
+        { id: 't-1', userId: 'user-1', createdAt: new Date() },
+        { id: 't-2', userId: 'user-1', createdAt: new Date() },
+      ]);
+      supportMessageRepo.find.mockResolvedValue([
+        { ticketId: 't-1', senderId: 'user-1', createdAt: new Date('2026-10-01') },
+        { ticketId: 't-1', senderId: 'admin-1', createdAt: new Date('2026-10-02') },
+        { ticketId: 't-2', senderId: 'user-1', createdAt: new Date('2026-10-02') },
+      ]);
+
+      const list = await service.getCustomerSupportTickets('user-1');
+      expect(list.find((t) => t.id === 't-1')?.hasNewReply).toBe(true);
+      expect(list.find((t) => t.id === 't-2')?.hasNewReply).toBe(false);
+    });
+
+    it('chỉ nhận ảnh đính kèm do hệ thống lưu, tối đa theo DTO (R2-106)', async () => {
+      supportTicketRepo.count.mockResolvedValue(0);
+      await expect(
+        service.createSupportTicket('user-1', {
+          subject: 'Lỗi thanh toán',
+          message: 'Tôi bị trừ tiền hai lần',
+          attachmentUrls: ['https://evil.example.com/a.png'],
+        }),
+      ).rejects.toThrow('Ảnh đính kèm không hợp lệ');
+
+      await service.createSupportTicket('user-1', {
+        subject: 'Lỗi thanh toán',
+        message: 'Tôi bị trừ tiền hai lần',
+        attachmentUrls: ['https://res.cloudinary.com/demo/image/upload/v1/a.png'],
+      });
+      expect(supportMessageRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachmentUrls: ['https://res.cloudinary.com/demo/image/upload/v1/a.png'],
+        }),
+      );
     });
 
     it('gửi thêm tin nhắn trong ticket đang mở', async () => {

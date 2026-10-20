@@ -5,6 +5,9 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
+import retrofit2.http.Part
+import okhttp3.MultipartBody
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -156,6 +159,31 @@ interface StoreApiService {
         @Query("limit") limit: Int
     ): Response<ItemsResponse>
 
+    @PATCH("store/items/{id}/trustpass")
+    suspend fun updateTrustpass(@Path("id") id: String, @Body request: TrustpassRequest): Response<ItemDto>
+
+    @GET("store/items/{id}/trustpass-history")
+    suspend fun getTrustpassHistory(@Path("id") id: String): Response<List<TrustpassHistoryRow>>
+
+    @Multipart
+    @POST("store/uploads/image")
+    suspend fun uploadImage(@Part file: MultipartBody.Part): Response<UploadResult>
+
+    @GET("store/support-tickets")
+    suspend fun getSupportTickets(): Response<List<SupportTicketDto>>
+
+    @POST("store/support-tickets")
+    suspend fun createSupportTicket(@Body request: CreateTicketRequest): Response<SupportTicketDto>
+
+    @GET("store/support-tickets/{id}")
+    suspend fun getSupportTicket(@Path("id") id: String): Response<SupportDetailResponse>
+
+    @POST("store/support-tickets/{id}/messages")
+    suspend fun sendSupportMessage(@Path("id") id: String, @Body request: SupportMessageRequest): Response<SupportMessageDto>
+
+    @POST("store/support-tickets/{id}/close")
+    suspend fun closeSupportTicket(@Path("id") id: String): Response<SupportTicketDto>
+
     @GET("store/items/{id}")
     suspend fun getItem(@Path("id") id: String): Response<ItemDto>
 
@@ -283,7 +311,28 @@ interface StoreApiService {
     suspend fun getPickupSchedule(): Response<List<PickupSlotDto>>
 
     @GET("store/complaints")
-    suspend fun getComplaints(): Response<List<ComplaintDto>>
+    suspend fun getComplaints(@Query("status") status: String? = null): Response<List<ComplaintDto>>
+
+    @GET("store/complaints/{id}")
+    suspend fun getComplaint(@Path("id") id: String): Response<ComplaintDetailResponse>
+
+    @POST("store/complaints/{id}/resolve")
+    suspend fun resolveComplaint(@Path("id") id: String, @Body request: ResolveComplaintRequest): Response<ComplaintDto>
+
+    @POST("store/complaints/{id}/reject")
+    suspend fun rejectComplaint(@Path("id") id: String, @Body request: RejectComplaintRequest): Response<ComplaintDto>
+
+    @POST("store/complaints/{id}/extend")
+    suspend fun extendComplaint(@Path("id") id: String): Response<ComplaintDto>
+
+    @GET("store/reviews")
+    suspend fun getReviews(
+        @Query("rating") rating: Int? = null,
+        @Query("hasReply") hasReply: Boolean? = null
+    ): Response<List<ReviewDto>>
+
+    @POST("store/reviews/{id}/reply")
+    suspend fun replyReview(@Path("id") id: String, @Body request: ReplyReviewRequest): Response<ReviewDto>
 
     // --- Hồ sơ & vận hành (store-operations.controller.ts) ---
 
@@ -307,6 +356,78 @@ interface StoreApiService {
 
     @DELETE("store/closures/{id}")
     suspend fun deleteClosure(@Path("id") id: String): Response<MessageResponse>
+
+    @GET("store/rescue-lab/scenarios")
+    suspend fun getLabScenarios(): Response<List<LabScenario>>
+
+    @GET("store/rescue-lab/scenarios/{id}")
+    suspend fun getLabScenario(@Path("id") id: String): Response<LabScenario>
+
+    @POST("store/rescue-lab/scenarios")
+    suspend fun createLabScenario(@Body request: LabCreateScenario): Response<LabVersion>
+
+    @POST("store/rescue-lab/scenarios/{id}/versions")
+    suspend fun createLabVersion(@Path("id") id: String, @Body request: LabVersionParams): Response<LabVersion>
+
+    @POST("store/rescue-lab/versions/{id}/run")
+    suspend fun runLabVersion(@Path("id") id: String): Response<LabVersion>
+
+    @POST("store/rescue-lab/versions/{id}/apply")
+    suspend fun applyLabVersion(@Path("id") id: String, @Body request: LabApplyRequest): Response<LabVersion>
+
+    @GET("store/rescue-lab/versions/{id}/observation")
+    suspend fun getLabObservation(@Path("id") id: String): Response<LabObservation>
+
+    @POST("store/rescue-lab/compare")
+    suspend fun compareLabVersions(@Body request: LabCompareRequest): Response<LabCompareResult>
+
+    @GET("store/marketing/promotions")
+    suspend fun getPromotions(): Response<List<PromotionDto>>
+
+    @POST("store/marketing/promotions")
+    suspend fun createPromotion(@Body request: CreatePromotionRequest): Response<PromotionDto>
+
+    @PUT("store/marketing/promotions/{id}")
+    suspend fun updatePromotion(@Path("id") id: String, @Body request: UpdatePromotionRequest): Response<PromotionDto>
+
+    @PATCH("store/marketing/promotions/{id}/status")
+    suspend fun setPromotionStatus(@Path("id") id: String, @Body request: UpdatePromotionStatusRequest): Response<PromotionDto>
+
+    @GET("store/marketing/campaigns")
+    suspend fun getCampaigns(): Response<List<CampaignDto>>
+
+    @POST("store/marketing/campaigns")
+    suspend fun createCampaign(@Body request: CreateCampaignRequest): Response<CampaignDto>
+
+    @PATCH("store/marketing/campaigns/{id}")
+    suspend fun updateCampaign(@Path("id") id: String, @Body request: UpdateCampaignRequest): Response<CampaignDto>
+
+    @GET("store/marketing/campaigns/{id}/analytics")
+    suspend fun getCampaignAnalytics(@Path("id") id: String): Response<CampaignAnalyticsDto>
+
+    @GET("store/reports/items")
+    suspend fun getItemReports(@Query("startDate") startDate: String, @Query("endDate") endDate: String): Response<ItemReportsResponse>
+
+    @GET("store/reports/hourly-distribution")
+    suspend fun getHourlyDistribution(@Query("startDate") startDate: String, @Query("endDate") endDate: String): Response<HourlyDistributionResponse>
+
+    @GET("store/reports/pricing-efficacy")
+    suspend fun getPricingEfficacy(): Response<PricingEfficacyDto>
+
+    @POST("store/reports/compare-periods")
+    suspend fun comparePeriods(@Body request: ComparePeriodsRequest): Response<ComparePeriodsResponse>
+
+    @POST("store/reports/public-impact-link")
+    suspend fun getPublicImpactLink(): Response<PublicImpactLinkResponse>
+
+    @GET("store/reports/reconciliation")
+    suspend fun getReconciliation(): Response<ReconciliationResponse>
+
+    @GET("store/statements/{id}")
+    suspend fun getStatement(@Path("id") id: String): Response<StatementDetailResponse>
+
+    @GET("store/statements/{id}/csv")
+    suspend fun getStatementCsv(@Path("id") id: String): Response<StatementCsvResponse>
 
     @GET("store/export/orders")
     suspend fun exportOrders(@Query("fromDate") fromDate: String?, @Query("toDate") toDate: String?): Response<ExportResponse>
@@ -334,13 +455,98 @@ interface StoreApiService {
         @Query("from") from: String?,
         @Query("to") to: String?,
         @Query("page") page: Int,
-        @Query("limit") limit: Int = 20
+        @Query("limit") limit: Int = 20,
+        @Query("actorId") actorId: String? = null
     ): Response<AuditLogsResponse>
+
+    @POST("store/ai/chat")
+    suspend fun aiChat(@Body request: AiChatRequest): Response<AiChatResponse>
+
+    @GET("store/ai/conversations")
+    suspend fun getAiConversations(): Response<List<AiConversationDto>>
+
+    @GET("store/ai/conversations/{id}")
+    suspend fun getAiConversation(@Path("id") id: String): Response<AiConversationDetail>
+
+    @DELETE("store/ai/conversations/{id}")
+    suspend fun deleteAiConversation(@Path("id") id: String): Response<Map<String, Any?>>
+
+    @DELETE("store/ai/conversations")
+    suspend fun deleteAllAiConversations(): Response<Map<String, Any?>>
+
+    @POST("store/ai/weekly-summary")
+    suspend fun aiWeeklySummary(): Response<AiWeeklySummary>
+
+    @POST("store/ai/feedback")
+    suspend fun aiFeedback(@Body request: AiFeedbackRequest): Response<Map<String, Any?>>
+
+    @GET("store/ai/logs")
+    suspend fun getAiLogs(@Query("page") page: Int = 1): Response<AiLogsResponse>
+
+    @GET("store/anomalies")
+    suspend fun getAnomalies(): Response<AnomaliesResponse>
+
+    @GET("store/action-cards")
+    suspend fun getActionCards(): Response<List<ActionCardDto>>
+
+    @POST("store/action-cards/{id}/apply")
+    suspend fun applyActionCard(@Path("id") id: String): Response<MessageResponse>
+
+    @POST("store/action-cards/{id}/dismiss")
+    suspend fun dismissActionCard(@Path("id") id: String): Response<MessageResponse>
+
+    @GET("store/ai/config")
+    suspend fun getAiConfig(): Response<AiConfigDto>
+
+    @PUT("store/ai/config")
+    suspend fun updateAiConfig(@Body request: AiConfigDto): Response<AiConfigDto>
+
+    @GET("store/anomalies/why")
+    suspend fun getAnomalyWhy(@Query("date") date: String): Response<AnomalyWhyResponse>
+
+    @GET("store/marketing/segment-config")
+    suspend fun getSegmentConfig(): Response<SegmentConfigDto>
+
+    @PUT("store/marketing/segment-config")
+    suspend fun updateSegmentConfig(@Body request: SegmentConfigDto): Response<SegmentConfigDto>
+
+    @GET("store/customers/{id}/detail")
+    suspend fun getCustomerDetail(@Path("id") id: String): Response<CustomerDetailDto>
+
+    @GET("store/customers")
+    suspend fun getCustomers(): Response<List<StoreCustomerDto>>
+
+    @POST("store/customers/{id}/notes")
+    suspend fun saveCustomerNote(@Path("id") id: String, @Body request: CustomerNoteRequest): Response<CustomerNoteRequest>
+
+    @GET("store/marketing/segments")
+    suspend fun getSegments(): Response<SegmentsResponse>
+
+    @GET("store/marketing/frequent-noshow")
+    suspend fun getFrequentNoShow(): Response<FrequentNoShowResponse>
+
+    @GET("store/favorites-count")
+    suspend fun getFavoritesCount(): Response<FavoritesCountResponse>
+
+    @GET("store/staff")
+    suspend fun getStaff(): Response<StaffListResponse>
+
+    @POST("store/staff/invitations")
+    suspend fun inviteStaff(@Body request: InviteStaffRequest): Response<InviteStaffResponse>
+
+    @PATCH("store/staff/{id}")
+    suspend fun updateStaff(@Path("id") id: String, @Body request: UpdateStaffRequest): Response<StaffMemberDto>
+
+    @DELETE("store/staff/{id}")
+    suspend fun removeStaff(@Path("id") id: String): Response<MessageResponse>
 
     // --- Gói dịch vụ (subscriptions.controller.ts) ---
 
     @GET("store/subscription/current")
     suspend fun getSubscription(): Response<SubscriptionDto>
+
+    @GET("store/subscription/catalog")
+    suspend fun getPlanCatalog(): Response<PlanCatalogDto>
 
     @GET("store/subscription/quotas")
     suspend fun getQuotas(): Response<Map<String, QuotaDto>>

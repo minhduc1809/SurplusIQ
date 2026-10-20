@@ -676,6 +676,19 @@ export class CatalogService {
     'storageInstructions',
   ] as const;
 
+  /** Lịch sử thay đổi các trường trọng yếu của hồ sơ minh bạch, mới nhất trước (BR-B05-06). */
+  async getTrustpassHistory(storeId: string, itemId: string) {
+    const item = await this.itemRepo.findOne({ where: { id: itemId, storeId } });
+    if (!item) {
+      throw new NotFoundException(`Không tìm thấy món ăn với ID [${itemId}] trong cửa hàng.`);
+    }
+    return this.trustpassHistoryRepo.find({
+      where: { itemId },
+      order: { versionNo: 'DESC', createdAt: 'DESC' },
+      take: 50,
+    });
+  }
+
   async updateTrustpass(
     storeId: string,
     itemId: string,
@@ -685,6 +698,13 @@ export class CatalogService {
     const item = await this.itemRepo.findOne({ where: { id: itemId, storeId } });
     if (!item) {
       throw new NotFoundException(`Không tìm thấy món ăn với ID [${itemId}] trong cửa hàng.`);
+    }
+
+    // Thông tin mâu thuẫn thì chặn công bố (CM-B05): hạn dùng phải sau thời điểm chuẩn bị
+    const prepared = dto.preparedAt ? new Date(dto.preparedAt) : item.preparedAt;
+    const expiry = dto.expiryAt ? new Date(dto.expiryAt) : item.expiryAt;
+    if (prepared && expiry && new Date(expiry).getTime() <= new Date(prepared).getTime()) {
+      throw new BadRequestException('Hạn dùng phải sau thời điểm chuẩn bị món.');
     }
 
     // BR-B05-02: "đã xác minh" chỉ dùng khi có quy trình xác minh cụ thể - không

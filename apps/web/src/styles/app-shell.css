@@ -1,0 +1,141 @@
+/*
+ * Khung ứng dụng cửa hàng: thanh bên + thanh trên + nội dung.
+ * Điểm gãy 900px: thanh bên rộng 248px, dưới ngưỡng này vùng nội dung còn dưới ~650px nên các lưới 2 cột
+ * (thẻ chỉ số, bảng) bắt đầu bị ép; thanh bên chuyển thành ngăn kéo.
+ */
+.sq-shell {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--sq-canvas);
+}
+
+.sq-sidebar {
+  width: 248px;
+  flex-shrink: 0;
+  background: var(--sq-surface);
+  border-right: 1px solid var(--sq-line);
+  display: flex;
+  flex-direction: column;
+  padding: var(--sq-space-5) var(--sq-space-4);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sq-scrim {
+  display: none;
+}
+
+.sq-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -8px;
+  border: none;
+  border-radius: var(--sq-radius-md);
+  background: transparent;
+  color: var(--sq-ink-soft);
+  cursor: pointer;
+}
+
+.sq-menu-btn:hover {
+  background: var(--sq-surface-soft);
+}
+
+.sq-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sq-topbar {
+  height: 64px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--sq-line);
+  background: var(--sq-surface);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sq-space-4);
+  padding: 0 clamp(16px, 3vw, var(--sq-space-6));
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.sq-topbar-spacer {
+  flex: 1;
+}
+
+.sq-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sq-user-email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sq-main {
+  flex: 1;
+  min-width: 0;
+  padding: clamp(16px, 4vw, var(--sq-space-8));
+}
+
+@media (max-width: 900px) {
+  .sq-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(280px, 86vw);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform var(--sq-duration-standard, 200ms) ease,
+      visibility 0s linear var(--sq-duration-standard, 200ms);
+    box-shadow: none;
+  }
+
+  .sq-sidebar[data-open='true'] {
+    transform: none;
+    visibility: visible;
+    transition-delay: 0s;
+    box-shadow: 0 0 40px rgba(41, 37, 36, 0.25);
+  }
+
+  .sq-scrim[data-open='true'] {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(41, 37, 36, 0.4);
+  }
+
+  .sq-menu-btn {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 480px) {
+  .sq-user-email {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sq-sidebar {
+    transition: none;
+  }
+}

@@ -85,7 +85,7 @@ private fun PoolList(repository: StoreRepository, onBack: () -> Unit, onSelect: 
     LaunchedEffect(Unit) { load() }
 
     Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp)) {
-        ScreenHeader("Rescue Pool", onBack) {
+        ScreenHeader("Mua chung theo đợt", onBack) {
             IconButton(onClick = { creating = true }, modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).background(SqCoral)) {
                 Icon(Icons.Default.Add, contentDescription = "Tạo đợt", tint = Color.White)
             }

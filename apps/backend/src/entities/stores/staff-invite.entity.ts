@@ -20,6 +20,9 @@ export class StaffInviteEntity {
   @Column({ type: 'varchar', length: 255 })
   email: string;
 
+  @Column({ type: 'varchar', length: 60, nullable: true, name: 'full_name' })
+  fullName: string | null;
+
   @Column({
     type: 'enum',
     enum: StorePermission,

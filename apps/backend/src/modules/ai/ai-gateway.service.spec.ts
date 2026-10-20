@@ -12,6 +12,8 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { ForbiddenException } from '@nestjs/common';
 import { QuotaService } from '../subscriptions/quota.service';
 
 describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
@@ -26,6 +28,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
   let reviewRepo: any;
   let complaintRepo: any;
   let storeRepo: any;
+  let settingsRepo: any;
   let quotaService: any;
 
   beforeEach(async () => {
@@ -35,6 +38,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'conv-1', ...d })),
     };
     messageRepo = {
+      find: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation((d) => ({ id: 'msg-1', ...d })),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'msg-1', ...d })),
     };
@@ -69,6 +73,10 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
         description: 'Bánh mì giao đến bị nguội và thiếu nước xốt',
       }),
     };
+    settingsRepo = {
+      findOne: jest.fn().mockResolvedValue({ storeId: 'store-1', aiConfig: null }),
+      save: jest.fn(),
+    };
     storeRepo = {
       findOne: jest.fn().mockResolvedValue({ id: 'store-1', name: 'Tiệm Bánh Mì Việt' }),
     };
@@ -94,6 +102,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
         { provide: getRepositoryToken(ComplaintEntity), useValue: complaintRepo },
         { provide: getRepositoryToken(StoreEntity), useValue: storeRepo },
+        { provide: getRepositoryToken(StoreSettingsEntity), useValue: settingsRepo },
         { provide: QuotaService, useValue: quotaService },
       ],
     }).compile();
@@ -108,7 +117,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
       });
 
       expect(res.conversationId).toBe('conv-1');
-      expect(res.reply).toContain('SurplusIQ');
+      expect(res.reply).toContain('Số liệu hệ thống'); // không bịa lời khuyên, chỉ nêu số liệu có thật
       expect(logRepo.save).toHaveBeenCalled();
       expect(quotaService.consume).toHaveBeenCalled();
     });
@@ -143,17 +152,43 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
     });
   });
 
+  describe('cấu hình AI (R2-122)', () => {
+    it('mặc định cho dùng mọi nhóm; tắt nhóm hoặc tắt cho Quản lý thì chặn', async () => {
+      await expect(
+        service.assertFeatureAllowed('store-1', 'chat', 'MANAGER'),
+      ).resolves.toBeUndefined();
+
+      settingsRepo.findOne.mockResolvedValue({ aiConfig: { chat: false } });
+      await expect(service.assertFeatureAllowed('store-1', 'chat', 'OWNER')).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      settingsRepo.findOne.mockResolvedValue({ aiConfig: { managerCanUse: false } });
+      await expect(service.assertFeatureAllowed('store-1', 'drafts', 'MANAGER')).rejects.toThrow(
+        ForbiddenException,
+      );
+      await expect(
+        service.assertFeatureAllowed('store-1', 'drafts', 'OWNER'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
   describe('generateWeeklySummary (R2-111)', () => {
     it('tổng hợp số liệu tuần và sinh câu chuyện tác động môi trường', async () => {
+      const recent = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+      const old = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
       orderRepo.find.mockResolvedValue([
-        { quantity: 5, totalAmount: 150000, status: OrderStatus.PICKED_UP },
-        { quantity: 3, totalAmount: 90000, status: OrderStatus.PICKED_UP },
+        { quantity: 5, totalAmount: 150000, status: OrderStatus.PICKED_UP, createdAt: recent },
+        { quantity: 3, totalAmount: 90000, status: OrderStatus.PICKED_UP, createdAt: recent },
+        { quantity: 9, totalAmount: 500000, status: OrderStatus.PICKED_UP, createdAt: old },
       ]);
 
       const res = await service.generateWeeklySummary('store-1', 'user-1');
-      expect(res.foodSavedKg).toBe(3.2); // (5+3) * 0.4
+      expect(res.foodSavedKg).toBe(3.2); // chỉ 7 ngày gần nhất: (5+3) * 0.4
       expect(res.co2SavedKg).toBe(8.0); // 3.2 * 2.5
       expect(res.totalRevenue).toBe(240000);
+      expect(res.previous.revenue).toBe(500000);
+      expect(res.keyInsights[0]).toContain('giảm');
       expect(res.summary).toBeDefined();
     });
   });

@@ -34,6 +34,8 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
 import { StoreMemberEntity, StorePermission } from '../../entities/stores/store-member.entity';
+import { PlanGuard } from '../../common/guards/plan.guard';
+import { RequiresPlan } from '../../common/decorators/requires-plan.decorator';
 
 type StoreRequest = { storeMember?: StoreMemberEntity };
 
@@ -47,7 +49,8 @@ type StoreRequest = { storeMember?: StoreMemberEntity };
 @Controller('store/rescue-lab')
 @Channel('STORE')
 @Roles(UserRole.STORE_USER)
-@UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard, StorePermissionGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard, StorePermissionGuard, PlanGuard)
+@RequiresPlan()
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
 export class RescueLabController {

@@ -104,7 +104,7 @@ export function ItemsPage() {
             background: 'var(--sq-surface)',
             border: '1px solid var(--sq-line)',
             borderRadius: 'var(--sq-radius-lg)',
-            overflow: 'hidden',
+            overflowX: 'auto',
           }}
         >
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>

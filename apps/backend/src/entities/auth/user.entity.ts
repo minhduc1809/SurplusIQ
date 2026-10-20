@@ -39,6 +39,10 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 255, name: 'password_hash' })
   passwordHash: string;
 
+  /** Họ tên của chủ hoặc nhân viên cửa hàng; khách dùng customer_profiles.full_name. */
+  @Column({ type: 'varchar', length: 60, nullable: true, name: 'full_name' })
+  fullName: string | null;
+
   @Column({
     type: 'enum',
     enum: UserRole,

@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, MoreThanOrEqual } from 'typeorm';
 import {
   AiConversationEntity,
   AiUserRole,
@@ -15,6 +21,8 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { UpdateAiConfigDto } from './dto/ai-config.dto';
 import {
   StoreAiChatDto,
   DescribeItemDto,
@@ -30,6 +38,24 @@ import {
 } from './dto/ai.dto';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
+
+export type AiFeatureKey = 'chat' | 'weeklySummary' | 'drafts';
+
+export interface AiConfig {
+  chat: boolean;
+  weeklySummary: boolean;
+  drafts: boolean;
+  managerCanUse: boolean;
+  defaultTone: 'FRIENDLY' | 'FORMAL' | 'APOLOGETIC';
+}
+
+export const DEFAULT_AI_CONFIG: AiConfig = {
+  chat: true,
+  weeklySummary: true,
+  drafts: true,
+  managerCanUse: true,
+  defaultTone: 'FRIENDLY',
+};
 
 @Injectable()
 export class AiGatewayService {
@@ -56,6 +82,8 @@ export class AiGatewayService {
     private readonly complaintRepo: Repository<ComplaintEntity>,
     @InjectRepository(StoreEntity)
     private readonly storeRepo: Repository<StoreEntity>,
+    @InjectRepository(StoreSettingsEntity)
+    private readonly settingsRepo: Repository<StoreSettingsEntity>,
     private readonly quotaService: QuotaService,
   ) {}
 
@@ -143,6 +171,134 @@ export class AiGatewayService {
     };
   }
 
+  /** Số liệu 7 ngày gần nhất và 7 ngày trước đó, do hệ thống tính (không do AI). Doanh thu gồm cả đơn khách không đến, như báo cáo. */
+  private async weeklyStats(storeId: string, now = new Date()) {
+    const day = 24 * 60 * 60 * 1000;
+    const orders = await this.orderRepo.find({
+      where: { storeId, createdAt: MoreThanOrEqual(new Date(now.getTime() - 14 * day)) },
+    });
+    const cut = now.getTime() - 7 * day;
+    const calc = (list: OrderEntity[]) => {
+      const r = { orders: list.length, pickedUp: 0, noShow: 0, cancelled: 0, units: 0, revenue: 0 };
+      for (const o of list) {
+        if (o.status === OrderStatus.PICKED_UP) {
+          r.pickedUp++;
+          r.units += o.quantity;
+          r.revenue += o.totalAmount;
+        } else if (o.status === OrderStatus.PICKUP_EXPIRED) {
+          r.noShow++;
+          r.revenue += o.totalAmount;
+        } else if (o.status === OrderStatus.CANCELLED) {
+          r.cancelled++;
+        }
+      }
+      return r;
+    };
+    return {
+      current: calc(orders.filter((o) => new Date(o.createdAt).getTime() >= cut)),
+      previous: calc(orders.filter((o) => new Date(o.createdAt).getTime() < cut)),
+    };
+  }
+
+  private factsText(stats: Awaited<ReturnType<AiGatewayService['weeklyStats']>>): string {
+    const line = (label: string, s: typeof stats.current) =>
+      `${label}: ${s.orders} đơn (${s.pickedUp} đã nhận, ${s.noShow} khách không đến, ${s.cancelled} hủy), ${s.units} suất cứu được, doanh thu ${s.revenue.toLocaleString('vi-VN')} đ.`;
+    return `${line('7 ngày gần nhất', stats.current)}\n${line('7 ngày trước đó', stats.previous)}`;
+  }
+
+  async getAiConfig(storeId: string): Promise<AiConfig> {
+    const row = await this.settingsRepo.findOne({ where: { storeId } });
+    return { ...DEFAULT_AI_CONFIG, ...((row?.aiConfig as Partial<AiConfig>) ?? {}) };
+  }
+
+  async updateAiConfig(storeId: string, dto: UpdateAiConfigDto): Promise<AiConfig> {
+    const row = await this.settingsRepo.findOne({ where: { storeId } });
+    if (!row) throw new NotFoundException('Cửa hàng chưa có cài đặt vận hành.');
+    row.aiConfig = { ...dto };
+    await this.settingsRepo.save(row);
+    return { ...dto };
+  }
+
+  /** Chặn khi cửa hàng đã tắt nhóm tính năng này, hoặc tắt AI cho vai Quản lý. Chủ luôn được dùng nếu tính năng bật. */
+  async assertFeatureAllowed(storeId: string, feature: AiFeatureKey, permission?: string) {
+    const cfg = await this.getAiConfig(storeId);
+    if (!cfg[feature]) {
+      throw new ForbiddenException('Cửa hàng đã tắt tính năng AI này trong cấu hình AI.');
+    }
+    if (permission === 'MANAGER' && !cfg.managerCanUse) {
+      throw new ForbiddenException('Chủ cửa hàng chưa cho phép Quản lý dùng AI.');
+    }
+  }
+
+  /** Danh sách hội thoại của chính người dùng trong cửa hàng (R2-110). */
+  async listStoreConversations(storeId: string, userId: string) {
+    const list = await this.conversationRepo.find({
+      where: { storeId, userId },
+      order: { updatedAt: 'DESC' },
+      take: 50,
+    });
+    return list.map((c) => ({
+      id: c.id,
+      title: c.title,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    }));
+  }
+
+  async getStoreConversation(storeId: string, userId: string, id: string) {
+    const conversation = await this.conversationRepo.findOne({ where: { id, storeId, userId } });
+    if (!conversation) throw new NotFoundException('Cuộc trò chuyện AI không tồn tại.');
+    const messages = await this.messageRepo.find({
+      where: { conversationId: id },
+      order: { createdAt: 'ASC' },
+    });
+    return {
+      id: conversation.id,
+      title: conversation.title,
+      messages: messages.map((m) => ({
+        id: m.id,
+        sender: m.sender,
+        content: m.content,
+        createdAt: m.createdAt,
+      })),
+    };
+  }
+
+  async deleteStoreConversation(storeId: string, userId: string, id: string) {
+    const conversation = await this.conversationRepo.findOne({ where: { id, storeId, userId } });
+    if (!conversation) throw new NotFoundException('Cuộc trò chuyện AI không tồn tại.');
+    await this.messageRepo.delete({ conversationId: id });
+    await this.conversationRepo.delete({ id });
+    return { success: true };
+  }
+
+  async deleteAllStoreConversations(storeId: string, userId: string) {
+    const list = await this.conversationRepo.find({ where: { storeId, userId }, select: ['id'] });
+    if (list.length > 0) {
+      await this.messageRepo.delete({ conversationId: In(list.map((c) => c.id)) });
+      await this.conversationRepo.delete({ id: In(list.map((c) => c.id)) });
+    }
+    return { success: true, deleted: list.length };
+  }
+
+  /** Nhật ký lượt dùng AI của cửa hàng (R2-124), mới nhất trước. */
+  async listStoreAiLogs(storeId: string, page = 1, limit = 20) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const [items, total] = await this.logRepo.findAndCount({
+      where: { storeId },
+      order: { createdAt: 'DESC' },
+      skip: (Math.max(page, 1) - 1) * take,
+      take,
+    });
+    return {
+      items,
+      total,
+      page: Math.max(page, 1),
+      limit: take,
+      totalPages: Math.ceil(total / take),
+    };
+  }
+
   /**
    * Hỏi đáp trợ lý AI thông minh dành cho chủ cửa hàng (R2-108..R2-110)
    */
@@ -179,7 +335,14 @@ export class AiGatewayService {
       conversation = await this.conversationRepo.save(conversation);
     }
 
-    // 3. Lưu tin nhắn của người dùng
+    // 3. Lịch sử gần nhất để trả lời nhiều lượt, rồi lưu tin nhắn của người dùng
+    const history = (
+      await this.messageRepo.find({
+        where: { conversationId: conversation.id },
+        order: { createdAt: 'DESC' },
+        take: 6,
+      })
+    ).reverse();
     const userMessage = this.messageRepo.create({
       conversationId: conversation.id,
       sender: AiMessageSender.USER,
@@ -187,23 +350,17 @@ export class AiGatewayService {
     });
     await this.messageRepo.save(userMessage);
 
-    // 4. Sinh câu trả lời định hướng nghiệp vụ F&B và xử lý thực phẩm dư thừa
-    let fallbackReply: string;
-    const lower = dto.message.toLowerCase();
-
-    if (lower.includes('giảm giá') || lower.includes('định giá') || lower.includes('giá')) {
-      fallbackReply =
-        'Theo dữ liệu vận hành từ SurplusIQ, khi lượng tồn còn cao sát giờ đóng cửa (dưới 90 phút), bạn nên giảm thêm 15% - 25% (không vượt quá mức sàn 40% giá gốc). Đồng thời, hãy gom các món cùng loại thành Combo hoặc Túi Bất Ngờ để đẩy nhanh tốc độ giải phóng tồn kho.';
-    } else if (lower.includes('mưa') || lower.includes('thời tiết') || lower.includes('ế')) {
-      fallbackReply =
-        'Vào những ngày thời tiết bất lợi, lượng khách vãng lai thường giảm khoảng 35%. Bạn nên mở bán ưu đãi sớm hơn 45 phút trên SurplusIQ và kích hoạt tính năng thông báo flash-sale tới nhóm khách hàng thân thiết trong bán kính 2km.';
-    } else {
-      fallbackReply =
-        'Cảm ơn bạn đã hỏi trợ lý AI SurplusIQ. Để tối ưu hóa doanh thu và giảm thiểu lãng phí thực phẩm hôm nay, bạn có thể: (1) Kiểm tra dự báo sản xuất ngày mai trong mục Kế hoạch, (2) Tạo Túi Bất Ngờ (Surprise Bag) cho các món bánh nướng cuối ngày, (3) Theo dõi biểu đồ giải cứu thực phẩm để quảng bá thương hiệu xanh của quán.';
-    }
+    // 4. Trả lời dựa trên số liệu hệ thống tính; không có số liệu thì nói rõ, không bịa
+    const facts = this.factsText(await this.weeklyStats(storeId));
+    const fallbackReply = `Hiện trợ lý AI chưa trả lời được câu hỏi này. Số liệu hệ thống đang có của cửa hàng:\n${facts}`;
+    const transcript = history
+      .map((m) => `${m.sender === AiMessageSender.USER ? 'Chủ quán' : 'Trợ lý'}: ${m.content}`)
+      .join('\n');
 
     const geminiResult = await this.callGemini(
-      `Bạn là trợ lý vận hành AI của nền tảng giải cứu thực phẩm SurplusIQ dành cho chủ cửa hàng F&B tại Việt Nam. Hãy trả lời ngắn gọn, súc tích bằng tiếng Việt cho câu hỏi sau của chủ quán: "${dto.message}"`,
+      `Bạn là trợ lý vận hành của nền tảng giải cứu thực phẩm SurplusIQ cho chủ cửa hàng F&B tại Việt Nam. Trả lời ngắn gọn bằng tiếng Việt. ` +
+        `Chỉ dùng các số liệu dưới đây, tuyệt đối không bịa thêm số. Nếu câu hỏi cần dữ liệu không có trong đó, nói rõ là chưa có dữ liệu đó.\n` +
+        `Số liệu hệ thống:\n${facts}\n${transcript ? `Hội thoại trước:\n${transcript}\n` : ''}Câu hỏi: "${dto.message}"`,
       fallbackReply,
       process.env.GEMINI_CHAT_MODEL,
     );
@@ -306,36 +463,30 @@ export class AiGatewayService {
    * Tóm tắt báo cáo kinh doanh và tác động môi trường tuần dưới dạng câu chuyện (R2-111)
    */
   async generateWeeklySummary(storeId: string, userId: string) {
-    const pastWeekOrders = await this.orderRepo.find({
-      where: {
-        storeId,
-        status: In([OrderStatus.PICKED_UP, OrderStatus.PICKUP_EXPIRED]),
-      },
-    });
-
-    let totalRevenue = 0;
-    let rescuedItemsCount = 0;
-    for (const ord of pastWeekOrders) {
-      totalRevenue += ord.totalAmount;
-      rescuedItemsCount += ord.quantity;
-    }
-
-    const foodSavedKg = Number((rescuedItemsCount * 0.4).toFixed(1));
+    const stats = await this.weeklyStats(storeId);
+    const { current, previous } = stats;
+    const totalRevenue = current.revenue;
+    const foodSavedKg = Number((current.units * 0.4).toFixed(1));
     const co2SavedKg = Number((foodSavedKg * 2.5).toFixed(1));
 
-    const fallbackSummary = `Tuần qua, cửa hàng của bạn đã đồng hành tuyệt vời cùng cộng đồng SurplusIQ! Nhờ sự chủ động mở bán vào các khung giờ vàng, quán đã giải cứu thành công ${rescuedItemsCount} sản phẩm (tương đương ${foodSavedKg} kg thực phẩm sạch), cắt giảm ${co2SavedKg} kg phát thải khí CO2 ra môi trường, và mang lại tổng doanh thu bổ sung đạt ${totalRevenue.toLocaleString('vi-VN')} VND.`;
+    const fallbackSummary = `7 ngày qua cửa hàng có ${current.orders} đơn, ${current.pickedUp} đơn đã nhận, cứu được ${current.units} suất (khoảng ${foodSavedKg} kg thực phẩm), doanh thu ${totalRevenue.toLocaleString('vi-VN')} đ.`;
 
     const geminiResult = await this.callGemini(
-      `Hãy viết một đoạn tóm tắt truyền cảm hứng (2-3 câu, tiếng Việt) cho chủ cửa hàng F&B trên SurplusIQ với kết quả tuần qua: giải cứu ${rescuedItemsCount} món (${foodSavedKg} kg thực phẩm), giảm ${co2SavedKg} kg CO2 và đạt doanh thu ${totalRevenue.toLocaleString('vi-VN')} VND.`,
+      `Viết 2-3 câu tiếng Việt tóm tắt tuần qua cho chủ cửa hàng. Chỉ dùng số liệu sau, không bịa thêm, không đưa lời khuyên không có căn cứ.\n${this.factsText(stats)}`,
       fallbackSummary,
       process.env.GEMINI_MODEL,
     );
     const narrativeSummary = geminiResult.text;
 
+    const change = (cur: number, prev: number) =>
+      prev > 0
+        ? `${cur >= prev ? 'tăng' : 'giảm'} ${Math.abs(Math.round(((cur - prev) / prev) * 100))}% so với tuần trước`
+        : 'chưa có tuần trước để so sánh';
     const keyInsights = [
-      `Tỷ lệ giải cứu thực phẩm đạt mức ấn tượng với ${rescuedItemsCount} món bánh ngon.`,
-      `Đóng góp giảm thải ${co2SavedKg} kg khí nhà kính cho thành phố xanh.`,
-      'Khuyến nghị tuần tới: Tiếp tục duy trì khung giờ mở bán lúc 18h30 để đón đầu khách hàng tan sở.',
+      `Doanh thu ${totalRevenue.toLocaleString('vi-VN')} đ, ${change(totalRevenue, previous.revenue)}.`,
+      `Số đơn ${current.orders}, ${change(current.orders, previous.orders)}.`,
+      ...(current.noShow > 0 ? [`${current.noShow} đơn khách không đến nhận.`] : []),
+      ...(current.cancelled > 0 ? [`${current.cancelled} đơn bị hủy.`] : []),
     ];
 
     const aiLog = this.logRepo.create({
@@ -355,6 +506,8 @@ export class AiGatewayService {
       co2SavedKg,
       totalRevenue,
       keyInsights,
+      current,
+      previous,
       logId: savedLog.id,
     };
   }
@@ -786,7 +939,7 @@ export class AiGatewayService {
     const store = await this.storeRepo.findOne({ where: { id: storeId } });
     const storeName = store?.name || 'Cửa hàng';
     const rating = review.rating;
-    const tone = dto.tone || 'FRIENDLY';
+    const tone = dto.tone || (await this.getAiConfig(storeId)).defaultTone;
 
     let fallbackDraft: string;
     if (rating >= 4) {

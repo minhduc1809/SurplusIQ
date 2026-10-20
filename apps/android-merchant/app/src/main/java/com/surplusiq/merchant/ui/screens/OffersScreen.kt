@@ -88,8 +88,9 @@ fun OffersScreen(repository: StoreRepository, onNavigate: (String) -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp).padding(top = 20.dp)) {
+        FoodSwitch("offers", onNavigate)
         TabHeader(
-            title = "Suất", addLabel = "Tạo suất", onAdd = { onNavigate("offer-new") },
+            title = "Thực phẩm", addLabel = "Tạo suất", onAdd = { onNavigate("offer-new") },
             menu = listOf(
                 MenuEntry("Nhân bản suất hôm qua", Icons.Default.ContentCopy) { onNavigate("offers-clone") },
                 MenuEntry("Túi bất ngờ", Icons.Default.CardGiftcard) { onNavigate("surprise-bags") },
@@ -98,25 +99,10 @@ fun OffersScreen(repository: StoreRepository, onNavigate: (String) -> Unit) {
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(SqSurface),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { date = date.minusDays(1) }) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Ngày trước", tint = SqInkSoft)
-            }
-            Row(
-                modifier = Modifier.weight(1f).clickable { showPicker = true }.padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = SqCoral, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(dayLabel(date), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SqInk)
-            }
-            IconButton(onClick = { date = date.plusDays(1) }) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Ngày sau", tint = SqInkSoft)
-            }
-        }
+        DatePill(
+            label = dayLabel(date), canNext = true,
+            onPrev = { date = date.minusDays(1) }, onNext = { date = date.plusDays(1) }, onPick = { showPicker = true }
+        )
         Spacer(modifier = Modifier.height(10.dp))
         ChipRow(OFFER_STATUS, status) { status = it }
         Spacer(modifier = Modifier.height(8.dp))
@@ -130,7 +116,7 @@ fun OffersScreen(repository: StoreRepository, onNavigate: (String) -> Unit) {
             isLoading -> FullScreenLoading()
             error != null -> ErrorState(message = error!!, onRetry = { reloadKey++ })
             offers.isEmpty() -> EmptyState("Không có suất nào", "Chưa có suất phù hợp trong ngày này. Bấm + để tạo suất mới.")
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 92.dp)) {
                 items(offers, key = { it.id }) { offer ->
                     OfferCard(offer, offerTitle(offer, lookup)) { onNavigate("offer/${offer.id}") }
                 }

@@ -284,6 +284,22 @@ describe('CatalogService', () => {
     });
   });
 
+  describe('updateTrustpass (CM-B05)', () => {
+    it('chặn công bố khi hạn dùng không sau thời điểm chuẩn bị', async () => {
+      mockItemRepo.findOne.mockResolvedValue({
+        ...mockItemEntity,
+        preparedAt: null,
+        expiryAt: null,
+      });
+      await expect(
+        service.updateTrustpass(mockStoreId, mockItemId, {
+          preparedAt: '2026-10-20T10:00:00Z',
+          expiryAt: '2026-10-20T08:00:00Z',
+        }),
+      ).rejects.toThrow('Hạn dùng phải sau');
+    });
+  });
+
   describe('archiveItem (R2-023, BR-051)', () => {
     it('phải chuyển trạng thái sang ARCHIVED khi không có suất nào đang OPEN', async () => {
       mockItemRepo.findOne.mockResolvedValue({ ...mockItemEntity, status: ItemStatus.ACTIVE });

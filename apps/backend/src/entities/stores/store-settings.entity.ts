@@ -62,6 +62,12 @@ export class StoreSettingsEntity {
   })
   taskReminders: Record<string, unknown> | null;
 
+  @Column({ type: 'jsonb', nullable: true, name: 'segmentation_config' })
+  segmentationConfig: Record<string, unknown> | null;
+
+  @Column({ type: 'jsonb', nullable: true, name: 'ai_config' })
+  aiConfig: Record<string, unknown> | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt: Date;
 

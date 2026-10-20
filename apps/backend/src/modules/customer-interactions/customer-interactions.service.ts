@@ -6,13 +6,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, Not } from 'typeorm';
+import { DataSource, Repository, Not, In } from 'typeorm';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { ComplaintAttachmentEntity } from '../../entities/complaints/complaint-attachment.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
-import { ItemEntity } from '../../entities/catalog/item.entity';
+import { ItemEntity, TrustpassReviewStatus } from '../../entities/catalog/item.entity';
+import { CloudinaryService } from '../uploads/cloudinary.service';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import { ViolationReportEntity } from '../../entities/complaints/violation-report.entity';
 import { SupportTicketEntity, TicketStatus } from '../../entities/complaints/support-ticket.entity';
@@ -30,6 +31,7 @@ import {
   ResolveComplaintDto,
   RejectComplaintDto,
   ReplyReviewDto,
+  ViolationTargetType,
 } from './dto/interaction-extras.dto';
 import {
   PaymentTransactionEntity,
@@ -67,6 +69,7 @@ export class CustomerInteractionsService {
     private readonly paymentTxnRepo: Repository<PaymentTransactionEntity>,
     private readonly dataSource: DataSource,
     private readonly rewardsService: RewardsService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   /**
@@ -593,6 +596,17 @@ export class CustomerInteractionsService {
       reason: dto.reason,
     });
     const saved = await this.violationRepo.save(report);
+
+    // Báo cáo về một deal: chuyển hồ sơ minh bạch của món sang chờ rà soát, không tự kết luận (CM-B05)
+    if (dto.targetType === ViolationTargetType.DEAL) {
+      const offer = await this.offerRepo.findOne({ where: { id: dto.targetId } });
+      if (offer?.itemId) {
+        await this.itemRepo.update(
+          { id: offer.itemId },
+          { reviewStatus: TrustpassReviewStatus.UNDER_REVIEW },
+        );
+      }
+    }
     return saved;
   }
 
@@ -603,6 +617,15 @@ export class CustomerInteractionsService {
   /**
    * Gửi yêu cầu hỗ trợ cho người thật (R1-070)
    */
+  /** Chỉ nhận địa chỉ ảnh do chính hệ thống lưu; không cho gắn đường dẫn tùy ý. */
+  private ownImageUrls(urls?: string[]): string[] {
+    const list = urls ?? [];
+    if (list.some((u) => !this.cloudinary.isOwnImageUrl(u))) {
+      throw new BadRequestException('Ảnh đính kèm không hợp lệ, hãy tải ảnh lên trước.');
+    }
+    return list;
+  }
+
   async createSupportTicket(customerId: string, dto: CreateSupportTicketDto) {
     const activeCount = await this.ticketRepo.count({
       where: {
@@ -619,6 +642,7 @@ export class CustomerInteractionsService {
     const ticket = this.ticketRepo.create({
       userId: customerId,
       subject: dto.subject,
+      category: dto.category ?? 'OTHER',
       status: TicketStatus.OPEN,
     });
     const savedTicket = await this.ticketRepo.save(ticket);
@@ -627,6 +651,7 @@ export class CustomerInteractionsService {
       ticketId: savedTicket.id,
       senderId: customerId,
       message: dto.message,
+      attachmentUrls: this.ownImageUrls(dto.attachmentUrls),
       isInternal: false,
     });
     await this.messageRepo.save(message);
@@ -634,11 +659,24 @@ export class CustomerInteractionsService {
     return savedTicket;
   }
 
+  /** Danh sách yêu cầu; hasNewReply = tin gần nhất là của bộ phận hỗ trợ, đang chờ người dùng trả lời. */
   async getCustomerSupportTickets(customerId: string) {
-    return this.ticketRepo.find({
+    const tickets = await this.ticketRepo.find({
       where: { userId: customerId },
       order: { createdAt: 'DESC' },
     });
+    if (tickets.length === 0) return [];
+    const messages = await this.messageRepo.find({
+      where: { ticketId: In(tickets.map((t) => t.id)), isInternal: false },
+      order: { createdAt: 'ASC' },
+    });
+    const last = new Map<string, (typeof messages)[number]>();
+    for (const m of messages) last.set(m.ticketId, m);
+    return tickets.map((t) => ({
+      ...t,
+      lastMessageAt: last.get(t.id)?.createdAt ?? t.createdAt,
+      hasNewReply: !!last.get(t.id) && last.get(t.id)!.senderId !== customerId,
+    }));
   }
 
   async getSupportTicketDetail(customerId: string, ticketId: string) {
@@ -675,6 +713,7 @@ export class CustomerInteractionsService {
       ticketId,
       senderId: customerId,
       message: dto.message,
+      attachmentUrls: this.ownImageUrls(dto.attachmentUrls),
       isInternal: false,
     });
     const saved = await this.messageRepo.save(msg);

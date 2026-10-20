@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 import { OffersModule } from './modules/offers/offers.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -44,6 +45,7 @@ import { RescueLabModule } from './modules/rescue-lab/rescue-lab.module';
     SubscriptionsModule,
     AuditModule,
     CatalogModule,
+    UploadsModule,
     OffersModule,
     OrdersModule,
     PaymentsModule,

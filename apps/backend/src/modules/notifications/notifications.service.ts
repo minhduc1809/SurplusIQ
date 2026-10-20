@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { CampaignDeliveryEntity } from '../../entities/marketing/campaign-delivery.entity';
 import {
   NotificationEntity,
   NotificationType,
@@ -79,6 +80,15 @@ export class NotificationsService {
     }
     notif.isRead = true;
     notif.readAt = new Date();
+    const campaignId = notif.data?.campaignId;
+    if (typeof campaignId === 'string') {
+      // Khách mở thông báo chiến dịch: ghi nhận để đo tỷ lệ mở (R2-094)
+      await this.notificationRepo.manager?.update(
+        CampaignDeliveryEntity,
+        { campaignId, customerId: userId, openedAt: IsNull() },
+        { openedAt: notif.readAt },
+      );
+    }
     return this.notificationRepo.save(notif);
   }
 
