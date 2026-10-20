@@ -1,9 +1,30 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("kotlin-kapt")
     id("com.google.dagger.hilt.android")
 }
+
+// GOOGLE_SERVER_CLIENT_ID is the OAuth web client id (backend's auth/customer/google audience,
+// same value as .env's GOOGLE_CLIENT_ID). Supply it via local.properties (gitignored) to avoid
+// committing it; falls back to empty string so the build still runs without it.
+val localProperties = Properties().apply {
+    val localPropsFile = rootProject.file("local.properties")
+    if (localPropsFile.exists()) {
+        localPropsFile.inputStream().use { load(it) }
+    }
+}
+val googleServerClientId: String = (localProperties.getProperty("GOOGLE_SERVER_CLIENT_ID")
+    ?: project.findProperty("GOOGLE_SERVER_CLIENT_ID") as String?
+    ?: "")
+
+// MAPS_API_KEY: Google Maps SDK for Android key (bản đồ deal K10, ghim vị trí K08). Cấp trong
+// local.properties (gitignored); để trống thì app vẫn build, màn bản đồ hiện thông báo thiếu key.
+val mapsApiKey: String = (localProperties.getProperty("MAPS_API_KEY")
+    ?: project.findProperty("MAPS_API_KEY") as String?
+    ?: "")
 
 android {
     namespace = "com.surplusiq.app"
@@ -20,6 +41,9 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"$googleServerClientId\"")
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
@@ -40,6 +64,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.11"
@@ -85,6 +110,9 @@ dependencies {
     // Coil Image Loading
     implementation("io.coil-kt:coil-compose:2.6.0")
 
+    // ZXing: sinh ảnh QR thật từ pickupToken đã ký ở backend (màn Vé nhận hàng)
+    implementation("com.google.zxing:core:3.5.3")
+
     // CameraX & ML Kit Barcode
     implementation("androidx.camera:camera-core:1.3.3")
     implementation("androidx.camera:camera-camera2:1.3.3")
@@ -95,4 +123,9 @@ dependencies {
     // Maps Compose
     implementation("com.google.maps.android:maps-compose:4.3.3")
     implementation("com.google.android.gms:play-services-maps:18.2.0")
+
+    // Google Sign-In (Credential Manager)
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }
