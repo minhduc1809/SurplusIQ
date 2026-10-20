@@ -9,6 +9,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -57,6 +60,7 @@ fun ProfileScreen(
     onOpenSavedDeals: () -> Unit = {},
     onOpenDealAlerts: () -> Unit = {},
     onOpenPreferences: () -> Unit = {},
+    onOpenDietaryProfile: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -138,12 +142,12 @@ fun ProfileScreen(
 
         // Lối tắt chính
         MenuGroup {
-            ProfileMenuItem(Icons.Default.ReceiptLong, "Đơn hàng của tôi", "Lịch sử mua hàng", onOpenMyOrders)
-            Divider(color = divider)
+            ProfileMenuItem(Icons.AutoMirrored.Filled.ReceiptLong, "Đơn hàng của tôi", "Lịch sử mua hàng", onOpenMyOrders)
+            HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.Groups, "Mua chung theo đợt", "Đăng ký nhu cầu với cửa hàng", onOpenRescuePool)
-            Divider(color = divider)
+            HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.ConfirmationNumber, "Ví ưu đãi", "Mã giảm giá của bạn", onOpenPromotionWallet)
-            Divider(color = divider)
+            HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.Stars, "Điểm thưởng", "Số dư và lịch sử tích điểm", onOpenRewards)
         }
 
@@ -164,25 +168,25 @@ fun ProfileScreen(
                     Triple(Icons.Default.LocationOn, "Vị trí & địa điểm", onOpenLocationSettings),
                     Triple(Icons.Default.Bookmarks, "Deal đã lưu & đã xem", onOpenSavedDeals),
                     Triple(Icons.Default.NotificationsActive, "Cảnh báo deal", onOpenDealAlerts),
-                    Triple(Icons.Default.RestaurantMenu, "Hồ sơ ăn uống & dị ứng", onOpenPreferences),
+                    Triple(Icons.Default.RestaurantMenu, "Hồ sơ ăn uống & dị ứng", onOpenDietaryProfile),
                     Triple(Icons.Default.AccountBalanceWallet, "Thanh toán & hoàn tiền", onOpenTransactions),
                     Triple(Icons.Default.ReportProblem, "Khiếu nại của tôi", onOpenComplaints),
                     Triple(Icons.Default.RateReview, "Đánh giá của tôi", onOpenMyReviews),
                     Triple(Icons.Default.GppMaybe, "Trạng thái khóa đặt", onOpenOrderLock),
                     Triple(Icons.Default.AutoAwesome, "Trợ lý AI Cứu Món", onOpenAiChat),
                     Triple(Icons.Default.SupportAgent, "Hỗ trợ", onOpenSupportTickets),
-                    Triple(Icons.Default.HelpOutline, "Câu hỏi thường gặp", onOpenHelpCenter),
+                    Triple(Icons.AutoMirrored.Filled.HelpOutline, "Câu hỏi thường gặp", onOpenHelpCenter),
                     Triple(Icons.Default.Shield, "Quyền riêng tư & dữ liệu", onOpenPrivacyData),
                     Triple(Icons.Default.Lock, "Đổi mật khẩu", onOpenChangePassword)
                 ).forEach { (icon, title, action) ->
-                    Divider(color = divider)
+                    HorizontalDivider(color = divider)
                     ProfileMenuItem(icon, title, "", action)
                 }
             }
         }
 
         TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Logout, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text("Đăng xuất", color = TextSecondary, fontWeight = FontWeight.SemiBold)
         }

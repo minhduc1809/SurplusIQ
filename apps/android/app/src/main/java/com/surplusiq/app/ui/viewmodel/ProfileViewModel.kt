@@ -39,7 +39,14 @@ data class ProfileUiState(
     // R1-048, BR-020: trạng thái khóa đặt (K33)
     val orderLock: OrderLockStatusDto? = null,
     val isOrderLockLoading: Boolean = false,
-    val orderLockError: String? = null
+    val orderLockError: String? = null,
+    // R1-016: hồ sơ ăn uống & dị ứng (K58)
+    val allergens: List<String> = emptyList(),
+    val excludedItems: List<String> = emptyList(),
+    val isDietaryLoading: Boolean = false,
+    val dietaryError: String? = null,
+    val isDietarySaving: Boolean = false,
+    val dietarySaveSuccess: Boolean = false
 )
 
 @HiltViewModel
@@ -68,6 +75,53 @@ class ProfileViewModel @Inject constructor(
                 userProfile = profile,
                 favoriteStoreIds = favorites,
                 isLoading = false
+            )
+        }
+    }
+
+    fun loadDietaryProfile() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isDietaryLoading = true, dietaryError = null, dietarySaveSuccess = false)
+            val result = profileRepository.getDietaryProfile()
+            result.fold(
+                onSuccess = { dto ->
+                    _uiState.value = _uiState.value.copy(
+                        allergens = dto.allergens,
+                        excludedItems = dto.excludedItems,
+                        isDietaryLoading = false
+                    )
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isDietaryLoading = false,
+                        dietaryError = err.localizedMessage ?: "Không thể tải hồ sơ ăn uống"
+                    )
+                }
+            )
+        }
+    }
+
+    fun saveDietaryProfile(allergens: List<String>, excludedItems: List<String>, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isDietarySaving = true, dietaryError = null, dietarySaveSuccess = false)
+            val result = profileRepository.updateDietaryProfile(allergens, excludedItems)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        allergens = allergens,
+                        excludedItems = excludedItems,
+                        isDietarySaving = false,
+                        dietarySaveSuccess = true
+                    )
+                    onComplete(true)
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isDietarySaving = false,
+                        dietaryError = err.localizedMessage ?: "Lỗi cập nhật hồ sơ ăn uống"
+                    )
+                    onComplete(false)
+                }
             )
         }
     }
