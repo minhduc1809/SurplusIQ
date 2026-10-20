@@ -34,9 +34,9 @@ Qua đối chiếu trực tiếp giữa mã nguồn hoạt động (`apps/backen
 
 ```
 [Phase 1] ───► [Phase 2] ───────────► [Phase 3] ───────► [Phase 4]
-An toàn & Cửa   Hậu mãi, Đánh giá     Rescue Basket &    Mở rộng & Tăng
-ngõ tìm kiếm    & Media Upload        Rescue Pool nâng   trưởng (KX01-18)
-(P0 - 3 ngày)   (P1 - 4 ngày)         cao (P2 - 4 ngày)  (P3 - backlog)
+An toàn & Cửa   Hậu mãi, Media,       Rescue Basket &    Mở rộng & Tăng
+ngõ tìm kiếm    Bản đồ OSM & Socket   Rescue Pool nâng   trưởng (KX01-18)
+(P0 - ĐÃ XONG)  (P1 - Đang làm)       cao (P2 - 4 ngày)  (P3 - backlog)
 ```
 
 ---
@@ -111,6 +111,26 @@ ngõ tìm kiếm    & Media Upload        Rescue Pool nâng   trưởng (KX01-18
 #### Task 2.3: [K57] Màn hình Cài đặt thông báo độc lập
 - **Android:**
   - Tách thành màn `NotificationSettingsScreen.kt` riêng biệt với 5 nhóm thông báo và giờ yên lặng.
+
+#### Task 2.4: [K08, K10, Backend, Web] Chuyển Đổi Bản Đồ Mở (OpenStreetMap) & Realtime WebSocket Engine
+- **Mục tiêu chiến lược:**
+  - Loại bỏ hoàn toàn sự phụ thuộc vào Google Maps SDK đắt đỏ và rào cản `MAPS_API_KEY` (không cần khai báo thẻ Visa/Billing, chi phí 0 đồng, clone repo là chạy ngay).
+  - Biến bản đồ thành "Bản đồ nhiệt cứu thực phẩm thời gian thực" với WebSocket.
+- **Chi tiết triển khai kỹ thuật (Phương án A - Native Performance):**
+  1. **Android Client (`apps/android`):**
+     - Chuyển đổi từ `com.google.maps.android:maps-compose` sang **MapLibre Android SDK** (hoặc **OsmDroid**) tích hợp Jetpack Compose.
+     - Sử dụng vector/raster tiles từ OpenStreetMap (OSM / CartoDB Voyager).
+     - Tái cấu trúc **K08 (`PinLocationScreen`)**: Kéo ghim tâm bản đồ, chọn bán kính (Radius Circle), tìm kiếm địa chỉ qua Nominatim / OSM Geocoding.
+     - Tái cấu trúc **K10 (`DealMapScreen`)**: Hiển thị Marker quán có deal theo toạ độ thật, cụm Marker (Clustering) khi mật độ dày đặc.
+  2. **Web Dashboard (`apps/web`):**
+     - Tích hợp **Leaflet + OpenStreetMap** (`react-leaflet`) cho giao diện Quản trị Quán & Khám phá đối tác.
+  3. **Realtime WebSocket Engine (`apps/backend` + Client):**
+     - Mở rộng NestJS WebSocket Gateway (`CustomerGateway` / `DealsGateway`) với Redis adapter.
+     - Lắng nghe các sự kiện:
+       - `deal.stock_updated`: Cập nhật trực tiếp số suất còn lại trên Badge của Marker (xanh: còn nhiều, cam: sắp hết < 3, xám: đã hết suất).
+       - `deal.flash_rescue`: Hiệu ứng Marker nảy sáng khi có quán gần đó bất ngờ tung deal xả hàng cận giờ.
+       - `order.hold_reserved`: Đổi trạng thái suất ngay khi có khách khác đặt giữ đơn 10 phút.
+     - Android Client kết nối Socket.io client quản lý qua vòng đời ViewModel (`DiscoveryViewModel`).
 
 ---
 
