@@ -32,6 +32,9 @@ interface NotificationsApiService {
     @PATCH("customer/notifications/read-all")
     suspend fun markAllAsRead(): Response<MarkAllReadResponse>
 
+    @GET("customer/notification-settings")
+    suspend fun getSettings(): Response<NotificationSettingsDto>
+
     @PUT("customer/notification-settings")
     suspend fun updateSettings(
         @Body request: UpdateNotificationSettingsRequest

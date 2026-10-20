@@ -85,6 +85,7 @@ import com.surplusiq.app.ui.screens.postpurchase.MyReviewsScreen
 import com.surplusiq.app.ui.screens.postpurchase.ReportTarget
 import com.surplusiq.app.ui.screens.postpurchase.ReportViolationScreen
 import com.surplusiq.app.ui.screens.profile.EditProfileScreen
+import com.surplusiq.app.ui.screens.profile.NotificationSettingsScreen
 import com.surplusiq.app.ui.screens.profile.TransactionHistoryScreen
 import com.surplusiq.app.ui.screens.rewards.PromotionWalletScreen
 import com.surplusiq.app.ui.viewmodel.PromotionWalletViewModel
@@ -133,6 +134,7 @@ sealed class AppDestination {
     object Search : AppDestination()
     data class StoreReviews(val storeId: String, val back: AppDestination = MainTabs) : AppDestination()
     object EditProfile : AppDestination()
+    object NotificationSettings : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -789,6 +791,13 @@ fun SurplusAppRoot(
             )
         }
 
+        is AppDestination.NotificationSettings -> {
+            NotificationSettingsScreen(
+                viewModel = notificationsViewModel,
+                onBackClick = { currentDestination = AppDestination.MainTabs }
+            )
+        }
+
         is AppDestination.SavedDeals -> {
             SavedDealsScreen(
                 state = savedDealsState,
@@ -1044,6 +1053,9 @@ fun SurplusAppRoot(
                                 onOpenDietaryProfile = {
                                     profileViewModel.loadDietaryProfile()
                                     currentDestination = AppDestination.DietaryProfile
+                                },
+                                onOpenNotificationSettings = {
+                                    currentDestination = AppDestination.NotificationSettings
                                 },
                                 onLogout = { authViewModel.logout() }
                             )

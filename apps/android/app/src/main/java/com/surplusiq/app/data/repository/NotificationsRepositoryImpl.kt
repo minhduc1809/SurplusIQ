@@ -50,6 +50,22 @@ class NotificationsRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getSettings(): Result<NotificationSettings> {
+        return try {
+            val response = notificationsApiService.getSettings()
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                Result.success(
+                    NotificationSettings(body.transactionPush, body.promoPush, body.reminderPush)
+                )
+            } else {
+                Result.failure(Exception("Không thể tải cài đặt thông báo (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun updateSettings(settings: NotificationSettings): Result<NotificationSettings> {
         return try {
             val response = notificationsApiService.updateSettings(

@@ -66,6 +66,7 @@ fun ProfileScreen(
     onOpenDealAlerts: () -> Unit = {},
     onOpenPreferences: () -> Unit = {},
     onOpenDietaryProfile: () -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -216,6 +217,7 @@ fun ProfileScreen(
                     Triple(Icons.Default.LocationOn, "Vị trí & địa điểm", onOpenLocationSettings),
                     Triple(Icons.Default.Bookmarks, "Deal đã lưu & đã xem", onOpenSavedDeals),
                     Triple(Icons.Default.NotificationsActive, "Cảnh báo deal", onOpenDealAlerts),
+                    Triple(Icons.Default.Notifications, "Cài đặt thông báo", onOpenNotificationSettings),
                     Triple(Icons.Default.RestaurantMenu, "Hồ sơ ăn uống & dị ứng", onOpenDietaryProfile),
                     Triple(Icons.Default.AccountBalanceWallet, "Thanh toán & hoàn tiền", onOpenTransactions),
                     Triple(Icons.Default.ReportProblem, "Khiếu nại của tôi", onOpenComplaints),
