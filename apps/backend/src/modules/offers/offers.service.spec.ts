@@ -4,7 +4,13 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { OffersService } from './offers.service';
 import { OfferEntity, OfferKind, OfferStatus } from '../../entities/catalog/offer.entity';
 import { OfferEventEntity, OfferEventType } from '../../entities/catalog/offer-event.entity';
-import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
+import {
+  ItemEntity,
+  ItemStatus,
+  TrustpassInformationSource,
+  TrustpassVerificationStatus,
+  TrustpassReviewStatus,
+} from '../../entities/catalog/item.entity';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QuotaService } from '../subscriptions/quota.service';
@@ -62,6 +68,15 @@ describe('OffersService', () => {
     description: 'Bánh mì thơm ngon',
     nutritionEstimate: null,
     status: ItemStatus.ACTIVE,
+    preparedAt: null,
+    expiryAt: null,
+    storageInstructions: null,
+    informationSource: TrustpassInformationSource.STORE,
+    verificationStatus: TrustpassVerificationStatus.DECLARED,
+    trustpassVersion: 1,
+    trustpassPublishedAt: null,
+    trustpassUpdatedBy: null,
+    reviewStatus: TrustpassReviewStatus.NONE,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

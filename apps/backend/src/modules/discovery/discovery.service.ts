@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
+import { TrustpassView } from './trustpass-view.interface';
 import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
 import { SavedDealEntity } from '../../entities/auth/saved-deal.entity';
 import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
@@ -13,6 +14,8 @@ import { QueryDealsDto, DealSortBy } from './dto/query-deals.dto';
 import { QueryMapDealsDto } from './dto/query-map-deals.dto';
 import { CreateDealAlertDto, UpdateDealAlertDto } from './dto/deal-alert.dto';
 import { CreateSavedFilterDto } from './dto/saved-filter.dto';
+import { QueryRadarDto } from './dto/query-radar.dto';
+import { SuggestBasketDto } from './dto/suggest-basket.dto';
 
 export interface DealResponseItem {
   id: string;
@@ -83,6 +86,7 @@ export class DiscoveryService {
       .andWhere('s.status = :storeStatus', { storeStatus: StoreStatus.ACTIVE });
 
     // 1. Áp dụng truy vấn không gian PostGIS nếu khách có tọa độ
+    let distanceSelectExpr = 'NULL';
     if (hasCoords) {
       const radiusMeters = (query.radiusKm || 2) * 1000;
       qb.andWhere(
@@ -93,12 +97,8 @@ export class DiscoveryService {
           radiusMeters,
         },
       );
-      qb.addSelect(
-        'ROUND(ST_Distance(s.location::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography))',
-        'distance_meters',
-      );
-    } else {
-      qb.addSelect('NULL', 'distance_meters');
+      distanceSelectExpr =
+        'ROUND(ST_Distance(s.location::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography))';
     }
 
     // 2. Bộ lọc danh mục món (R1-023)
@@ -167,6 +167,7 @@ export class DiscoveryService {
       's.address AS store_address',
       's.logo_url AS store_logo_url',
     ]);
+    qb.addSelect(distanceSelectExpr, 'distance_meters');
 
     // Đếm tổng số deal khớp
     const totalCount = await qb.getCount();
@@ -235,6 +236,7 @@ export class DiscoveryService {
       .andWhere('s.status = :storeStatus', { storeStatus: StoreStatus.ACTIVE })
       .andWhere('s.location IS NOT NULL');
 
+    let distanceSelectExpr = 'NULL';
     if (hasCoords) {
       const radiusMeters = (query.radiusKm || 5) * 1000;
       qb.andWhere(
@@ -245,18 +247,16 @@ export class DiscoveryService {
           radiusMeters,
         },
       );
-      qb.addSelect(
-        'ROUND(ST_Distance(s.location::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography))',
-        'distance_meters',
-      );
-    } else {
-      qb.addSelect('NULL', 'distance_meters');
+      distanceSelectExpr =
+        'ROUND(ST_Distance(s.location::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography))';
     }
 
     if (query.category) {
       qb.andWhere('i.category ILIKE :category', { category: `%${query.category}%` });
     }
 
+    // distance_meters đưa vào cùng select() - addSelect() sau select() sẽ bị
+    // TypeORM reset mất cột đã thêm trước đó, đây là lỗi đã vá (xem findNearbyDeals).
     qb.groupBy('s.id')
       .addGroupBy('s.name')
       .addGroupBy('s.address')
@@ -273,6 +273,7 @@ export class DiscoveryService {
         'MIN(o.current_price) AS min_price',
         'MAX((1.0 - CAST(o.current_price AS FLOAT) / o.original_price) * 100) AS max_discount_percent',
       ]);
+    qb.addSelect(distanceSelectExpr, 'distance_meters');
 
     const rawPins = await qb.getRawMany();
 
@@ -355,6 +356,7 @@ export class DiscoveryService {
             standardShelfLifeHours: item.standardShelfLifeHours,
           }
         : null,
+      trustpass: item ? this.buildTrustpassView(item) : null,
       store: {
         id: store.id,
         name: store.name,
@@ -366,6 +368,57 @@ export class DiscoveryService {
         averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 5.0,
         reviewsCount: reviewStats?.review_count ? Number(reviewStats.review_count) : 0,
       },
+    };
+  }
+
+  /**
+   * TrustPass (CM-C03, BR-C03-01..08): hồ sơ minh bạch món, không phải chứng nhận
+   * an toàn tuyệt đối. Trường thiếu trả null + liệt kê trong missingFields để FE
+   * hiển thị "Chưa được cung cấp", không suy diễn thành "không có" (BR-C03-02).
+   */
+  private buildTrustpassView(item: ItemEntity): TrustpassView {
+    const missingFields: string[] = [];
+    if (!item.ingredients) missingFields.push('ingredients');
+    if (!item.allergens || item.allergens.length === 0) missingFields.push('allergens');
+    if (!item.expiryAt) missingFields.push('expiryAt');
+    if (!item.storageInstructions) missingFields.push('storageInstructions');
+
+    return {
+      itemId: item.id,
+      ingredients: item.ingredients || null,
+      allergens: item.allergens && item.allergens.length > 0 ? item.allergens : null,
+      expiryAt: item.expiryAt || null,
+      pickupWindowNote: 'Hạn dùng khác khung nhận hàng của suất, không thay thế nhau (BR-B05-05).',
+      storageInstructions: item.storageInstructions || null,
+      informationSource: item.informationSource,
+      verificationStatus: item.verificationStatus,
+      versionNo: item.trustpassVersion,
+      publishedAt: item.trustpassPublishedAt || null,
+      reviewStatus: item.reviewStatus,
+      missingFields,
+    };
+  }
+
+  /** CM-C03: endpoint tường minh xem TrustPass của một deal. */
+  async getDealTrustpass(offerId: string): Promise<TrustpassView> {
+    const offer = await this.offerRepo.findOne({ where: { id: offerId } });
+    if (!offer) {
+      throw new NotFoundException('Suất cứu món không tồn tại hoặc đã hết hiệu lực.');
+    }
+    if (!offer.itemId) {
+      throw new NotFoundException('Suất này chưa gắn với món nào để xem TrustPass.');
+    }
+    const item = await this.itemRepo.findOne({ where: { id: offer.itemId } });
+    if (!item) {
+      throw new NotFoundException('Không tìm thấy món của suất này.');
+    }
+    // Món hết/đóng không hiển thị như đang bán - báo rõ trạng thái cho FE (BR-C03-05).
+    const isOfferActive =
+      offer.status === OfferStatus.OPEN &&
+      offer.remainingQuantity > 0 &&
+      new Date(offer.pickupEnd) > new Date();
+    return { ...this.buildTrustpassView(item), isOfferActive } as TrustpassView & {
+      isOfferActive: boolean;
     };
   }
 
@@ -756,6 +809,271 @@ export class DiscoveryService {
   async clearViewHistory(userId: string): Promise<{ success: boolean; message: string }> {
     await this.viewHistoryRepo.delete({ userId });
     return { success: true, message: 'Đã xóa toàn bộ lịch sử xem deal thành công.' };
+  }
+
+  /**
+   * Rescue Radar (CM-C05): xếp hạng deal theo khả năng nhận kịp, phù hợp ngân sách
+   * và còn khả dụng - không chỉ khoảng cách/giảm giá (BR-C05-01..07). Chỉ dùng
+   * suất thật đang mở; không khẳng định "đến kịp" khi thiếu nguồn thời gian di
+   * chuyển hợp lệ (BR-C05-04).
+   */
+  async getRadarRanking(query: QueryRadarDto) {
+    const hasCoords =
+      query.latitude !== undefined &&
+      query.latitude !== null &&
+      query.longitude !== undefined &&
+      query.longitude !== null;
+    const limit = query.limit && query.limit > 0 ? query.limit : 20;
+
+    const qb = this.offerRepo
+      .createQueryBuilder('o')
+      .innerJoin(StoreEntity, 's', 's.id = o.store_id')
+      .leftJoin(ItemEntity, 'i', 'i.id = o.item_id')
+      .where('o.status = :status', { status: OfferStatus.OPEN })
+      .andWhere('o.remaining_quantity > 0')
+      .andWhere('o.pickup_end > NOW()')
+      .andWhere('s.status = :storeStatus', { storeStatus: StoreStatus.ACTIVE });
+
+    let distanceSelectExpr = 'NULL';
+    if (hasCoords) {
+      const radiusMeters = (query.radiusKm || 5) * 1000;
+      qb.andWhere(
+        's.location IS NOT NULL AND ST_DWithin(s.location::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radiusMeters)',
+        { lng: query.longitude, lat: query.latitude, radiusMeters },
+      );
+      distanceSelectExpr =
+        'ROUND(ST_Distance(s.location::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography))';
+    }
+
+    if (query.budgetMax !== undefined && query.budgetMax !== null) {
+      qb.andWhere('o.current_price <= :budgetMax', { budgetMax: query.budgetMax });
+    }
+
+    // distance_meters đưa vào cùng select() - addSelect() sau select() sẽ bị
+    // TypeORM reset mất cột đã thêm trước đó.
+    qb.select([
+      'o.id AS offer_id',
+      'o.store_id AS store_id',
+      'o.item_id AS item_id',
+      'o.original_price AS original_price',
+      'o.current_price AS current_price',
+      'o.remaining_quantity AS remaining_quantity',
+      'o.pickup_start AS pickup_start',
+      'o.pickup_end AS pickup_end',
+      'i.name AS item_name',
+      'i.category AS item_category',
+      'i.image_url AS item_image_url',
+      's.name AS store_name',
+      's.address AS store_address',
+    ]);
+    qb.addSelect(distanceSelectExpr, 'distance_meters');
+
+    const rawResults = await qb.limit(500).getRawMany();
+    const now = Date.now();
+
+    const ranked = rawResults.map((r) => {
+      const distanceMeters = r.distance_meters !== null ? Number(r.distance_meters) : null;
+      const minutesLeft = Math.max(0, (new Date(r.pickup_end).getTime() - now) / 60000);
+      const orig = Number(r.original_price || 0);
+      const curr = Number(r.current_price || 0);
+      const discountPercent = orig > 0 ? Math.round(((orig - curr) / orig) * 100) : 0;
+      const remaining = Number(r.remaining_quantity || 0);
+
+      // BR-C05-03: lý do xếp hạng phải có căn cứ - tính điểm từ 3 yếu tố quan sát được.
+      const reasons: string[] = [];
+      let score = 0;
+
+      if (distanceMeters !== null) {
+        const distanceScore = Math.max(0, 1 - distanceMeters / ((query.radiusKm || 5) * 1000));
+        score += distanceScore * 40;
+        reasons.push(`Cách bạn khoảng ${(distanceMeters / 1000).toFixed(1)}km`);
+      } else {
+        reasons.push('Chưa có vị trí để tính khoảng cách - nhập địa điểm để cải thiện xếp hạng');
+      }
+
+      const timeScore = Math.min(1, minutesLeft / 120);
+      score += timeScore * 35;
+      reasons.push(
+        minutesLeft > 30
+          ? `Còn ${Math.round(minutesLeft)} phút để nhận`
+          : `Sắp hết giờ nhận - chỉ còn ${Math.round(minutesLeft)} phút`,
+      );
+
+      const stockScore = Math.min(1, remaining / 5);
+      score += stockScore * 15;
+      if (remaining <= 1) reasons.push('Chỉ còn 1 suất - rủi ro hết hàng khi bạn tới');
+
+      score += Math.min(1, discountPercent / 100) * 10;
+      if (discountPercent > 0) reasons.push(`Giảm ${discountPercent}% so với giá gốc`);
+
+      // BR-C05-04: không khẳng định "đến kịp" khi thiếu nguồn thời gian di chuyển hợp lệ.
+      const canArriveInTime = query.travelTimeSource ? minutesLeft > 10 : null; // null = chưa đủ dữ liệu để khẳng định
+
+      return {
+        id: r.offer_id,
+        storeId: r.store_id,
+        itemId: r.item_id,
+        storeName: r.store_name,
+        storeAddress: r.store_address,
+        title: r.item_name || 'Suất cứu món',
+        category: r.item_category || 'Khác',
+        imageUrl: r.item_image_url,
+        originalPrice: orig,
+        currentPrice: curr,
+        discountPercent,
+        remainingQuantity: remaining,
+        pickupEnd: new Date(r.pickup_end),
+        distanceMeters,
+        minutesLeftToPickup: Math.round(minutesLeft),
+        canArriveInTime,
+        travelTimeSource: query.travelTimeSource || null,
+        rankingScore: Math.round(score * 100) / 100,
+        rankingReasons: reasons,
+      };
+    });
+
+    ranked.sort((a, b) => b.rankingScore - a.rankingScore);
+
+    return {
+      data: ranked.slice(0, limit),
+      meta: {
+        total: ranked.length,
+        locationSource: hasCoords ? 'GPS_OR_SELECTED' : 'NONE',
+      },
+    };
+  }
+
+  /**
+   * Rescue Basket (CM-C01): gợi ý tổ hợp suất theo ngân sách/số người/khung nhận,
+   * chỉ dùng suất thật, không giữ tồn, không tạo đơn (BR-C01-01, BR-C01-02).
+   * MVP ưu tiên một cửa hàng/điểm nhận (BR-C01-06).
+   */
+  async suggestBasket(dto: SuggestBasketDto) {
+    const hasCoords = dto.latitude !== undefined && dto.longitude !== undefined;
+
+    const qb = this.offerRepo
+      .createQueryBuilder('o')
+      .innerJoin(StoreEntity, 's', 's.id = o.store_id')
+      .leftJoin(ItemEntity, 'i', 'i.id = o.item_id')
+      .where('o.status = :status', { status: OfferStatus.OPEN })
+      .andWhere('o.remaining_quantity > 0')
+      .andWhere('o.pickup_end > NOW()')
+      .andWhere('s.status = :storeStatus', { storeStatus: StoreStatus.ACTIVE });
+
+    if (hasCoords) {
+      const radiusMeters = (dto.radiusKm || 5) * 1000;
+      qb.andWhere(
+        's.location IS NOT NULL AND ST_DWithin(s.location::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radiusMeters)',
+        { lng: dto.longitude, lat: dto.latitude, radiusMeters },
+      );
+    }
+
+    qb.select([
+      'o.id AS offer_id',
+      'o.store_id AS store_id',
+      'o.item_id AS item_id',
+      'o.current_price AS current_price',
+      'o.original_price AS original_price',
+      'o.remaining_quantity AS remaining_quantity',
+      'o.pickup_start AS pickup_start',
+      'o.pickup_end AS pickup_end',
+      'i.name AS item_name',
+      'i.allergens AS item_allergens',
+      's.name AS store_name',
+    ]);
+
+    const rawOffers = await qb.limit(300).getRawMany();
+
+    // BR-C01-07: thiếu dữ liệu dị ứng không đồng nghĩa không có chất gây dị ứng -
+    // chỉ loại suất có allergens khai báo trùng với avoidAllergens, không loại suất
+    // chưa khai báo (vì không thể khẳng định an toàn hay không an toàn).
+    const avoid = (dto.avoidAllergens || []).map((a) => a.toLowerCase());
+    const filtered = rawOffers.filter((o) => {
+      if (avoid.length === 0) return true;
+      const allergens: string[] = o.item_allergens || [];
+      const hasDeclaredAllergen = allergens.some((a) => avoid.includes(a.toLowerCase()));
+      return !hasDeclaredAllergen;
+    });
+
+    // Gom theo cửa hàng (BR-C01-06: MVP ưu tiên một cửa hàng/điểm nhận).
+    const byStore = new Map<string, typeof filtered>();
+    for (const o of filtered) {
+      const list = byStore.get(o.store_id) || [];
+      list.push(o);
+      byStore.set(o.store_id, list);
+    }
+
+    interface BasketCandidate {
+      storeId: string;
+      storeName: string;
+      items: Array<{ offerId: string; title: string; price: number }>;
+      estimatedTotal: number;
+      pickupEnd: Date;
+    }
+
+    const candidates: BasketCandidate[] = [];
+    for (const [storeId, offers] of byStore) {
+      if (offers.length === 0) continue;
+      // Sắp theo giá tăng dần, chọn tham lam cho đến khi đủ số người hoặc hết ngân sách.
+      const sorted = [...offers].sort((a, b) => Number(a.current_price) - Number(b.current_price));
+      const picked: typeof sorted = [];
+      let total = 0;
+      for (const o of sorted) {
+        const price = Number(o.current_price);
+        if (picked.length >= dto.peopleCount) break;
+        if (total + price > dto.budgetMax) continue;
+        picked.push(o);
+        total += price;
+      }
+      if (picked.length === 0) continue;
+
+      candidates.push({
+        storeId,
+        storeName: offers[0].store_name,
+        items: picked.map((o) => ({
+          offerId: o.offer_id,
+          title: o.item_name || 'Suất cứu món',
+          price: Number(o.current_price),
+        })),
+        estimatedTotal: total,
+        pickupEnd: picked.reduce(
+          (min, o) => (new Date(o.pickup_end) < min ? new Date(o.pickup_end) : min),
+          new Date(picked[0].pickup_end),
+        ),
+      });
+    }
+
+    // Xếp hạng: đủ số người trước, rồi tổng giá thấp hơn, rồi nhiều lựa chọn hơn (đa dạng).
+    candidates.sort((a, b) => {
+      const aFull = a.items.length >= dto.peopleCount ? 1 : 0;
+      const bFull = b.items.length >= dto.peopleCount ? 1 : 0;
+      if (aFull !== bFull) return bFull - aFull;
+      if (a.estimatedTotal !== b.estimatedTotal) return a.estimatedTotal - b.estimatedTotal;
+      return b.items.length - a.items.length;
+    });
+
+    const top = candidates.slice(0, 3).map((c) => ({
+      ...c,
+      withinBudget: c.estimatedTotal <= dto.budgetMax,
+      meetsPeopleCount: c.items.length >= dto.peopleCount,
+      rankingReasons: [
+        c.items.length >= dto.peopleCount
+          ? `Đủ ${dto.peopleCount} suất cho ${dto.peopleCount} người`
+          : `Chỉ tìm được ${c.items.length}/${dto.peopleCount} suất phù hợp tại cửa hàng này`,
+        `Tổng giá ${c.estimatedTotal.toLocaleString('vi-VN')}đ trong ngân sách ${dto.budgetMax.toLocaleString('vi-VN')}đ`,
+      ],
+    }));
+
+    return {
+      generatedAt: new Date(),
+      availabilityCheckedAt: new Date(),
+      hasResults: top.length > 0,
+      baskets: top,
+      message:
+        top.length === 0
+          ? 'Không tìm được tổ hợp phù hợp. Thử nới ngân sách, số người hoặc khu vực tìm kiếm (BR-C01 - không tạo deal giả).'
+          : undefined,
+    };
   }
 
   /**
