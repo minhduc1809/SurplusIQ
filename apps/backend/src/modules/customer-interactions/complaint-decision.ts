@@ -76,6 +76,7 @@ export async function decideComplaint(
         amount: refundAmount,
         method: PaymentMethod.SIMULATED,
         status: PaymentStatus.SUCCEEDED,
+        payoutStatus: 'PENDING',
         gatewayTxnId: `${refundPrefix}_${complaint.id}`,
       });
       const bank = (
@@ -84,6 +85,7 @@ export async function decideComplaint(
       if (bank) {
         const enc = bank.accountNumberEnc ?? encryptField(bank.accountNumber ?? '');
         refundTransaction.refundDestination = {
+          bankBin: bank.bankBin,
           bankName: bank.bankName,
           accountHolder: bank.accountHolder,
           accountLast4: last4(bank.accountNumber ?? decryptField(enc)),

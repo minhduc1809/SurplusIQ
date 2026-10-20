@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -25,6 +26,7 @@ import {
   UpdateAdminReviewDto,
   UpdateAdminViolationDto,
   RejectPaymentProofDto,
+  MarkRefundPaidDto,
 } from './dto/admin-operations.dto';
 
 @ApiTags('Platform Admin - Operations')
@@ -37,6 +39,28 @@ export class AdminOperationsController {
     private readonly service: AdminOperationsService,
     private readonly payments: PaymentsService,
   ) {}
+
+  @Get('payment-proofs')
+  @ApiOperation({ summary: 'Biên lai khách gửi đang chờ đối chiếu (KX02)' })
+  listPaymentProofs() {
+    return this.service.listPaymentProofs();
+  }
+
+  @Get('refund-payouts')
+  @ApiOperation({ summary: 'Lệnh hoàn tiền chờ chuyển khoản, kèm tài khoản nhận của khách' })
+  listRefundPayouts() {
+    return this.service.listRefundPayouts();
+  }
+
+  @Post('refund-payouts/:id/paid')
+  @ApiOperation({ summary: 'Ghi nhận đã chuyển khoản hoàn tiền' })
+  markRefundPaid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('userId') actorId: string,
+    @Body() dto: MarkRefundPaidDto,
+  ) {
+    return this.service.markRefundPaid(id, actorId, dto.reference);
+  }
 
   @Post('orders/:id/payment-proof/confirm')
   @ApiOperation({ summary: 'Xác nhận đã nhận tiền theo biên lai khách gửi (KX02)' })
