@@ -10,9 +10,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CallMade
-import androidx.compose.material.icons.filled.CallReceived
-import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.CallMade
+import androidx.compose.material.icons.automirrored.filled.CallReceived
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -82,7 +82,7 @@ fun TransactionHistoryScreen(
         when {
             isLoading && transactions.isEmpty() -> LoadingState()
             errorMessage != null -> ErrorState(errorMessage, onRetry)
-            visible.isEmpty() -> EmptyState(Icons.Default.ReceiptLong, "Chưa có giao dịch nào phù hợp")
+            visible.isEmpty() -> EmptyState(Icons.AutoMirrored.Filled.ReceiptLong, "Chưa có giao dịch nào phù hợp")
             else -> LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -130,7 +130,7 @@ private fun TransactionCard(tx: PaymentTransactionRecordDto, orderCode: String?,
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (refund) Icons.Default.CallReceived else Icons.Default.CallMade,
+                        if (refund) Icons.AutoMirrored.Filled.CallReceived else Icons.AutoMirrored.Filled.CallMade,
                         contentDescription = null,
                         tint = accent,
                         modifier = Modifier.size(18.dp)

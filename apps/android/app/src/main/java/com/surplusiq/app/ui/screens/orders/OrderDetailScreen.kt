@@ -6,7 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
@@ -96,7 +96,7 @@ fun OrderDetailScreen(
             title = { Text("Chi tiết đơn hàng", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             }
         )
@@ -189,7 +189,7 @@ fun OrderDetailScreen(
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Row(

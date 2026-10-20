@@ -7,10 +7,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -71,11 +71,11 @@ fun SavedDealsScreen(
                         fontSize = 18.sp
                     )
                 },
-                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại") } },
+                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") } },
                 actions = {
                     IconButton(onClick = { selectionMode = !selectionMode; selectedIds = emptySet() }) {
                         Icon(
-                            if (selectionMode) Icons.Default.Close else Icons.Default.CompareArrows,
+                            if (selectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.CompareArrows,
                             contentDescription = if (selectionMode) "Thoát chọn" else "Chọn để so sánh"
                         )
                     }
@@ -92,7 +92,7 @@ fun SavedDealsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(48.dp)
                 ) {
-                    Icon(Icons.Default.CompareArrows, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Filled.CompareArrows, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
                     Text("So sánh (${selectedIds.size})", fontWeight = FontWeight.Bold)
                 }

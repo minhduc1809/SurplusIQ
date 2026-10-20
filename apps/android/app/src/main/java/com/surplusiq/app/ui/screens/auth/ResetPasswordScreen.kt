@@ -40,7 +40,7 @@ fun ResetPasswordScreen(
     modifier: Modifier = Modifier
 ) {
     if (state.isPasswordResetSuccess) {
-        AuthShellCard {
+        AuthShellCard(modifier = modifier) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MintDeep, modifier = Modifier.size(56.dp))
                 Spacer(modifier = Modifier.height(12.dp))
@@ -59,7 +59,7 @@ fun ResetPasswordScreen(
         return
     }
 
-    AuthShellCard(onBackClick = onBackClick) {
+    AuthShellCard(modifier = modifier, onBackClick = onBackClick) {
         AuthHeading(title = "Đặt lại mật khẩu", subtitle = "Nhập mã xác thực đã nhận và mật khẩu mới của bạn.")
 
         AuthField(

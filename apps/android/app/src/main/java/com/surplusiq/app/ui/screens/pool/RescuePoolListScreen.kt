@@ -7,9 +7,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.EventNote
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,7 +51,7 @@ fun RescuePoolListScreen(
         TopAppBar(
             title = { Text("Rescue Pool - Đăng ký nhu cầu", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
             navigationIcon = {
-                IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại") }
+                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") }
             }
         )
         Text(
@@ -203,7 +203,7 @@ internal fun RegistrationStatusChip(status: String) {
             Modifier.background(SkyInfoWash, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.EventNote, contentDescription = null, tint = InfoOnLight, modifier = Modifier.size(14.dp))
+            Icon(Icons.AutoMirrored.Filled.EventNote, contentDescription = null, tint = InfoOnLight, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
             Text("ĐÃ ĐĂNG KÝ NHU CẦU · chưa phải đơn", color = InfoOnLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
