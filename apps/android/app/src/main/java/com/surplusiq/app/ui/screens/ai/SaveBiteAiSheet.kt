@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
@@ -52,50 +53,34 @@ fun SaveBiteAiSheet(
         )
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(540.dp)
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(16.dp)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = ForestGreenPrimary,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Trợ Lý Cứu Món AI",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "Hạn mức còn lại hôm nay: $remainingAiQuota/30 lượt",
-                        fontSize = 11.sp,
-                        color = TextSecondary
-                    )
-                }
-            }
-
-            IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Close")
-            }
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Trợ Lý Cứu Món AI", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("Còn $remainingAiQuota/30 lượt hôm nay", fontSize = 11.sp, color = TextSecondary)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+            )
         }
-
-        Divider(modifier = Modifier.padding(vertical = 10.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
+    ) { inner ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(inner)
+            .imePadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
         // Chat Messages
         LazyColumn(
             modifier = Modifier
@@ -169,7 +154,7 @@ fun SaveBiteAiSheet(
                             userQuestion.contains("bánh", ignoreCase = true) ||
                             userQuestion.contains("croissant", ignoreCase = true) ||
                             userQuestion.contains("tiệm", ignoreCase = true)
-                        }.ifEmpty { listOf(allDeals.first()) }
+                        }.ifEmpty { allDeals.take(1) }
 
                         messages.add(
                             ChatMessage(
@@ -193,5 +178,6 @@ fun SaveBiteAiSheet(
                 )
             }
         }
+    }
     }
 }
