@@ -24,6 +24,7 @@ import { AdminProtectedRoute } from './pages/auth/AdminProtectedRoute';
 import { AdminLoginPage } from './pages/auth/AdminLoginPage';
 
 import { OrdersPage } from './pages/orders/OrdersPage';
+import { PaymentOpsPanel } from './pages/payments/PaymentOpsPanel';
 
 import { DisputesPage } from './pages/disputes/DisputesPage';
 
@@ -333,7 +334,18 @@ function renderAdminPage(pathname: string): ReactNode {
 
   // Hiển thị phân hệ quản lý đơn hàng.
   if (currentPath === ADMIN_ROUTES.orders) {
-    return <SnapshotPage key="orders" module="orders" liveContent={<OrdersPage />} />;
+    return (
+      <SnapshotPage
+        key="orders"
+        module="orders"
+        liveContent={
+          <>
+            <OrdersPage />
+            <PaymentOpsPanel section="proofs" />
+          </>
+        }
+      />
+    );
   }
 
   // Hiển thị phân hệ khiếu nại và trọng tài.
@@ -349,7 +361,18 @@ function renderAdminPage(pathname: string): ReactNode {
   if (currentPath === ADMIN_ROUTES.merchants)
     return <SnapshotPage key="merchants" module="merchants" liveContent={<MerchantsPage />} />;
   if (currentPath === ADMIN_ROUTES.settlement)
-    return <SnapshotPage key="settlement" module="settlement" liveContent={<SettlementPage />} />;
+    return (
+      <SnapshotPage
+        key="settlement"
+        module="settlement"
+        liveContent={
+          <>
+            <SettlementPage />
+            <PaymentOpsPanel section="payouts" />
+          </>
+        }
+      />
+    );
   if (currentPath === ADMIN_ROUTES.subscriptions)
     return (
       <SnapshotPage
