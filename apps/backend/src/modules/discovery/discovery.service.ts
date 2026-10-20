@@ -9,9 +9,11 @@ import { SavedDealEntity } from '../../entities/auth/saved-deal.entity';
 import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
 import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { QueryDealsDto, DealSortBy } from './dto/query-deals.dto';
 import { QueryMapDealsDto } from './dto/query-map-deals.dto';
+import { QueryStoreReviewsDto } from './dto/query-store-reviews.dto';
 import { CreateDealAlertDto, UpdateDealAlertDto } from './dto/deal-alert.dto';
 import { CreateSavedFilterDto } from './dto/saved-filter.dto';
 import { QueryRadarDto } from './dto/query-radar.dto';
@@ -495,6 +497,103 @@ export class DiscoveryService {
           pickupEnd: new Date(o.pickup_end),
         };
       }),
+    };
+  }
+
+  /**
+   * Xem danh sách đánh giá công khai và phân bổ sao của cửa hàng (K15, R1-027)
+   */
+  async getStoreReviews(storeId: string, query: QueryStoreReviewsDto) {
+    const store = await this.storeRepo.findOne({
+      where: { id: storeId },
+    });
+
+    if (!store) {
+      throw new NotFoundException('Cửa hàng không tồn tại.');
+    }
+
+    const page = query.page && query.page > 0 ? Number(query.page) : 1;
+    const limit = query.limit && query.limit > 0 ? Number(query.limit) : 10;
+    const skip = (page - 1) * limit;
+
+    // 1. Thống kê toàn bộ đánh giá đang hiển thị của cửa hàng
+    const allStoreReviews = await this.reviewRepo.find({
+      where: { storeId, status: ReviewStatus.VISIBLE },
+      select: ['id', 'rating'],
+    });
+
+    const totalReviews = allStoreReviews.length;
+    const averageRating =
+      totalReviews > 0
+        ? Number((allStoreReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1))
+        : 5.0;
+
+    const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    allStoreReviews.forEach((r) => {
+      if (r.rating >= 1 && r.rating <= 5) {
+        distribution[r.rating] = (distribution[r.rating] || 0) + 1;
+      }
+    });
+
+    // 2. Query danh sách review có lọc và phân trang
+    const qb = this.reviewRepo
+      .createQueryBuilder('r')
+      .leftJoin(CustomerProfileEntity, 'cp', 'cp.user_id = r.customer_id')
+      .where('r.store_id = :storeId', { storeId })
+      .andWhere('r.status = :status', { status: ReviewStatus.VISIBLE });
+
+    if (query.rating) {
+      qb.andWhere('r.rating = :rating', { rating: Number(query.rating) });
+    }
+
+    qb.orderBy('r.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .select([
+        'r.id AS id',
+        'r.rating AS rating',
+        'r.comment AS comment',
+        'r.store_reply AS store_reply',
+        'r.store_reply_at AS store_reply_at',
+        'r.created_at AS created_at',
+        'cp.full_name AS customer_name',
+        'cp.avatar_url AS customer_avatar',
+      ]);
+
+    const rawReviews = await qb.getRawMany();
+
+    const maskName = (name?: string | null) => {
+      if (!name || !name.trim()) return 'Khách hàng';
+      const parts = name.trim().split(/\s+/);
+      if (parts.length === 1) {
+        return parts[0].length > 2 ? `${parts[0][0]}***` : parts[0];
+      }
+      const first = parts[0];
+      const last = parts[parts.length - 1];
+      return `${first[0]}*** ${last}`;
+    };
+
+    const reviews = rawReviews.map((item) => ({
+      id: item.id,
+      rating: Number(item.rating),
+      comment: item.comment,
+      storeReply: item.store_reply,
+      storeReplyAt: item.store_reply_at ? new Date(item.store_reply_at) : null,
+      createdAt: new Date(item.created_at),
+      customerName: maskName(item.customer_name),
+      customerAvatar: item.customer_avatar || null,
+    }));
+
+    return {
+      storeId,
+      storeName: store.name,
+      averageRating,
+      totalReviews,
+      distribution,
+      page,
+      limit,
+      totalPages: Math.ceil(totalReviews / limit) || 1,
+      reviews,
     };
   }
 

@@ -9,6 +9,11 @@ interface ProfileApiService {
     @GET("customer/profile")
     suspend fun getProfile(): Response<CustomerProfileDto>
 
+    @PUT("customer/profile")
+    suspend fun updateProfile(
+        @Body request: UpdateCustomerProfileRequest
+    ): Response<CustomerProfileDto>
+
     @GET("customer/dietary-profile")
     suspend fun getDietaryProfile(): Response<DietaryProfileDto>
 

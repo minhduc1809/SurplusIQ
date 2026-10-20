@@ -84,4 +84,7 @@ interface DiscoveryRepository {
 
     /** K20: tìm cửa hàng theo tên qua tìm kiếm deal (backend lọc theo tên món hoặc tên quán). */
     suspend fun searchStores(query: String): Result<List<StoreOption>>
+
+    /** K15: xem danh sách đánh giá công khai của quán kèm phân bổ sao. */
+    suspend fun getStoreReviews(storeId: String, rating: Int? = null, page: Int = 1, limit: Int = 10): Result<com.surplusiq.app.data.remote.dto.StoreReviewsResponseDto>
 }

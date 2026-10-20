@@ -16,6 +16,7 @@ import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
 import { CreateSavedPlaceDto } from './dto/saved-place.dto';
 import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
+import { UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -142,6 +143,16 @@ export class CustomerProfileController {
   @ApiOperation({ summary: 'Xem cài đặt nhận thông báo (R1-010)' })
   async getNotificationSettings(@CurrentUser() user: RequestUser) {
     return this.profileService.getNotificationSettings(user?.userId);
+  }
+
+  @Put('notification-settings')
+  @ApiOperation({ summary: 'Cập nhật cài đặt nhận thông báo (R1-010, K57)' })
+  @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
+  async updateNotificationSettings(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateNotificationSettingsDto,
+  ) {
+    return this.profileService.updateNotificationSettings(user?.userId, dto);
   }
 
   @Post('delete-request')

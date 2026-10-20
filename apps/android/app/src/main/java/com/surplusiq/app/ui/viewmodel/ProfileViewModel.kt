@@ -8,6 +8,7 @@ import com.surplusiq.app.data.remote.dto.PaymentTransactionRecordDto
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.UserProfile
 import com.surplusiq.app.domain.repository.AuthRepository
+import com.surplusiq.app.domain.repository.MediaRepository
 import com.surplusiq.app.domain.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,12 @@ data class ProfileUiState(
     val favoriteStoreIds: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val isLoggedOut: Boolean = false,
+    // Chỉnh sửa hồ sơ cá nhân (R1-006, K53)
+    val isUpdatingProfile: Boolean = false,
+    val updateProfileError: String? = null,
+    val updateProfileSuccess: Boolean = false,
+    val isUploadingAvatar: Boolean = false,
+    val uploadAvatarError: String? = null,
     // GDPR / quyền riêng tư & dữ liệu (R1-011, R1-012, R1-017, R1-018, R1-019)
     val consents: List<ConsentDto> = emptyList(),
     val isConsentsLoading: Boolean = false,
@@ -52,7 +59,8 @@ data class ProfileUiState(
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val mediaRepository: MediaRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState(isLoading = true))
@@ -254,6 +262,82 @@ class ProfileViewModel @Inject constructor(
                         isExportLoading = false,
                         exportMessage = err.localizedMessage ?: "Không thể xuất dữ liệu cá nhân"
                     )
+                }
+            )
+        }
+    }
+
+    /**
+     * Chỉnh sửa thông tin hồ sơ khách hàng (R1-006, K53).
+     * @param fullName Tên hiển thị (2 - 60 ký tự)
+     * @param avatarUrl URL hoặc path ảnh đại diện
+     * @param searchRadiusKm Bán kính tìm kiếm deal mặc định (0.5 - 10 km)
+     */
+    fun updateProfile(
+        fullName: String,
+        avatarUrl: String?,
+        searchRadiusKm: Double,
+        onComplete: (Boolean, String?) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isUpdatingProfile = true,
+                updateProfileError = null,
+                updateProfileSuccess = false
+            )
+            val result = profileRepository.updateProfile(
+                fullName = fullName.trim(),
+                avatarUrl = avatarUrl,
+                searchRadiusKm = searchRadiusKm
+            )
+            result.fold(
+                onSuccess = { updatedProfile ->
+                    _uiState.value = _uiState.value.copy(
+                        userProfile = updatedProfile,
+                        isUpdatingProfile = false,
+                        updateProfileSuccess = true
+                    )
+                    onComplete(true, null)
+                },
+                onFailure = { err ->
+                    val errorMsg = err.localizedMessage ?: "Cập nhật hồ sơ thất bại"
+                    _uiState.value = _uiState.value.copy(
+                        isUpdatingProfile = false,
+                        updateProfileError = errorMsg
+                    )
+                    onComplete(false, errorMsg)
+                }
+            )
+        }
+    }
+
+    /**
+     * Tải ảnh đại diện lên server qua MediaRepository.
+     */
+    fun uploadAvatar(
+        bytes: ByteArray,
+        fileName: String = "avatar.jpg",
+        mimeType: String = "image/jpeg",
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isUploadingAvatar = true,
+                uploadAvatarError = null
+            )
+            val result = mediaRepository.uploadImageBytes(bytes, fileName, mimeType)
+            result.fold(
+                onSuccess = { uploadedUrl ->
+                    _uiState.value = _uiState.value.copy(isUploadingAvatar = false)
+                    onComplete(true, uploadedUrl)
+                },
+                onFailure = { err ->
+                    val errorMsg = err.localizedMessage ?: "Tải ảnh đại diện thất bại"
+                    _uiState.value = _uiState.value.copy(
+                        isUploadingAvatar = false,
+                        uploadAvatarError = errorMsg
+                    )
+                    onComplete(false, errorMsg)
                 }
             )
         }

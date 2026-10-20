@@ -11,6 +11,7 @@ import com.surplusiq.app.data.remote.dto.SupportTicketDetailResponse
 import com.surplusiq.app.data.remote.dto.SupportTicketResponse
 import com.surplusiq.app.data.remote.dto.ViolationReportResponse
 import com.surplusiq.app.domain.repository.InteractionsRepository
+import com.surplusiq.app.domain.repository.MediaRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,16 +52,38 @@ data class InteractionsUiState(
     // K39 Báo cáo vi phạm (R1-069)
     val isReportSubmitting: Boolean = false,
     val reportError: String? = null,
-    val submittedReport: ViolationReportResponse? = null
+    val submittedReport: ViolationReportResponse? = null,
+    // K38 Đánh giá của tôi (R1-065, R1-066)
+    val myReviews: List<com.surplusiq.app.data.remote.dto.CustomerReviewDto> = emptyList(),
+    val isMyReviewsLoading: Boolean = false,
+    val myReviewsError: String? = null,
+    val reviewActionMessage: String? = null,
+    val isReviewActionLoading: Boolean = false
 )
 
 @HiltViewModel
 class InteractionsViewModel @Inject constructor(
-    val interactionsRepository: InteractionsRepository
+    val interactionsRepository: InteractionsRepository,
+    val mediaRepository: MediaRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(InteractionsUiState())
     val uiState: StateFlow<InteractionsUiState> = _uiState.asStateFlow()
+
+    fun uploadEvidence(
+        bytes: ByteArray,
+        fileName: String = "evidence_${System.currentTimeMillis()}.jpg",
+        mimeType: String = "image/jpeg",
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = mediaRepository.uploadImageBytes(bytes, fileName, mimeType)
+            result.fold(
+                onSuccess = { onResult(true, it) },
+                onFailure = { onResult(false, it.localizedMessage) }
+            )
+        }
+    }
 
     fun loadComplaints() {
         viewModelScope.launch {
@@ -302,5 +325,76 @@ class InteractionsViewModel @Inject constructor(
                 }
             )
         }
+    }
+
+    fun loadMyReviews() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isMyReviewsLoading = true, myReviewsError = null)
+            val result = interactionsRepository.getCustomerReviews()
+            result.fold(
+                onSuccess = { list ->
+                    _uiState.value = _uiState.value.copy(
+                        myReviews = list,
+                        isMyReviewsLoading = false
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isMyReviewsLoading = false,
+                        myReviewsError = error.message
+                    )
+                }
+            )
+        }
+    }
+
+    fun updateMyReview(reviewId: String, rating: Int, comment: String?, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isReviewActionLoading = true)
+            val result = interactionsRepository.updateReview(reviewId, rating, comment)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isReviewActionLoading = false,
+                        reviewActionMessage = "Đã cập nhật đánh giá thành công."
+                    )
+                    loadMyReviews()
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isReviewActionLoading = false,
+                        reviewActionMessage = error.message ?: "Không thể cập nhật đánh giá."
+                    )
+                }
+            )
+        }
+    }
+
+    fun hideMyReview(reviewId: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isReviewActionLoading = true)
+            val result = interactionsRepository.hideReview(reviewId)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isReviewActionLoading = false,
+                        reviewActionMessage = "Đã ẩn đánh giá thành công."
+                    )
+                    loadMyReviews()
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isReviewActionLoading = false,
+                        reviewActionMessage = error.message ?: "Không thể ẩn đánh giá."
+                    )
+                }
+            )
+        }
+    }
+
+    fun consumeReviewActionMessage() {
+        _uiState.value = _uiState.value.copy(reviewActionMessage = null)
     }
 }

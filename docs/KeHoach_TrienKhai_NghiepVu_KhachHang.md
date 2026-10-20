@@ -34,9 +34,9 @@ Qua đối chiếu trực tiếp giữa mã nguồn hoạt động (`apps/backen
 
 ```
 [Phase 1] ───► [Phase 2] ───────────► [Phase 3] ───────► [Phase 4]
-An toàn & Cửa   Hậu mãi, Đánh giá     Rescue Basket &    Mở rộng & Tăng
-ngõ tìm kiếm    & Media Upload        Rescue Pool nâng   trưởng (KX01-18)
-(P0 - 3 ngày)   (P1 - 4 ngày)         cao (P2 - 4 ngày)  (P3 - backlog)
+An toàn & Cửa   Hậu mãi, Media,       Rescue Basket &    Mở rộng & Tăng
+ngõ tìm kiếm    Bản đồ OSM & Socket   Rescue Pool nâng   trưởng (KX01-18)
+(P0 - ĐÃ XONG)  (P1 - Đang làm)       cao (P2 - 4 ngày)  (P3 - backlog)
 ```
 
 ---
@@ -91,9 +91,9 @@ ngõ tìm kiếm    & Media Upload        Rescue Pool nâng   trưởng (KX01-18
 
 ---
 
-### GIAI ĐOẠN 2: Hoàn Thiện Backend Core API & Hậu Mãi Đánh Giá (Ưu tiên P1)
+### GIAI ĐOẠN 2: Hoàn Thiện Backend Core API & Hậu Mãi Đánh Giá (Ưu tiên P1) - [x] ĐÃ HOÀN THÀNH 100%
 
-#### Task 2.1: [Backend + Android] Đánh giá công khai của quán (K15) & Đánh giá của tôi (K38)
+#### Task 2.1: [Backend + Android] Đánh giá công khai của quán (K15) & Đánh giá của tôi (K38) - [x] ĐÃ HOÀN THÀNH
 - **Backend:**
   - Viết `GET customer/stores/:id/reviews` trong `CustomerStoresController` (kèm thống kê sao trung bình, phân bổ 1..5 sao và phân trang).
   - Viết `GET customer/reviews` trong `CustomerInteractionsController` (lấy danh sách đánh giá của user, kèm cờ `canEdit: boolean` trong 24h và phản hồi của quán).
@@ -101,16 +101,21 @@ ngõ tìm kiếm    & Media Upload        Rescue Pool nâng   trưởng (KX01-18
   - Tạo `StoreReviewsScreen.kt` (K15).
   - Hoàn thiện `MyReviewsScreen.kt` (K38): Hỗ trợ sửa và ẩn đánh giá.
 
-#### Task 2.2: [Backend + Android] Upload Media & Chỉnh sửa hồ sơ (K53, K34/K36)
+#### Task 2.2: [Backend + Android] Upload Media & Chỉnh sửa hồ sơ (K53, K34/K36) - [x] ĐÃ HOÀN THÀNH
 - **Backend:**
   - Triển khai `POST upload/image` nhận multipart/form-data, validate mime-type và dung lượng <= 5MB.
 - **Android:**
   - Tạo `EditProfileScreen.kt` (K53): Đổi avatar, cắt tròn, cập nhật họ tên.
   - Tích hợp bộ chọn ảnh vào `CreateComplaintScreen.kt` và `ComplaintDetailScreen.kt`.
 
-#### Task 2.3: [K57] Màn hình Cài đặt thông báo độc lập
-- **Android:**
-  - Tách thành màn `NotificationSettingsScreen.kt` riêng biệt với 5 nhóm thông báo và giờ yên lặng.
+#### Task 2.3: [K57] Màn hình Cài đặt thông báo độc lập - [x] ĐÃ HOÀN THÀNH
+- **Backend:** Thêm API `GET /customer/notification-settings` và `PUT /customer/notification-settings`.
+- **Android:** Tách thành màn `NotificationSettingsScreen.kt` riêng biệt kết nối trực tiếp `NotificationsViewModel`.
+
+#### Task 2.4: [K08, K10, Backend, Web] Chuyển Đổi Bản Đồ Mở (OpenStreetMap) & Realtime WebSocket Engine - [x] ĐÃ HOÀN THÀNH
+- **Backend:** Gắn WebSocket Server (`ws`) tại `/ws` với các sự kiện: `deal.stock_updated`, `deal.flash_rescue`, `order.hold_reserved`.
+- **Android Client:** Tích hợp `OsmDroid` (`org.osmdroid:osmdroid-android`), chuyển đổi hoàn toàn `PinLocationScreen.kt` (K08) và `DealMapScreen.kt` (K10), loại bỏ rào cản Google Maps API key; kết nối `RealtimeWebSocketClient` cập nhật tức thời số lượng suất trên bản đồ.
+- **Web Dashboard:** Tích hợp `StoreMapLeaflet.tsx` trên nền OpenStreetMap và lắng nghe WebSocket realtime.
 
 ---
 

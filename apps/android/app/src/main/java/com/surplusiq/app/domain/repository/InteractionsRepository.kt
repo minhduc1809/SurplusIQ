@@ -59,4 +59,13 @@ interface InteractionsRepository {
 
     /** R1-069: báo cáo vi phạm cửa hàng. */
     suspend fun reportStore(storeId: String, reason: String): Result<Unit>
+
+    /** K38: danh sách đánh giá của tôi */
+    suspend fun getCustomerReviews(): Result<List<com.surplusiq.app.data.remote.dto.CustomerReviewDto>>
+
+    /** R1-065: sửa đánh giá trong 24h */
+    suspend fun updateReview(reviewId: String, rating: Int, comment: String?): Result<ReviewResponse>
+
+    /** R1-066: ẩn đánh giá của tôi */
+    suspend fun hideReview(reviewId: String): Result<Boolean>
 }

@@ -92,4 +92,12 @@ interface DiscoveryApiService {
 
     @DELETE("customer/deal-alerts/{id}")
     suspend fun deleteDealAlert(@Path("id") id: String): Response<Map<String, Any>>
+
+    @GET("customer/stores/{id}/reviews")
+    suspend fun getStoreReviews(
+        @Path("id") storeId: String,
+        @Query("rating") rating: Int? = null,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 10
+    ): Response<StoreReviewsResponseDto>
 }
