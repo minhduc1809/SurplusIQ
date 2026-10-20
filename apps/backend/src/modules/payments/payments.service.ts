@@ -252,7 +252,7 @@ export class PaymentsService {
 
         await this.auditLogService.log({
           storeId: lockedOrder.storeId,
-          actorId: 'PAYMENT_GATEWAY',
+          actorId: '00000000-0000-0000-0000-000000000000',
           actorRole: 'SYSTEM',
           action: 'PAYMENT_AMOUNT_MISMATCH',
           targetType: 'PAYMENT_TRANSACTION',
@@ -313,7 +313,7 @@ export class PaymentsService {
 
         await this.auditLogService.log({
           storeId: lockedOrder.storeId,
-          actorId: 'SYSTEM',
+          actorId: '00000000-0000-0000-0000-000000000000',
           actorRole: 'SYSTEM',
           action: 'ORDER_LATE_PAYMENT_REFUNDED',
           targetType: 'ORDER',
@@ -385,7 +385,7 @@ export class PaymentsService {
 
       await this.auditLogService.log({
         storeId: lockedOrder.storeId,
-        actorId: 'PAYMENT_GATEWAY',
+        actorId: '00000000-0000-0000-0000-000000000000',
         actorRole: 'SYSTEM',
         action: 'ORDER_PAYMENT_CONFIRMED',
         targetType: 'ORDER',
