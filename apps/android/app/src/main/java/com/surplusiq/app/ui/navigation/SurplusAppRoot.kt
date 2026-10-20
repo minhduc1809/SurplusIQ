@@ -29,6 +29,9 @@ import com.surplusiq.app.ui.screens.auth.OtpVerificationScreen
 import com.surplusiq.app.ui.screens.auth.RegisterScreen
 import com.surplusiq.app.ui.screens.auth.ResetPasswordScreen
 import com.surplusiq.app.ui.screens.auth.WelcomeScreen
+import com.surplusiq.app.ui.screens.basket.RescueBasketScreen
+import com.surplusiq.app.ui.screens.basket.BasketDetailScreen
+import com.surplusiq.app.ui.screens.basket.BasketCheckoutScreen
 import com.surplusiq.app.ui.screens.checkout.OrderHoldCheckoutScreen
 import com.surplusiq.app.ui.screens.discovery.BrowseScreen
 import com.surplusiq.app.ui.screens.discovery.DealDetailScreen
@@ -103,6 +106,8 @@ sealed class AppDestination {
     object ChangePassword : AppDestination()
     object Rewards : AppDestination()
     object RescueBasket : AppDestination()
+    object BasketDetail : AppDestination()
+    object BasketCheckout : AppDestination()
     object Notifications : AppDestination()
     object SupportTickets : AppDestination()
     data class SupportTicketDetail(val ticketId: String) : AppDestination()
@@ -472,16 +477,6 @@ fun SurplusAppRoot(
             )
         }
 
-        is AppDestination.RescueBasket -> {
-            RescueBasketScreen(
-                suggestions = discoveryState.basketSuggestions,
-                isLoading = discoveryState.isBasketLoading,
-                errorMessage = discoveryState.basketErrorMessage,
-                onBackClick = { currentDestination = AppDestination.MainTabs },
-                onSuggest = { budgetMax, peopleCount -> discoveryViewModel.suggestBasket(budgetMax, peopleCount) }
-            )
-        }
-
         is AppDestination.Notifications -> {
             NotificationsScreen(
                 state = notificationsState,
@@ -518,6 +513,57 @@ fun SurplusAppRoot(
                 onBackClick = { currentDestination = AppDestination.SupportTickets },
                 onSendMessage = { message -> interactionsViewModel.sendSupportMessage(dest.ticketId, message) },
                 onCloseTicket = { interactionsViewModel.closeSupportTicket(dest.ticketId) }
+            )
+        }
+
+        is AppDestination.RescueBasket -> {
+            RescueBasketScreen(
+                suggestions = discoveryState.basketSuggestions,
+                isLoading = discoveryState.isBasketLoading,
+                errorMessage = discoveryState.basketErrorMessage,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onSuggest = { budget, people -> discoveryViewModel.suggestBasket(budget, people) },
+                onSelectBasket = { basket ->
+                    discoveryViewModel.initCustomBasket(basket, discoveryState.deals)
+                    currentDestination = AppDestination.BasketDetail
+                }
+            )
+        }
+
+        is AppDestination.BasketDetail -> {
+            BasketDetailScreen(
+                storeName = discoveryState.activeBasketStoreName ?: "Cửa hàng",
+                items = discoveryState.customBasketItems,
+                userAllergens = profileUiState.allergens,
+                availableSubstitutes = discoveryState.availableSubstitutes,
+                isSubstitutesLoading = discoveryState.isSubstitutesLoading,
+                substitutesError = discoveryState.substitutesErrorMessage,
+                onBackClick = { currentDestination = AppDestination.RescueBasket },
+                onQuantityChange = { offerId, qty -> discoveryViewModel.updateBasketItemQuantity(offerId, qty) },
+                onRemoveItem = { offerId -> discoveryViewModel.removeBasketItem(offerId) },
+                onRequestSubstitutes = {
+                    discoveryViewModel.loadSubstitutes(profileUiState.allergens)
+                },
+                onApplySubstitute = { oldOfferId, sub -> discoveryViewModel.substituteItem(oldOfferId, sub) },
+                onProceedToCheckout = { currentDestination = AppDestination.BasketCheckout }
+            )
+        }
+
+        is AppDestination.BasketCheckout -> {
+            BasketCheckoutScreen(
+                storeName = discoveryState.activeBasketStoreName ?: "Cửa hàng",
+                items = discoveryState.customBasketItems,
+                isCheckingOut = discoveryState.isCheckingOutBasket,
+                checkoutResult = discoveryState.basketCheckoutResult,
+                checkoutError = discoveryState.basketCheckoutError,
+                onBackClick = { currentDestination = AppDestination.BasketDetail },
+                onConfirmCheckout = { pickupWindow, notes ->
+                    discoveryViewModel.checkoutBasket(pickupWindow, notes)
+                },
+                onNavigateToMyOrders = {
+                    myOrdersViewModel.loadOrders()
+                    currentDestination = AppDestination.MyOrders
+                }
             )
         }
 
@@ -1027,6 +1073,9 @@ fun SurplusAppRoot(
                                 onOpenRescuePool = {
                                     rescuePoolViewModel.loadPools()
                                     currentDestination = AppDestination.RescuePoolList
+                                },
+                                onOpenRescueBasket = {
+                                    currentDestination = AppDestination.RescueBasket
                                 },
                                 onOpenImpact = {
                                     interactionsViewModel.loadImpact()
