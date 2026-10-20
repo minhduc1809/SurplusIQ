@@ -22,7 +22,9 @@ import com.surplusiq.app.domain.model.UserImpactStats
 import com.surplusiq.app.ui.components.NavTab
 import kotlinx.coroutines.launch
 import com.surplusiq.app.ui.components.SurplusBottomNav
+import com.surplusiq.app.ui.screens.ai.AiChatHistoryScreen
 import com.surplusiq.app.ui.screens.ai.SaveBiteAiSheet
+import com.surplusiq.app.ui.viewmodel.AiViewModel
 import com.surplusiq.app.ui.screens.auth.ForgotPasswordScreen
 import com.surplusiq.app.ui.screens.auth.LoginScreen
 import com.surplusiq.app.ui.screens.auth.OtpVerificationScreen
@@ -117,6 +119,7 @@ sealed class AppDestination {
     object MyRescueDemands : AppDestination()
     object Impact : AppDestination()
     object AiChat : AppDestination()
+    object AiChatHistory : AppDestination()
     object PrivacyData : AppDestination()
     object HelpCenter : AppDestination()
     data class OrderReceipt(val order: ActiveOrder) : AppDestination()
@@ -167,13 +170,15 @@ fun SurplusAppRoot(
     placesViewModel: PlacesViewModel = hiltViewModel(),
     storeViewModel: StoreViewModel = hiltViewModel(),
     savedDealsViewModel: SavedDealsViewModel = hiltViewModel(),
-    dealAlertsViewModel: DealAlertsViewModel = hiltViewModel()
+    dealAlertsViewModel: DealAlertsViewModel = hiltViewModel(),
+    aiViewModel: AiViewModel = hiltViewModel()
 ) {
     val placesState by placesViewModel.uiState.collectAsState()
     val storeState by storeViewModel.uiState.collectAsState()
     val savedDealsState by savedDealsViewModel.uiState.collectAsState()
     val dealAlertsState by dealAlertsViewModel.uiState.collectAsState()
     val rescuePoolState by rescuePoolViewModel.uiState.collectAsState()
+    val aiUiState by aiViewModel.uiState.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val authState by authViewModel.uiState.collectAsState()
@@ -938,9 +943,34 @@ fun SurplusAppRoot(
 
         is AppDestination.AiChat -> {
             SaveBiteAiSheet(
-                allDeals = dealsList,
+                state = aiUiState,
+                onSendMessage = { text -> aiViewModel.sendMessage(text, dealsList) },
+                onOpenHistory = {
+                    aiViewModel.loadConversations()
+                    currentDestination = AppDestination.AiChatHistory
+                },
+                onNewChat = { aiViewModel.startNewChat() },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal) },
                 onClose = { currentDestination = AppDestination.MainTabs }
+            )
+        }
+
+        is AppDestination.AiChatHistory -> {
+            AiChatHistoryScreen(
+                state = aiUiState,
+                onBackClick = { currentDestination = AppDestination.AiChat },
+                onSelectConversation = { convId ->
+                    aiViewModel.openConversation(convId)
+                    currentDestination = AppDestination.AiChat
+                },
+                onNewChatClick = {
+                    aiViewModel.startNewChat()
+                    currentDestination = AppDestination.AiChat
+                },
+                onDeleteConversation = { convId -> aiViewModel.deleteConversation(convId) },
+                onClearAllConversations = { aiViewModel.clearAllConversations() },
+                onUpdateMemorySetting = { remember -> aiViewModel.updateMemorySetting(remember) },
+                onConsumeMessage = { aiViewModel.consumeActionMessage() }
             )
         }
 
