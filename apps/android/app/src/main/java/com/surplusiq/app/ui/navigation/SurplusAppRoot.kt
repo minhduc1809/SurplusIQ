@@ -34,6 +34,7 @@ import com.surplusiq.app.ui.screens.discovery.BrowseScreen
 import com.surplusiq.app.ui.screens.discovery.DealDetailScreen
 import com.surplusiq.app.ui.screens.discovery.DiscoverHomeScreen
 import com.surplusiq.app.ui.screens.discovery.PreferencesScreen
+import com.surplusiq.app.ui.screens.discovery.SearchScreen
 import com.surplusiq.app.ui.screens.favourites.FavouritesScreen
 import com.surplusiq.app.ui.screens.notifications.NotificationsScreen
 import com.surplusiq.app.ui.screens.orders.MyOrdersScreen
@@ -42,6 +43,7 @@ import com.surplusiq.app.ui.screens.pickup.PickupPassScreen
 import com.surplusiq.app.ui.screens.postpurchase.CreateComplaintScreen
 import com.surplusiq.app.ui.screens.postpurchase.CreateReviewScreen
 import com.surplusiq.app.ui.screens.profile.ChangePasswordScreen
+import com.surplusiq.app.ui.screens.profile.DietaryProfileScreen
 import com.surplusiq.app.ui.screens.profile.ImpactScreen
 import com.surplusiq.app.ui.screens.profile.PrivacyDataScreen
 import com.surplusiq.app.ui.screens.profile.ProfileScreen
@@ -125,6 +127,8 @@ sealed class AppDestination {
     data class CompareDeals(val dealIds: List<String>) : AppDestination()
     object DealAlerts : AppDestination()
     data class DealAlertEdit(val alert: DealAlert?) : AppDestination()
+    object DietaryProfile : AppDestination()
+    object Search : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -329,7 +333,8 @@ fun SurplusAppRoot(
                 trustpass = discoveryState.trustpass,
                 isTrustpassLoading = discoveryState.isTrustpassLoading,
                 trustpassErrorMessage = discoveryState.trustpassErrorMessage,
-                onLoadTrustpass = { discoveryViewModel.loadTrustpass(dest.deal.id) }
+                onLoadTrustpass = { discoveryViewModel.loadTrustpass(dest.deal.id) },
+                userAllergens = profileUiState.allergens
             )
         }
 
@@ -815,6 +820,30 @@ fun SurplusAppRoot(
             )
         }
 
+        is AppDestination.DietaryProfile -> {
+            DietaryProfileScreen(
+                state = profileUiState,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onSaveProfile = { allergens, excludedItems ->
+                    profileViewModel.saveDietaryProfile(allergens, excludedItems)
+                },
+                onRetryLoad = { profileViewModel.loadDietaryProfile() }
+            )
+        }
+
+        is AppDestination.Search -> {
+            SearchScreen(
+                allDeals = dealsList,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onDealClick = { deal ->
+                    currentDestination = AppDestination.DealDetail(deal, back = AppDestination.Search)
+                },
+                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) },
+                userLatitude = discoveryState.location.latitude,
+                userLongitude = discoveryState.location.longitude
+            )
+        }
+
         is AppDestination.MainTabs -> {
             Scaffold(
                 bottomBar = {
@@ -858,7 +887,16 @@ fun SurplusAppRoot(
                                 },
                                 isLoading = discoveryState.isLoading,
                                 errorMessage = discoveryState.errorMessage,
-                                onRetry = { discoveryViewModel.loadDeals() }
+                                onRetry = { discoveryViewModel.loadDeals() },
+                                onOpenSearch = { currentDestination = AppDestination.Search },
+                                currentSortBy = discoveryState.sortBy,
+                                currentMinDiscount = discoveryState.minDiscountPercent,
+                                onApplyFilterSort = { sortBy, minDiscount ->
+                                    discoveryViewModel.updateFilterSort(minDiscount, sortBy)
+                                },
+                                onResetFilterSort = {
+                                    discoveryViewModel.resetFilterSort()
+                                }
                             )
                         }
 
@@ -969,6 +1007,10 @@ fun SurplusAppRoot(
                                 onOpenDealAlerts = {
                                     dealAlertsViewModel.load()
                                     currentDestination = AppDestination.DealAlerts
+                                },
+                                onOpenDietaryProfile = {
+                                    profileViewModel.loadDietaryProfile()
+                                    currentDestination = AppDestination.DietaryProfile
                                 },
                                 onLogout = { authViewModel.logout() }
                             )

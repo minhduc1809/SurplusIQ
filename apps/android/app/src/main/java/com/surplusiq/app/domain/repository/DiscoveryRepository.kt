@@ -19,7 +19,9 @@ interface DiscoveryRepository {
         longitude: Double? = 106.7009,
         radiusKm: Double = 2.0,
         searchQuery: String? = null,
-        preferences: UserPreferences? = null
+        preferences: UserPreferences? = null,
+        minDiscountPercent: Int? = null,
+        sortBy: String? = null
     ): Result<List<Deal>>
 
     suspend fun getDealDetail(id: String): Result<Deal>

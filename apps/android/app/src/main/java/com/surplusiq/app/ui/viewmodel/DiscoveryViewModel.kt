@@ -29,6 +29,8 @@ data class DiscoveryUiState(
     val isMapLoading: Boolean = false,
     val mapErrorMessage: String? = null,
     val preferences: UserPreferences = UserPreferences(),
+    val minDiscountPercent: Int? = null,
+    val sortBy: String? = null,
     val errorMessage: String? = null,
     // Rescue Radar (CM-C05)
     val radarDeals: List<RadarDeal> = emptyList(),
@@ -92,7 +94,9 @@ class DiscoveryViewModel @Inject constructor(
                 longitude = currentState.location.longitude,
                 radiusKm = currentState.location.radiusKm,
                 searchQuery = currentState.searchQuery.ifBlank { null },
-                preferences = currentState.preferences
+                preferences = currentState.preferences,
+                minDiscountPercent = currentState.minDiscountPercent,
+                sortBy = currentState.sortBy
             )
 
             result.fold(
@@ -116,6 +120,22 @@ class DiscoveryViewModel @Inject constructor(
 
     fun onPreferencesUpdated(preferences: UserPreferences) {
         _uiState.value = _uiState.value.copy(preferences = preferences)
+        loadDeals()
+    }
+
+    fun updateFilterSort(minDiscountPercent: Int?, sortBy: String?) {
+        _uiState.value = _uiState.value.copy(
+            minDiscountPercent = minDiscountPercent,
+            sortBy = sortBy
+        )
+        loadDeals()
+    }
+
+    fun resetFilterSort() {
+        _uiState.value = _uiState.value.copy(
+            minDiscountPercent = null,
+            sortBy = null
+        )
         loadDeals()
     }
 

@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Favorite
@@ -74,7 +74,7 @@ fun StoreDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(store?.name ?: "Cửa hàng", fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1) },
-                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại") } },
+                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") } },
                 actions = {
                     if (store != null) {
                         IconButton(onClick = { onToggleFavorite(store.id) }) {

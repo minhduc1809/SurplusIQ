@@ -52,18 +52,22 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateDietaryPreferences(dietaryType: DietaryType, allergies: List<String>): Result<Boolean> {
-        return try {
-            val response = profileApiService.updateDietaryProfile(
+    override suspend fun getDietaryProfile(): Result<com.surplusiq.app.data.remote.dto.DietaryProfileDto> =
+        com.surplusiq.app.data.remote.apiCall("Không thể tải hồ sơ ăn uống", { profileApiService.getDietaryProfile() }) { it }
+
+    override suspend fun updateDietaryProfile(allergens: List<String>, excludedItems: List<String>): Result<Boolean> =
+        com.surplusiq.app.data.remote.apiCall("Không thể cập nhật hồ sơ ăn uống", {
+            profileApiService.updateDietaryProfile(
                 UpdateDietaryProfileRequest(
-                    dietaryPreferences = listOf(dietaryType.name),
-                    allergies = allergies
+                    allergens = allergens,
+                    excludedItems = excludedItems
                 )
             )
-            Result.success(response.isSuccessful)
-        } catch (_: Exception) {
-            Result.success(true)
-        }
+        }) { true }
+
+    override suspend fun updateDietaryPreferences(dietaryType: DietaryType, allergies: List<String>): Result<Boolean> {
+        val excluded = if (dietaryType != DietaryType.NONE) listOf(dietaryType.name) else emptyList()
+        return updateDietaryProfile(allergens = allergies, excludedItems = excluded)
     }
 
     override suspend fun getFavoriteStoreIds(): Result<Set<String>> =

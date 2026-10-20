@@ -46,7 +46,7 @@ fun OtpVerificationScreen(
     val seconds = state.otpSecondsRemaining % 60
     val timerText = String.format("%02d:%02d", minutes, seconds)
 
-    AuthShellCard(onBackClick = onBackClick) {
+    AuthShellCard(modifier = modifier, onBackClick = onBackClick) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier

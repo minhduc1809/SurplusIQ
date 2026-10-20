@@ -17,6 +17,7 @@ import androidx.compose.ui.text.withStyle
 import com.surplusiq.app.domain.model.DealCategory
 import com.surplusiq.app.ui.theme.DividerColor
 import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SkyBlueDark
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -56,7 +57,7 @@ import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
 
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.automirrored.filled.ViewList
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,10 +84,16 @@ fun DiscoverHomeScreen(
     isLoading: Boolean = false,
     errorMessage: String? = null,
     onRetry: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
+    currentSortBy: String? = null,
+    currentMinDiscount: Int? = null,
+    onApplyFilterSort: (sortBy: String?, minDiscount: Int?) -> Unit = { _, _ -> },
+    onResetFilterSort: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var isMapView by remember { mutableStateOf(false) }
+    var showFilterSortSheet by remember { mutableStateOf(false) }
     var category by remember { mutableStateOf<DealCategory?>(null) }
     val shown = remember(deals, searchQuery, category) {
         val q = searchQuery.trim()
@@ -196,10 +203,16 @@ fun DiscoverHomeScreen(
                     .clip(RoundedCornerShape(26.dp))
                     .background(MaterialTheme.colorScheme.surface)
                     .border(1.dp, DividerColor, RoundedCornerShape(26.dp))
+                    .clickable { onOpenSearch() }
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Search, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = "Tìm kiếm",
+                    tint = ForestGreenPrimary,
+                    modifier = Modifier.size(20.dp).clickable { onOpenSearch() }
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 BasicTextField(
                     value = searchQuery,
@@ -209,7 +222,7 @@ fun DiscoverHomeScreen(
                     cursorBrush = SolidColor(ForestGreenPrimary),
                     modifier = Modifier.weight(1f),
                     decorationBox = { inner ->
-                        if (searchQuery.isEmpty()) Text("Tìm món, cửa hàng...", fontSize = 14.sp, color = TextMuted)
+                        if (searchQuery.isEmpty()) Text("Tìm món, quán ăn, AI...", fontSize = 14.sp, color = TextMuted)
                         inner()
                     }
                 )
@@ -223,41 +236,55 @@ fun DiscoverHomeScreen(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-                IconButton(
-                    onClick = { isMapView = !isMapView },
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, DividerColor, CircleShape)
-                ) {
-                    Icon(
-                        imageVector = if (isMapView) Icons.Default.ViewList else Icons.Default.Map,
-                        contentDescription = if (isMapView) "Chuyển sang danh sách" else "Chuyển sang bản đồ",
-                        tint = ForestGreenPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Filter button leading to Preferences
             IconButton(
-                onClick = onOpenPreferences,
+                onClick = { isMapView = !isMapView },
                 modifier = Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(ForestGreenPrimary)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, DividerColor, CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (isMapView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.Map,
+                    contentDescription = if (isMapView) "Chuyển sang danh sách" else "Chuyển sang bản đồ",
+                    tint = ForestGreenPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Filter button opening FilterSortBottomSheet
+            IconButton(
+                onClick = { showFilterSortSheet = true },
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(if (currentSortBy != null || currentMinDiscount != null) ForestGreenDark else ForestGreenPrimary)
             ) {
                 Icon(
                     imageVector = Icons.Default.Tune,
-                    contentDescription = "Preferences",
+                    contentDescription = "Bộ lọc & Sắp xếp",
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
             }
+        }
+
+        if (showFilterSortSheet) {
+            FilterSortBottomSheet(
+                currentSortBy = currentSortBy,
+                currentMinDiscount = currentMinDiscount,
+                onDismissRequest = { showFilterSortSheet = false },
+                onApply = { sortBy, minDiscount ->
+                    onApplyFilterSort(sortBy, minDiscount)
+                    showFilterSortSheet = false
+                },
+                onReset = {
+                    onResetFilterSort()
+                    showFilterSortSheet = false
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(10.dp))
