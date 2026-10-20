@@ -97,7 +97,7 @@ fun RegisterScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 PasswordField(value = confirm, onValueChange = { confirm = it }, placeholder = "Nhập lại mật khẩu")
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(text = "Tối thiểu 6 ký tự.", fontSize = 12.sp, color = SqInkMuted)
+                Text(text = "Tối thiểu 8 ký tự, gồm cả chữ và số.", fontSize = 12.sp, color = SqInkMuted)
             }
             2 -> {
                 MerchantField(value = storeName, onValueChange = { storeName = it }, placeholder = "Tên cửa hàng", icon = Icons.Default.Storefront)

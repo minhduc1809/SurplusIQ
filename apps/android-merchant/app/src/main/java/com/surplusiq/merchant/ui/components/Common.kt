@@ -276,9 +276,9 @@ fun AuthCard(onBackClick: () -> Unit, content: @Composable ColumnScope.() -> Uni
     }
 }
 
-/** Mật khẩu: backend chỉ bắt tối thiểu 6 ký tự; trả về lỗi hiển thị hoặc null nếu hợp lệ. */
+/** Mật khẩu: tối thiểu 8 ký tự, có cả chữ và số; trả về lỗi hiển thị hoặc null nếu hợp lệ. */
 fun passwordError(password: String, confirm: String): String? = when {
-    password.length < 6 -> "Mật khẩu tối thiểu 6 ký tự."
+    password.length < 8 || password.none(Char::isLetter) || password.none(Char::isDigit) -> "Mật khẩu tối thiểu 8 ký tự, gồm cả chữ và số."
     password != confirm -> "Mật khẩu nhập lại không khớp."
     else -> null
 }

@@ -117,7 +117,7 @@ fun AccountScreen(repository: StoreRepository, session: SessionManager, onLogout
             Spacer(modifier = Modifier.height(10.dp))
             PasswordField(value = confirm, onValueChange = { confirm = it }, placeholder = "Nhập lại mật khẩu mới")
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Tối thiểu 6 ký tự. Các phiên đăng nhập trên thiết bị khác sẽ bị thu hồi.", fontSize = 12.sp, color = SqInkMuted)
+            Text(text = "Tối thiểu 8 ký tự, gồm cả chữ và số. Các phiên đăng nhập trên thiết bị khác sẽ bị thu hồi.", fontSize = 12.sp, color = SqInkMuted)
             if (error != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 ErrorBanner(error ?: "")

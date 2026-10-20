@@ -104,7 +104,7 @@ fun OtpVerificationScreen(
             Spacer(modifier = Modifier.height(12.dp))
             PasswordField(value = confirm, onValueChange = { confirm = it }, placeholder = "Nhập lại mật khẩu mới")
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Tối thiểu 6 ký tự. Mọi phiên đăng nhập khác sẽ bị đăng xuất.", fontSize = 12.sp, color = SqInkMuted)
+            Text(text = "Tối thiểu 8 ký tự, gồm cả chữ và số. Mọi phiên đăng nhập khác sẽ bị đăng xuất.", fontSize = 12.sp, color = SqInkMuted)
         }
 
         if (error != null) {
