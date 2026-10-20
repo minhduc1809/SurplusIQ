@@ -52,6 +52,8 @@ import com.surplusiq.app.ui.screens.profile.DietaryProfileScreen
 import com.surplusiq.app.ui.screens.profile.ImpactScreen
 import com.surplusiq.app.ui.screens.profile.PrivacyDataScreen
 import com.surplusiq.app.ui.screens.profile.ProfileScreen
+import com.surplusiq.app.ui.screens.profile.RefundBankAccountScreen
+import com.surplusiq.app.ui.screens.onboarding.OnboardingScreen
 import com.surplusiq.app.ui.screens.basket.RescueBasketScreen
 import com.surplusiq.app.ui.screens.rewards.RewardsScreen
 import com.surplusiq.app.ui.screens.support.HelpCenterScreen
@@ -145,6 +147,10 @@ sealed class AppDestination {
     data class StoreReviews(val storeId: String, val back: AppDestination = MainTabs) : AppDestination()
     object EditProfile : AppDestination()
     object NotificationSettings : AppDestination()
+    // KX01: Quản lý tài khoản ngân hàng hoàn tiền VietQR
+    object RefundBankAccount : AppDestination()
+    // KX09: Onboarding 4 slide vuốt ngang
+    object Onboarding : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -207,7 +213,15 @@ fun SurplusAppRoot(
     LaunchedEffect(authState.isLoggedIn) { if (authState.isLoggedIn) profileViewModel.loadProfile() }
     var selectedTab by remember { mutableStateOf(NavTab.DISCOVER) }
     LaunchedEffect(selectedTab, authState.isLoggedIn) { if (selectedTab == NavTab.ME && authState.isLoggedIn) interactionsViewModel.loadImpact() }
-    var currentDestination by remember { mutableStateOf<AppDestination>(AppDestination.MainTabs) }
+    val onboardingPrefs = remember { context.getSharedPreferences("surplusiq_session_prefs", android.content.Context.MODE_PRIVATE) }
+    val initialDestination = remember {
+        if (!onboardingPrefs.getBoolean("key_onboarding_completed", false)) {
+            AppDestination.Onboarding
+        } else {
+            AppDestination.MainTabs
+        }
+    }
+    var currentDestination by remember { mutableStateOf<AppDestination>(initialDestination) }
     var authScreenState by remember { mutableStateOf(AuthScreenState.WELCOME) }
     
     // K06: lần đầu vào app (đăng nhập hoặc khách) mà chưa thiết lập vị trí -> màn quyền vị trí & bán kính.
@@ -332,6 +346,9 @@ fun SurplusAppRoot(
                 }
             }
             val isSaved = dest.deal.id in savedDealsState.savedIds
+            LaunchedEffect(dest.deal.id) {
+                discoveryViewModel.loadBackInStockStatus(dest.deal.id)
+            }
             DealDetailScreen(
                 deal = dest.deal,
                 onBackClick = { currentDestination = dest.back },
@@ -352,7 +369,14 @@ fun SurplusAppRoot(
                 isTrustpassLoading = discoveryState.isTrustpassLoading,
                 trustpassErrorMessage = discoveryState.trustpassErrorMessage,
                 onLoadTrustpass = { discoveryViewModel.loadTrustpass(dest.deal.id) },
-                userAllergens = profileUiState.allergens
+                userAllergens = profileUiState.allergens,
+                isBackInStockSubscribed = discoveryState.isBackInStockSubscribed,
+                isTogglingBackInStock = discoveryState.isTogglingBackInStock,
+                onToggleBackInStock = { discoveryViewModel.toggleBackInStock(dest.deal.id) },
+                priceHistory = discoveryState.priceHistory,
+                isPriceHistoryLoading = discoveryState.isPriceHistoryLoading,
+                priceHistoryError = discoveryState.priceHistoryError,
+                onLoadPriceHistory = { discoveryViewModel.loadPriceHistory(dest.deal.id) }
             )
         }
 
@@ -427,7 +451,10 @@ fun SurplusAppRoot(
                 proxyCodeError = myOrdersState.proxyCodeError,
                 onLoadProxyCode = { orderId -> myOrdersViewModel.loadProxyCode(orderId) },
                 onCreateProxyCode = { orderId -> myOrdersViewModel.createProxyCode(orderId) },
-                onRevokeProxyCode = { orderId -> myOrdersViewModel.revokeProxyCode(orderId) }
+                onRevokeProxyCode = { orderId -> myOrdersViewModel.revokeProxyCode(orderId) },
+                onAttachPaymentProof = { orderId, proofUrl -> myOrdersViewModel.attachPaymentProof(orderId, proofUrl) },
+                onUpdatePickupSlot = { orderId, newSlotIso -> myOrdersViewModel.updatePickupSlot(orderId, newSlotIso) },
+                onResetActionStates = { myOrdersViewModel.resetActionStates() }
             )
         }
 
@@ -998,6 +1025,38 @@ fun SurplusAppRoot(
             )
         }
 
+        is AppDestination.RefundBankAccount -> {
+            LaunchedEffect(Unit) {
+                profileViewModel.loadRefundBankAccount()
+            }
+            RefundBankAccountScreen(
+                refundBankAccount = profileUiState.refundBankAccount,
+                isLoading = profileUiState.isBankLoading,
+                errorMessage = profileUiState.bankError,
+                isSaving = profileUiState.isSavingBank,
+                saveSuccess = profileUiState.bankSuccess,
+                onBackClick = {
+                    profileViewModel.resetBankSuccess()
+                    currentDestination = AppDestination.MainTabs
+                },
+                onRetry = { profileViewModel.loadRefundBankAccount() },
+                onSave = { bin, name, accNum, holder ->
+                    profileViewModel.saveRefundBankAccount(bin, name, accNum, holder)
+                },
+                onDismissSuccess = { profileViewModel.resetBankSuccess() }
+            )
+        }
+
+        is AppDestination.Onboarding -> {
+            OnboardingScreen(
+                onFinishOnboarding = {
+                    context.getSharedPreferences("surplusiq_session_prefs", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("key_onboarding_completed", true).apply()
+                    currentDestination = AppDestination.MainTabs
+                }
+            )
+        }
+
         is AppDestination.MainTabs -> {
             Scaffold(
                 bottomBar = {
@@ -1124,6 +1183,13 @@ fun SurplusAppRoot(
                                 onOpenTransactions = {
                                     profileViewModel.loadTransactions()
                                     currentDestination = AppDestination.TransactionHistory
+                                },
+                                onOpenRefundBankAccount = {
+                                    profileViewModel.loadRefundBankAccount()
+                                    currentDestination = AppDestination.RefundBankAccount
+                                },
+                                onOpenOnboarding = {
+                                    currentDestination = AppDestination.Onboarding
                                 },
                                 onOpenOrderLock = {
                                     profileViewModel.loadOrderLock()

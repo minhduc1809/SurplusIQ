@@ -55,7 +55,15 @@ data class DiscoveryUiState(
     val substitutesErrorMessage: String? = null,
     val isCheckingOutBasket: Boolean = false,
     val basketCheckoutResult: com.surplusiq.app.domain.model.BasketHoldResult? = null,
-    val basketCheckoutError: String? = null
+    val basketCheckoutError: String? = null,
+    // KX06: Báo khi có hàng lại
+    val isBackInStockSubscribed: Boolean = false,
+    val isTogglingBackInStock: Boolean = false,
+    val backInStockMessage: String? = null,
+    // KX07: Lịch sử và biến động giá
+    val priceHistory: com.surplusiq.app.data.remote.dto.PriceHistoryDto? = null,
+    val isPriceHistoryLoading: Boolean = false,
+    val priceHistoryError: String? = null
 )
 
 @HiltViewModel
@@ -374,6 +382,66 @@ class DiscoveryViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         isCheckingOutBasket = false,
                         basketCheckoutError = error.localizedMessage ?: "Không thể đặt giữ giỏ hàng"
+                    )
+                }
+            )
+        }
+    }
+
+    /**
+     * KX06: Tải trạng thái đăng ký báo khi có hàng lại
+     */
+    fun loadBackInStockStatus(dealId: String) {
+        viewModelScope.launch {
+            discoveryRepository.getBackInStockStatus(dealId).onSuccess { subscribed ->
+                _uiState.value = _uiState.value.copy(isBackInStockSubscribed = subscribed)
+            }
+        }
+    }
+
+    /**
+     * KX06: Bật/tắt thông báo khi deal có hàng lại
+     */
+    fun toggleBackInStock(dealId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isTogglingBackInStock = true, backInStockMessage = null)
+            val result = discoveryRepository.toggleBackInStock(dealId)
+            result.fold(
+                onSuccess = { res ->
+                    _uiState.value = _uiState.value.copy(
+                        isTogglingBackInStock = false,
+                        isBackInStockSubscribed = res.subscribed,
+                        backInStockMessage = res.message ?: if (res.subscribed) "Đã bật báo khi có hàng lại" else "Đã tắt báo có hàng"
+                    )
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isTogglingBackInStock = false,
+                        backInStockMessage = err.localizedMessage ?: "Không thể đăng ký nhận tin"
+                    )
+                }
+            )
+        }
+    }
+
+    /**
+     * KX07: Lấy lịch sử biến động giá minh bạch của deal
+     */
+    fun loadPriceHistory(dealId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isPriceHistoryLoading = true, priceHistoryError = null)
+            val result = discoveryRepository.getPriceHistory(dealId)
+            result.fold(
+                onSuccess = { dto ->
+                    _uiState.value = _uiState.value.copy(
+                        priceHistory = dto,
+                        isPriceHistoryLoading = false
+                    )
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        priceHistoryError = err.localizedMessage ?: "Không thể tải lịch sử giá",
+                        isPriceHistoryLoading = false
                     )
                 }
             )

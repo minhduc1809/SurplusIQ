@@ -310,3 +310,34 @@ data class BasketCheckoutResponse(
     @SerializedName("message") val message: String? = null
 )
 
+/** KX06: Báo khi có hàng lại */
+data class BackInStockResponseDto(
+    @SerializedName("subscribed") val subscribed: Boolean,
+    @SerializedName("message") val message: String? = null
+)
+
+data class BackInStockStatusDto(
+    @SerializedName("subscribed") val subscribed: Boolean
+)
+
+/** KX07: Lịch sử và biến động giá cứu món */
+data class PricePointDto(
+    @SerializedName("label") val label: String,
+    @SerializedName("price") val price: Long,
+    @SerializedName("timestamp") val timestamp: String,
+    @SerializedName("discountPercent") val discountPercent: Int,
+    @SerializedName("note") val note: String? = null
+)
+
+data class PriceHistoryDto(
+    @SerializedName("offerId") val offerId: String,
+    @SerializedName("itemName") val itemName: String,
+    @SerializedName("originalPrice") val originalPrice: Long,
+    @SerializedName("currentPrice") val currentPrice: Long,
+    @SerializedName("floorPrice") val floorPrice: Long,
+    @SerializedName("discountPercent") val discountPercent: Int,
+    @SerializedName("priceChangeCount") val priceChangeCount: Int,
+    @SerializedName("timeline") val timeline: List<PricePointDto> = emptyList(),
+    @SerializedName("transparencyCommitment") val transparencyCommitment: String? = null
+)
+

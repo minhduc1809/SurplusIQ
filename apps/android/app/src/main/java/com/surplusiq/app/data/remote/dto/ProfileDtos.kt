@@ -51,7 +51,8 @@ data class SavedPlaceDto(
 )
 
 data class GeoPointDto(
-    @SerializedName("coordinates") val coordinates: List<Double> = emptyList()
+    @SerializedName("type") val type: String = "Point",
+    @SerializedName("coordinates") val coordinates: List<Double>
 )
 
 data class CreateSavedPlaceRequest(
@@ -61,13 +62,13 @@ data class CreateSavedPlaceRequest(
     @SerializedName("radiusKm") val radiusKm: Double? = null
 )
 
-/** GDPR: lịch sử chấp thuận điều khoản (R1-012, R1-017) */
 data class ConsentDto(
-    @SerializedName("id") val id: String,
+    @SerializedName("id") val id: String? = null,
     @SerializedName("type") val type: String,
-    @SerializedName("version") val version: String,
     @SerializedName("granted") val granted: Boolean,
-    @SerializedName("grantedAt") val grantedAt: String? = null
+    @SerializedName("version") val version: String? = null,
+    @SerializedName("grantedAt") val grantedAt: String? = null,
+    @SerializedName("recordedAt") val recordedAt: String? = null
 )
 
 data class RecordConsentRequest(
@@ -76,7 +77,7 @@ data class RecordConsentRequest(
     @SerializedName("version") val version: String? = null
 )
 
-/** R1-011/R1-019/BR-007: yêu cầu xóa tài khoản, ân hạn 7 ngày */
+
 data class AccountDeleteResponse(
     @SerializedName("success") val success: Boolean = true,
     @SerializedName("status") val status: String? = null,
@@ -141,4 +142,13 @@ data class PromotionDto(
     @SerializedName("endAt") val endAt: String? = null,
     @SerializedName("minOrderAmount") val minOrderAmount: Int = 0,
     @SerializedName("status") val status: String
+)
+
+/** KX01: Tài khoản ngân hàng nhận tiền hoàn VietQR */
+data class RefundBankAccountDto(
+    @SerializedName("bankBin") val bankBin: String,
+    @SerializedName("bankName") val bankName: String,
+    @SerializedName("accountNumber") val accountNumber: String,
+    @SerializedName("accountHolder") val accountHolder: String,
+    @SerializedName("updatedAt") val updatedAt: String? = null
 )

@@ -17,6 +17,7 @@ import { CreateSavedPlaceDto } from './dto/saved-place.dto';
 import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
 import { UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
+import { UpdateRefundBankAccountDto } from './dto/refund-bank-account.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ChannelGuard } from '../../common/guards/channel.guard';
@@ -213,5 +214,26 @@ export class CustomerProfileController {
   @ApiOperation({ summary: 'Thu thập mã ưu đãi vào ví (R1-079)' })
   async claimPromotion(@CurrentUser() user: RequestUser, @Param('id') promoId: string) {
     return this.profileService.claimPromotion(user?.userId, promoId);
+  }
+
+  @Get('refund-bank-account')
+  @ApiOperation({
+    summary: 'Lấy thông tin tài khoản ngân hàng nhận tiền hoàn VietQR (KX01)',
+  })
+  @ApiResponse({ status: 200, description: 'Thông tin tài khoản nhận hoàn tiền' })
+  async getRefundBankAccount(@CurrentUser() user: RequestUser) {
+    return this.profileService.getRefundBankAccount(user?.userId);
+  }
+
+  @Put('refund-bank-account')
+  @ApiOperation({
+    summary: 'Cập nhật tài khoản ngân hàng nhận tiền hoàn VietQR (KX01)',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
+  async updateRefundBankAccount(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateRefundBankAccountDto,
+  ) {
+    return this.profileService.updateRefundBankAccount(user?.userId, dto);
   }
 }

@@ -11,6 +11,7 @@ import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
 import { TrustpassView } from './trustpass-view.interface';
 import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
+import { AuditLogEntity } from '../../entities/stores/audit-log.entity';
 import { SavedDealEntity } from '../../entities/auth/saved-deal.entity';
 import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
 import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
@@ -1377,6 +1378,188 @@ export class DiscoveryService {
       holdExpiresAt: holdExpiresAt.toISOString(),
       itemsCount: dto.items.reduce((sum, i) => sum + i.quantity, 0),
       message: 'Đặt giữ cả giỏ cứu thành công! Suất của bạn được giữ trong 10 phút.',
+    };
+  }
+
+  /**
+   * Đăng ký hoặc hủy nhận thông báo khi món có hàng lại (KX06)
+   */
+  async toggleBackInStockAlert(userId: string, offerId: string) {
+    const offer = await this.offerRepo.findOne({ where: { id: offerId } });
+    if (!offer) {
+      throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
+    }
+
+    const existing = await this.dealAlertRepo
+      .createQueryBuilder('alert')
+      .where('alert.user_id = :userId', { userId })
+      .andWhere("alert.criteria->>'offerId' = :offerId", { offerId })
+      .getOne();
+
+    if (existing) {
+      existing.isActive = !existing.isActive;
+      await this.dealAlertRepo.save(existing);
+      return {
+        subscribed: existing.isActive,
+        message: existing.isActive
+          ? 'Đã bật nhận thông báo khi deal có hàng lại'
+          : 'Đã hủy thông báo khi deal có hàng lại',
+      };
+    }
+
+    const activeCount = await this.dealAlertRepo.count({
+      where: { userId, isActive: true },
+    });
+    if (activeCount >= 10) {
+      throw new BadRequestException(
+        'Mỗi khách hàng chỉ được bật tối đa 10 cảnh báo deal đồng thời (R1-031).',
+      );
+    }
+
+    let title = 'Deal cứu món';
+    if (offer.itemId) {
+      const item = await this.itemRepo.findOne({ where: { id: offer.itemId } });
+      if (item) title = item.name;
+    }
+
+    const alert = this.dealAlertRepo.create({
+      userId,
+      criteria: {
+        offerId,
+        storeId: offer.storeId,
+        backInStock: true,
+        title,
+      },
+      isActive: true,
+    });
+    await this.dealAlertRepo.save(alert);
+
+    return {
+      subscribed: true,
+      message: 'Đã đăng ký nhận tin khi deal có hàng lại',
+    };
+  }
+
+  /**
+   * Kiểm tra trạng thái đã đăng ký nhận thông báo có hàng lại hay chưa (KX06)
+   */
+  async getBackInStockStatus(userId: string, offerId: string) {
+    const alert = await this.dealAlertRepo
+      .createQueryBuilder('alert')
+      .where('alert.user_id = :userId', { userId })
+      .andWhere("alert.criteria->>'offerId' = :offerId", { offerId })
+      .getOne();
+
+    return {
+      subscribed: !!alert?.isActive,
+    };
+  }
+
+  /**
+   * Xem lịch sử giá và theo dõi biến động giá của deal (KX07)
+   */
+  async getPriceHistory(offerId: string) {
+    const offer = await this.offerRepo.findOne({ where: { id: offerId } });
+    if (!offer) {
+      throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
+    }
+
+    let itemName = 'Món cứu cứu';
+    if (offer.itemId) {
+      const item = await this.itemRepo.findOne({ where: { id: offer.itemId } });
+      if (item) itemName = item.name;
+    }
+
+    const auditLogs = await this.dataSource.getRepository(AuditLogEntity).find({
+      where: {
+        targetType: 'OFFER',
+        targetId: offer.id,
+      },
+      order: { createdAt: 'ASC' },
+      take: 10,
+    });
+
+    const timeline: Array<{
+      label: string;
+      price: number;
+      timestamp: string;
+      discountPercent: number;
+      note?: string;
+    }> = [];
+
+    // Mốc 1: Giá gốc ban đầu
+    timeline.push({
+      label: 'Giá gốc niêm yết',
+      price: offer.originalPrice,
+      timestamp: offer.createdAt ? offer.createdAt.toISOString() : new Date().toISOString(),
+      discountPercent: 0,
+      note: 'Giá gốc niêm yết của quán',
+    });
+
+    // Mốc 2: Giá mở bán
+    const initialOfferPrice =
+      auditLogs.length > 0 && auditLogs[0].oldValue?.currentPrice
+        ? Number(auditLogs[0].oldValue.currentPrice)
+        : offer.currentPrice;
+
+    if (initialOfferPrice !== offer.originalPrice) {
+      const initialDiscount = Math.round(
+        ((offer.originalPrice - initialOfferPrice) / offer.originalPrice) * 100,
+      );
+      timeline.push({
+        label: 'Giá mở bán cứu món',
+        price: initialOfferPrice,
+        timestamp: offer.createdAt ? offer.createdAt.toISOString() : new Date().toISOString(),
+        discountPercent: initialDiscount,
+        note: `Tiết kiệm ${initialDiscount}% ngay khi mở bán`,
+      });
+    }
+
+    // Các lần đổi giá từ Audit Log
+    for (const log of auditLogs) {
+      if (log.newValue && log.newValue.currentPrice) {
+        const newPrice = Number(log.newValue.currentPrice);
+        const discount = Math.round(((offer.originalPrice - newPrice) / offer.originalPrice) * 100);
+        timeline.push({
+          label: 'Giảm giá giờ chót (Flash Sale)',
+          price: newPrice,
+          timestamp: log.createdAt.toISOString(),
+          discountPercent: discount,
+          note: `Giảm thêm trong khung giờ cứu`,
+        });
+      }
+    }
+
+    // Đảm bảo mức giá hiện tại có trong timeline
+    const lastPoint = timeline[timeline.length - 1];
+    if (lastPoint.price !== offer.currentPrice) {
+      const currentDiscount = Math.round(
+        ((offer.originalPrice - offer.currentPrice) / offer.originalPrice) * 100,
+      );
+      timeline.push({
+        label: 'Giá hiện tại (Tốt nhất hôm nay)',
+        price: offer.currentPrice,
+        timestamp: offer.updatedAt ? offer.updatedAt.toISOString() : new Date().toISOString(),
+        discountPercent: currentDiscount,
+        note: `Mức giá tốt nhất đang áp dụng`,
+      });
+    }
+
+    const currentDiscount = Math.round(
+      ((offer.originalPrice - offer.currentPrice) / offer.originalPrice) * 100,
+    );
+
+    return {
+      offerId: offer.id,
+      itemName,
+      originalPrice: offer.originalPrice,
+      currentPrice: offer.currentPrice,
+      floorPrice: offer.floorPrice,
+      discountPercent: currentDiscount,
+      priceChangeCount: offer.priceChangeCount,
+      timeline,
+      transparencyCommitment:
+        'SurplusIQ cam kết hiển thị giá thực tế từ đối tác, không nâng giá để tạo khuyến mãi ảo.',
     };
   }
 }

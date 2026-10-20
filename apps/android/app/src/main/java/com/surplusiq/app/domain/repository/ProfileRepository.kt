@@ -41,4 +41,10 @@ interface ProfileRepository {
 
     /** R1-079: thu thập ưu đãi vào ví theo ID promotion */
     suspend fun claimPromotion(promotionId: String): Result<Boolean>
+
+    /** KX01: Lấy tài khoản ngân hàng nhận tiền hoàn VietQR */
+    suspend fun getRefundBankAccount(): Result<com.surplusiq.app.data.remote.dto.RefundBankAccountDto?>
+
+    /** KX01: Cập nhật tài khoản ngân hàng nhận tiền hoàn VietQR */
+    suspend fun updateRefundBankAccount(bankBin: String, bankName: String, accountNumber: String, accountHolder: String): Result<com.surplusiq.app.data.remote.dto.RefundBankAccountDto>
 }

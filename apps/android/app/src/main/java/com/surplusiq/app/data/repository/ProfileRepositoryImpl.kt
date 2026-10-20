@@ -8,6 +8,7 @@ import com.surplusiq.app.data.remote.dto.DataExportResponse
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
 import com.surplusiq.app.data.remote.dto.PaymentTransactionRecordDto
 import com.surplusiq.app.data.remote.dto.PromotionWalletItemDto
+import com.surplusiq.app.data.remote.dto.RefundBankAccountDto
 import com.surplusiq.app.data.remote.dto.UpdateCustomerProfileRequest
 import com.surplusiq.app.data.remote.dto.CustomerProfileDto
 import retrofit2.Response
@@ -173,6 +174,44 @@ class ProfileRepositoryImpl @Inject constructor(
             else Result.failure(Exception("$errorPrefix (${response.code()})"))
         } catch (e: Exception) {
             Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại.", e))
+        }
+    }
+
+    override suspend fun getRefundBankAccount(): Result<RefundBankAccountDto?> {
+        return try {
+            val response = profileApiService.getRefundBankAccount()
+            if (response.isSuccessful) {
+                Result.success(response.body())
+            } else {
+                Result.failure(Exception("Không lấy được thông tin tài khoản hoàn tiền (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Lỗi kết nối khi tải tài khoản hoàn tiền", e))
+        }
+    }
+
+    override suspend fun updateRefundBankAccount(
+        bankBin: String,
+        bankName: String,
+        accountNumber: String,
+        accountHolder: String
+    ): Result<RefundBankAccountDto> {
+        return try {
+            val dto = RefundBankAccountDto(
+                bankBin = bankBin,
+                bankName = bankName,
+                accountNumber = accountNumber,
+                accountHolder = accountHolder
+            )
+            val response = profileApiService.updateRefundBankAccount(dto)
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                Result.success(body)
+            } else {
+                Result.failure(Exception("Cập nhật tài khoản hoàn tiền thất bại (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Lỗi kết nối khi lưu tài khoản hoàn tiền", e))
         }
     }
 

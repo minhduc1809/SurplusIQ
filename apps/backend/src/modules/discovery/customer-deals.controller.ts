@@ -299,4 +299,39 @@ export class CustomerDealsController {
   async clearViewHistory(@CurrentUser() user: RequestUser) {
     return this.discoveryService.clearViewHistory(user?.userId);
   }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Post('deals/:id/back-in-stock')
+  @ApiOperation({
+    summary: 'Đăng ký hoặc hủy thông báo khi deal có hàng lại (KX06)',
+  })
+  @ApiResponse({ status: 200, description: 'Chuyển đổi trạng thái đăng ký thành công' })
+  async toggleBackInStock(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.discoveryService.toggleBackInStockAlert(user?.userId, id);
+  }
+
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Get('deals/:id/back-in-stock')
+  @ApiOperation({
+    summary: 'Kiểm tra trạng thái đăng ký nhận tin khi có hàng lại (KX06)',
+  })
+  @ApiResponse({ status: 200, description: 'Trạng thái đăng ký' })
+  async getBackInStockStatus(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.discoveryService.getBackInStockStatus(user?.userId, id);
+  }
+
+  @Get('deals/:id/price-history')
+  @ApiOperation({
+    summary: 'Lịch sử giá và biến động giá cứu món minh bạch (KX07)',
+  })
+  @ApiResponse({ status: 200, description: 'Lịch sử biến động giá của deal' })
+  async getPriceHistory(@Param('id') id: string) {
+    return this.discoveryService.getPriceHistory(id);
+  }
 }

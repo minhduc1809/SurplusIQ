@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.surplusiq.app.data.remote.dto.ConsentDto
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
 import com.surplusiq.app.data.remote.dto.PaymentTransactionRecordDto
+import com.surplusiq.app.data.remote.dto.RefundBankAccountDto
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.UserProfile
 import com.surplusiq.app.domain.repository.AuthRepository
@@ -53,7 +54,13 @@ data class ProfileUiState(
     val isDietaryLoading: Boolean = false,
     val dietaryError: String? = null,
     val isDietarySaving: Boolean = false,
-    val dietarySaveSuccess: Boolean = false
+    val dietarySaveSuccess: Boolean = false,
+    // KX01: Tài khoản nhận hoàn tiền VietQR
+    val refundBankAccount: RefundBankAccountDto? = null,
+    val isBankLoading: Boolean = false,
+    val bankError: String? = null,
+    val isSavingBank: Boolean = false,
+    val bankSuccess: Boolean = false
 )
 
 @HiltViewModel
@@ -341,5 +348,67 @@ class ProfileViewModel @Inject constructor(
                 }
             )
         }
+    }
+
+    /**
+     * Tải thông tin tài khoản hoàn tiền VietQR (KX01)
+     */
+    fun loadRefundBankAccount() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isBankLoading = true, bankError = null, bankSuccess = false)
+            val result = profileRepository.getRefundBankAccount()
+            result.fold(
+                onSuccess = { dto ->
+                    _uiState.value = _uiState.value.copy(
+                        refundBankAccount = dto,
+                        isBankLoading = false
+                    )
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        bankError = err.localizedMessage ?: "Không thể tải tài khoản hoàn tiền",
+                        isBankLoading = false
+                    )
+                }
+            )
+        }
+    }
+
+    /**
+     * Lưu thông tin tài khoản hoàn tiền VietQR (KX01)
+     */
+    fun saveRefundBankAccount(
+        bankBin: String,
+        bankName: String,
+        accountNumber: String,
+        accountHolder: String,
+        onComplete: (Boolean, String?) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSavingBank = true, bankError = null, bankSuccess = false)
+            val result = profileRepository.updateRefundBankAccount(bankBin, bankName, accountNumber, accountHolder)
+            result.fold(
+                onSuccess = { dto ->
+                    _uiState.value = _uiState.value.copy(
+                        refundBankAccount = dto,
+                        isSavingBank = false,
+                        bankSuccess = true
+                    )
+                    onComplete(true, null)
+                },
+                onFailure = { err ->
+                    val errorMsg = err.localizedMessage ?: "Cập nhật tài khoản hoàn tiền thất bại"
+                    _uiState.value = _uiState.value.copy(
+                        isSavingBank = false,
+                        bankError = errorMsg
+                    )
+                    onComplete(false, errorMsg)
+                }
+            )
+        }
+    }
+
+    fun resetBankSuccess() {
+        _uiState.value = _uiState.value.copy(bankSuccess = false, bankError = null)
     }
 }

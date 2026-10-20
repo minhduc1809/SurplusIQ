@@ -662,5 +662,14 @@ class DiscoveryRepositoryImpl @Inject constructor(
                 message = body.message
             )
         }
+
+    override suspend fun toggleBackInStock(offerId: String): Result<com.surplusiq.app.data.remote.dto.BackInStockResponseDto> =
+        apiCall("Không thể đăng ký nhận tin có hàng lại", { discoveryApiService.toggleBackInStock(offerId) }) { it }
+
+    override suspend fun getBackInStockStatus(offerId: String): Result<Boolean> =
+        apiCall("Không thể kiểm tra trạng thái báo hàng", { discoveryApiService.getBackInStockStatus(offerId) }) { it.subscribed }
+
+    override suspend fun getPriceHistory(offerId: String): Result<com.surplusiq.app.data.remote.dto.PriceHistoryDto> =
+        apiCall("Không thể tải lịch sử giá", { discoveryApiService.getPriceHistory(offerId) }) { it }
 }
 

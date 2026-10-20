@@ -1,0 +1,5 @@
+packages:
+  - packages/core
+  - apps/backend
+  - apps/web
+  - apps/simulation
