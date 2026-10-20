@@ -53,4 +53,28 @@ abstract class RepositoryModule {
     abstract fun bindInteractionsRepository(
         impl: InteractionsRepositoryImpl
     ): InteractionsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindRewardsRepository(
+        impl: RewardsRepositoryImpl
+    ): RewardsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindNotificationsRepository(
+        impl: NotificationsRepositoryImpl
+    ): NotificationsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindRescuePoolRepository(
+        impl: RescuePoolRepositoryImpl
+    ): RescuePoolRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindLocationRepository(
+        impl: LocationRepositoryImpl
+    ): LocationRepository
 }

@@ -8,6 +8,11 @@ import com.surplusiq.app.domain.repository.PickupRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * KHÔNG trả vé nhận hàng giả khi API lỗi (rule 0.1 "không fake success"). Một vé
+ * hiển thị "hợp lệ" nhưng QR không ký thật sẽ không quét được ở quán và đánh lừa
+ * khách. Chỉ dùng cache Room cho dữ liệu đã từng tải thật (offline), không bịa mới.
+ */
 @Singleton
 class PickupRepositoryImpl @Inject constructor(
     private val pickupsApiService: PickupsApiService,
@@ -17,8 +22,8 @@ class PickupRepositoryImpl @Inject constructor(
     override suspend fun getPickupPass(orderId: String): Result<PickupPassInfo> {
         return try {
             val response = pickupsApiService.getPickupPass(orderId)
-            if (response.isSuccessful && response.body() != null) {
-                val dto = response.body()!!
+            val dto = response.body()
+            if (response.isSuccessful && dto != null) {
                 val info = PickupPassInfo(
                     orderId = dto.orderId,
                     orderCode = dto.orderCode,
@@ -29,7 +34,6 @@ class PickupRepositoryImpl @Inject constructor(
                     quantity = dto.quantity,
                     totalAmount = dto.totalAmount.toInt()
                 )
-                // Cache into Room database for offline access
                 try {
                     pickupPassDao.savePickupPass(
                         PickupPassEntity(
@@ -43,19 +47,20 @@ class PickupRepositoryImpl @Inject constructor(
                             totalAmount = info.totalAmount
                         )
                     )
-                } catch (_: Exception) {}
-
+                } catch (_: Exception) {
+                    // Cache offline là tiện ích phụ - lỗi cache không được làm hỏng vé thật đã tải.
+                }
                 Result.success(info)
             } else {
-                getOfflineOrFallbackPass(orderId)
+                getOfflineOrFail(orderId, apiErrorMessage(response.code()))
             }
         } catch (_: Exception) {
-            getOfflineOrFallbackPass(orderId)
+            getOfflineOrFail(orderId, "Không kết nối được. Kiểm tra mạng rồi thử lại.")
         }
     }
 
-    private suspend fun getOfflineOrFallbackPass(orderId: String): Result<PickupPassInfo> {
-        val cached = pickupPassDao.getPickupPassById(orderId) ?: pickupPassDao.getLatestPickupPass()
+    private suspend fun getOfflineOrFail(orderId: String, errorMessage: String): Result<PickupPassInfo> {
+        val cached = pickupPassDao.getPickupPassById(orderId)
         return if (cached != null) {
             Result.success(
                 PickupPassInfo(
@@ -70,20 +75,14 @@ class PickupRepositoryImpl @Inject constructor(
                 )
             )
         } else {
-            Result.success(createFallbackPass(orderId))
+            Result.failure(Exception(errorMessage))
         }
     }
 
-    private fun createFallbackPass(orderId: String): PickupPassInfo {
-        return PickupPassInfo(
-            orderId = orderId,
-            orderCode = "ORD-8941",
-            qrToken = "SURPLUSIQ:HMAC-SHA256:ORD-8941:$orderId:VALID",
-            fallbackPin = "7K9X2B",
-            expiresAt = "21:30",
-            itemName = "Túi Bánh Ngọt Cuối Ngày (Magic Bag)",
-            quantity = 1,
-            totalAmount = 35000
-        )
+    private fun apiErrorMessage(code: Int): String = when (code) {
+        401 -> "Phiên đăng nhập đã hết. Đăng nhập lại để tiếp tục."
+        404 -> "Không tìm thấy vé nhận hàng cho đơn này."
+        in 500..599 -> "Hệ thống đang gặp sự cố. Vui lòng thử lại sau."
+        else -> "Không thể tải vé nhận hàng."
     }
 }
