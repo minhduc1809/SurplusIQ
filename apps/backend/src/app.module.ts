@@ -32,9 +32,11 @@ import { RescuePoolModule } from './modules/rescue-pool/rescue-pool.module';
 import { RescueBridgeModule } from './modules/rescue-bridge/rescue-bridge.module';
 import { RescueLabModule } from './modules/rescue-lab/rescue-lab.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 
 @Module({
   imports: [
+    RealtimeModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['../../.env', '../.env', '.env'],

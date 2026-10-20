@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { RealtimeService } from './modules/realtime/realtime.service';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -57,9 +58,15 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 4000;
-  await app.listen(port);
+  const server = await app.listen(port);
   const rootUrl = `http://localhost:${port}`;
+
+  // Gắn WebSocket Server vào HTTP server chính
+  const realtimeService = app.get(RealtimeService);
+  realtimeService.init(server);
+
   console.log(`[SurplusIQ Backend] Server running on: ${rootUrl}`);
+  console.log(`[SurplusIQ WebSocket] Realtime Gateway at: ws://localhost:${port}/ws`);
   console.log(`[SurplusIQ Swagger] API Docs at: ${rootUrl}/api`);
 }
 bootstrap();

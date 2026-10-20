@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "packages/core",
+    "apps/backend",
+    "apps/web",
+    "apps/simulation"
   ],
   "scripts": {
     "infra:up": "docker compose --env-file .env -f docker/docker-compose.yml up -d",
