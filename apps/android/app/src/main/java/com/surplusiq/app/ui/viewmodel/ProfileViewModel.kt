@@ -2,6 +2,9 @@ package com.surplusiq.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.surplusiq.app.data.remote.dto.ConsentDto
+import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
+import com.surplusiq.app.data.remote.dto.PaymentTransactionRecordDto
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.UserProfile
 import com.surplusiq.app.domain.repository.AuthRepository
@@ -17,7 +20,26 @@ data class ProfileUiState(
     val userProfile: UserProfile? = null,
     val favoriteStoreIds: Set<String> = emptySet(),
     val isLoading: Boolean = false,
-    val isLoggedOut: Boolean = false
+    val isLoggedOut: Boolean = false,
+    // GDPR / quyền riêng tư & dữ liệu (R1-011, R1-012, R1-017, R1-018, R1-019)
+    val consents: List<ConsentDto> = emptyList(),
+    val isConsentsLoading: Boolean = false,
+    val consentsError: String? = null,
+    val deleteRequestStatus: String? = null,
+    val deleteRequestedAt: String? = null,
+    val isAccountDeleteActionLoading: Boolean = false,
+    val accountDeleteMessage: String? = null,
+    val exportDownloadUrl: String? = null,
+    val isExportLoading: Boolean = false,
+    val exportMessage: String? = null,
+    // R1-077: lịch sử thanh toán & hoàn tiền (K46)
+    val transactions: List<PaymentTransactionRecordDto> = emptyList(),
+    val isTransactionsLoading: Boolean = false,
+    val transactionsError: String? = null,
+    // R1-048, BR-020: trạng thái khóa đặt (K33)
+    val orderLock: OrderLockStatusDto? = null,
+    val isOrderLockLoading: Boolean = false,
+    val orderLockError: String? = null
 )
 
 @HiltViewModel
@@ -60,6 +82,126 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.logout()
             _uiState.value = _uiState.value.copy(isLoggedOut = true)
+        }
+    }
+
+    fun loadConsents() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isConsentsLoading = true, consentsError = null)
+            val result = profileRepository.getConsents()
+            result.fold(
+                onSuccess = { list ->
+                    _uiState.value = _uiState.value.copy(consents = list, isConsentsLoading = false)
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isConsentsLoading = false,
+                        consentsError = err.localizedMessage ?: "Không thể tải lịch sử chấp thuận"
+                    )
+                }
+            )
+        }
+    }
+
+    fun requestAccountDelete() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isAccountDeleteActionLoading = true, accountDeleteMessage = null)
+            val result = profileRepository.requestAccountDelete()
+            result.fold(
+                onSuccess = { res ->
+                    _uiState.value = _uiState.value.copy(
+                        isAccountDeleteActionLoading = false,
+                        deleteRequestStatus = res.status,
+                        deleteRequestedAt = res.deleteRequestedAt,
+                        accountDeleteMessage = res.message ?: "Đã ghi nhận yêu cầu xóa tài khoản."
+                    )
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isAccountDeleteActionLoading = false,
+                        accountDeleteMessage = err.localizedMessage ?: "Không thể gửi yêu cầu xóa tài khoản"
+                    )
+                }
+            )
+        }
+    }
+
+    fun cancelAccountDelete() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isAccountDeleteActionLoading = true, accountDeleteMessage = null)
+            val result = profileRepository.cancelAccountDelete()
+            result.fold(
+                onSuccess = { res ->
+                    _uiState.value = _uiState.value.copy(
+                        isAccountDeleteActionLoading = false,
+                        deleteRequestStatus = res.status,
+                        deleteRequestedAt = null,
+                        accountDeleteMessage = res.message ?: "Đã hủy yêu cầu xóa tài khoản."
+                    )
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isAccountDeleteActionLoading = false,
+                        accountDeleteMessage = err.localizedMessage ?: "Không thể hủy yêu cầu xóa tài khoản"
+                    )
+                }
+            )
+        }
+    }
+
+    fun loadTransactions() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isTransactionsLoading = true, transactionsError = null)
+            profileRepository.getTransactions().fold(
+                onSuccess = { list ->
+                    _uiState.value = _uiState.value.copy(transactions = list, isTransactionsLoading = false)
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isTransactionsLoading = false,
+                        transactionsError = err.localizedMessage ?: "Không thể tải lịch sử giao dịch"
+                    )
+                }
+            )
+        }
+    }
+
+    fun loadOrderLock() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isOrderLockLoading = true, orderLockError = null)
+            profileRepository.getOrderLockStatus().fold(
+                onSuccess = { lock ->
+                    _uiState.value = _uiState.value.copy(orderLock = lock, isOrderLockLoading = false)
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isOrderLockLoading = false,
+                        orderLockError = err.localizedMessage ?: "Không thể tải trạng thái khóa đặt"
+                    )
+                }
+            )
+        }
+    }
+
+    fun exportUserData() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isExportLoading = true, exportMessage = null)
+            val result = profileRepository.exportUserData()
+            result.fold(
+                onSuccess = { res ->
+                    _uiState.value = _uiState.value.copy(
+                        isExportLoading = false,
+                        exportDownloadUrl = res.downloadUrl,
+                        exportMessage = "Liên kết tải dữ liệu đã sẵn sàng, có hiệu lực ${res.expiresInHours} giờ."
+                    )
+                },
+                onFailure = { err ->
+                    _uiState.value = _uiState.value.copy(
+                        isExportLoading = false,
+                        exportMessage = err.localizedMessage ?: "Không thể xuất dữ liệu cá nhân"
+                    )
+                }
+            )
         }
     }
 }

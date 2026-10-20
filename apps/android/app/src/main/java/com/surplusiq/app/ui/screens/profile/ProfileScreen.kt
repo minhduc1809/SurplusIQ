@@ -21,204 +21,187 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.app.domain.model.UserImpactStats
 import com.surplusiq.app.ui.theme.AmberAccent
-import com.surplusiq.app.ui.theme.ForestGreenDark
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    userName: String = "Trần Minh Đức",
-    userPhone: String = "0901234567",
-    stats: UserImpactStats = UserImpactStats(),
+    userName: String = "",
+    userPhone: String = "",
+    stats: UserImpactStats? = null,
     onOpenAiChat: () -> Unit,
     onOpenMyOrders: () -> Unit = {},
+    onOpenChangePassword: () -> Unit = {},
+    onOpenRewards: () -> Unit = {},
+    onOpenPromotionWallet: () -> Unit = {},
+    onOpenTransactions: () -> Unit = {},
+    onOpenOrderLock: () -> Unit = {},
+    onOpenComplaints: () -> Unit = {},
+    onOpenMyReviews: () -> Unit = {},
+    onOpenSupportTickets: () -> Unit = {},
+    onOpenRescuePool: () -> Unit = {},
+    onOpenImpact: () -> Unit = {},
+    onOpenPrivacyData: () -> Unit = {},
+    onOpenHelpCenter: () -> Unit = {},
+    onOpenLocationSettings: () -> Unit = {},
+    onOpenSavedDeals: () -> Unit = {},
+    onOpenDealAlerts: () -> Unit = {},
+    onOpenPreferences: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showMore by remember { mutableStateOf(false) }
+    val divider = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(top = 16.dp, bottom = 96.dp), // chừa chỗ cho chatbot nổi và bottom nav
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        TopAppBar(
-            title = {
-                Text(
-                    text = "Me",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            // User Header Info (R1-005)
-            Row(
+        // Hồ sơ (R1-005)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(ForestGreenPrimary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
             ) {
+                Icon(Icons.Default.Person, contentDescription = "Avatar", tint = ForestGreenPrimary, modifier = Modifier.size(32.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = userName.ifBlank { "Khách" },
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (userPhone.isNotBlank()) {
+                    Text(text = userPhone, fontSize = 13.sp, color = TextSecondary, maxLines = 1)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(ForestGreenPrimary.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ForestGreenPrimary.copy(alpha = 0.1f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Avatar",
-                        tint = ForestGreenPrimary,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column {
-                    Text(
-                        text = userName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = userPhone,
-                        fontSize = 13.sp,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(ForestGreenPrimary.copy(alpha = 0.1f))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "Khách hàng thân thiết • 0 lần vi phạm",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = ForestGreenPrimary
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Impact Stats Card (R1-076, R1-081)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Thành tích sống xanh",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Chia sẻ",
-                            tint = ForestGreenPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        ImpactMetricItem(
-                            label = "Thực phẩm cứu",
-                            value = "${stats.totalRescuedKg} kg",
-                            icon = Icons.Default.Eco,
-                            color = ForestGreenPrimary
-                        )
-                        ImpactMetricItem(
-                            label = "Giảm phát thải",
-                            value = "${stats.totalReducedCo2Kg} kg CO2",
-                            icon = Icons.Default.CloudQueue,
-                            color = Color(0xFF3B82F6)
-                        )
-                        ImpactMetricItem(
-                            label = "Tiền tiết kiệm",
-                            value = "4.82 tr ₫",
-                            icon = Icons.Default.Savings,
-                            color = AmberAccent
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Menu Items List
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column {
-                    ProfileMenuItem(
-                        icon = Icons.Default.ReceiptLong,
-                        title = "Đơn hàng của tôi",
-                        subtitle = "Lịch sử mua & vé nhận hàng",
-                        onClick = onOpenMyOrders
-                    )
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                    ProfileMenuItem(
-                        icon = Icons.Default.AccountBalanceWallet,
-                        title = "Ví ưu đãi & Voucher",
-                        subtitle = "Mã giảm giá từ các tiệm yêu thích",
-                        onClick = {}
-                    )
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                    ProfileMenuItem(
-                        icon = Icons.Default.RestaurantMenu,
-                        title = "Hồ sơ ăn uống & Dị ứng",
-                        subtitle = "Khai báo dị ứng để cảnh báo món",
-                        onClick = {}
-                    )
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                    ProfileMenuItem(
-                        icon = Icons.Default.AutoAwesome,
-                        title = "Trợ lý AI Cứu Món",
-                        subtitle = "Hỏi đáp deal, dinh dưỡng & thành phần",
-                        onClick = onOpenAiChat
-                    )
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                    ProfileMenuItem(
-                        icon = Icons.Default.Logout,
-                        title = "Đăng xuất",
-                        subtitle = "Thu hồi phiên đăng nhập",
-                        onClick = onLogout
-                    )
+                    Text("Thành viên SurplusIQ", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = ForestGreenPrimary)
                 }
             }
         }
+
+        // Thành tích sống xanh: chỉ 3 chỉ số, chi tiết ở trang con
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { onOpenImpact() },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Thành tích sống xanh", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text("Xem chi tiết", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = ForestGreenPrimary)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                if (stats == null) {
+                    Text("Chưa có dữ liệu thành tích.", fontSize = 12.sp, color = TextMuted)
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        ImpactMetricItem("Thực phẩm cứu", "%.1f kg".format(stats.totalRescuedKg), Icons.Default.Eco, ForestGreenPrimary, Modifier.weight(1f))
+                        ImpactMetricItem("CO₂ giảm", "%.1f kg".format(stats.totalReducedCo2Kg), Icons.Default.CloudQueue, Color(0xFF3B82F6), Modifier.weight(1f))
+                        ImpactMetricItem("Tiết kiệm", formatSavings(stats.totalSavedMoneyVnd), Icons.Default.Savings, AmberAccent, Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+
+        // Lối tắt chính
+        MenuGroup {
+            ProfileMenuItem(Icons.Default.ReceiptLong, "Đơn hàng của tôi", "Lịch sử mua hàng", onOpenMyOrders)
+            Divider(color = divider)
+            ProfileMenuItem(Icons.Default.Groups, "Mua chung theo đợt", "Đăng ký nhu cầu với cửa hàng", onOpenRescuePool)
+            Divider(color = divider)
+            ProfileMenuItem(Icons.Default.ConfirmationNumber, "Ví ưu đãi", "Mã giảm giá của bạn", onOpenPromotionWallet)
+            Divider(color = divider)
+            ProfileMenuItem(Icons.Default.Stars, "Điểm thưởng", "Số dư và lịch sử tích điểm", onOpenRewards)
+        }
+
+        // Các chức năng còn lại, thu gọn mặc định
+        MenuGroup {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showMore = !showMore }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Tiện ích, hỗ trợ & cài đặt", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
+                Icon(if (showMore) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null, tint = TextMuted)
+            }
+            if (showMore) {
+                listOf(
+                    Triple(Icons.Default.LocationOn, "Vị trí & địa điểm", onOpenLocationSettings),
+                    Triple(Icons.Default.Bookmarks, "Deal đã lưu & đã xem", onOpenSavedDeals),
+                    Triple(Icons.Default.NotificationsActive, "Cảnh báo deal", onOpenDealAlerts),
+                    Triple(Icons.Default.RestaurantMenu, "Hồ sơ ăn uống & dị ứng", onOpenPreferences),
+                    Triple(Icons.Default.AccountBalanceWallet, "Thanh toán & hoàn tiền", onOpenTransactions),
+                    Triple(Icons.Default.ReportProblem, "Khiếu nại của tôi", onOpenComplaints),
+                    Triple(Icons.Default.RateReview, "Đánh giá của tôi", onOpenMyReviews),
+                    Triple(Icons.Default.GppMaybe, "Trạng thái khóa đặt", onOpenOrderLock),
+                    Triple(Icons.Default.AutoAwesome, "Trợ lý AI Cứu Món", onOpenAiChat),
+                    Triple(Icons.Default.SupportAgent, "Hỗ trợ", onOpenSupportTickets),
+                    Triple(Icons.Default.HelpOutline, "Câu hỏi thường gặp", onOpenHelpCenter),
+                    Triple(Icons.Default.Shield, "Quyền riêng tư & dữ liệu", onOpenPrivacyData),
+                    Triple(Icons.Default.Lock, "Đổi mật khẩu", onOpenChangePassword)
+                ).forEach { (icon, title, action) ->
+                    Divider(color = divider)
+                    ProfileMenuItem(icon, title, "", action)
+                }
+            }
+        }
+
+        TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Logout, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Đăng xuất", color = TextSecondary, fontWeight = FontWeight.SemiBold)
+        }
     }
+}
+
+@Composable
+private fun MenuGroup(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) { Column(content = content) }
+}
+
+private fun formatSavings(vnd: Long): String = when {
+    vnd >= 1_000_000 -> "%.1f tr".format(vnd / 1_000_000.0)
+    vnd >= 1_000 -> "${vnd / 1_000}k"
+    else -> "$vnd ₫"
 }
 
 @Composable
@@ -226,21 +209,14 @@ fun ImpactMetricItem(
     label: String,
     value: String,
     icon: ImageVector,
-    color: Color
+    color: Color,
+    modifier: Modifier = Modifier
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(text = value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Text(text = label, fontSize = 11.sp, color = TextSecondary)
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text = label, fontSize = 11.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -255,7 +231,7 @@ fun ProfileMenuItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -267,7 +243,7 @@ fun ProfileMenuItem(
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-            Text(text = subtitle, fontSize = 12.sp, color = TextMuted)
+            if (subtitle.isNotBlank()) Text(text = subtitle, fontSize = 12.sp, color = TextMuted)
         }
         Icon(
             imageVector = Icons.Default.ChevronRight,

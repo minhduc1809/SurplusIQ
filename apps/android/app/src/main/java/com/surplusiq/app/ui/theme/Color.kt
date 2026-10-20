@@ -3,40 +3,58 @@ package com.surplusiq.app.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ============================================================================
-// SurplusIQ Brand Colors - Light Blue & White Theme (Tông Xanh Dương Nhạt & Trắng)
+// SurplusIQ Brand Colors - "Soft Market Intelligence"
+// Nguồn: doc/SURPLUSIQ_Design_Code_Rules.md mục 2.1-2.4
+// Giữ nguyên tên biến cũ (SkyBlue*, Amber*, CoralRed*...) để không phá các màn
+// đang dùng; chỉ đổi giá trị hex sang token chính thức sqInk/sqCoral/sqMint/...
 // ============================================================================
 
-// Signature Light Blue Palette
-val SkyBluePrimary = Color(0xFF0284C7)         // Xanh dương chủ đạo (Sky Blue 600)
-val SkyBlueDark = Color(0xFF0369A1)            // Xanh dương đậm nhấn tương phản (Sky Blue 700)
-val SkyBlueLight = Color(0xFF38BDF8)           // Xanh dương sáng tươi tắn (Sky Blue 400)
-val SkyBlueContainer = Color(0xFFE0F2FE)       // Xanh dương nhạt pastel (Sky Blue 100)
-val SkyBlueIce = Color(0xFFF0F9FF)             // Nền trắng ánh xanh ngọc (Sky Blue 50)
-val SkyBlueAccent = Color(0xFF0EA5E9)          // Xanh dương điện quang (Sky Blue 500)
+// --- sqCoral: brand, CTA chính (thay cho SkyBlue*) ---
+val SkyBluePrimary = Color(0xFFFF8A3D)         // sqCoral
+val SkyBlueDark = Color(0xFFC85A1E)            // sqCoralDeep - pressed, text accent
+val SkyBlueLight = Color(0xFFFFA866)           // điểm cuối gradient coral
+val SkyBlueContainer = Color(0xFFFFF0E7)       // sqCoralWash
+val SkyBlueIce = Color(0xFFDDF3E8)             // sqMintWash (secondaryContainer ghép mint)
+val SkyBlueAccent = Color(0xFF71C7A3)          // sqMint
 
-// Warm & Alert Accents
-val AmberAccent = Color(0xFFF59E0B)            // Vàng mật ong cho điểm số sao & giá giảm
-val AmberLight = Color(0xFFFEF3C7)             // Vàng nhạt container
-val CoralRed = Color(0xFFEF4444)               // Đỏ cam cho giờ nhận gấp & hủy đơn
-val CoralRedLight = Color(0xFFFEE2E2)
+// --- Ngữ nghĩa phụ: butter (sắp hết/khuyến mãi), error ---
+val AmberAccent = Color(0xFFD99A2B)            // sqButter
+val AmberLight = Color(0xFFFBEFD6)             // sqButterWash
+val CoralRed = Color(0xFFD9534F)               // sqError (khác sqCoral - không dùng brand làm màu lỗi)
+val CoralRedLight = Color(0xFFF9DEDF)          // nền pastel nhẹ cho error
 
-// Pure White & Clean Surfaces
-val AppBackground = Color(0xFFF8FAFC)          // Nền trắng ánh khói thanh khiết
-val SurfaceWhite = Color(0xFFFFFFFF)           // Trắng tinh khiết 100% cho các thẻ Card
-val SurfaceSubtle = Color(0xFFF1F5F9)          // Nền phụ phẳng mịn màng
-val DividerColor = Color(0xFFE2E8F0)           // Đường kẻ phân cách viền mỏng tinh tế
+// --- AI / Pro / insight (lilac) và thông tin/bản đồ (sky) - mới theo rule ---
+val LilacAccent = Color(0xFFA99AE9)            // sqLilac
+val LilacWash = Color(0xFFECE8FF)              // sqLilacWash
+val SkyInfoAccent = Color(0xFF8AC8E8)          // sqSky
+val SkyInfoWash = Color(0xFFE1F2FA)            // sqSkyWash
+val MintDeep = Color(0xFF278A65)               // sqMintDeep - chữ success trên nền sáng
+val WarningOnLight = Color(0xFFA96B18)         // sqWarning
+val InfoOnLight = Color(0xFF3D73A8)            // sqInfo
 
-// Typography Colors
-val TextPrimary = Color(0xFF0F172A)            // Slate Navy đậm sắc nét, chống mỏi mắt
-val TextSecondary = Color(0xFF475569)          // Slate trung tính rõ ràng
-val TextMuted = Color(0xFF94A3B8)              // Xám ghi nhạt
-val TextOnPrimary = Color(0xFFFFFFFF)          // Trắng tinh khiết trên nền nút xanh
+// --- Surface & neutral (sqCanvas/sqSurface/sqLine) ---
+val AppBackground = Color(0xFFFFFCF9)          // sqCanvas
+val SurfaceWhite = Color(0xFFFFFFFF)           // sqSurface
+val SurfaceSubtle = Color(0xFFF8F4F0)          // sqSurfaceSoft
+val DividerColor = Color(0xFFF0E7E1)           // sqLine
 
-// Dark Theme Variants
-val DarkBackground = Color(0xFF0B1320)
-val DarkSurface = Color(0xFF131F33)
-val DarkTextPrimary = Color(0xFFF8FAFC)
-val DarkTextSecondary = Color(0xFF94A3B8)
+// --- Typography (sqInk/sqInkSoft/sqInkMuted) ---
+val TextPrimary = Color(0xFF292524)            // sqInk
+val TextSecondary = Color(0xFF817B78)          // sqInkSoft
+val TextMuted = Color(0xFFA8A19D)              // sqInkMuted
+val TextOnPrimary = Color(0xFFFFFFFF)          // chữ trắng trên nút coral đặc (không phải nền pastel)
+
+// --- Dark theme (ánh xạ chính thức rule 2.4, không phải đảo màu) ---
+val DarkBackground = Color(0xFF191B1B)         // sqDarkCanvas
+val DarkSurface = Color(0xFF232626)            // sqDarkSurface
+val DarkSurfaceVariant = Color(0xFF2C3030)     // sqDarkSurfaceSoft
+val DarkLine = Color(0xFF414846)               // sqDarkLine
+val DarkTextPrimary = Color(0xFFF7F2EA)        // sqDarkInk
+val DarkTextSecondary = Color(0xFFC2C8C4)      // sqDarkInkSoft
+val DarkCoral = Color(0xFFFF8B7F)              // sqDarkCoral
+val DarkMint = Color(0xFF82D6B0)               // sqDarkMint
+val DarkButter = Color(0xFFFFD477)             // sqDarkButter
+val DarkLilac = Color(0xFFB9ACF5)              // sqDarkLilac
 
 // Compatibility Aliases for legacy component bindings
 val ForestGreenPrimary = SkyBluePrimary
@@ -48,6 +66,9 @@ val EmeraldPrimary = SkyBluePrimary
 val EmeraldDark = SkyBlueDark
 val TextOnGreen = TextOnPrimary
 
+// Lưu ý: tên gọi "...Dark" gây hiểu nhầm (lịch sử) nhưng đang được dùng như màu
+// chữ phụ/chính trên nền sáng ở BuyerDealListScreen/QrPickupScreen - giữ ánh xạ
+// sang giá trị sáng để không phá 2 màn đang chạy thật; không đổi tên ở đây.
 val TextSecondaryDark = TextSecondary
 val TextPrimaryDark = TextPrimary
 val BackgroundDark = DarkBackground

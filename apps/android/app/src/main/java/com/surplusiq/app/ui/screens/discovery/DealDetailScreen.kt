@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.surplusiq.app.domain.model.Deal
+import com.surplusiq.app.domain.model.TrustpassInfo
 import com.surplusiq.app.ui.theme.CoralRed
 import com.surplusiq.app.ui.theme.ForestGreenDark
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
@@ -44,10 +47,19 @@ fun DealDetailScreen(
     deal: Deal,
     onBackClick: () -> Unit,
     onReserveClick: (Deal) -> Unit,
+    trustpass: TrustpassInfo? = null,
+    isTrustpassLoading: Boolean = false,
+    trustpassErrorMessage: String? = null,
+    onLoadTrustpass: () -> Unit = {},
+    // K17: lưu deal xem sau; K14: mở trang cửa hàng
+    isSaved: Boolean = false,
+    onToggleSaved: (() -> Unit)? = null,
+    onOpenStore: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isFavorite by remember { mutableStateOf(deal.isFavorite) }
     var showFavoriteToast by remember { mutableStateOf(false) }
+    var showTrustpass by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     Box(
@@ -96,6 +108,22 @@ fun DealDetailScreen(
                         )
                     }
 
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (onToggleSaved != null) {
+                        IconButton(
+                            onClick = onToggleSaved,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.4f))
+                        ) {
+                            Icon(
+                                imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = if (isSaved) "Bỏ lưu deal" else "Lưu deal",
+                                tint = Color.White
+                            )
+                        }
+                    }
                     IconButton(
                         onClick = {
                             isFavorite = !isFavorite
@@ -113,6 +141,7 @@ fun DealDetailScreen(
                             contentDescription = "Favorite",
                             tint = if (isFavorite) CoralRed else Color.White
                         )
+                    }
                     }
                 }
 
@@ -136,7 +165,13 @@ fun DealDetailScreen(
 
             // Store Info & Title
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = onOpenStore != null) { onOpenStore?.invoke() }
+                ) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -154,8 +189,12 @@ fun DealDetailScreen(
                         text = deal.storeName,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f)
                     )
+                    if (onOpenStore != null) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Xem cửa hàng", tint = TextMuted)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -200,7 +239,7 @@ fun DealDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "%.1f (%d)".format(deal.rating, deal.reviewCount),
+                        text = if (deal.reviewCount > 0) "%.1f (%d)".format(deal.rating, deal.reviewCount) else "Chưa có đánh giá",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
@@ -249,7 +288,7 @@ fun DealDetailScreen(
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
                                 Text(
-                                    text = "Today",
+                                    text = "Hôm nay",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -309,56 +348,43 @@ fun DealDetailScreen(
                 )
 
                 // WHAT YOU COULD GET Section
-                Text(
-                    text = "WHAT YOU COULD GET",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary,
-                    letterSpacing = 0.5.sp
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = deal.whatYouCouldGet,
-                    fontSize = 14.sp,
-                    color = TextPrimary,
-                    lineHeight = 20.sp
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Category Tag
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(ForestGreenPrimary.copy(alpha = 0.1f))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
+                if (deal.whatYouCouldGet.isNotBlank()) {
                     Text(
-                        text = deal.category.displayName,
+                        text = "TRONG TÚI CÓ GÌ",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ForestGreenPrimary
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = deal.whatYouCouldGet,
+                        fontSize = 14.sp,
+                        color = TextPrimary,
+                        lineHeight = 20.sp
+                    )
+                    Divider(
+                        modifier = Modifier.padding(vertical = 14.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                     )
                 }
 
-                Divider(
-                    modifier = Modifier.padding(vertical = 14.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                )
-
-                // Ingredients & Allergens
+                // TrustPass (CM-C03): hồ sơ minh bạch món - không phải chứng nhận an toàn tuyệt đối
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { }
+                        .clickable {
+                            showTrustpass = !showTrustpass
+                            if (showTrustpass) onLoadTrustpass()
+                        }
                         .padding(vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Ingredients & allergens",
+                            text = "Thành phần, dị ứng & TrustPass",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = TextPrimary
@@ -371,47 +397,57 @@ fun DealDetailScreen(
                     }
                     Icon(
                         imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Expand",
+                        contentDescription = "Mở rộng",
                         tint = TextMuted
                     )
                 }
 
-                Divider(
-                    modifier = Modifier.padding(vertical = 14.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                )
-
-                // WHAT OTHER PEOPLE ARE SAYING
-                Text(
-                    text = "WHAT OTHER PEOPLE ARE SAYING",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary,
-                    letterSpacing = 0.5.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Rating",
-                        tint = ForestGreenPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "%.1f / 5.0".format(deal.rating),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = TextPrimary
-                    )
+                AnimatedVisibility(visible = showTrustpass) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = ForestGreenPrimary.copy(alpha = 0.05f))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            when {
+                                isTrustpassLoading -> {
+                                    Text("Đang tải hồ sơ TrustPass...", fontSize = 13.sp, color = TextSecondary)
+                                }
+                                trustpassErrorMessage != null -> {
+                                    Text(trustpassErrorMessage, fontSize = 13.sp, color = CoralRed)
+                                }
+                                trustpass != null -> {
+                                    TrustpassField("Thành phần", trustpass.ingredients)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    TrustpassAllergensField(trustpass.allergens)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    TrustpassField("Hạn dùng", trustpass.expiryAt)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    TrustpassField("Bảo quản", trustpass.storageInstructions)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = trustpass.pickupWindowNote,
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = "Nguồn thông tin: ${trustpass.informationSource} • Trạng thái: ${trustpass.verificationStatus}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = ForestGreenDark
+                                    )
+                                }
+                                else -> {
+                                    Text("Chưa có dữ liệu TrustPass.", fontSize = 13.sp, color = TextSecondary)
+                                }
+                            }
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "TOP 3 HIGHLIGHTS: Bánh tươi trong ngày • Cửa hàng thân thiện • Tiết kiệm 67%",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = ForestGreenPrimary
-                )
+
             }
         }
 
@@ -434,7 +470,7 @@ fun DealDetailScreen(
                 )
             ) {
                 Text(
-                    text = "Reserve",
+                    text = "Đặt giữ suất",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -469,11 +505,49 @@ fun DealDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Great! This store was added to your list of favourites",
+                        text = "Đã thêm cửa hàng vào danh sách yêu thích",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
+                }
+            }
+        }
+    }
+}
+
+/** BR-C03-02: null = "Chưa được cung cấp" - không suy diễn thành "Không có". */
+@Composable
+private fun TrustpassField(label: String, value: String?) {
+    Column {
+        Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+        Text(
+            text = value ?: "Chưa được cung cấp",
+            fontSize = 13.sp,
+            color = if (value != null) TextPrimary else TextMuted
+        )
+    }
+}
+
+/** allergens == null -> "Chưa được cung cấp"; allergens == [] -> khai báo rõ là không có (BR-C03-02). */
+@Composable
+private fun TrustpassAllergensField(allergens: List<String>?) {
+    Column {
+        Text(text = "Dị ứng", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+        when {
+            allergens == null -> Text("Chưa được cung cấp", fontSize = 13.sp, color = TextMuted)
+            allergens.isEmpty() -> Text("Cửa hàng khai báo rõ: không có chất gây dị ứng", fontSize = 13.sp, color = TextPrimary)
+            else -> Row(modifier = Modifier.padding(top = 4.dp)) {
+                allergens.forEach { allergen ->
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CoralRed.copy(alpha = 0.1f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = allergen, fontSize = 12.sp, color = CoralRed)
+                    }
                 }
             }
         }

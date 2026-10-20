@@ -35,9 +35,9 @@ enum class DealCategory(val displayName: String, val subtitle: String) {
 }
 
 enum class DietaryType(val displayName: String) {
-    NONE("None / Bình thường"),
-    VEGETARIAN("Vegetarian / Ăn chay"),
-    VEGAN("Vegan / Thuần chay")
+    NONE("Bình thường"),
+    VEGETARIAN("Ăn chay"),
+    VEGAN("Thuần chay")
 }
 
 enum class CollectionTimeSlot(val title: String, val timeRange: String) {
@@ -84,11 +84,88 @@ enum class OrderStatus {
     CANCELLED
 }
 
+/** Thông tin giao dịch VietQR/giả lập thật từ backend (R1-041). */
+data class PaymentInfo(
+    val transactionId: String,
+    val orderId: String,
+    val orderCode: String,
+    val amount: Long,
+    val transferSyntax: String,
+    val bankAccount: String,
+    val bankBin: String,
+    val bankName: String,
+    val qrUrl: String,
+    val holdExpiresAtMillis: Long,
+    val status: String
+)
+
+/** Kết quả "Kiểm tra lại" thanh toán - trạng thái thật từ backend, không đoán (R1-056). */
+data class PaymentRecheckResult(
+    val orderId: String,
+    val orderStatus: String,
+    val paymentStatus: String,
+    val message: String
+)
+
 data class UserImpactStats(
-    val totalSavedMoneyVnd: Long = 4820000L,
-    val totalRescuedKg: Double = 18.5,
-    val totalReducedCo2Kg: Double = 46.2,
-    val totalRescuedBags: Int = 14
+    val totalSavedMoneyVnd: Long = 0L,
+    val totalRescuedKg: Double = 0.0,
+    val totalReducedCo2Kg: Double = 0.0,
+    val totalRescuedBags: Int = 0
+)
+
+/** Rescue Radar (CM-C05): deal xếp hạng kèm lý do - không chỉ khoảng cách/giảm giá. */
+data class RadarDeal(
+    val deal: Deal,
+    val minutesLeftToPickup: Int,
+    val canArriveInTime: Boolean?,
+    val rankingReasons: List<String>
+)
+
+/**
+ * TrustPass (CM-C03, BR-C03-02): null = "chưa được cung cấp", khác với [] ("khai báo
+ * rõ là không có"). Giữ nullable, KHÔNG mặc định null thành danh sách rỗng.
+ */
+data class TrustpassInfo(
+    val itemId: String,
+    val ingredients: String?,
+    val allergens: List<String>?,
+    val expiryAt: String?,
+    val pickupWindowNote: String,
+    val storageInstructions: String?,
+    val informationSource: String,
+    val verificationStatus: String,
+    val missingFields: List<String>
+)
+
+data class BasketItem(
+    val offerId: String,
+    val title: String,
+    val price: Int
+)
+
+/** Rescue Basket (CM-C01): tổ hợp suất gợi ý - chỉ tính toán, không giữ tồn/tạo đơn. */
+data class BasketSuggestion(
+    val storeId: String,
+    val storeName: String,
+    val items: List<BasketItem>,
+    val estimatedTotal: Int,
+    val withinBudget: Boolean,
+    val meetsPeopleCount: Boolean,
+    val rankingReasons: List<String>
+)
+
+/** Rescue Rewards (CM-C04): ledger điểm thưởng. */
+data class RewardBalanceInfo(
+    val pointsBalance: Int
+)
+
+data class RewardHistoryEntry(
+    val id: String,
+    val entryType: String,
+    val pointsDelta: Int,
+    val reason: String?,
+    val createdAt: String?
 )
 
 data class UserProfile(
@@ -98,3 +175,32 @@ data class UserProfile(
     val avatarUrl: String? = null,
     val impactStats: UserImpactStats = UserImpactStats()
 )
+
+data class AppNotification(
+    val id: String,
+    val type: String,
+    val title: String,
+    val body: String,
+    val isRead: Boolean,
+    val createdAt: String
+)
+
+data class NotificationSettings(
+    val transactionPush: Boolean = true,
+    val promoPush: Boolean = true,
+    val reminderPush: Boolean = true
+)
+
+/** Tên hiển thị tiếng Việt; [DealCategory.displayName] giữ nguyên vì còn dùng làm giá trị lọc gửi backend. */
+fun DealCategory.viName() = when (this) {
+    DealCategory.MEALS -> "Món chính"
+    DealCategory.BAKED_GOODS -> "Bánh"
+    DealCategory.GROCERIES -> "Nông sản"
+    DealCategory.OTHER -> "Khác"
+}
+
+fun CollectionTimeSlot.viTitle() = when (this) {
+    CollectionTimeSlot.MORNING -> "Sáng"
+    CollectionTimeSlot.NOON -> "Trưa"
+    CollectionTimeSlot.EVENING -> "Tối"
+}
