@@ -11,6 +11,8 @@ import com.surplusiq.app.domain.model.TrustpassInfo
 import com.surplusiq.app.domain.model.UserPreferences
 import com.surplusiq.app.domain.repository.DiscoveryRepository
 import com.surplusiq.app.domain.repository.LocationRepository
+import com.surplusiq.app.data.remote.realtime.RealtimeEvent
+import com.surplusiq.app.data.remote.realtime.RealtimeWebSocketClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,7 +51,8 @@ data class DiscoveryUiState(
 @HiltViewModel
 class DiscoveryViewModel @Inject constructor(
     private val discoveryRepository: DiscoveryRepository,
-    private val locationRepository: LocationRepository
+    private val locationRepository: LocationRepository,
+    private val realtimeWebSocketClient: RealtimeWebSocketClient
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DiscoveryUiState(isLoading = true))
@@ -62,6 +65,43 @@ class DiscoveryViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(location = location)
                 loadDeals()
                 if (_uiState.value.mapPins.isNotEmpty() || _uiState.value.mapErrorMessage != null) loadMapPins()
+            }
+        }
+
+        // Kết nối WebSocket thời gian thực (deal.stock_updated, deal.flash_rescue, order.hold_reserved)
+        realtimeWebSocketClient.connect()
+        viewModelScope.launch {
+            realtimeWebSocketClient.events.collect { event ->
+                when (event) {
+                    is RealtimeEvent.DealStockUpdated -> {
+                        val currentDeals = _uiState.value.deals.map { deal ->
+                            if (deal.id == event.dealId) deal.copy(remainingStock = event.remainingQuantity) else deal
+                        }
+                        val currentPins = _uiState.value.mapPins.map { pin ->
+                            if (pin.storeId == event.storeId) {
+                                val newCount = if (event.remainingQuantity <= 0) (pin.activeDealsCount - 1).coerceAtLeast(0) else pin.activeDealsCount
+                                pin.copy(activeDealsCount = newCount)
+                            } else pin
+                        }
+                        _uiState.value = _uiState.value.copy(deals = currentDeals, mapPins = currentPins)
+                    }
+                    is RealtimeEvent.DealFlashRescue -> {
+                        // Tải lại deal và map pins khi có quán tung deal xả hàng tức thì
+                        loadDeals()
+                        loadMapPins()
+                    }
+                    is RealtimeEvent.OrderHoldReserved -> {
+                        val currentDeals = _uiState.value.deals.map { deal ->
+                            if (deal.id == event.dealId) {
+                                deal.copy(remainingStock = (deal.remainingStock - event.reservedQuantity).coerceAtLeast(0))
+                            } else deal
+                        }
+                        _uiState.value = _uiState.value.copy(deals = currentDeals)
+                    }
+                    is RealtimeEvent.Connected -> {
+                        // Kết nối WebSocket thành công
+                    }
+                }
             }
         }
     }
@@ -207,5 +247,10 @@ class DiscoveryViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(deals = updatedList)
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        realtimeWebSocketClient.disconnect()
     }
 }
