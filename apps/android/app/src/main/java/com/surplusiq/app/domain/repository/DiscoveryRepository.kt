@@ -87,4 +87,21 @@ interface DiscoveryRepository {
 
     /** K15: xem danh sách đánh giá công khai của quán kèm phân bổ sao. */
     suspend fun getStoreReviews(storeId: String, rating: Int? = null, page: Int = 1, limit: Int = 10): Result<com.surplusiq.app.data.remote.dto.StoreReviewsResponseDto>
+
+    /** KC03: gợi ý món thay thế cùng quán khi chỉnh sửa giỏ Rescue Basket. */
+    suspend fun getBasketSubstitutes(
+        storeId: String,
+        excludeOfferIds: List<String>,
+        maxPrice: Double? = null,
+        avoidAllergens: List<String> = emptyList()
+    ): Result<List<com.surplusiq.app.domain.model.BasketSubstituteItem>>
+
+    /** KC04: đặt giữ cả giỏ hàng (nguyên tử) trong 10 phút. */
+    suspend fun checkoutBasket(
+        storeId: String,
+        items: List<Pair<String, Int>>,
+        pickupTimeWindow: String? = null,
+        notes: String? = null
+    ): Result<com.surplusiq.app.domain.model.BasketHoldResult>
 }
+

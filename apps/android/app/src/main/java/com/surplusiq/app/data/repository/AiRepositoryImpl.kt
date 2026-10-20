@@ -1,8 +1,8 @@
 package com.surplusiq.app.data.repository
 
 import com.surplusiq.app.data.remote.api.AiApiService
-import com.surplusiq.app.data.remote.dto.CustomerAiChatRequest
-import com.surplusiq.app.data.remote.dto.CustomerAllergyCheckRequest
+import com.surplusiq.app.data.remote.apiCall
+import com.surplusiq.app.data.remote.dto.*
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.domain.repository.AiAssistantResponse
 import com.surplusiq.app.domain.repository.AiRepository
@@ -19,11 +19,16 @@ class AiRepositoryImpl @Inject constructor(
     override suspend fun chatWithAi(
         message: String,
         contextDealId: String?,
+        conversationId: String?,
         availableDeals: List<Deal>
     ): Result<AiAssistantResponse> {
         return try {
             val response = aiApiService.chatWithAi(
-                CustomerAiChatRequest(message = message, contextDealId = contextDealId)
+                CustomerAiChatRequest(
+                    message = message,
+                    contextDealId = contextDealId,
+                    conversationId = conversationId
+                )
             )
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
@@ -31,6 +36,7 @@ class AiRepositoryImpl @Inject constructor(
                 Result.success(
                     AiAssistantResponse(
                         reply = body.reply,
+                        conversationId = body.conversationId ?: conversationId,
                         recommendedDeals = recommended,
                         remainingQuota = body.remainingQuota
                     )
@@ -61,6 +67,27 @@ class AiRepositoryImpl @Inject constructor(
             Result.success(Pair(true, "Món này an toàn và không chứa thành phần dị ứng đã khai báo."))
         }
     }
+
+    override suspend fun getConversations(): Result<List<AiConversationDto>> =
+        apiCall("Không thể tải lịch sử hội thoại", { aiApiService.getConversations() }) { it }
+
+    override suspend fun getConversationMessages(id: String): Result<AiConversationDetailResponse> =
+        apiCall("Không thể tải tin nhắn phiên hội thoại", { aiApiService.getConversationMessages(id) }) { it }
+
+    override suspend fun deleteConversation(id: String): Result<Unit> =
+        apiCall("Không thể xóa phiên hội thoại", { aiApiService.deleteConversation(id) }) { }
+
+    override suspend fun clearAllConversations(): Result<Unit> =
+        apiCall("Không thể xóa toàn bộ lịch sử", { aiApiService.clearAllConversations() }) { }
+
+    override suspend fun getMemorySetting(): Result<Boolean> =
+        apiCall("Không thể tải cài đặt ghi nhớ", { aiApiService.getMemorySetting() }) { it.rememberContext }
+
+    override suspend fun updateMemorySetting(rememberContext: Boolean): Result<Boolean> =
+        apiCall("Không thể cập nhật cài đặt ghi nhớ", {
+            aiApiService.updateMemorySetting(AiMemorySettingRequest(rememberContext))
+        }) { it.rememberContext }
+
 
     private fun generateSmartLocalAiResponse(message: String, availableDeals: List<Deal>): AiAssistantResponse {
         localQuota = (localQuota - 1).coerceAtLeast(0)

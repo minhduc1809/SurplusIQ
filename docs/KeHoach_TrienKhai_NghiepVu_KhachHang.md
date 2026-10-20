@@ -119,18 +119,18 @@ ngõ tìm kiếm    Bản đồ OSM & Socket   Rescue Pool nâng   trưởng (KX
 
 ---
 
-### GIAI ĐOẠN 3: Nâng Cấp Rescue Basket, Pool & Trợ Lý AI (Ưu tiên P2)
+### GIAI ĐOẠN 3: Nâng Cấp Rescue Basket, Pool & Trợ Lý AI (Ưu tiên P2) - [x] ĐÃ HOÀN THÀNH 100%
 
-#### Task 3.1: [KC03, KC04] Rescue Basket (Giỏ Cứu)
-- **Backend:** Thêm endpoint `POST customer/baskets/checkout` đặt nhiều món đồng thời.
-- **Android:** Dựng `BasketDetailScreen.kt` (thay món, bỏ món) và `BasketCheckoutScreen.kt` (kiểm tra trước khi đặt, đếm ngược 10 phút).
+#### Task 3.1: [KC03, KC04] Rescue Basket (Giỏ Cứu) - [x] ĐÃ HOÀN THÀNH
+- **Backend:** Thêm endpoint `POST customer/baskets/substitutes` (gợi ý món thay thế cùng quán) và `POST customer/baskets/checkout` (đặt giữ nguyên tử 10 phút cả giỏ).
+- **Android:** Dựng `BasketDetailScreen.kt` (thay món, bỏ món) và `BasketCheckoutScreen.kt` (kiểm tra trước khi đặt, đếm ngược 10 phút, đặt giữ nguyên tử).
 
-#### Task 3.2: [KC08] Màn hình "Nhu cầu của tôi" (Rescue Pool)
-- **Android:** Dựng màn hình 2 tab: "Nhu cầu đang chờ gom" & "Đơn hàng từ đợt gom".
+#### Task 3.2: [KC08] Màn hình "Nhu cầu của tôi" (Rescue Pool) - [x] ĐÃ HOÀN THÀNH
+- **Android:** Dựng `MyRescueDemandsScreen.kt` 2 tab: "Nhu cầu đang chờ gom" & "Đơn hàng từ đợt gom", cho phép chỉnh sửa ngân sách/khung giờ, rút nhu cầu (kèm chọn lý do) và chuyển trực tiếp sang Chi tiết đơn hàng.
 
-#### Task 3.3: [K51] Quản lý Lịch sử hội thoại AI
-- **Backend:** Tạo bảng `ai_chat_sessions`, `ai_chat_messages` và API quản lý.
-- **Android:** Dựng màn `AiChatHistoryScreen.kt` (xem, xóa từng phiên, xóa tất cả).
+#### Task 3.3: [K51] Quản lý Lịch sử hội thoại AI & Ghi nhớ ngữ cảnh (R1-091) - [x] ĐÃ HOÀN THÀNH
+- **Backend:** CRUD phiên hội thoại (`GET/DELETE customer/ai/conversations`, `GET customer/ai/conversations/:id/messages`, `GET/PUT customer/ai/memory-setting`), tích hợp ngữ cảnh 5 tin nhắn vào prompt Gemini.
+- **Android:** Dựng `AiChatHistoryScreen.kt` (xem danh sách, chuyển phiên, xóa từng phiên, xóa tất cả, switch bật/tắt ghi nhớ ngữ cảnh), nâng cấp `SaveBiteAiSheet.kt` với icon Lịch sử chat và phiên mới.
 
 ---
 

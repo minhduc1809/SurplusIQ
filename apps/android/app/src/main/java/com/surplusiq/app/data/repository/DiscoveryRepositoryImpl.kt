@@ -3,11 +3,17 @@ package com.surplusiq.app.data.repository
 import com.surplusiq.app.data.remote.api.DiscoveryApiService
 import com.surplusiq.app.data.remote.api.ProfileApiService
 import com.surplusiq.app.data.remote.dto.BasketCandidateDto
+import com.surplusiq.app.data.remote.dto.BasketSubstitutesRequest
+import com.surplusiq.app.data.remote.dto.BasketCheckoutRequest
+import com.surplusiq.app.data.remote.dto.BasketCheckoutItemRequest
 import com.surplusiq.app.data.remote.dto.DealItemDto
 import com.surplusiq.app.data.remote.dto.RadarItemDto
 import com.surplusiq.app.data.remote.dto.SuggestBasketRequest
 import com.surplusiq.app.domain.model.BasketItem
 import com.surplusiq.app.domain.model.BasketSuggestion
+import com.surplusiq.app.domain.model.BasketSubstituteItem
+import com.surplusiq.app.domain.model.BasketHoldResult
+import com.surplusiq.app.domain.model.BasketHeldItem
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.domain.model.DealCategory
 import com.surplusiq.app.domain.model.DietaryType
@@ -589,4 +595,72 @@ class DiscoveryRepositoryImpl @Inject constructor(
         apiCall("Không thể tải danh sách đánh giá của cửa hàng", {
             discoveryApiService.getStoreReviews(storeId, rating, page, limit)
         }) { it }
+
+    override suspend fun getBasketSubstitutes(
+        storeId: String,
+        excludeOfferIds: List<String>,
+        maxPrice: Double?,
+        avoidAllergens: List<String>
+    ): Result<List<BasketSubstituteItem>> =
+        apiCall("Không thể tải danh sách món thay thế", {
+            discoveryApiService.getBasketSubstitutes(
+                BasketSubstitutesRequest(
+                    storeId = storeId,
+                    excludeOfferIds = excludeOfferIds,
+                    maxPrice = maxPrice,
+                    avoidAllergens = avoidAllergens
+                )
+            )
+        }) { body ->
+            body.substitutes.map {
+                BasketSubstituteItem(
+                    id = it.id,
+                    title = it.title,
+                    currentPrice = it.currentPrice.toInt(),
+                    originalPrice = it.originalPrice.toInt(),
+                    discountPercent = it.discountPercent,
+                    remainingQuantity = it.remainingQuantity,
+                    imageUrl = it.imageUrl,
+                    category = it.category,
+                    allergens = it.allergens
+                )
+            }
+        }
+
+    override suspend fun checkoutBasket(
+        storeId: String,
+        items: List<Pair<String, Int>>,
+        pickupTimeWindow: String?,
+        notes: String?
+    ): Result<BasketHoldResult> =
+        apiCall("Không thể đặt giữ giỏ hàng", {
+            discoveryApiService.checkoutBasket(
+                BasketCheckoutRequest(
+                    storeId = storeId,
+                    items = items.map { BasketCheckoutItemRequest(offerId = it.first, quantity = it.second) },
+                    pickupTimeWindow = pickupTimeWindow,
+                    notes = notes
+                )
+            )
+        }) { body ->
+            BasketHoldResult(
+                success = body.success,
+                storeId = body.storeId,
+                orderIds = body.orderIds,
+                totalAmount = body.totalAmount.toInt(),
+                holdExpiresAt = body.holdExpiresAt,
+                items = body.items.map {
+                    BasketHeldItem(
+                        offerId = it.offerId,
+                        orderId = it.orderId,
+                        title = it.title,
+                        quantity = it.quantity,
+                        unitPrice = it.unitPrice.toInt(),
+                        totalPrice = it.totalPrice.toInt()
+                    )
+                },
+                message = body.message
+            )
+        }
 }
+
