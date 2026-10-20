@@ -845,10 +845,23 @@ export class CustomerInteractionsService {
     const order = await this.orderRepo.findOne({
       where: { id: complaint.orderId },
     });
+    const refund = await this.paymentTxnRepo.findOne({
+      where: { orderId: complaint.orderId, kind: PaymentKind.ORDER_REFUND },
+      order: { createdAt: 'DESC' },
+    });
+    const dest = refund?.refundDestination;
     return {
       complaint,
       attachments,
       order,
+      // Số tài khoản đầy đủ chỉ nền tảng dùng khi chi trả; cửa hàng chỉ thấy phần che.
+      refundDestination: dest
+        ? {
+            bankName: dest.bankName,
+            accountHolder: dest.accountHolder,
+            accountLast4: dest.accountLast4,
+          }
+        : null,
     };
   }
 

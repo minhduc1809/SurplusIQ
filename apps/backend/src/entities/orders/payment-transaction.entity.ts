@@ -76,6 +76,16 @@ export class PaymentTransactionEntity {
   @Column({ type: 'timestamptz', nullable: true, name: 'last_checked_at' })
   lastCheckedAt: Date | null;
 
+  /** Ảnh chụp tài khoản nhận hoàn tại lúc quyết định hoàn, để khách đổi tài khoản sau đó không ảnh hưởng lệnh đã tạo. */
+  @Column({ type: 'jsonb', nullable: true, name: 'refund_destination' })
+  refundDestination: {
+    bankName: string;
+    accountHolder: string;
+    accountLast4: string;
+    accountNumberEnc: string;
+    snapshotAt: string;
+  } | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt: Date;
 

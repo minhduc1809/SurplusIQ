@@ -32,6 +32,10 @@ describe('CustomerProfileService (Full Customer Features)', () => {
   let walletRepo: any;
   let promotionRepo: any;
 
+  beforeAll(() => {
+    process.env.DATA_ENCRYPTION_KEY = 'test-key';
+  });
+
   beforeEach(async () => {
     userRepo = {
       findOne: jest.fn(),
@@ -244,7 +248,7 @@ describe('CustomerProfileService (Full Customer Features)', () => {
         userId: 'u1',
         refundBankAccount: null,
       };
-      profileRepo.findOne.mockResolvedValueOnce(mockProfile);
+      profileRepo.findOne.mockResolvedValue(mockProfile);
 
       const res = await service.updateRefundBankAccount('u1', {
         bankBin: '970436',
@@ -257,6 +261,9 @@ describe('CustomerProfileService (Full Customer Features)', () => {
       expect(res.accountHolder).toBe('NGUYEN VAN A');
       expect(res.updatedAt).toBeDefined();
       expect(profileRepo.save).toHaveBeenCalled();
+      // Lưu mã hóa, không lưu rõ số tài khoản; khách vẫn xem lại được đúng số của mình.
+      expect(JSON.stringify(mockProfile.refundBankAccount)).not.toContain('0071001234567');
+      expect(res.accountNumber).toBe('0071001234567');
     });
   });
 });

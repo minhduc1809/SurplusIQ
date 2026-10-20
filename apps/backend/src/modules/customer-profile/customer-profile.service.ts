@@ -26,6 +26,7 @@ import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
 import { UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
 import { UpdateRefundBankAccountDto } from './dto/refund-bank-account.dto';
+import { decryptField, encryptField } from '../../common/crypto/field-crypto';
 
 function maskEmail(email: string | null): string | null {
   if (!email) return null;
@@ -573,7 +574,14 @@ export class CustomerProfileService {
     if (!profile) {
       throw new NotFoundException('Hồ sơ khách hàng không tồn tại');
     }
-    return profile.refundBankAccount || null;
+    const acc = profile.refundBankAccount;
+    if (!acc) return null;
+    // Trả đúng dạng cũ cho app khách: khách xem lại chính số tài khoản của mình.
+    const { accountNumberEnc, ...rest } = acc;
+    return {
+      ...rest,
+      accountNumber: accountNumberEnc ? decryptField(accountNumberEnc) : acc.accountNumber,
+    };
   }
 
   /**
@@ -588,12 +596,12 @@ export class CustomerProfileService {
     profile.refundBankAccount = {
       bankBin: dto.bankBin,
       bankName: dto.bankName,
-      accountNumber: dto.accountNumber,
+      accountNumberEnc: encryptField(dto.accountNumber),
       accountHolder: dto.accountHolder.trim().toUpperCase(),
       updatedAt: new Date().toISOString(),
     };
 
     await this.profileRepo.save(profile);
-    return profile.refundBankAccount;
+    return this.getRefundBankAccount(userId);
   }
 }

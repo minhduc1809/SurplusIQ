@@ -40,7 +40,9 @@ export class CustomerProfileEntity {
   refundBankAccount: {
     bankBin: string;
     bankName: string;
-    accountNumber: string;
+    /** Chỉ còn ở dữ liệu cũ chưa mã hóa; bản mới lưu accountNumberEnc. */
+    accountNumber?: string;
+    accountNumberEnc?: string;
     accountHolder: string;
     updatedAt?: string;
   } | null;

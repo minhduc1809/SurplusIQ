@@ -4,16 +4,19 @@ import {
   UseInterceptors,
   UploadedFile,
   Req,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UploadService, UploadedMulterFile } from './upload.service';
 
 @ApiTags('Upload - Media & Attachments')
 @Controller('upload')
+@UseGuards(JwtAuthGuard)
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}

@@ -416,6 +416,70 @@ export class PaymentsService {
   }
 
   /**
+   * Quản trị nền tảng xác nhận đã nhận tiền theo biên lai khi webhook ngân hàng chưa về (KX02).
+   * Dùng lại luồng webhook nên giữ nguyên kiểm tra số tiền, hạn giữ suất, hoàn tiền trễ và sinh vé nhận hàng;
+   * không trả vé QR hay mã dự phòng cho người gọi.
+   */
+  async confirmPaymentProof(orderId: string, actorId: string) {
+    const order = await this.orderRepo.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+    if (order.status !== OrderStatus.PENDING_PAYMENT || !order.paymentProofUrl) {
+      throw new BadRequestException('Chỉ xác nhận được đơn đang chờ thanh toán và đã có biên lai.');
+    }
+    const txn = await this.paymentTxnRepo.findOne({
+      where: { orderId, kind: PaymentKind.ORDER_PAYMENT, status: PaymentStatus.PENDING_CONFIRM },
+      order: { createdAt: 'DESC' },
+    });
+    if (!txn) throw new BadRequestException('Đơn chưa có giao dịch thanh toán đang chờ xác nhận.');
+
+    const result = await this.processPaymentWebhook({
+      gatewayTxnId: txn.gatewayTxnId,
+      amount: txn.amount,
+      orderId: order.id,
+      orderCode: order.code,
+      transferMessage: `SUQ${order.code}`,
+    });
+    await this.auditLogService.log({
+      storeId: order.storeId,
+      actorId,
+      actorRole: 'ADMIN',
+      action: 'PAYMENT_PROOF_CONFIRMED',
+      targetType: 'ORDER',
+      targetId: order.id,
+      newValue: { proofUrl: order.paymentProofUrl, orderStatus: result.orderStatus },
+    });
+    return {
+      orderId: order.id,
+      orderCode: order.code,
+      orderStatus: result.orderStatus,
+      latePaymentRefunded: Boolean(result.latePaymentRefunded),
+    };
+  }
+
+  /** Quản trị nền tảng từ chối biên lai (không thấy tiền về): xóa biên lai để khách gửi lại, ghi nhật ký kèm lý do. */
+  async rejectPaymentProof(orderId: string, actorId: string, reason: string) {
+    const order = await this.orderRepo.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+    if (order.status !== OrderStatus.PENDING_PAYMENT || !order.paymentProofUrl) {
+      throw new BadRequestException('Đơn không có biên lai đang chờ xem xét.');
+    }
+    const proofUrl = order.paymentProofUrl;
+    order.paymentProofUrl = null;
+    order.paymentProofUploadedAt = null;
+    await this.orderRepo.save(order);
+    await this.auditLogService.log({
+      storeId: order.storeId,
+      actorId,
+      actorRole: 'ADMIN',
+      action: 'PAYMENT_PROOF_REJECTED',
+      targetType: 'ORDER',
+      targetId: order.id,
+      newValue: { proofUrl, reason },
+    });
+    return { orderId: order.id, orderCode: order.code, reason };
+  }
+
+  /**
    * Khách yêu cầu kiểm tra lại trạng thái thanh toán cổng (R1-056, VC-07)
    * Tần suất: tối đa 1 lần / phút (≥ 60s). Quá 24h đánh dấu FAILED.
    */

@@ -61,3 +61,13 @@ export class UpdateAdminQuotaDto {
   @Max(2147483647)
   quotaValue: number;
 }
+
+export class RejectPaymentProofDto {
+  @ApiProperty({
+    description: 'Lý do từ chối biên lai',
+    example: 'Không thấy khoản tiền về tài khoản nhận',
+  })
+  @IsString()
+  @MaxLength(255)
+  reason: string;
+}

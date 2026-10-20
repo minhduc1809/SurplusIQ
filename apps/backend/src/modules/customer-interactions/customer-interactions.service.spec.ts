@@ -15,6 +15,8 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
+import { encryptField } from '../../common/crypto/field-crypto';
 import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
 import { RewardsService } from '../rewards/rewards.service';
 
@@ -32,6 +34,11 @@ describe('CustomerInteractionsService', () => {
   let storeRepo: any;
   let transactionManager: any;
   let paymentTxnRepo: any;
+  let customerProfileRepo: any;
+
+  beforeAll(() => {
+    process.env.DATA_ENCRYPTION_KEY = 'test-key';
+  });
 
   beforeEach(async () => {
     complaintRepo = {
@@ -97,8 +104,19 @@ describe('CustomerInteractionsService', () => {
     storeRepo = {
       findOne: jest.fn(),
     };
+    customerProfileRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        userId: 'cus-1',
+        refundBankAccount: {
+          bankName: 'MB Bank',
+          accountHolder: 'NGUYEN VAN A',
+          accountNumberEnc: encryptField('0388123456'),
+        },
+      }),
+    };
     paymentTxnRepo = {
       find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockImplementation((d) => ({ id: 'pt-1', ...d })),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'pt-1', ...d })),
     };
@@ -106,6 +124,7 @@ describe('CustomerInteractionsService', () => {
       [ComplaintEntity, complaintRepo],
       [OrderEntity, orderRepo],
       [PaymentTransactionEntity, paymentTxnRepo],
+      [CustomerProfileEntity, customerProfileRepo],
     ]);
     transactionManager = {
       findOne: jest.fn(async (entity, options) => {
@@ -419,8 +438,21 @@ describe('CustomerInteractionsService', () => {
         });
         attachmentRepo.find.mockResolvedValue([{ id: 'att-1', photoUrl: 'https://img.com/1.jpg' }]);
         orderRepo.findOne.mockResolvedValue({ id: 'ord-1' });
+        paymentTxnRepo.findOne.mockResolvedValue({
+          refundDestination: {
+            bankName: 'MB Bank',
+            accountHolder: 'NGUYEN VAN A',
+            accountLast4: '3456',
+            accountNumberEnc: 'secret',
+          },
+        });
 
         const detail = await service.getStoreComplaintDetail('store-1', 'comp-1');
+        expect(detail.refundDestination).toEqual({
+          bankName: 'MB Bank',
+          accountHolder: 'NGUYEN VAN A',
+          accountLast4: '3456',
+        });
         expect(detail.complaint.id).toBe('comp-1');
         expect(detail.attachments).toHaveLength(1);
         expect(detail.order.id).toBe('ord-1');
@@ -455,6 +487,14 @@ describe('CustomerInteractionsService', () => {
         });
 
         expect(res.success).toBe(true);
+        expect(paymentTxnRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            refundDestination: expect.objectContaining({
+              accountLast4: '3456',
+              bankName: 'MB Bank',
+            }),
+          }),
+        );
         expect(complaintRepo.save).toHaveBeenCalled();
         expect(transactionManager.findOne).toHaveBeenCalledWith(
           ComplaintEntity,

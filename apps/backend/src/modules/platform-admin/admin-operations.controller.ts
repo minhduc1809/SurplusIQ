@@ -17,12 +17,14 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../entities/auth/user.entity';
 import { UpdateStoreSettingsDto } from '../settings/dto/update-store-settings.dto';
 import { AdminOperationsService } from './admin-operations.service';
+import { PaymentsService } from '../payments/payments.service';
 import {
   CreateAdminQuotaDto,
   ResolveAdminComplaintDto,
   UpdateAdminQuotaDto,
   UpdateAdminReviewDto,
   UpdateAdminViolationDto,
+  RejectPaymentProofDto,
 } from './dto/admin-operations.dto';
 
 @ApiTags('Platform Admin - Operations')
@@ -31,7 +33,29 @@ import {
 @Roles(UserRole.ADMIN)
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AdminOperationsController {
-  constructor(private readonly service: AdminOperationsService) {}
+  constructor(
+    private readonly service: AdminOperationsService,
+    private readonly payments: PaymentsService,
+  ) {}
+
+  @Post('orders/:id/payment-proof/confirm')
+  @ApiOperation({ summary: 'Xác nhận đã nhận tiền theo biên lai khách gửi (KX02)' })
+  confirmPaymentProof(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('userId') actorId: string,
+  ) {
+    return this.payments.confirmPaymentProof(id, actorId);
+  }
+
+  @Post('orders/:id/payment-proof/reject')
+  @ApiOperation({ summary: 'Từ chối biên lai khách gửi (KX02)' })
+  rejectPaymentProof(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('userId') actorId: string,
+    @Body() dto: RejectPaymentProofDto,
+  ) {
+    return this.payments.rejectPaymentProof(id, actorId, dto.reason);
+  }
 
   @Post('complaints/:id/resolve')
   @ApiOperation({
