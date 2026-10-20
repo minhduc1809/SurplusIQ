@@ -7,6 +7,8 @@ import com.surplusiq.app.data.remote.dto.CancelOrderRequest
 import com.surplusiq.app.data.remote.dto.CreateOrderRequest
 import com.surplusiq.app.data.remote.dto.CreatePaymentRequest
 import com.surplusiq.app.data.remote.dto.OrderReceiptDto
+import com.surplusiq.app.data.remote.dto.AttachPaymentProofRequest
+import com.surplusiq.app.data.remote.dto.UpdatePickupSlotRequest
 import com.surplusiq.app.data.remote.dto.ProxyCodeResponse
 import com.surplusiq.app.data.remote.dto.ReorderResponseDto
 import com.surplusiq.app.domain.model.ActiveOrder
@@ -279,6 +281,32 @@ class OrderRepositoryImpl @Inject constructor(
                 // 400 = món chưa mở suất hôm nay -> trạng thái rỗng, không phải lỗi.
                 response.code() == 400 -> Result.success(null)
                 else -> Result.failure(apiError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Result.failure(networkError(e))
+        }
+    }
+
+    override suspend fun attachPaymentProof(orderId: String, proofUrl: String): Result<Boolean> {
+        return try {
+            val response = ordersApiService.attachPaymentProof(orderId, AttachPaymentProofRequest(proofUrl))
+            if (response.isSuccessful) {
+                Result.success(true)
+            } else {
+                Result.failure(apiError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Result.failure(networkError(e))
+        }
+    }
+
+    override suspend fun updatePickupSlot(orderId: String, pickupSlot: String): Result<Boolean> {
+        return try {
+            val response = ordersApiService.updatePickupSlot(orderId, UpdatePickupSlotRequest(pickupSlot))
+            if (response.isSuccessful) {
+                Result.success(true)
+            } else {
+                Result.failure(apiError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(networkError(e))

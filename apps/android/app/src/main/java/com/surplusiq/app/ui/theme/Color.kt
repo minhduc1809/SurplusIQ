@@ -66,6 +66,7 @@ val MintAccent = SkyBlueAccent
 val EmeraldPrimary = SkyBluePrimary
 val EmeraldDark = SkyBlueDark
 val TextOnGreen = TextOnPrimary
+val PrimaryOrange = SkyBluePrimary
 
 // Lưu ý: tên gọi "...Dark" gây hiểu nhầm (lịch sử) nhưng đang được dùng như màu
 // chữ phụ/chính trên nền sáng ở BuyerDealListScreen/QrPickupScreen - giữ ánh xạ

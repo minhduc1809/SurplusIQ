@@ -58,6 +58,18 @@ interface OrdersApiService {
         @Path("id") id: String
     ): Response<OrderReceiptDto>
 
+    @POST("customer/orders/{id}/payment-proof")
+    suspend fun attachPaymentProof(
+        @Path("id") id: String,
+        @Body request: AttachPaymentProofRequest
+    ): Response<OrderResponseDto>
+
+    @PATCH("customer/orders/{id}/pickup-slot")
+    suspend fun updatePickupSlot(
+        @Path("id") id: String,
+        @Body request: UpdatePickupSlotRequest
+    ): Response<OrderResponseDto>
+
     @POST("customer/orders/reorder/{oldOrderId}")
     suspend fun reorder(
         @Path("oldOrderId") oldOrderId: String

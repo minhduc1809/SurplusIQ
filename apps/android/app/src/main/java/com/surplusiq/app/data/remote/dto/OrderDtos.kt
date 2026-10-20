@@ -38,6 +38,8 @@ data class OrderResponseDto(
     @SerializedName("status") val status: String,
     @SerializedName("holdExpiresAt") val holdExpiresAt: String? = null,
     @SerializedName("pickupSlot") val pickupSlot: String? = null,
+    @SerializedName("paymentProofUrl") val paymentProofUrl: String? = null,
+    @SerializedName("paymentProofUploadedAt") val paymentProofUploadedAt: String? = null,
     @SerializedName("note") val note: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
     @SerializedName("offer") val offer: OrderOfferBriefDto? = null
@@ -76,4 +78,14 @@ data class ReorderResponseDto(
     @SerializedName("remainingQuantity") val remainingQuantity: Int,
     @SerializedName("pickupStart") val pickupStart: String? = null,
     @SerializedName("pickupEnd") val pickupEnd: String? = null
+)
+
+/** KX02: Đính kèm ảnh biên lai chuyển khoản */
+data class AttachPaymentProofRequest(
+    @SerializedName("proofUrl") val proofUrl: String
+)
+
+/** KX04: Cập nhật giờ hẹn nhận hàng */
+data class UpdatePickupSlotRequest(
+    @SerializedName("pickupSlot") val pickupSlot: String
 )

@@ -22,6 +22,7 @@ class SessionManager @Inject constructor(
         private const val KEY_FULL_NAME = "key_full_name"
         private const val KEY_DEVICE_ID = "key_device_id"
         private const val KEY_BASE_URL = "key_base_url"
+        private const val KEY_ONBOARDING_COMPLETED = "key_onboarding_completed"
         const val DEFAULT_BASE_URL = "http://10.0.2.2:4000/"
     }
 
@@ -78,6 +79,12 @@ class SessionManager @Inject constructor(
     fun setBaseUrl(url: String) {
         val sanitized = if (url.endsWith("/")) url else "$url/"
         prefs.edit().putString(KEY_BASE_URL, sanitized).apply()
+    }
+
+    fun hasCompletedOnboarding(): Boolean = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+
+    fun setOnboardingCompleted(completed: Boolean = true) {
+        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
     }
 
     fun isLoggedIn(): Boolean = !getAccessToken().isNullOrBlank()
