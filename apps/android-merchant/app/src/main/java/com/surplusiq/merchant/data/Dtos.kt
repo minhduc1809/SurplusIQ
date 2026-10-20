@@ -674,8 +674,12 @@ data class ComplaintAttachmentDto(val id: String, val url: String, val addedRoun
 data class ComplaintDetailResponse(
     val complaint: ComplaintDto,
     val attachments: List<ComplaintAttachmentDto> = emptyList(),
-    val order: OrderDto? = null
+    val order: OrderDto? = null,
+    val refundDestination: RefundDestinationDto? = null
 )
+
+/** Tài khoản nhận hoàn của khách, backend chỉ trả phần che (4 số cuối). */
+data class RefundDestinationDto(val bankName: String, val accountHolder: String, val accountLast4: String)
 
 /** ResolveComplaintDto: bỏ trống refundAmount = hoàn 100% giá trị đơn. */
 data class ResolveComplaintRequest(val refundAmount: Long? = null, val note: String? = null)

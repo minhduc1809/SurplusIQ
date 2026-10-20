@@ -92,6 +92,7 @@ fun OrderDetailScreen(repository: StoreRepository, orderId: String, canCancel: B
                     o.paymentProofUrl?.let { url ->
                         val uri = LocalUriHandler.current
                         InfoRow("Biên lai khách gửi", shortDateTime(o.paymentProofUploadedAt.orEmpty()))
+                        if (o.status == "PENDING_PAYMENT") Text("Đang chờ nền tảng đối chiếu tiền về.", fontSize = 12.sp, color = SqInkSoft)
                         TextButton(onClick = { uri.openUri(url) }, contentPadding = PaddingValues(0.dp)) { Text("Xem ảnh biên lai", color = SqCoralDeep) }
                     }
                     Text("Hoa hồng tính theo sao kê đối soát tuần, chưa có theo từng đơn.", fontSize = 11.sp, color = SqInkMuted)

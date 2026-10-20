@@ -142,6 +142,7 @@ fun ComplaintDetailScreen(
                     if (c.extended) InfoRow("Gia hạn", "Đã gia hạn 24 giờ")
                     if (c.autoAccepted) Text("Hệ thống tự chấp nhận vì quá hạn phản hồi.", fontSize = 12.sp, color = SqInkSoft)
                     c.refundAmount?.takeIf { it > 0 }?.let { InfoRow("Đã hoàn", currency(it)) }
+                    d.refundDestination?.let { InfoRow("Hoàn về", "${it.bankName} ••••${it.accountLast4} · ${it.accountHolder}") }
                     c.rejectReason?.let { InfoRow("Lý do từ chối", it) }
                 }
                 d.order?.let { o ->
