@@ -11,6 +11,8 @@ import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
 import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
+import { OrdersService } from '../orders/orders.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 describe('DiscoveryService', () => {
   let service: DiscoveryService;
@@ -22,6 +24,8 @@ describe('DiscoveryService', () => {
   let savedFilterRepo: any;
   let viewHistoryRepo: any;
   let reviewRepo: any;
+  let ordersService: any;
+  let realtimeService: any;
 
   const mockQueryBuilder = {
     innerJoin: jest.fn().mockReturnThis(),
@@ -108,6 +112,12 @@ describe('DiscoveryService', () => {
     reviewRepo = {
       createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
     };
+    ordersService = {
+      createHoldOrder: jest.fn(),
+    };
+    realtimeService = {
+      broadcast: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -121,6 +131,8 @@ describe('DiscoveryService', () => {
         { provide: getRepositoryToken(ViewHistoryEntity), useValue: viewHistoryRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
         { provide: DataSource, useValue: {} },
+        { provide: OrdersService, useValue: ordersService },
+        { provide: RealtimeService, useValue: realtimeService },
       ],
     }).compile();
 
