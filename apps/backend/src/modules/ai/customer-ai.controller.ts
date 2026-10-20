@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -15,6 +17,7 @@ import {
   AiFeedbackDto,
   CustomerAllergyCheckDto,
   CustomerAiChatDto,
+  MemorySettingDto,
 } from './dto/ai.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -74,5 +77,49 @@ export class CustomerAiController {
   @ApiResponse({ status: 200, description: 'Đã ghi nhận đánh giá' })
   async recordCustomerFeedback(@CurrentUser() user: RequestUser, @Body() dto: AiFeedbackDto) {
     return this.aiService.recordFeedback(user.userId, dto);
+  }
+
+  // --- Quản lý lịch sử hội thoại AI & Ghi nhớ ngữ cảnh (K51, R1-091) ---
+
+  @Get('conversations')
+  @ApiOperation({ summary: 'Lấy danh sách các phiên hội thoại AI của khách hàng (K51)' })
+  @ApiResponse({ status: 200, description: 'Danh sách các phiên hội thoại' })
+  async listConversations(@CurrentUser() user: RequestUser) {
+    return this.aiService.listCustomerConversations(user.userId);
+  }
+
+  @Get('conversations/:id/messages')
+  @ApiOperation({ summary: 'Lấy chi tiết tin nhắn của một phiên hội thoại AI (K51)' })
+  @ApiResponse({ status: 200, description: 'Chi tiết tin nhắn của phiên' })
+  async getConversationMessages(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.aiService.getConversationMessages(user.userId, id);
+  }
+
+  @Delete('conversations/:id')
+  @ApiOperation({ summary: 'Xóa một phiên hội thoại AI (K51)' })
+  @ApiResponse({ status: 200, description: 'Đã xóa phiên hội thoại' })
+  async deleteConversation(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.aiService.deleteCustomerConversation(user.userId, id);
+  }
+
+  @Delete('conversations')
+  @ApiOperation({ summary: 'Xóa toàn bộ lịch sử hội thoại AI (K51)' })
+  @ApiResponse({ status: 200, description: 'Đã xóa toàn bộ lịch sử' })
+  async clearAllConversations(@CurrentUser() user: RequestUser) {
+    return this.aiService.clearAllCustomerConversations(user.userId);
+  }
+
+  @Get('memory-setting')
+  @ApiOperation({ summary: 'Lấy cấu hình ghi nhớ ngữ cảnh hội thoại AI (R1-091, K51)' })
+  @ApiResponse({ status: 200, description: 'Trạng thái ghi nhớ ngữ cảnh' })
+  async getMemorySetting(@CurrentUser() user: RequestUser) {
+    return this.aiService.getMemorySetting(user.userId);
+  }
+
+  @Put('memory-setting')
+  @ApiOperation({ summary: 'Cập nhật cấu hình ghi nhớ ngữ cảnh hội thoại AI (R1-091, K51)' })
+  @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
+  async updateMemorySetting(@CurrentUser() user: RequestUser, @Body() dto: MemorySettingDto) {
+    return this.aiService.updateMemorySetting(user.userId, dto.rememberContext);
   }
 }

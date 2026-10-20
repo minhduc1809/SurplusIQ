@@ -14,6 +14,7 @@ import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       ReviewEntity,
       ComplaintEntity,
       StoreEntity,
+      CustomerProfileEntity,
     ]),
     SubscriptionsModule,
   ],

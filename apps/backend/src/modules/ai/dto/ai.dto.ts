@@ -6,6 +6,7 @@ import {
   IsUUID,
   IsEnum,
   IsNumber,
+  IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AiRating } from '../../../entities/ai/ai-feedback.entity';
@@ -257,4 +258,14 @@ export class DraftComplaintReplyDto {
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class MemorySettingDto {
+  @ApiProperty({
+    description: 'Bật/tắt ghi nhớ ngữ cảnh từ các phiên trước (R1-091, K51)',
+    example: true,
+  })
+  @IsNotEmpty()
+  @IsBoolean()
+  rememberContext: boolean;
 }
