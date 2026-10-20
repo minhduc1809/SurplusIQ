@@ -71,6 +71,7 @@ import com.surplusiq.app.ui.screens.location.LocationSettingsScreen
 import com.surplusiq.app.ui.screens.location.PinLocationScreen
 import com.surplusiq.app.ui.screens.location.SavedPlacesScreen
 import com.surplusiq.app.ui.screens.store.StoreDetailScreen
+import com.surplusiq.app.ui.screens.store.StoreReviewsScreen
 import com.surplusiq.app.ui.viewmodel.DealAlertsViewModel
 import com.surplusiq.app.ui.viewmodel.PlacesViewModel
 import com.surplusiq.app.ui.viewmodel.SavedDealsViewModel
@@ -129,6 +130,7 @@ sealed class AppDestination {
     data class DealAlertEdit(val alert: DealAlert?) : AppDestination()
     object DietaryProfile : AppDestination()
     object Search : AppDestination()
+    data class StoreReviews(val storeId: String, val back: AppDestination = MainTabs) : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -640,7 +642,14 @@ fun SurplusAppRoot(
         }
 
         is AppDestination.MyReviews -> {
-            MyReviewsScreen(onBackClick = { currentDestination = AppDestination.MainTabs })
+            MyReviewsScreen(
+                state = interactionsState,
+                onLoad = { interactionsViewModel.loadMyReviews() },
+                onUpdateReview = { id, rating, comment -> interactionsViewModel.updateMyReview(id, rating, comment) },
+                onHideReview = { id -> interactionsViewModel.hideMyReview(id) },
+                onConsumeMessage = { interactionsViewModel.consumeReviewActionMessage() },
+                onBackClick = { currentDestination = AppDestination.MainTabs }
+            )
         }
 
         is AppDestination.ReportViolation -> {
@@ -754,7 +763,17 @@ fun SurplusAppRoot(
                 onToggleFavorite = { storeViewModel.toggleFavorite(it) },
                 onReport = { storeId, reason -> storeViewModel.reportStore(storeId, reason) },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = dest) },
-                onConsumeMessage = { storeViewModel.consumeMessage() }
+                onConsumeMessage = { storeViewModel.consumeMessage() },
+                onOpenReviews = { storeId -> currentDestination = AppDestination.StoreReviews(storeId, back = dest) }
+            )
+        }
+
+        is AppDestination.StoreReviews -> {
+            StoreReviewsScreen(
+                storeId = dest.storeId,
+                state = storeState,
+                onLoadReviews = { storeId, rating -> storeViewModel.loadStoreReviews(storeId, rating) },
+                onBackClick = { currentDestination = dest.back }
             )
         }
 

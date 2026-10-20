@@ -43,6 +43,20 @@ interface InteractionsApiService {
         @Body request: CreateReviewRequest
     ): Response<ReviewResponse>
 
+    @GET("customer/reviews")
+    suspend fun getCustomerReviews(): Response<List<com.surplusiq.app.data.remote.dto.CustomerReviewDto>>
+
+    @retrofit2.http.PUT("customer/reviews/{id}")
+    suspend fun updateReview(
+        @Path("id") id: String,
+        @Body request: com.surplusiq.app.data.remote.dto.UpdateReviewRequest
+    ): Response<ReviewResponse>
+
+    @retrofit2.http.DELETE("customer/reviews/{id}")
+    suspend fun hideReview(
+        @Path("id") id: String
+    ): Response<Map<String, Any>>
+
     @POST("customer/complaints/{id}/withdraw")
     suspend fun withdrawComplaint(
         @Path("id") id: String

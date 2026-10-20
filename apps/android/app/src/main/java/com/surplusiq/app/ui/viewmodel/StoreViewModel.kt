@@ -25,7 +25,12 @@ data class StoreUiState(
     val favoriteStores: List<StoreDetail> = emptyList(),
     val isFavoritesLoading: Boolean = false,
     val favoritesError: String? = null,
-    val message: String? = null
+    val message: String? = null,
+    // K15 Đánh giá công khai của cửa hàng
+    val storeReviews: com.surplusiq.app.data.remote.dto.StoreReviewsResponseDto? = null,
+    val isStoreReviewsLoading: Boolean = false,
+    val storeReviewsError: String? = null,
+    val selectedRatingFilter: Int? = null
 )
 
 @HiltViewModel
@@ -98,6 +103,21 @@ class StoreViewModel @Inject constructor(
     }
 
     fun consumeMessage() = _uiState.update { it.copy(message = null) }
+
+    /** K15: Tải đánh giá công khai của quán */
+    fun loadStoreReviews(storeId: String, rating: Int? = null, page: Int = 1) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isStoreReviewsLoading = true, storeReviewsError = null, selectedRatingFilter = rating) }
+            discoveryRepository.getStoreReviews(storeId, rating, page).fold(
+                onSuccess = { res ->
+                    _uiState.update { it.copy(isStoreReviewsLoading = false, storeReviews = res) }
+                },
+                onFailure = { e ->
+                    _uiState.update { it.copy(isStoreReviewsLoading = false, storeReviewsError = e.message) }
+                }
+            )
+        }
+    }
 
     private fun setFavorite(storeId: String, favorite: Boolean, onFailure: () -> Unit = {}) {
         val previous = _uiState.value.favoriteStoreIds
