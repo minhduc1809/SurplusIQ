@@ -1,7 +1,9 @@
 package com.surplusiq.app.di
 
 import com.surplusiq.app.data.repository.*
+import com.surplusiq.app.data.repository.MediaRepositoryImpl
 import com.surplusiq.app.domain.repository.*
+import com.surplusiq.app.domain.repository.MediaRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -77,4 +79,10 @@ abstract class RepositoryModule {
     abstract fun bindLocationRepository(
         impl: LocationRepositoryImpl
     ): LocationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMediaRepository(
+        impl: MediaRepositoryImpl
+    ): MediaRepository
 }

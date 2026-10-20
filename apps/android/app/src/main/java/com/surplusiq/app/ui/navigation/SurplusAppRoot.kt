@@ -84,6 +84,7 @@ import com.surplusiq.app.ui.screens.postpurchase.ComplaintListScreen
 import com.surplusiq.app.ui.screens.postpurchase.MyReviewsScreen
 import com.surplusiq.app.ui.screens.postpurchase.ReportTarget
 import com.surplusiq.app.ui.screens.postpurchase.ReportViolationScreen
+import com.surplusiq.app.ui.screens.profile.EditProfileScreen
 import com.surplusiq.app.ui.screens.profile.TransactionHistoryScreen
 import com.surplusiq.app.ui.screens.rewards.PromotionWalletScreen
 import com.surplusiq.app.ui.viewmodel.PromotionWalletViewModel
@@ -131,6 +132,7 @@ sealed class AppDestination {
     object DietaryProfile : AppDestination()
     object Search : AppDestination()
     data class StoreReviews(val storeId: String, val back: AppDestination = MainTabs) : AppDestination()
+    object EditProfile : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -431,6 +433,9 @@ fun SurplusAppRoot(
             CreateComplaintScreen(
                 order = dest.order,
                 interactionsRepository = interactionsViewModel.interactionsRepository,
+                onUploadEvidence = { bytes, fileName, callback ->
+                    interactionsViewModel.uploadEvidence(bytes, fileName, onResult = callback)
+                },
                 onBackClick = { currentDestination = AppDestination.OrderDetail(dest.order) },
                 onSubmitSuccess = {
                     myOrdersViewModel.loadOrders()
@@ -777,6 +782,13 @@ fun SurplusAppRoot(
             )
         }
 
+        is AppDestination.EditProfile -> {
+            EditProfileScreen(
+                viewModel = profileViewModel,
+                onBackClick = { currentDestination = AppDestination.MainTabs }
+            )
+        }
+
         is AppDestination.SavedDeals -> {
             SavedDealsScreen(
                 state = savedDealsState,
@@ -958,6 +970,8 @@ fun SurplusAppRoot(
                             ProfileScreen(
                                 userName = displayName,
                                 userPhone = profileUiState.userProfile?.phone?.takeIf { it.isNotBlank() } ?: authState.phone,
+                                avatarUrl = profileUiState.userProfile?.avatarUrl,
+                                onOpenEditProfile = { currentDestination = AppDestination.EditProfile },
                                 // shortcut: API chưa có CO2, ước tính 2.5 kg CO2/kg thực phẩm; thay bằng số liệu server khi có
                                 stats = interactionsState.impact?.let {
                                     UserImpactStats(

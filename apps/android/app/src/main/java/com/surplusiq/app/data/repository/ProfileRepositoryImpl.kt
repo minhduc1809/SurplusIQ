@@ -8,6 +8,8 @@ import com.surplusiq.app.data.remote.dto.DataExportResponse
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
 import com.surplusiq.app.data.remote.dto.PaymentTransactionRecordDto
 import com.surplusiq.app.data.remote.dto.PromotionWalletItemDto
+import com.surplusiq.app.data.remote.dto.UpdateCustomerProfileRequest
+import com.surplusiq.app.data.remote.dto.CustomerProfileDto
 import retrofit2.Response
 import com.surplusiq.app.data.remote.dto.UpdateDietaryProfileRequest
 import com.surplusiq.app.domain.model.DietaryType
@@ -27,28 +29,39 @@ class ProfileRepositoryImpl @Inject constructor(
         return try {
             val response = profileApiService.getProfile()
             if (response.isSuccessful && response.body() != null) {
-                val dto = response.body()!!
-                val statsDto = dto.impactStats
-                val stats = UserImpactStats(
-                    totalSavedMoneyVnd = statsDto?.moneySavedVnd ?: 0L,
-                    totalRescuedKg = statsDto?.foodSavedKg ?: 0.0,
-                    totalReducedCo2Kg = statsDto?.co2AvoidedKg ?: 0.0,
-                    totalRescuedBags = 0
-                )
-                Result.success(
-                    UserProfile(
-                        id = dto.id,
-                        phone = dto.phone,
-                        fullName = dto.fullName,
-                        avatarUrl = dto.avatarUrl,
-                        impactStats = stats
-                    )
-                )
+                Result.success(mapToUserProfile(response.body()!!))
             } else {
                 Result.success(createFallbackProfile())
             }
         } catch (_: Exception) {
             Result.success(createFallbackProfile())
+        }
+    }
+
+    override suspend fun updateProfile(
+        fullName: String?,
+        avatarUrl: String?,
+        searchRadiusKm: Double?
+    ): Result<UserProfile> {
+        return try {
+            val request = UpdateCustomerProfileRequest(
+                fullName = fullName,
+                avatarUrl = avatarUrl,
+                searchRadiusKm = searchRadiusKm
+            )
+            val response = profileApiService.updateProfile(request)
+            if (response.isSuccessful && response.body() != null) {
+                val updated = mapToUserProfile(response.body()!!)
+                // Cập nhật session cache nếu fullName thay đổi
+                if (!fullName.isNullOrBlank()) {
+                    sessionManager.updateFullName(updated.fullName)
+                }
+                Result.success(updated)
+            } else {
+                Result.failure(Exception("Không thể cập nhật hồ sơ (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Lỗi kết nối khi cập nhật hồ sơ", e))
         }
     }
 
@@ -169,7 +182,26 @@ class ProfileRepositoryImpl @Inject constructor(
             phone = sessionManager.getPhone() ?: "",
             fullName = sessionManager.getFullName(),
             avatarUrl = null,
+            searchRadiusKm = 5.0,
             impactStats = UserImpactStats(0L, 0.0, 0.0, 0)
+        )
+    }
+
+    private fun mapToUserProfile(dto: CustomerProfileDto): UserProfile {
+        val statsDto = dto.impactStats
+        val stats = UserImpactStats(
+            totalSavedMoneyVnd = statsDto?.moneySavedVnd ?: 0L,
+            totalRescuedKg = statsDto?.foodSavedKg ?: 0.0,
+            totalReducedCo2Kg = statsDto?.co2AvoidedKg ?: 0.0,
+            totalRescuedBags = 0
+        )
+        return UserProfile(
+            id = dto.id,
+            phone = dto.phone,
+            fullName = dto.fullName,
+            avatarUrl = dto.avatarUrl,
+            searchRadiusKm = dto.searchRadiusKm ?: 5.0,
+            impactStats = stats
         )
     }
 }

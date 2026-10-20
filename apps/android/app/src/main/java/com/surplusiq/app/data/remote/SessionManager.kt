@@ -60,6 +60,10 @@ class SessionManager @Inject constructor(
 
     fun getFullName(): String = prefs.getString(KEY_FULL_NAME, "Khách hàng SurplusIQ") ?: "Khách hàng SurplusIQ"
 
+    fun updateFullName(fullName: String) {
+        prefs.edit().putString(KEY_FULL_NAME, fullName).apply()
+    }
+
     fun getDeviceId(): String = prefs.getString(KEY_DEVICE_ID, "android-device-emulator") ?: "android-device-emulator"
 
     fun getBaseUrl(): String {

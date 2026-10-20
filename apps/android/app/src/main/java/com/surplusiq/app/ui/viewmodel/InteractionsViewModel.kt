@@ -11,6 +11,7 @@ import com.surplusiq.app.data.remote.dto.SupportTicketDetailResponse
 import com.surplusiq.app.data.remote.dto.SupportTicketResponse
 import com.surplusiq.app.data.remote.dto.ViolationReportResponse
 import com.surplusiq.app.domain.repository.InteractionsRepository
+import com.surplusiq.app.domain.repository.MediaRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,11 +63,27 @@ data class InteractionsUiState(
 
 @HiltViewModel
 class InteractionsViewModel @Inject constructor(
-    val interactionsRepository: InteractionsRepository
+    val interactionsRepository: InteractionsRepository,
+    val mediaRepository: MediaRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(InteractionsUiState())
     val uiState: StateFlow<InteractionsUiState> = _uiState.asStateFlow()
+
+    fun uploadEvidence(
+        bytes: ByteArray,
+        fileName: String = "evidence_${System.currentTimeMillis()}.jpg",
+        mimeType: String = "image/jpeg",
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = mediaRepository.uploadImageBytes(bytes, fileName, mimeType)
+            result.fold(
+                onSuccess = { onResult(true, it) },
+                onFailure = { onResult(false, it.localizedMessage) }
+            )
+        }
+    }
 
     fun loadComplaints() {
         viewModelScope.launch {

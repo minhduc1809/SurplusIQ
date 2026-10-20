@@ -36,13 +36,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextOverflow
 
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     userName: String = "",
     userPhone: String = "",
+    avatarUrl: String? = null,
     stats: UserImpactStats? = null,
     onOpenAiChat: () -> Unit,
+    onOpenEditProfile: () -> Unit = {},
     onOpenMyOrders: () -> Unit = {},
     onOpenChangePassword: () -> Unit = {},
     onOpenRewards: () -> Unit = {},
@@ -74,20 +79,44 @@ fun ProfileScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .padding(top = 16.dp, bottom = 96.dp), // chừa chỗ cho chatbot nổi và bottom nav
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Hồ sơ (R1-005)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Hồ sơ (R1-005, R1-006, K53)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable { onOpenEditProfile() }
+                .padding(vertical = 4.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(60.dp)
                     .clip(CircleShape)
                     .background(ForestGreenPrimary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Person, contentDescription = "Avatar", tint = ForestGreenPrimary, modifier = Modifier.size(32.dp))
+                if (!avatarUrl.isNullOrBlank()) {
+                    val fullAvatar = if (avatarUrl.startsWith("http")) avatarUrl else "http://10.0.2.2:3000$avatarUrl"
+                    AsyncImage(
+                        model = fullAvatar,
+                        contentDescription = "Avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = "Avatar",
+                        tint = ForestGreenPrimary,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = userName.ifBlank { "Khách" },
@@ -101,15 +130,34 @@ fun ProfileScreen(
                     Text(text = userPhone, fontSize = 13.sp, color = TextSecondary, maxLines = 1)
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(ForestGreenPrimary.copy(alpha = 0.1f))
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text("Thành viên SurplusIQ", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = ForestGreenPrimary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ForestGreenPrimary.copy(alpha = 0.1f))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            "Thành viên SurplusIQ",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ForestGreenPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Sửa hồ sơ",
+                        fontSize = 12.sp,
+                        color = ForestGreenPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Chỉnh sửa",
+                tint = TextMuted
+            )
         }
 
         // Thành tích sống xanh: chỉ 3 chỉ số, chi tiết ở trang con

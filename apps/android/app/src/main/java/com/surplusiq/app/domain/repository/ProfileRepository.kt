@@ -12,6 +12,7 @@ import com.surplusiq.app.domain.model.UserProfile
 
 interface ProfileRepository {
     suspend fun getProfile(): Result<UserProfile>
+    suspend fun updateProfile(fullName: String?, avatarUrl: String?, searchRadiusKm: Double?): Result<UserProfile>
     suspend fun getDietaryProfile(): Result<DietaryProfileDto>
     suspend fun updateDietaryProfile(allergens: List<String>, excludedItems: List<String>): Result<Boolean>
     suspend fun updateDietaryPreferences(dietaryType: DietaryType, allergies: List<String>): Result<Boolean>
