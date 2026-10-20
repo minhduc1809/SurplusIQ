@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Directions
+import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,19 +19,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.Circle
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.rememberCameraPositionState
-import com.google.maps.android.compose.rememberMarkerState
 import com.surplusiq.app.domain.model.LocationSettings
 import com.surplusiq.app.domain.model.MapPin
-import com.surplusiq.app.ui.components.MapsKeyNotice
-import com.surplusiq.app.ui.screens.location.DEFAULT_MAP_CENTER
+import com.surplusiq.app.ui.components.map.OsmMapView
+import com.surplusiq.app.ui.theme.ForestGreenDark
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
 import com.surplusiq.app.ui.theme.MintDeep
 import com.surplusiq.app.ui.theme.TextMuted
@@ -38,7 +30,10 @@ import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
 import com.surplusiq.app.ui.util.NavigationUtil
 
-/** K10 Bản đồ deal (R1-021): ghim cửa hàng có deal đang mở, chạm ghim để xem tóm tắt. */
+/**
+ * K10 Bản đồ deal (R1-021) trên nền tảng OpenStreetMap Native (OsmDroid) & Realtime WebSocket.
+ * Hiển thị ghim quán có suất cứu, bán kính tìm kiếm và cập nhật realtime.
+ */
 @Composable
 fun DealMapScreen(
     pins: List<MapPin>,
@@ -51,67 +46,94 @@ fun DealMapScreen(
 ) {
     val context = LocalContext.current
     var selectedPin by remember { mutableStateOf<MapPin?>(null) }
-    val center = if (location.latitude != null && location.longitude != null) {
-        LatLng(location.latitude, location.longitude)
-    } else pins.firstOrNull()?.let { LatLng(it.latitude, it.longitude) } ?: DEFAULT_MAP_CENTER
-    val cameraState = rememberCameraPositionState { position = CameraPosition.fromLatLngZoom(center, 14f) }
+
+    val centerLat = location.latitude ?: pins.firstOrNull()?.latitude ?: 10.7769
+    val centerLng = location.longitude ?: pins.firstOrNull()?.longitude ?: 106.7009
 
     LaunchedEffect(Unit) { onLoad() }
-    // Không có vị trí thì canh camera theo ghim đầu tiên khi dữ liệu về.
-    LaunchedEffect(pins.firstOrNull()?.storeId) {
-        if (!location.hasCoordinates) pins.firstOrNull()?.let { cameraState.move(CameraUpdateFactory.newLatLng(LatLng(it.latitude, it.longitude))) }
-    }
 
     Box(modifier.fillMaxSize()) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraState,
-            uiSettings = MapUiSettings(zoomControlsEnabled = false, mapToolbarEnabled = false),
-            onMapClick = { selectedPin = null }
-        ) {
-            if (location.latitude != null && location.longitude != null) {
-                Circle(
-                    center = LatLng(location.latitude, location.longitude),
-                    radius = location.radiusKm * 1000,
-                    fillColor = ForestGreenPrimary.copy(alpha = 0.08f),
-                    strokeColor = ForestGreenPrimary.copy(alpha = 0.5f),
-                    strokeWidth = 3f
-                )
-            }
-            pins.forEach { pin ->
-                Marker(
-                    state = rememberMarkerState(key = pin.storeId, position = LatLng(pin.latitude, pin.longitude)),
-                    title = pin.storeName,
-                    snippet = "${pin.activeDealsCount} suất đang mở",
-                    onClick = { selectedPin = pin; false }
-                )
-            }
-        }
+        // Bản đồ mở OsmDroid
+        OsmMapView(
+            centerLatitude = centerLat,
+            centerLongitude = centerLng,
+            zoomLevel = 14.5,
+            radiusKm = if (location.hasCoordinates) location.radiusKm else null,
+            pins = pins,
+            onPinClick = { pin -> selectedPin = pin },
+            modifier = Modifier.fillMaxSize()
+        )
 
-        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp)) {
-            MapsKeyNotice()
+        // Banner thông tin trạng thái & Realtime badge
+        Column(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Card(
+                shape = RoundedCornerShape(10.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ElectricBolt,
+                        contentDescription = null,
+                        tint = ForestGreenDark,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Bản đồ mở OpenStreetMap • Cập nhật trực tiếp",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ForestGreenDark
+                    )
+                }
+            }
+
             when {
-                isLoading -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 6.dp), color = ForestGreenPrimary)
+                isLoading -> LinearProgressIndicator(
+                    Modifier.fillMaxWidth().padding(top = 6.dp),
+                    color = ForestGreenPrimary
+                )
                 errorMessage != null -> MapBanner(errorMessage, actionLabel = "Thử lại", onAction = onLoad)
                 pins.isEmpty() -> MapBanner(
-                    if (location.hasCoordinates) "Chưa có cửa hàng nào có deal đang mở trong bán kính này." else "Chưa có cửa hàng nào có deal đang mở.",
+                    if (location.hasCoordinates) "Chưa có cửa hàng nào có deal đang mở trong bán kính này."
+                    else "Chưa có cửa hàng nào có deal đang mở.",
                     actionLabel = null,
                     onAction = {}
                 )
             }
         }
 
+        // Card chi tiết ghim quán khi người dùng chạm vào marker
         AnimatedVisibility(
             visible = selectedPin != null,
             enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
         ) {
             selectedPin?.let { pin ->
                 PinSummaryCard(
                     pin = pin,
                     onDirections = {
-                        NavigationUtil.openMapOrCopyAddress(context, pin.storeAddress, pin.storeName, pin.latitude, pin.longitude)
+                        NavigationUtil.openMapOrCopyAddress(
+                            context,
+                            pin.storeAddress,
+                            pin.storeName,
+                            pin.latitude,
+                            pin.longitude
+                        )
                     },
                     onOpenStore = { onOpenStore(pin.storeId) }
                 )
@@ -126,11 +148,20 @@ private fun MapBanner(message: String, actionLabel: String?, onAction: () -> Uni
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(message, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.weight(1f))
-            if (actionLabel != null) TextButton(onClick = onAction) { Text(actionLabel, color = ForestGreenPrimary) }
+            if (actionLabel != null) {
+                TextButton(onClick = onAction) {
+                    Text(actionLabel, color = ForestGreenPrimary)
+                }
+            }
         }
     }
 }
@@ -145,10 +176,22 @@ private fun PinSummaryCard(pin: MapPin, onDirections: () -> Unit, onOpenStore: (
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Storefront, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(22.dp))
+                Icon(
+                    Icons.Default.Storefront,
+                    contentDescription = null,
+                    tint = ForestGreenPrimary,
+                    modifier = Modifier.size(22.dp)
+                )
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(pin.storeName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        pin.storeName,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Text(
                         listOfNotNull(pin.distanceText, pin.storeAddress.ifBlank { null }).joinToString(" • "),
                         fontSize = 12.sp,
@@ -160,14 +203,33 @@ private fun PinSummaryCard(pin: MapPin, onDirections: () -> Unit, onOpenStore: (
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("${pin.activeDealsCount} suất đang mở", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MintDeep)
-                pin.minPrice?.let { Text("Từ ${String.format("%,d", it)} ₫", fontSize = 12.sp, color = TextPrimary) }
-                if (pin.maxDiscountPercent > 0) Text("Giảm đến ${pin.maxDiscountPercent}%", fontSize = 12.sp, color = TextMuted)
+                Text(
+                    "${pin.activeDealsCount} suất đang mở",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MintDeep
+                )
+                pin.minPrice?.let {
+                    Text("Từ ${String.format("%,d", it)} ₫", fontSize = 12.sp, color = TextPrimary)
+                }
+                if (pin.maxDiscountPercent > 0) {
+                    Text("Giảm đến ${pin.maxDiscountPercent}%", fontSize = 12.sp, color = TextMuted)
+                }
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onDirections, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(40.dp)) {
-                    Icon(Icons.Default.Directions, contentDescription = null, modifier = Modifier.size(16.dp))
+                OutlinedButton(
+                    onClick = onDirections,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Directions,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
                     Spacer(Modifier.width(4.dp))
                     Text("Chỉ đường", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
@@ -175,7 +237,9 @@ private fun PinSummaryCard(pin: MapPin, onDirections: () -> Unit, onOpenStore: (
                     onClick = onOpenStore,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                    modifier = Modifier.weight(1.3f).height(40.dp)
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(40.dp)
                 ) {
                     Text("Xem chi tiết", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }

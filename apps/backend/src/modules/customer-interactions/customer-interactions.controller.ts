@@ -143,6 +143,15 @@ export class CustomerInteractionsController {
     return this.interactionsService.hideReview(user?.userId, id);
   }
 
+  @Get('reviews')
+  @ApiOperation({
+    summary: 'Xem danh sách các đánh giá của tôi (K38)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách đánh giá của tôi' })
+  async getCustomerReviews(@CurrentUser() user: RequestUser) {
+    return this.interactionsService.getCustomerReviews(user?.userId);
+  }
+
   @Post('reports')
   @ApiOperation({
     summary: 'Báo cáo vi phạm cửa hàng / người dùng / sản phẩm (R1-069)',

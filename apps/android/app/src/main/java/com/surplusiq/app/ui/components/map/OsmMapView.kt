@@ -1,0 +1,188 @@
+package com.surplusiq.app.ui.components.map
+
+import android.graphics.Color as AndroidColor
+import android.graphics.drawable.GradientDrawable
+import android.view.MotionEvent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.surplusiq.app.domain.model.MapPin
+import com.surplusiq.app.ui.theme.ForestGreenDark
+import com.surplusiq.app.ui.theme.ForestGreenPrimary
+import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polygon
+
+/**
+ * OpenStreetMap Compose Component sử dụng OsmDroid Native (Chi phí 0đ, không cần API Key Google Maps).
+ * Hỗ trợ hiển thị ghim deal, vòng tròn bán kính và chế độ kéo ghim tâm vị trí.
+ */
+@Composable
+fun OsmMapView(
+    centerLatitude: Double,
+    centerLongitude: Double,
+    zoomLevel: Double = 15.0,
+    radiusKm: Double? = null,
+    pins: List<MapPin> = emptyList(),
+    isCenterPinMode: Boolean = false,
+    onCenterChanged: ((lat: Double, lng: Double) -> Unit)? = null,
+    onPinClick: ((pin: MapPin) -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
+
+    LaunchedEffect(Unit) {
+        Configuration.getInstance().userAgentValue = "SurplusIQ-Android"
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { ctx ->
+                MapView(ctx).apply {
+                    setTileSource(TileSourceFactory.MAPNIK)
+                    setMultiTouchControls(true)
+                    isTilesScaledToDpi = true
+                    zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
+
+                    val startPoint = GeoPoint(centerLatitude, centerLongitude)
+                    controller.setZoom(zoomLevel)
+                    controller.setCenter(startPoint)
+
+                    if (isCenterPinMode && onCenterChanged != null) {
+                        addMapListener(object : MapListener {
+                            override fun onScroll(event: ScrollEvent?): Boolean {
+                                val c = mapCenter
+                                onCenterChanged(c.latitude, c.longitude)
+                                return true
+                            }
+
+                            override fun onZoom(event: ZoomEvent?): Boolean {
+                                val c = mapCenter
+                                onCenterChanged(c.latitude, c.longitude)
+                                return true
+                            }
+                        })
+                    }
+
+                    mapViewInstance = this
+                }
+            },
+            update = { mapView ->
+                // Xoá các overlay cũ để vẽ lại
+                mapView.overlays.clear()
+
+                val centerGeo = GeoPoint(centerLatitude, centerLongitude)
+
+                // Vẽ vòng tròn bán kính nếu có
+                if (radiusKm != null && radiusKm > 0.0) {
+                    val circlePolygon = Polygon(mapView).apply {
+                        points = Polygon.pointsAsCircle(centerGeo, radiusKm * 1000.0)
+                        fillPaint.color = AndroidColor.argb(35, 46, 125, 50) // Xanh lá cây trong suốt
+                        outlinePaint.color = AndroidColor.argb(180, 46, 125, 50)
+                        outlinePaint.strokeWidth = 4f
+                    }
+                    mapView.overlays.add(circlePolygon)
+                }
+
+                // Vẽ các Marker cửa hàng có Deal
+                pins.forEach { pin ->
+                    val marker = Marker(mapView).apply {
+                        position = GeoPoint(pin.latitude, pin.longitude)
+                        title = pin.storeName
+                        snippet = "${pin.activeDealsCount} suất cứu đang mở"
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+
+                        // Custom drawable badge marker
+                        val markerDrawable = GradientDrawable().apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(
+                                if (pin.activeDealsCount > 3) AndroidColor.parseColor("#2E7D32")
+                                else AndroidColor.parseColor("#E65100")
+                            )
+                            setStroke(3, AndroidColor.WHITE)
+                            setSize(64, 64)
+                        }
+                        icon = markerDrawable
+
+                        setOnMarkerClickListener { m, _ ->
+                            onPinClick?.invoke(pin)
+                            m.showInfoWindow()
+                            true
+                        }
+                    }
+                    mapView.overlays.add(marker)
+                }
+
+                mapView.invalidate()
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Ghim ở tâm màn hình khi ở chế độ kéo chọn toạ độ K08
+        if (isCenterPinMode) {
+            Icon(
+                imageVector = Icons.Default.LocationOn,
+                contentDescription = "Ghim tâm vị trí",
+                tint = ForestGreenPrimary,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = (-20).dp)
+                    .size(44.dp)
+            )
+        }
+
+        // Nút điều khiển Zoom tiện lợi
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                shadowElevation = 4.dp,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                IconButton(
+                    onClick = { mapViewInstance?.controller?.zoomIn() },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Phóng to", tint = ForestGreenDark)
+                }
+            }
+
+            Surface(
+                shape = CircleShape,
+                shadowElevation = 4.dp,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                IconButton(
+                    onClick = { mapViewInstance?.controller?.zoomOut() },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Remove, contentDescription = "Thu nhỏ", tint = ForestGreenDark)
+                }
+            }
+        }
+    }
+}

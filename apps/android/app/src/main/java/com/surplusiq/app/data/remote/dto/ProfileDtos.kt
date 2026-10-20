@@ -8,7 +8,14 @@ data class CustomerProfileDto(
     @SerializedName("fullName") val fullName: String,
     @SerializedName("email") val email: String? = null,
     @SerializedName("avatarUrl") val avatarUrl: String? = null,
+    @SerializedName("searchRadiusKm") val searchRadiusKm: Double? = null,
     @SerializedName("impactStats") val impactStats: ImpactStatsDto? = null
+)
+
+data class UpdateCustomerProfileRequest(
+    @SerializedName("fullName") val fullName: String? = null,
+    @SerializedName("avatarUrl") val avatarUrl: String? = null,
+    @SerializedName("searchRadiusKm") val searchRadiusKm: Double? = null
 )
 
 data class ImpactStatsDto(

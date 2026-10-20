@@ -579,4 +579,14 @@ class DiscoveryRepositoryImpl @Inject constructor(
             else -> DietaryType.NONE
         }
     }
+
+    override suspend fun getStoreReviews(
+        storeId: String,
+        rating: Int?,
+        page: Int,
+        limit: Int
+    ): Result<com.surplusiq.app.data.remote.dto.StoreReviewsResponseDto> =
+        apiCall("Không thể tải danh sách đánh giá của cửa hàng", {
+            discoveryApiService.getStoreReviews(storeId, rating, page, limit)
+        }) { it }
 }

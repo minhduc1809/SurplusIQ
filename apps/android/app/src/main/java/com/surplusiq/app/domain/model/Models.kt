@@ -173,6 +173,7 @@ data class UserProfile(
     val phone: String,
     val fullName: String,
     val avatarUrl: String? = null,
+    val searchRadiusKm: Double = 5.0,
     val impactStats: UserImpactStats = UserImpactStats()
 )
 

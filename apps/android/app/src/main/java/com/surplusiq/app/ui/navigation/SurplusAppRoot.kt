@@ -71,6 +71,7 @@ import com.surplusiq.app.ui.screens.location.LocationSettingsScreen
 import com.surplusiq.app.ui.screens.location.PinLocationScreen
 import com.surplusiq.app.ui.screens.location.SavedPlacesScreen
 import com.surplusiq.app.ui.screens.store.StoreDetailScreen
+import com.surplusiq.app.ui.screens.store.StoreReviewsScreen
 import com.surplusiq.app.ui.viewmodel.DealAlertsViewModel
 import com.surplusiq.app.ui.viewmodel.PlacesViewModel
 import com.surplusiq.app.ui.viewmodel.SavedDealsViewModel
@@ -83,6 +84,8 @@ import com.surplusiq.app.ui.screens.postpurchase.ComplaintListScreen
 import com.surplusiq.app.ui.screens.postpurchase.MyReviewsScreen
 import com.surplusiq.app.ui.screens.postpurchase.ReportTarget
 import com.surplusiq.app.ui.screens.postpurchase.ReportViolationScreen
+import com.surplusiq.app.ui.screens.profile.EditProfileScreen
+import com.surplusiq.app.ui.screens.profile.NotificationSettingsScreen
 import com.surplusiq.app.ui.screens.profile.TransactionHistoryScreen
 import com.surplusiq.app.ui.screens.rewards.PromotionWalletScreen
 import com.surplusiq.app.ui.viewmodel.PromotionWalletViewModel
@@ -129,6 +132,9 @@ sealed class AppDestination {
     data class DealAlertEdit(val alert: DealAlert?) : AppDestination()
     object DietaryProfile : AppDestination()
     object Search : AppDestination()
+    data class StoreReviews(val storeId: String, val back: AppDestination = MainTabs) : AppDestination()
+    object EditProfile : AppDestination()
+    object NotificationSettings : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -429,6 +435,9 @@ fun SurplusAppRoot(
             CreateComplaintScreen(
                 order = dest.order,
                 interactionsRepository = interactionsViewModel.interactionsRepository,
+                onUploadEvidence = { bytes, fileName, callback ->
+                    interactionsViewModel.uploadEvidence(bytes, fileName, onResult = callback)
+                },
                 onBackClick = { currentDestination = AppDestination.OrderDetail(dest.order) },
                 onSubmitSuccess = {
                     myOrdersViewModel.loadOrders()
@@ -640,7 +649,14 @@ fun SurplusAppRoot(
         }
 
         is AppDestination.MyReviews -> {
-            MyReviewsScreen(onBackClick = { currentDestination = AppDestination.MainTabs })
+            MyReviewsScreen(
+                state = interactionsState,
+                onLoad = { interactionsViewModel.loadMyReviews() },
+                onUpdateReview = { id, rating, comment -> interactionsViewModel.updateMyReview(id, rating, comment) },
+                onHideReview = { id -> interactionsViewModel.hideMyReview(id) },
+                onConsumeMessage = { interactionsViewModel.consumeReviewActionMessage() },
+                onBackClick = { currentDestination = AppDestination.MainTabs }
+            )
         }
 
         is AppDestination.ReportViolation -> {
@@ -754,7 +770,31 @@ fun SurplusAppRoot(
                 onToggleFavorite = { storeViewModel.toggleFavorite(it) },
                 onReport = { storeId, reason -> storeViewModel.reportStore(storeId, reason) },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = dest) },
-                onConsumeMessage = { storeViewModel.consumeMessage() }
+                onConsumeMessage = { storeViewModel.consumeMessage() },
+                onOpenReviews = { storeId -> currentDestination = AppDestination.StoreReviews(storeId, back = dest) }
+            )
+        }
+
+        is AppDestination.StoreReviews -> {
+            StoreReviewsScreen(
+                storeId = dest.storeId,
+                state = storeState,
+                onLoadReviews = { storeId, rating -> storeViewModel.loadStoreReviews(storeId, rating) },
+                onBackClick = { currentDestination = dest.back }
+            )
+        }
+
+        is AppDestination.EditProfile -> {
+            EditProfileScreen(
+                viewModel = profileViewModel,
+                onBackClick = { currentDestination = AppDestination.MainTabs }
+            )
+        }
+
+        is AppDestination.NotificationSettings -> {
+            NotificationSettingsScreen(
+                viewModel = notificationsViewModel,
+                onBackClick = { currentDestination = AppDestination.MainTabs }
             )
         }
 
@@ -939,6 +979,8 @@ fun SurplusAppRoot(
                             ProfileScreen(
                                 userName = displayName,
                                 userPhone = profileUiState.userProfile?.phone?.takeIf { it.isNotBlank() } ?: authState.phone,
+                                avatarUrl = profileUiState.userProfile?.avatarUrl,
+                                onOpenEditProfile = { currentDestination = AppDestination.EditProfile },
                                 // shortcut: API chưa có CO2, ước tính 2.5 kg CO2/kg thực phẩm; thay bằng số liệu server khi có
                                 stats = interactionsState.impact?.let {
                                     UserImpactStats(
@@ -1011,6 +1053,9 @@ fun SurplusAppRoot(
                                 onOpenDietaryProfile = {
                                     profileViewModel.loadDietaryProfile()
                                     currentDestination = AppDestination.DietaryProfile
+                                },
+                                onOpenNotificationSettings = {
+                                    currentDestination = AppDestination.NotificationSettings
                                 },
                                 onLogout = { authViewModel.logout() }
                             )
