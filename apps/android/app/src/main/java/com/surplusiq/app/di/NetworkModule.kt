@@ -22,6 +22,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideGson(): com.google.gson.Gson {
+        return com.google.gson.Gson()
+    }
+
+    @Provides
+    @Singleton
     fun provideLoggingInterceptor(): HttpLoggingInterceptor {
         return HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
