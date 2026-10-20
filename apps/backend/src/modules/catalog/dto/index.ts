@@ -3,3 +3,4 @@ export * from './update-item.dto';
 export * from './query-items.dto';
 export * from './import-csv-items.dto';
 export * from './batch-update-items.dto';
+export * from './update-trustpass.dto';

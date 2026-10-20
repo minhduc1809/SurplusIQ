@@ -10,6 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, IsNull, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import {
   UserEntity,
   UserRole,
@@ -45,6 +46,7 @@ import {
   ResetPasswordDto,
   RefreshTokenDto,
   Enable2faDto,
+  GoogleLoginDto,
 } from './dto';
 
 @Injectable()
@@ -260,6 +262,73 @@ export class AuthService {
     }
 
     // 6. Cấp Access Token và Refresh Token
+    return this.issueTokens(user, dto.deviceId, dto.deviceName, ip);
+  }
+
+  /**
+   * Đăng nhập/Đăng ký khách hàng bằng Google ID token (xác thực qua OAuth2Client.verifyIdToken,
+   * find-or-create user theo email rồi cấp token giống loginCustomer).
+   */
+  async loginWithGoogle(dto: GoogleLoginDto, ip: string = '127.0.0.1') {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      throw new UnauthorizedException(
+        'Đăng nhập Google chưa được cấu hình. Vui lòng dùng số điện thoại/mật khẩu.',
+      );
+    }
+
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    let payload: TokenPayload | undefined;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: dto.idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (err) {
+      throw new UnauthorizedException('Mã xác thực Google không hợp lệ hoặc đã hết hạn');
+    }
+
+    if (!payload?.email) {
+      throw new UnauthorizedException('Không lấy được email từ tài khoản Google');
+    }
+
+    let user = await this.userRepo.findOne({ where: { email: payload.email } });
+
+    if (user && user.role === UserRole.STORE_USER) {
+      throw new ForbiddenException({
+        code: AUTH_ERRORS.WRONG_CHANNEL,
+        message: 'Tài khoản đối tác cửa hàng vui lòng đăng nhập trên cổng Web quản trị',
+      });
+    }
+
+    if (!user) {
+      user = await this.dataSource.transaction(async (manager) => {
+        const newUser = manager.create(UserEntity, {
+          email: payload.email,
+          passwordHash: CryptoUtil.hashPassword(CryptoUtil.generateRandomToken()),
+          role: UserRole.CUSTOMER,
+          status: UserStatus.ACTIVE,
+        });
+        await manager.save(newUser);
+
+        const profile = manager.create(CustomerProfileEntity, {
+          userId: newUser.id,
+          fullName: payload.name || payload.email!.split('@')[0],
+        });
+        await manager.save(profile);
+
+        return newUser;
+      });
+    }
+
+    if (user.lockedUntil && new Date() < new Date(user.lockedUntil)) {
+      const minutesLeft = Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60000);
+      throw new ForbiddenException({
+        code: AUTH_ERRORS.LOCKED,
+        message: `Tài khoản tạm thời bị khóa do nhập sai nhiều lần. Vui lòng thử lại sau ${minutesLeft} phút`,
+      });
+    }
+
     return this.issueTokens(user, dto.deviceId, dto.deviceName, ip);
   }
 

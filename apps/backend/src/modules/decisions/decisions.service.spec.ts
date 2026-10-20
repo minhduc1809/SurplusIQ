@@ -317,15 +317,10 @@ describe('DecisionsService Unit Tests (R2-036..R2-048, R2-040, R2-099, R2-112..1
       });
       expect(sim.simulated.revenue).toBeGreaterThan(0);
 
+      // Không còn danh sách đơn vị nhận cố định - ghép nối qua Rescue Bridge (CM-B03)
       const donSuggest = await service.getDonationSuggestions('store-1');
-      expect(donSuggest.verifiedCharities.length).toBeGreaterThan(0);
-
-      const donRec = await service.createDonationRecord('store-1', {
-        offerId: '00000000-0000-0000-0000-000000000001',
-        quantity: 5,
-        recipientName: 'Mái ấm Ánh Sáng',
-      });
-      expect(donRec.success).toBe(true);
+      expect(donSuggest).not.toHaveProperty('verifiedCharities');
+      expect(donSuggest.next.path).toBe('/store/rescue-bridge/transfers');
     });
   });
 });

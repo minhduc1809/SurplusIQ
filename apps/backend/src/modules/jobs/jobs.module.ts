@@ -28,9 +28,17 @@ import { AiLogEntity } from '../../entities/ai/ai-log.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { AuditModule } from '../audit/audit.module';
 import { SettingsModule } from '../settings/settings.module';
+import { RewardsModule } from '../rewards/rewards.module';
+import { RescueTimelineModule } from '../rescue-timeline/rescue-timeline.module';
+import { RescuePoolModule } from '../rescue-pool/rescue-pool.module';
+import { RescueBridgeModule } from '../rescue-bridge/rescue-bridge.module';
 
 @Module({
   imports: [
+    RewardsModule,
+    RescueTimelineModule,
+    RescuePoolModule,
+    RescueBridgeModule,
     TypeOrmModule.forFeature([
       OrderEntity,
       OfferEntity,

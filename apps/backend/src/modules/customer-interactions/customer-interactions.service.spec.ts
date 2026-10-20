@@ -15,6 +15,7 @@ import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
+import { RewardsService } from '../rewards/rewards.service';
 
 describe('CustomerInteractionsService', () => {
   let service: CustomerInteractionsService;
@@ -135,6 +136,7 @@ describe('CustomerInteractionsService', () => {
           provide: DataSource,
           useValue: { transaction: jest.fn((work) => work(transactionManager)) },
         },
+        { provide: RewardsService, useValue: { reverseForOrder: jest.fn() } },
       ],
     }).compile();
 

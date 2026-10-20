@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
+import { IsStrongPassword } from './password-rule';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ChangePasswordDto {
@@ -7,9 +8,9 @@ export class ChangePasswordDto {
   @IsString()
   currentPassword: string;
 
-  @ApiProperty({ example: 'NewPass456@', minLength: 6 })
+  @ApiProperty({ example: 'NewPass456@', minLength: 8 })
   @IsNotEmpty()
   @IsString()
-  @MinLength(6, { message: 'Mật khẩu mới tối thiểu 6 ký tự' })
+  @IsStrongPassword()
   newPassword: string;
 }

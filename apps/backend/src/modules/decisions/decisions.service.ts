@@ -24,7 +24,6 @@ import {
   LogDailyActualDto,
   CreateSpecialEventDto,
   SimulatePolicyDto,
-  CreateDonationRecordDto,
 } from './dto/decisions.dto';
 import {
   DynamicPricingEngine,
@@ -111,7 +110,12 @@ export class DecisionsService {
           low: engineOutput.low,
           high: engineOutput.high,
           confidence: engineOutput.confidence as unknown as ForecastConfidence,
-          method: engineOutput.method as unknown as ForecastMethod,
+          method:
+            engineOutput.method === 'DOW_AVERAGE'
+              ? ForecastMethod.DOW_AVG
+              : engineOutput.method === 'MANUAL_REQUIRED'
+                ? ForecastMethod.MANUAL_REQUIRED
+                : ForecastMethod.YESTERDAY_FALLBACK,
           components: engineOutput.components,
         });
 
@@ -742,62 +746,18 @@ export class DecisionsService {
       where: { storeId, status: OfferStatus.OPEN },
     });
 
-    const suggestions = offers.map((o) => ({
-      offerId: o.id,
-      remainingQuantity: o.remainingQuantity,
-      suggestedRecipient: 'Mái ấm Ánh Sáng (Bình Thạnh) - Cách 1.2km',
-      pickupSlot: o.pickupEnd,
-    }));
+    const suggestions = offers
+      .filter((o) => o.remainingQuantity > 0)
+      .map((o) => ({
+        offerId: o.id,
+        remainingQuantity: o.remainingQuantity,
+        pickupSlot: o.pickupEnd,
+      }));
 
-    const verifiedCharities = [
-      {
-        id: 'ch-1',
-        name: 'Mái ấm Ánh Sáng',
-        address: 'Quận Bình Thạnh',
-        distanceKm: 1.2,
-        phone: '0912345678',
-      },
-      {
-        id: 'ch-2',
-        name: 'Bếp cơm Thiện Tâm',
-        address: 'Quận 1',
-        distanceKm: 2.5,
-        phone: '0987654321',
-      },
-      {
-        id: 'ch-3',
-        name: 'Quỹ Cứu Thực Phẩm Việt Nam',
-        address: 'TP.HCM',
-        distanceKm: 3.8,
-        phone: '0909090909',
-      },
-    ];
-
+    // Đơn vị nhận không còn là danh sách cố định: chỉ đơn vị đã duyệt, ghép theo điều kiện (BR-B03-02/03)
     return {
       suggestions,
-      verifiedCharities,
-    };
-  }
-
-  /**
-   * Ghi nhận suất ăn đã quyên góp từ thiện (R2-121)
-   */
-  async createDonationRecord(storeId: string, dto: CreateDonationRecordDto) {
-    const record = this.donationRecordRepo.create({
-      storeId,
-      offerId: dto.offerId,
-      quantity: dto.quantity,
-      recipientInfo: { name: dto.recipientName },
-      donatedAt: new Date(),
-      note: dto.note || null,
-    });
-    const saved = await this.donationRecordRepo.save(record);
-    return {
-      success: true,
-      donationId: saved.id,
-      quantity: saved.quantity,
-      recipient: dto.recipientName,
-      donatedAt: saved.donatedAt,
+      next: { method: 'POST', path: '/store/rescue-bridge/transfers' },
     };
   }
 

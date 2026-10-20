@@ -15,6 +15,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagg
 import { DiscoveryService } from './discovery.service';
 import { QueryDealsDto } from './dto/query-deals.dto';
 import { QueryMapDealsDto } from './dto/query-map-deals.dto';
+import { QueryRadarDto } from './dto/query-radar.dto';
 import { CreateDealAlertDto, UpdateDealAlertDto } from './dto/deal-alert.dto';
 import { CreateSavedFilterDto } from './dto/saved-filter.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -55,6 +56,16 @@ export class CustomerDealsController {
   }
 
   @Public()
+  @Get('deals/radar')
+  @ApiOperation({
+    summary: 'Rescue Radar: xếp hạng deal theo khả năng nhận kịp, ngân sách và khả dụng (CM-C05)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách deal đã xếp hạng kèm lý do' })
+  async getRadarRanking(@Query() query: QueryRadarDto) {
+    return this.discoveryService.getRadarRanking(query);
+  }
+
+  @Public()
   @Get('deals/compare')
   @ApiOperation({
     summary: 'So sánh 2 đến 3 suất bán theo giá, khoảng cách và dị ứng (R1-036)',
@@ -78,6 +89,18 @@ export class CustomerDealsController {
   @ApiResponse({ status: 404, description: 'Deal không tồn tại hoặc đã hết hạn' })
   async getDealDetail(@Param('id') id: string) {
     return this.discoveryService.getDealDetail(id);
+  }
+
+  @Public()
+  @Get('deals/:id/trustpass')
+  @ApiOperation({
+    summary:
+      'Xem hồ sơ minh bạch TrustPass của món trong deal - khai báo, chưa có, đã xác minh (CM-C03)',
+  })
+  @ApiResponse({ status: 200, description: 'Hồ sơ TrustPass' })
+  @ApiResponse({ status: 404, description: 'Deal không tồn tại hoặc chưa gắn món' })
+  async getDealTrustpass(@Param('id') id: string) {
+    return this.discoveryService.getDealTrustpass(id);
   }
 
   @Public()

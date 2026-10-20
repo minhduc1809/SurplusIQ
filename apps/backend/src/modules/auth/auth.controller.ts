@@ -28,6 +28,7 @@ import {
   ResetPasswordDto,
   RefreshTokenDto,
   Enable2faDto,
+  GoogleLoginDto,
 } from './dto';
 
 @ApiTags('Authentication')
@@ -63,6 +64,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Đăng nhập khách hàng trên App Android (tách kênh 9.1)' })
   async loginCustomer(@Body() dto: CustomerLoginDto, @Ip() ip: string) {
     return this.authService.loginCustomer(dto, ip);
+  }
+
+  @Post('auth/customer/google')
+  @ApiOperation({ summary: 'Đăng nhập khách hàng bằng Google trên App Android' })
+  @ApiResponse({
+    status: 401,
+    description: 'Đăng nhập Google chưa được cấu hình hoặc idToken không hợp lệ',
+  })
+  async loginCustomerWithGoogle(@Body() dto: GoogleLoginDto, @Ip() ip: string) {
+    return this.authService.loginWithGoogle(dto, ip);
   }
 
   // -------------------------------------------------------------------------

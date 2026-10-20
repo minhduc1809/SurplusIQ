@@ -240,6 +240,11 @@ export const DEFAULT_PLATFORM_SETTINGS: Record<string, DefaultSettingItem> = {
     dataType: 'NUMBER',
     description: 'Thời gian trước khi đóng suất để kích hoạt gợi ý từ thiện (phút) - BR-098',
   },
+  'rescue_bridge.evidence_required': {
+    value: 'true',
+    dataType: 'BOOLEAN',
+    description: 'Rescue Bridge: bắt buộc bằng chứng bàn giao trước khi hoàn tất - BR-B03-06',
+  },
   'promo.max_percent': {
     value: '50',
     dataType: 'NUMBER',

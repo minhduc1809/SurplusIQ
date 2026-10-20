@@ -18,6 +18,7 @@ import {
   QueryItemsDto,
   ImportCsvItemsDto,
   BatchUpdateItemsDto,
+  UpdateTrustpassDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -123,6 +124,22 @@ export class CatalogController {
     @Body() dto: UpdateItemDto,
   ) {
     return this.catalogService.updateItem(storeId, id, dto, user?.userId);
+  }
+
+  @Patch(':id/trustpass')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'Cập nhật hồ sơ minh bạch TrustPass của món (CM-B05, BR-B05-01..10)',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật TrustPass thành công, tăng version' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy món ăn' })
+  async updateTrustpass(
+    @CurrentStore() storeId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateTrustpassDto,
+  ) {
+    return this.catalogService.updateTrustpass(storeId, id, dto, user?.userId);
   }
 
   @Post(':id/archive')

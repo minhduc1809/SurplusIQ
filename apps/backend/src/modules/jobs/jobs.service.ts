@@ -49,6 +49,10 @@ import { AiLogEntity } from '../../entities/ai/ai-log.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { SettingsService } from '../settings/settings.service';
+import { RewardsService } from '../rewards/rewards.service';
+import { RescueTimelineService } from '../rescue-timeline/rescue-timeline.service';
+import { RescuePoolService } from '../rescue-pool/rescue-pool.service';
+import { RescueBridgeService } from '../rescue-bridge/rescue-bridge.service';
 import { JOBS_CONSTANTS } from './jobs.constants';
 import {
   ReconciliationEngine,
@@ -109,6 +113,18 @@ export interface JobsExecutionSummary {
     count: number;
     userIds: string[];
   };
+  rescueTimelineRecalculated?: {
+    count: number;
+    storeIds: string[];
+    failedStoreIds: string[];
+    lotsCalculated: number;
+  };
+  rescuePoolDeadlinesProcessed?: {
+    count: number;
+  };
+  rescueBridgeDeadlinesProcessed?: {
+    count: number;
+  };
 }
 
 @Injectable()
@@ -163,6 +179,10 @@ export class JobsService {
     @InjectRepository(ViewHistoryEntity)
     private readonly viewHistoryRepo: Repository<ViewHistoryEntity>,
     private readonly auditLogService: AuditLogService,
+    private readonly rewardsService: RewardsService,
+    private readonly rescueTimelineService: RescueTimelineService,
+    private readonly rescuePoolService: RescuePoolService,
+    private readonly rescueBridgeService: RescueBridgeService,
     private readonly dataSource: DataSource,
     private readonly settingsService: SettingsService,
   ) {}
@@ -215,7 +235,7 @@ export class JobsService {
 
         await this.auditLogService.log({
           storeId: lockedOrder.storeId,
-          actorId: 'SYSTEM',
+          actorId: '00000000-0000-0000-0000-000000000000',
           actorRole: 'SYSTEM',
           action: 'ORDER_HOLD_RELEASED',
           targetType: 'ORDER',
@@ -335,7 +355,7 @@ export class JobsService {
 
           await this.auditLogService.log({
             storeId: lockedOrder.storeId,
-            actorId: 'SYSTEM',
+            actorId: '00000000-0000-0000-0000-000000000000',
             actorRole: 'SYSTEM',
             action: 'ORDER_PICKUP_EXPIRED',
             targetType: 'ORDER',
@@ -405,7 +425,7 @@ export class JobsService {
 
         await this.auditLogService.log({
           storeId: lockedOffer.storeId,
-          actorId: 'SYSTEM',
+          actorId: '00000000-0000-0000-0000-000000000000',
           actorRole: 'SYSTEM',
           action: 'OFFER_AUTO_CLOSED',
           targetType: 'OFFER',
@@ -480,11 +500,18 @@ export class JobsService {
             status: PaymentStatus.SUCCEEDED,
           });
           await manager.save(refundTxn);
+
+          // CM-C04/BR-C04-06: hoàn tiền tự động do khiếu nại quá hạn -> hoàn tác điểm đã cộng
+          await this.rewardsService.reverseForOrder(
+            order.id,
+            `Hoàn tiền tự động do khiếu nại ${lockedComplaint.id} quá hạn phản hồi`,
+            manager,
+          );
         }
 
         await this.auditLogService.log({
           storeId: lockedComplaint.storeId,
-          actorId: 'SYSTEM',
+          actorId: '00000000-0000-0000-0000-000000000000',
           actorRole: 'SYSTEM',
           action: 'COMPLAINT_AUTO_ACCEPTED',
           targetType: 'COMPLAINT',
@@ -694,7 +721,7 @@ export class JobsService {
 
         await this.auditLogService.log({
           storeId: sub.storeId,
-          actorId: 'SYSTEM',
+          actorId: '00000000-0000-0000-0000-000000000000',
           actorRole: 'SYSTEM',
           action: 'SUBSCRIPTION_DOWNGRADED_AUTO',
           targetType: 'SUBSCRIPTION',
@@ -1028,6 +1055,29 @@ export class JobsService {
   }
 
   /**
+   * Tác vụ 13 (5 phút): Tính lại mức nguy cơ Rescue Timeline cho các lô đang hoạt động (CM-B01, BR-B01-05)
+   */
+  async recalculateRescueTimelines(now: Date = new Date()) {
+    return this.rescueTimelineService.recalculateAll(now);
+  }
+
+  /**
+   * Tác vụ 14 (1 phút): Hạn Rescue Pool - đóng đăng ký/tổng hợp, hết hạn khi cửa hàng không phản hồi,
+   * kết thúc khi đề nghị cung ứng hết hạn (CM-B02 ngoại lệ "không phản hồi: đóng theo thời hạn")
+   */
+  async processRescuePoolDeadlines(now: Date = new Date()) {
+    return this.rescuePoolService.processDeadlines(now);
+  }
+
+  /**
+   * Tác vụ 15 (1 phút): Hạn nhận Rescue Bridge - quá hạn chưa có trạng thái cuối → Hủy/Thất bại (trả suất về tồn),
+   * hoặc chuyển vận hành khi mới một bên xác nhận (CM-B03)
+   */
+  async processRescueBridgeDeadlines(now: Date = new Date()) {
+    return this.rescueBridgeService.processDeadlines(now);
+  }
+
+  /**
    * Điều phối chạy tất cả các tác vụ nền định kỳ
    */
   async processAllBackgroundJobs(now: Date = new Date()): Promise<JobsExecutionSummary> {
@@ -1043,6 +1093,10 @@ export class JobsService {
     const reminders = await this.sendPickupReminders(now);
     const retention = await this.cleanupExpiredRetentionData(now);
     const accounts = await this.anonymizePendingDeleteAccounts(now);
+    // Chạy sau auto-close/release-holds để snapshot phản ánh trạng thái suất mới nhất
+    const rescueTimeline = await this.recalculateRescueTimelines(now);
+    const rescuePools = await this.processRescuePoolDeadlines(now);
+    const rescueBridge = await this.processRescueBridgeDeadlines(now);
 
     return {
       timestamp: now,
@@ -1058,6 +1112,9 @@ export class JobsService {
       remindersSent: reminders,
       retentionCleaned: retention,
       accountsAnonymized: accounts,
+      rescueTimelineRecalculated: rescueTimeline,
+      rescuePoolDeadlinesProcessed: rescuePools,
+      rescueBridgeDeadlinesProcessed: rescueBridge,
     };
   }
 }

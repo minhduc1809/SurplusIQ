@@ -34,7 +34,22 @@ import {
   UsageLogEntity,
 } from './subscriptions';
 
-import { ItemEntity, OfferEntity, OfferEventEntity, SurpriseBagItemEntity } from './catalog';
+import {
+  ItemEntity,
+  OfferEntity,
+  OfferEventEntity,
+  SurpriseBagItemEntity,
+  TrustpassHistoryEntity,
+} from './catalog';
+
+import { RewardAccountEntity, RewardLedgerEntryEntity } from './rewards';
+
+import { RescueRiskSnapshotEntity } from './rescue-timeline';
+
+import { RescuePoolEntity, RescuePoolRegistrationEntity } from './rescue-pool';
+
+import { RecipientOrganizationEntity, RescueBridgeTransferEntity } from './rescue-bridge';
+import { RescueLabScenarioEntity, RescueLabScenarioVersionEntity } from './rescue-lab';
 
 import {
   OrderEntity,
@@ -95,6 +110,11 @@ export * from './marketing';
 export * from './ai';
 export * from './settings';
 export * from './notifications';
+export * from './rewards';
+export * from './rescue-timeline';
+export * from './rescue-pool';
+export * from './rescue-bridge';
+export * from './rescue-lab';
 
 export const ALL_ENTITIES = [
   // Auth & Identity (13)
@@ -130,11 +150,12 @@ export const ALL_ENTITIES = [
   PlanQuotaEntity,
   UsageLogEntity,
 
-  // Catalog (4)
+  // Catalog (5)
   ItemEntity,
   OfferEntity,
   OfferEventEntity,
   SurpriseBagItemEntity,
+  TrustpassHistoryEntity,
 
   // Orders (7)
   OrderEntity,
@@ -181,4 +202,23 @@ export const ALL_ENTITIES = [
 
   // Notifications (1)
   NotificationEntity,
+
+  // Rewards (2)
+  RewardAccountEntity,
+  RewardLedgerEntryEntity,
+
+  // Rescue Timeline (1)
+  RescueRiskSnapshotEntity,
+
+  // Rescue Pool (2)
+  RescuePoolEntity,
+  RescuePoolRegistrationEntity,
+
+  // Rescue Bridge (2)
+  RecipientOrganizationEntity,
+  RescueBridgeTransferEntity,
+
+  // Rescue Lab (2)
+  RescueLabScenarioEntity,
+  RescueLabScenarioVersionEntity,
 ];
