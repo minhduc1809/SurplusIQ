@@ -131,7 +131,18 @@ export function OffersV2Page() {
                 <TableCell align="right">Giá</TableCell>
                 <TableCell align="center">Còn / Tổng</TableCell>
                 <TableCell>Trạng thái</TableCell>
-                <TableCell align="right">Thao tác</TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    position: 'sticky',
+                    right: 0,
+                    bgcolor: 'background.paper',
+                    zIndex: 1,
+                    boxShadow: { xs: '-6px 0 8px -6px rgba(0,0,0,0.15)', sm: 'none' },
+                  }}
+                >
+                  Thao tác
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -179,7 +190,16 @@ export function OffersV2Page() {
                         sx={{ fontWeight: 600 }}
                       />
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell
+                      align="right"
+                      sx={{
+                        position: 'sticky',
+                        right: 0,
+                        bgcolor: 'background.paper',
+                        zIndex: 1,
+                        boxShadow: { xs: '-6px 0 8px -6px rgba(0,0,0,0.15)', sm: 'none' },
+                      }}
+                    >
                       {live && (
                         <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
                           <Tooltip title="Điều chỉnh tồn kho">

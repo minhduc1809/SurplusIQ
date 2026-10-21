@@ -14,7 +14,10 @@
  * /api là địa chỉ Swagger, không phải API prefix
  * mặc định.
  */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:4000';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.trim() ||
+  import.meta.env.VITE_API_URL?.trim() ||
+  'http://localhost:4000';
 
 /**
  * Thời gian chờ mặc định cho mỗi request.
