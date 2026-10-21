@@ -41,7 +41,7 @@ import kotlinx.coroutines.launch
 private const val PREFS_NAME = "surplusiq_search_prefs"
 private const val KEY_RECENT_SEARCHES = "recent_queries"
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     allDeals: List<Deal>,
@@ -274,11 +274,12 @@ fun SearchScreen(
         }
 
         // AI Mode Toggle Banner
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             FilterChip(
                 selected = !isAiMode,

@@ -106,7 +106,7 @@ fun ProfileScreen(
                 contentAlignment = Alignment.Center
             ) {
                 if (!avatarUrl.isNullOrBlank()) {
-                    val fullAvatar = if (avatarUrl.startsWith("http")) avatarUrl else "http://10.0.2.2:3000$avatarUrl"
+                    val fullAvatar = if (avatarUrl.startsWith("http")) avatarUrl else "http://10.0.2.2:4000$avatarUrl"
                     AsyncImage(
                         model = fullAvatar,
                         contentDescription = "Avatar",

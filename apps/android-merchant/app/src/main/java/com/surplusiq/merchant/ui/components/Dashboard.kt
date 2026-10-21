@@ -243,7 +243,7 @@ fun PastelTile(
     val shape = RoundedCornerShape(22.dp)
     Column(
         modifier = modifier
-            .height(148.dp)
+            .heightIn(min = 148.dp)
             .shadow(4.dp, shape, ambientColor = SqWarmShadow, spotColor = SqWarmShadow)
             .clip(shape)
             .background(tone.bg)
@@ -257,7 +257,7 @@ fun PastelTile(
                 Icon(icon, contentDescription = null, tint = tone.accent, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(8.dp))
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SqInk, maxLines = 2)
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SqInk, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         Column {
             Text(value, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, maxLines = 1)

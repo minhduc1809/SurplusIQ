@@ -517,14 +517,14 @@ class DiscoveryRepositoryImpl @Inject constructor(
         val curr = dto.currentPrice.toInt()
         val distText = if (dto.distanceMeters != null) {
             if (dto.distanceMeters < 1000) "${dto.distanceMeters.toInt()} m" else "%.1f km".format(dto.distanceMeters / 1000.0)
-        } else "850 m"
+        } else "Chưa rõ khoảng cách"
         val deal = Deal(
             id = dto.id,
             storeId = dto.storeId,
             storeName = dto.storeName,
-            storeAddress = dto.storeAddress ?: "Quận 1, TP. Hồ Chí Minh",
-            storeLogoUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=150",
-            coverImageUrl = dto.imageUrl ?: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+            storeAddress = dto.storeAddress ?: "Chưa có địa chỉ",
+            storeLogoUrl = "",
+            coverImageUrl = dto.imageUrl.orEmpty(),
             title = dto.title,
             description = "Suất cứu món xếp hạng theo khả năng nhận kịp từ ${dto.storeName}.",
             whatYouCouldGet = dto.title,

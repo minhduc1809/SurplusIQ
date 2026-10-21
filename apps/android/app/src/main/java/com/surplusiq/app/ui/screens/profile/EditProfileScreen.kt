@@ -146,7 +146,7 @@ fun EditProfileScreen(
                     )
                 } else if (!avatarUrl.isNullOrBlank()) {
                     // Xử lý link tương đối hoặc tuyệt đối
-                    val fullAvatarUrl = if (avatarUrl!!.startsWith("http")) avatarUrl else "http://10.0.2.2:3000$avatarUrl"
+                    val fullAvatarUrl = if (avatarUrl!!.startsWith("http")) avatarUrl else "http://10.0.2.2:4000$avatarUrl"
                     AsyncImage(
                         model = fullAvatarUrl,
                         contentDescription = "Avatar",

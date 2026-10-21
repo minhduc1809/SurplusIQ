@@ -100,12 +100,6 @@ fun CreateComplaintScreen(
         }
     }
 
-    val sampleEvidencePhotos = listOf(
-        "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500",
-        "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500",
-        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500"
-    )
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -307,17 +301,6 @@ fun CreateComplaintScreen(
                     fontSize = 14.sp,
                     color = TextPrimary
                 )
-                if (evidenceImages.size < 3) {
-                    TextButton(
-                        onClick = {
-                            val nextPhoto = sampleEvidencePhotos.getOrNull(evidenceImages.size)
-                                ?: sampleEvidencePhotos.first()
-                            evidenceImages.add(nextPhoto)
-                        }
-                    ) {
-                        Text("+ Thêm ảnh mẫu", fontSize = 12.sp, color = ForestGreenPrimary)
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -328,7 +311,7 @@ fun CreateComplaintScreen(
             ) {
                 // Display attached photos
                 evidenceImages.forEachIndexed { index, url ->
-                    val fullUrl = if (url.startsWith("http") || url.startsWith("content://")) url else "http://10.0.2.2:3000$url"
+                    val fullUrl = if (url.startsWith("http") || url.startsWith("content://")) url else "http://10.0.2.2:4000$url"
                     Box(
                         modifier = Modifier
                             .size(90.dp)
@@ -366,13 +349,7 @@ fun CreateComplaintScreen(
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surface)
                             .clickable {
-                                if (onUploadEvidence != null) {
-                                    photoPickerLauncher.launch("image/*")
-                                } else {
-                                    val nextPhoto = sampleEvidencePhotos.getOrNull(evidenceImages.size)
-                                        ?: sampleEvidencePhotos.first()
-                                    evidenceImages.add(nextPhoto)
-                                }
+                                if (onUploadEvidence != null) photoPickerLauncher.launch("image/*")
                             },
                         contentAlignment = Alignment.Center
                     ) {
