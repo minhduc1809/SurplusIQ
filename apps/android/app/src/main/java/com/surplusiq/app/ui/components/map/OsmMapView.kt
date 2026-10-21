@@ -49,9 +49,6 @@ private val MapTileSource = XYTileSource(
     "© OpenStreetMap contributors, OSM France"
 )
 
-/** Từ mức zoom này trở lên mọi ghim hiện bong bóng tên và giá; xa hơn chỉ ghim đang chọn có bong bóng, còn lại là chấm. */
-private const val BUBBLE_MIN_ZOOM = 16.5
-
 /**
  * OpenStreetMap Compose Component sử dụng OsmDroid Native (Chi phí 0đ, không cần API Key Google Maps).
  * Hỗ trợ hiển thị ghim deal, vòng tròn bán kính và chế độ kéo ghim tâm vị trí.
@@ -76,7 +73,9 @@ fun OsmMapView(
     var lastCenter by remember { mutableStateOf(centerLatitude to centerLongitude) }
     var lastZoom by remember { mutableStateOf(zoomLevel) }
     // Phóng đủ gần thì hiện bong bóng tên quán trên đầu ghim; xa hơn chỉ hiện chấm để bản đồ không rối
-    var showBubbles by remember { mutableStateOf(zoomLevel >= BUBBLE_MIN_ZOOM) }
+    // Tăng mỗi khi bản đồ cuộn/zoom/đo xong để chọn lại quán nào đủ chỗ hiện bong bóng
+    var refreshTick by remember { mutableStateOf(0) }
+    val bubbleCache = remember { HashMap<String, android.graphics.drawable.Drawable>() }
 
     LaunchedEffect(Unit) {
         Configuration.getInstance().userAgentValue = "SurplusIQ-Android"
@@ -96,14 +95,16 @@ fun OsmMapView(
                     controller.setZoom(zoomLevel)
                     controller.setCenter(startPoint)
 
+                    var lastTick = 0L
+                    fun bump() {
+                        val now = System.currentTimeMillis()
+                        if (now - lastTick > 120) { lastTick = now; refreshTick++ }
+                    }
                     addMapListener(object : MapListener {
-                        override fun onScroll(event: ScrollEvent?) = false
-                        override fun onZoom(event: ZoomEvent?): Boolean {
-                            val near = zoomLevelDouble >= BUBBLE_MIN_ZOOM
-                            if (near != showBubbles) showBubbles = near
-                            return false
-                        }
+                        override fun onScroll(event: ScrollEvent?): Boolean { bump(); return false }
+                        override fun onZoom(event: ZoomEvent?): Boolean { bump(); return false }
                     })
+                    addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshTick++ }
 
                     if (isCenterPinMode && onCenterChanged != null) {
                         addMapListener(object : MapListener {
@@ -142,30 +143,57 @@ fun OsmMapView(
                 }
 
                 // Vẽ các Marker cửa hàng có Deal
+                refreshTick // đọc để update chạy lại khi bản đồ đổi
+                val ctx = mapView.context
+                val density = ctx.resources.displayMetrics.density
+
+                fun bubbleOf(pin: MapPin, selected: Boolean) =
+                    bubbleCache.getOrPut("${pin.storeId}|$selected|${pin.activeDealsCount}|${pin.minPrice}") {
+                        pinBubbleDrawable(ctx, pin, selected)
+                    }
+
+                // Chọn quán đủ chỗ để hiện bong bóng: ưu tiên quán đang chọn, rồi quán nhiều suất; quán bị chồng chỉ hiện chấm
+                val bubbleIds = HashSet<String>()
+                if (mapView.width > 0) {
+                    val taken = ArrayList<android.graphics.RectF>()
+                    val pt = android.graphics.Point()
+                    pins.sortedWith(compareByDescending<MapPin> { it.storeId == selectedStoreId }.thenByDescending { it.activeDealsCount })
+                        .forEach { pin ->
+                            mapView.projection.toPixels(GeoPoint(pin.latitude, pin.longitude), pt)
+                            val d = bubbleOf(pin, pin.storeId == selectedStoreId)
+                            val tail = 13f * density
+                            val rect = android.graphics.RectF(
+                                pt.x - d.intrinsicWidth / 2f, pt.y - (d.intrinsicHeight - tail),
+                                pt.x + d.intrinsicWidth / 2f, pt.y + tail
+                            )
+                            val visible = rect.right > 0 && rect.left < mapView.width && rect.bottom > 0 && rect.top < mapView.height
+                            if (pin.storeId == selectedStoreId || (visible && taken.none { android.graphics.RectF.intersects(it, rect) })) {
+                                taken.add(rect)
+                                bubbleIds.add(pin.storeId)
+                            }
+                        }
+                }
+
                 // Ghim đang chọn vẽ sau cùng để bong bóng nổi lên trên các ghim khác
-                pins.sortedBy { it.storeId == selectedStoreId }.forEach { pin ->
+                // Chấm vẽ trước, bong bóng vẽ sau để chấm không đè lên chữ của bong bóng
+                pins.sortedWith(compareBy<MapPin> { it.storeId in bubbleIds }.thenBy { it.storeId == selectedStoreId }).forEach { pin ->
                     val marker = Marker(mapView).apply {
                         position = GeoPoint(pin.latitude, pin.longitude)
                         title = pin.storeName
                         setInfoWindow(null) // thông tin đã nằm ngay trong bong bóng, thẻ chi tiết hiện ở dưới màn hình
 
-                        if (showBubbles || pin.storeId == selectedStoreId) {
-                            val bubble = pinBubbleDrawable(mapView.context, pin, pin.storeId == selectedStoreId)
+                        if (pin.storeId in bubbleIds) {
+                            val bubble = bubbleOf(pin, pin.storeId == selectedStoreId)
                             icon = bubble
-                            val density = mapView.context.resources.displayMetrics.density
                             setAnchor(Marker.ANCHOR_CENTER, 1f - (13f * density) / bubble.intrinsicHeight)
                         } else {
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        val markerDrawable = GradientDrawable().apply {
-                            shape = GradientDrawable.OVAL
-                            setColor(
-                                if (pin.activeDealsCount > 3) AndroidColor.parseColor("#2E7D32")
-                                else AndroidColor.parseColor("#E65100")
-                            )
-                            setStroke(3, AndroidColor.WHITE)
-                            setSize(64, 64)
-                        }
-                        icon = markerDrawable
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            icon = GradientDrawable().apply {
+                                shape = GradientDrawable.OVAL
+                                setColor(if (pin.activeDealsCount > 3) AndroidColor.parseColor("#2E7D32") else AndroidColor.parseColor("#E65100"))
+                                setStroke(3, AndroidColor.WHITE)
+                                setSize(64, 64)
+                            }
                         }
 
                         setOnMarkerClickListener { _, _ ->
