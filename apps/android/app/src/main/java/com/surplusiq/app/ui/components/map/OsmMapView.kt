@@ -14,11 +14,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.surplusiq.app.domain.model.MapPin
 import com.surplusiq.app.ui.theme.ForestGreenDark
@@ -27,11 +29,25 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
+
+/**
+ * Nền bản đồ: ô OpenStreetMap do OpenStreetMap France phục vụ. Dùng thay tile.openstreetmap.org vì máy chủ đó
+ * bị chặn ở một số mạng (DNS trỏ về 127.0.0.1) khiến bản đồ chỉ hiện lưới xám. CARTO đã yêu cầu khóa API nên không dùng.
+ */
+private val MapTileSource = XYTileSource(
+    "OsmFrance", 0, 19, 256, ".png",
+    arrayOf(
+        "https://a.tile.openstreetmap.fr/osmfr/",
+        "https://b.tile.openstreetmap.fr/osmfr/",
+        "https://c.tile.openstreetmap.fr/osmfr/"
+    ),
+    "© OpenStreetMap contributors, OSM France"
+)
 
 /**
  * OpenStreetMap Compose Component sử dụng OsmDroid Native (Chi phí 0đ, không cần API Key Google Maps).
@@ -64,7 +80,7 @@ fun OsmMapView(
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    setTileSource(TileSourceFactory.MAPNIK)
+                    setTileSource(MapTileSource)
                     setMultiTouchControls(interactive)
                     if (!interactive) setOnTouchListener { _, _ -> true } // chỉ xem: không bắt cử chỉ, cuộn trang vẫn mượt
                     isTilesScaledToDpi = true
@@ -183,6 +199,15 @@ fun OsmMapView(
                     .size(44.dp)
             )
         }
+
+        Text(
+            "© OpenStreetMap contributors · OSM France",
+            fontSize = 9.sp,
+            color = androidx.compose.ui.graphics.Color(0xFF555555),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 6.dp, bottom = 4.dp)
+        )
 
         // Nút điều khiển Zoom tiện lợi
         if (showZoomButtons) {
