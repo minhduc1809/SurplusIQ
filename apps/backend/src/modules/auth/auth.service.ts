@@ -34,6 +34,7 @@ import {
 } from '../../entities';
 import { AUTH_CONSTANTS, AUTH_ERRORS } from './auth.constants';
 import { CryptoUtil } from './crypto.util';
+import { getJwtSecret } from '../../common/config/jwt-secret';
 import {
   CustomerRegisterDto,
   CustomerLoginDto,
@@ -217,10 +218,8 @@ export class AuthService {
 
       throw new UnauthorizedException({
         code: AUTH_ERRORS.INVALID_CREDENTIALS,
-        message: `Sai mật khẩu. Bạn còn ${Math.max(
-          0,
-          AUTH_CONSTANTS.LOGIN_MAX_WRONG - user.failedLoginCount,
-        )} lần thử`,
+        // Cùng một thông báo với tài khoản không tồn tại để không dò được tài khoản (BUG-018).
+        message: 'Tài khoản hoặc mật khẩu không chính xác',
       });
     }
 
@@ -802,7 +801,7 @@ export class AuthService {
               ) => { sub?: string; deviceId?: string };
             }
           ).verify(rawToken, {
-            secret: AUTH_CONSTANTS.JWT_SECRET,
+            secret: getJwtSecret(),
             ignoreExpiration: true,
           });
           if (effectiveUserId && decoded.sub && effectiveUserId !== decoded.sub) {

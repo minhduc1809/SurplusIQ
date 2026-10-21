@@ -86,6 +86,15 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
         synchronize: false, // Turn off auto-sync, enforce migrations per DoD TASK-M0-03
         migrations: [__dirname + '/migrations/*-*{.ts,.js}'],
         migrationsRun: config.get<string>('DB_MIGRATIONS_RUN') === 'true',
+        // Trước đây DB_POOL_MAX trong .env không được áp dụng (pool mặc định 10) và không có timeout nên
+        // giao dịch kẹt giữ khóa làm treo cả API (BUG-001). Đặt kích thước pool và các timeout phía server.
+        extra: {
+          max: Number(config.get('DB_POOL_MAX', 20)),
+          min: Number(config.get('DB_POOL_MIN', 2)),
+          connectionTimeoutMillis: 10000,
+          options:
+            '-c lock_timeout=10000 -c idle_in_transaction_session_timeout=30000 -c statement_timeout=30000',
+        },
       }),
     }),
     TypeOrmModule.forFeature([LegacyStoreEntity, DecisionEntity, ...ALL_ENTITIES]),

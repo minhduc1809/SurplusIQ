@@ -116,6 +116,7 @@ describe('JobsService (All 12 Background Jobs)', () => {
     itemRepo = { find: jest.fn() } as any;
     forecastRepo = {
       create: jest.fn((dto) => ({ id: 'fc-1', ...dto }) as any),
+      findOne: jest.fn().mockResolvedValue(null),
       save: jest.fn(),
     } as any;
     proposalRepo = {
@@ -418,6 +419,18 @@ describe('JobsService (All 12 Background Jobs)', () => {
       const res = await service.generateDailyForecasts(new Date('2026-10-14T21:00:00Z'));
       expect(res.count).toBe(1);
       expect(res.forecastIds).toContain('fc-1');
+    });
+
+    it('BUG-008: chạy lại khi đã có dự báo của ngày mai thì bỏ qua, không tạo trùng', async () => {
+      subscriptionRepo.find.mockResolvedValueOnce([
+        { storeId: mockStoreId, plan: SubscriptionPlan.PRO } as SubscriptionEntity,
+      ]);
+      itemRepo.find.mockResolvedValueOnce([{ id: 'item-1', storeId: mockStoreId } as ItemEntity]);
+      forecastRepo.findOne.mockResolvedValueOnce({ id: 'fc-existing' } as any);
+
+      const res = await service.generateDailyForecasts(new Date('2026-10-14T21:00:00Z'));
+      expect(res.count).toBe(0);
+      expect(forecastRepo.save).not.toHaveBeenCalled();
     });
   });
 

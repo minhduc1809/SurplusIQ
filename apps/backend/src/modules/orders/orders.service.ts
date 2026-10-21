@@ -1,3 +1,4 @@
+import { getJwtSecret } from '../../common/config/jwt-secret';
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In, IsNull } from 'typeorm';
@@ -43,7 +44,7 @@ export interface OrdersListResult {
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
-  private readonly jwtSecret = process.env.JWT_SECRET || 'surplusiq_super_secret_jwt_key_2026';
+  private readonly jwtSecret = getJwtSecret();
 
   constructor(
     @InjectRepository(OrderEntity)
@@ -282,21 +283,24 @@ export class OrdersService {
       }
 
       // 7. Ghi nhật ký kiểm toán
-      await this.auditLogService.log({
-        storeId: offer.storeId,
-        actorId,
-        actorRole: 'CUSTOMER',
-        action: 'ORDER_HELD',
-        targetType: 'ORDER',
-        targetId: savedOrder.id,
-        newValue: {
-          code: savedOrder.code,
-          quantity: savedOrder.quantity,
-          unitPrice: savedOrder.unitPrice,
-          totalAmount: savedOrder.totalAmount,
-          holdExpiresAt: savedOrder.holdExpiresAt,
+      await this.auditLogService.log(
+        {
+          storeId: offer.storeId,
+          actorId,
+          actorRole: 'CUSTOMER',
+          action: 'ORDER_HELD',
+          targetType: 'ORDER',
+          targetId: savedOrder.id,
+          newValue: {
+            code: savedOrder.code,
+            quantity: savedOrder.quantity,
+            unitPrice: savedOrder.unitPrice,
+            totalAmount: savedOrder.totalAmount,
+            holdExpiresAt: savedOrder.holdExpiresAt,
+          },
         },
-      });
+        manager,
+      );
 
       return savedOrder;
     };
@@ -399,20 +403,23 @@ export class OrdersService {
       await this.releasePromotion(manager, order);
 
       // 3. Ghi nhật ký kiểm toán
-      await this.auditLogService.log({
-        storeId: order.storeId,
-        actorId: customerId,
-        actorRole: 'CUSTOMER',
-        action: wasPaid ? 'ORDER_PAID_CANCELLED' : 'ORDER_HOLD_CANCELLED',
-        targetType: 'ORDER',
-        targetId: order.id,
-        newValue: {
-          status: OrderStatus.CANCELLED,
-          reason: order.cancelReason,
-          wasPaid,
-          refundAmount: wasPaid ? order.totalAmount : 0,
+      await this.auditLogService.log(
+        {
+          storeId: order.storeId,
+          actorId: customerId,
+          actorRole: 'CUSTOMER',
+          action: wasPaid ? 'ORDER_PAID_CANCELLED' : 'ORDER_HOLD_CANCELLED',
+          targetType: 'ORDER',
+          targetId: order.id,
+          newValue: {
+            status: OrderStatus.CANCELLED,
+            reason: order.cancelReason,
+            wasPaid,
+            refundAmount: wasPaid ? order.totalAmount : 0,
+          },
         },
-      });
+        manager,
+      );
 
       return savedOrder;
     });
@@ -727,18 +734,21 @@ export class OrdersService {
       }
 
       // Ghi nhật ký kiểm toán
-      await this.auditLogService.log({
-        storeId,
-        actorId,
-        actorRole: 'STORE_MEMBER',
-        action: 'ORDER_CANCELLED_BY_STORE',
-        targetType: 'ORDER',
-        targetId: savedOrder.id,
-        newValue: {
-          status: OrderStatus.CANCELLED,
-          reason: order.cancelReason,
+      await this.auditLogService.log(
+        {
+          storeId,
+          actorId,
+          actorRole: 'STORE_MEMBER',
+          action: 'ORDER_CANCELLED_BY_STORE',
+          targetType: 'ORDER',
+          targetId: savedOrder.id,
+          newValue: {
+            status: OrderStatus.CANCELLED,
+            reason: order.cancelReason,
+          },
         },
-      });
+        manager,
+      );
 
       return savedOrder;
     });

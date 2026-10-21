@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { AuditLogEntity } from '../../entities/stores/audit-log.entity';
 
 export interface CreateAuditLogParams {
@@ -42,13 +42,15 @@ export class AuditLogService {
   /**
    * Ghi vết kiểm toán nhạy cảm (Append-only, không sửa, không xóa - BR-080, R2-075)
    */
-  async log(params: CreateAuditLogParams): Promise<AuditLogEntity> {
+  /** `manager`: ghi audit trong CÙNG giao dịch đang mở (dùng cùng kết nối) để không chiếm thêm kết nối pool (BUG-001). */
+  async log(params: CreateAuditLogParams, manager?: EntityManager): Promise<AuditLogEntity> {
+    const repo = manager ? manager.getRepository(AuditLogEntity) : this.auditRepo;
     const normalizedActorId =
       params.actorId && UUID_REGEX.test(params.actorId) ? params.actorId : SYSTEM_ACTOR_UUID;
     const normalizedStoreId =
       params.storeId && UUID_REGEX.test(params.storeId) ? params.storeId : null;
 
-    const audit = this.auditRepo.create({
+    const audit = repo.create({
       storeId: normalizedStoreId,
       actorId: normalizedActorId,
       actorRole: params.actorRole,
@@ -61,7 +63,7 @@ export class AuditLogService {
       userAgent: params.userAgent || null,
     });
 
-    const saved = await this.auditRepo.save(audit);
+    const saved = await repo.save(audit);
     this.logger.log(
       `[AUDIT_LOG] Action: ${params.action}, Target: ${params.targetType}#${params.targetId}, Actor: ${params.actorId}`,
     );

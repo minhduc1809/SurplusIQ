@@ -830,6 +830,12 @@ export class JobsService {
       const items = await this.itemRepo.find({ where: { storeId: sub.storeId } });
 
       for (const item of items) {
+        // Idempotent (BUG-008): chạy lại trong ngày không ghi đè/đụng ràng buộc duy nhất; giữ bản đã chỉnh tay.
+        const existing = await this.forecastRepo.findOne({
+          where: { storeId: sub.storeId, itemId: item.id, targetDate },
+        });
+        if (existing) continue;
+
         const actuals = await this.dailyActualRepo.find({
           where: { storeId: sub.storeId, itemId: item.id },
           order: { date: 'ASC' },

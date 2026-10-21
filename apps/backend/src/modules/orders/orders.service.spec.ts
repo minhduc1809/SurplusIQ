@@ -240,6 +240,7 @@ describe('OrdersService', () => {
           action: 'ORDER_HELD',
           targetType: 'ORDER',
         }),
+        expect.anything(),
       );
     });
 
@@ -406,6 +407,7 @@ describe('OrdersService', () => {
         expect.objectContaining({
           action: 'ORDER_HOLD_CANCELLED',
         }),
+        expect.anything(),
       );
     });
 
@@ -568,6 +570,7 @@ describe('OrdersService', () => {
         expect.objectContaining({
           action: 'ORDER_CANCELLED_BY_STORE',
         }),
+        expect.anything(),
       );
     });
   });

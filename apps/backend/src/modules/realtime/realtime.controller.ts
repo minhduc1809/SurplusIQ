@@ -1,19 +1,23 @@
+import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Controller, Post, Body, Get, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RealtimeService } from './realtime.service';
 
 export class TriggerTestRealtimeDto {
+  @IsOptional()
+  @IsIn(['deal.stock_updated', 'deal.flash_rescue', 'order.hold_reserved'])
   type: 'deal.stock_updated' | 'deal.flash_rescue' | 'order.hold_reserved';
-  dealId?: string;
-  storeId?: string;
-  remainingQuantity?: number;
-  title?: string;
-  storeName?: string;
-  discountPercent?: number;
-  discountedPrice?: number;
-  originalPrice?: number;
-  latitude?: number;
-  longitude?: number;
+
+  @IsOptional() @IsString() dealId?: string;
+  @IsOptional() @IsString() storeId?: string;
+  @IsOptional() @IsNumber() remainingQuantity?: number;
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsString() storeName?: string;
+  @IsOptional() @IsNumber() discountPercent?: number;
+  @IsOptional() @IsNumber() discountedPrice?: number;
+  @IsOptional() @IsNumber() originalPrice?: number;
+  @IsOptional() @IsNumber() latitude?: number;
+  @IsOptional() @IsNumber() longitude?: number;
 }
 
 @ApiTags('Realtime WebSocket')

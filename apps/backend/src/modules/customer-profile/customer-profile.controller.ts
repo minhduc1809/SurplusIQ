@@ -13,6 +13,8 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CustomerProfileService } from './customer-profile.service';
 import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
+import { RequestDeleteDto } from './dto/request-delete.dto';
+import { RecordConsentDto } from './dto/record-consent.dto';
 import { CreateSavedPlaceDto } from './dto/saved-place.dto';
 import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
@@ -25,7 +27,6 @@ import { Channel } from '../../common/decorators/channel.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
-import { ConsentType } from '../../entities/auth/consent.entity';
 
 @ApiTags('Customer - Profile & Settings')
 @ApiBearerAuth()
@@ -131,13 +132,8 @@ export class CustomerProfileController {
 
   @Post('consents')
   @ApiOperation({ summary: 'Ghi nhận chấp thuận điều khoản (R1-012, R1-017, BR-005)' })
-  async recordConsent(
-    @CurrentUser() user: RequestUser,
-    @Body('type') type: ConsentType,
-    @Body('granted') granted: boolean,
-    @Body('version') version?: string,
-  ) {
-    return this.profileService.recordConsent(user?.userId, type, granted, version);
+  async recordConsent(@CurrentUser() user: RequestUser, @Body() dto: RecordConsentDto) {
+    return this.profileService.recordConsent(user?.userId, dto.type, dto.granted, dto.version);
   }
 
   @Get('notification-settings')
@@ -158,8 +154,8 @@ export class CustomerProfileController {
 
   @Post('delete-request')
   @ApiOperation({ summary: 'Yêu cầu xóa tài khoản cá nhân (R1-011, R1-019, BR-007)' })
-  async requestAccountDelete(@CurrentUser() user: RequestUser) {
-    return this.profileService.requestAccountDelete(user?.userId);
+  async requestAccountDelete(@CurrentUser() user: RequestUser, @Body() dto: RequestDeleteDto) {
+    return this.profileService.requestAccountDelete(user?.userId, dto.password);
   }
 
   @Delete('delete-request')

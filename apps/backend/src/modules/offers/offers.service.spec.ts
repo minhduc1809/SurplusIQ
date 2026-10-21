@@ -115,9 +115,20 @@ describe('OffersService', () => {
     findOne: jest.fn(),
   };
 
+  // cancelOffer chạy trong giao dịch: manager giả định tuyến find/save/update/create về các mock bên dưới.
+  const mockManager = {
+    find: jest.fn(),
+    save: jest.fn(async (e: unknown) => e),
+    update: jest.fn(),
+    create: jest.fn((_: unknown, v: unknown) => v),
+    findOne: jest.fn().mockResolvedValue(null),
+  };
   const mockOrderRepo = {
     find: jest.fn(),
     save: jest.fn(),
+    manager: {
+      transaction: jest.fn(async (cb: (m: typeof mockManager) => unknown) => cb(mockManager)),
+    },
   };
 
   const mockAuditLogService = {
@@ -466,8 +477,9 @@ describe('OffersService', () => {
         offerId: mockOfferId,
         status: OrderStatus.PAID,
       };
-      mockOrderRepo.find.mockResolvedValue([mockOrder]);
-      mockOrderRepo.save.mockImplementation(async (o: OrderEntity) => o);
+      mockManager.find.mockResolvedValue([
+        { ...mockOrder, code: 'SQ1', totalAmount: 30000, storeId: mockStoreId, customerId: 'c1' },
+      ]);
       mockOfferEventRepo.create.mockReturnValue({});
       mockOfferEventRepo.save.mockResolvedValue({});
 
@@ -475,8 +487,17 @@ describe('OffersService', () => {
       const result = await service.cancelOffer(mockStoreId, mockOfferId, dto, 'user-1');
 
       expect(result.status).toBe(OfferStatus.CANCELLED);
-      expect(mockOrder.status).toBe(OrderStatus.CANCELLED);
-      expect(mockOrder.cancelledBy).toBe(CancelledBy.STORE);
+      const cancelled = mockManager.save.mock.calls
+        .map((c) => c[0] as Partial<OrderEntity>)
+        .find((o) => o.code === 'SQ1');
+      expect(cancelled?.status).toBe(OrderStatus.CANCELLED);
+      expect(cancelled?.cancelledBy).toBe(CancelledBy.STORE);
+      // BUG-005: phải có đúng một lệnh hoàn tiền bằng tổng tiền đơn
+      const refunds = mockManager.create.mock.calls.filter(
+        (c) => (c[1] as { kind?: string }).kind === 'ORDER_REFUND',
+      );
+      expect(refunds).toHaveLength(1);
+      expect((refunds[0][1] as { amount: number }).amount).toBe(30000);
       expect(mockAuditLogService.log).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'OFFER_CANCELLED',

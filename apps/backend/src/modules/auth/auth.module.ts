@@ -15,6 +15,7 @@ import {
   ConsentEntity,
 } from '../../entities';
 import { AUTH_CONSTANTS } from './auth.constants';
+import { getJwtSecret } from '../../common/config/jwt-secret';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -22,9 +23,11 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.register({
-      secret: AUTH_CONSTANTS.JWT_SECRET,
-      signOptions: { expiresIn: AUTH_CONSTANTS.JWT_ACCESS_EXPIRES_IN },
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: getJwtSecret(),
+        signOptions: { expiresIn: AUTH_CONSTANTS.JWT_ACCESS_EXPIRES_IN },
+      }),
     }),
     TypeOrmModule.forFeature([
       UserEntity,

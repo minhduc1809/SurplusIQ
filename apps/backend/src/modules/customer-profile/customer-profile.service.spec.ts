@@ -1,3 +1,4 @@
+import { CryptoUtil } from '../auth/crypto.util';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
@@ -161,10 +162,29 @@ describe('CustomerProfileService (Full Customer Features)', () => {
 
   describe('account deletion & export', () => {
     it('yêu cầu xóa tài khoản chuyển status sang PENDING_DELETE (R1-011, BR-007)', async () => {
-      userRepo.findOne.mockResolvedValueOnce({ id: 'u1', status: UserStatus.ACTIVE });
-      const res = await service.requestAccountDelete('u1');
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'u1',
+        status: UserStatus.ACTIVE,
+        passwordHash: CryptoUtil.hashPassword('Mat-khau-1'),
+      });
+      const res = await service.requestAccountDelete('u1', 'Mat-khau-1');
       expect(res.status).toBe(UserStatus.PENDING_DELETE);
       expect(res.deleteRequestedAt).toBeDefined();
+    });
+
+    it('BUG-016: sai mật khẩu hoặc thiếu mật khẩu thì KHÔNG được chuyển PENDING_DELETE', async () => {
+      const user = {
+        id: 'u1',
+        status: UserStatus.ACTIVE,
+        passwordHash: CryptoUtil.hashPassword('Mat-khau-1'),
+      };
+      userRepo.findOne.mockResolvedValueOnce(user);
+      await expect(service.requestAccountDelete('u1', 'sai')).rejects.toThrow(
+        /Mật khẩu không đúng/,
+      );
+      userRepo.findOne.mockResolvedValueOnce(user);
+      await expect(service.requestAccountDelete('u1', '')).rejects.toThrow(/Mật khẩu không đúng/);
+      expect(user.status).toBe(UserStatus.ACTIVE);
     });
 
     it('hủy yêu cầu xóa tài khoản chuyển status về ACTIVE (R1-019)', async () => {

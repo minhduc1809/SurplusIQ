@@ -6,6 +6,12 @@ import { OfferEventEntity, OfferEventType } from '../../entities/catalog/offer-e
 import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { AuditLogService } from '../audit/audit-log.service';
+import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
+import {
+  ProxyPickupCodeEntity,
+  ProxyPickupCodeStatus,
+} from '../../entities/orders/proxy-pickup-code.entity';
+import { createRefundTransaction } from '../payments/refund-transaction';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
 import { DynamicPricingEngine } from '@surplusiq/core';
@@ -761,23 +767,43 @@ export class OffersService {
       throw new BadRequestException('Không thể hủy suất đã đóng (R2-033).');
     }
 
-    offer.status = OfferStatus.CANCELLED;
-    const saved = await this.offerRepo.save(offer);
-
-    // Tìm và hủy các đơn hàng đã thanh toán đang chờ nhận để hoàn tiền 100% (R2-033)
-    const paidOrders = await this.orderRepo.find({
-      where: {
-        offerId,
-        status: In([OrderStatus.PAID, OrderStatus.PENDING_PAYMENT]),
-      },
+    // Hủy suất + hủy đơn + tạo lệnh hoàn tiền trong MỘT giao dịch (BUG-005): không để đơn bị hủy mà khách không có lệnh hoàn.
+    const { saved, paidCount } = await this.orderRepo.manager.transaction(async (manager) => {
+      offer.status = OfferStatus.CANCELLED;
+      const savedOffer = await manager.save(offer);
+      const affected = await manager.find(OrderEntity, {
+        where: { offerId, status: In([OrderStatus.PAID, OrderStatus.PENDING_PAYMENT]) },
+        lock: { mode: 'pessimistic_write' },
+      });
+      let paid = 0;
+      for (const order of affected) {
+        if (order.status === OrderStatus.PAID) {
+          paid += 1;
+          await manager.update(
+            PickupTokenEntity,
+            { orderId: order.id, status: PickupTokenStatus.UNUSED },
+            { status: PickupTokenStatus.REVOKED },
+          );
+          await manager.update(
+            ProxyPickupCodeEntity,
+            { orderId: order.id, status: ProxyPickupCodeStatus.UNUSED },
+            { status: ProxyPickupCodeStatus.REVOKED },
+          );
+          await createRefundTransaction(
+            manager,
+            order,
+            order.totalAmount,
+            `REFUND-${order.code}-${Date.now()}`,
+          );
+        }
+        order.status = OrderStatus.CANCELLED;
+        order.cancelledBy = CancelledBy.STORE;
+        order.cancelReason = `Cửa hàng hủy suất: ${dto.reason}`;
+        order.cancelledAt = new Date();
+        await manager.save(order);
+      }
+      return { saved: savedOffer, paidCount: paid };
     });
-
-    for (const order of paidOrders) {
-      order.status = OrderStatus.CANCELLED;
-      order.cancelledBy = CancelledBy.STORE;
-      order.cancelReason = `Cửa hàng hủy suất: ${dto.reason}`;
-      await this.orderRepo.save(order);
-    }
 
     await this.offerEventRepo.save(
       this.offerEventRepo.create({
@@ -785,7 +811,7 @@ export class OffersService {
         actorId: actorId === 'SYSTEM' ? null : actorId,
         type: OfferEventType.CANCELLED,
         payload: {
-          affectedOrdersCount: paidOrders.length,
+          affectedOrdersCount: paidCount,
           note: dto.note,
         },
         reason: dto.reason,
@@ -802,7 +828,7 @@ export class OffersService {
       newValue: {
         status: OfferStatus.CANCELLED,
         reason: dto.reason,
-        refundedOrders: paidOrders.length,
+        refundedOrders: paidCount,
       },
     });
 

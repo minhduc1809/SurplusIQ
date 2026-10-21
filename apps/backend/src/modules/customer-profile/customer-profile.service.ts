@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -27,6 +28,7 @@ import { UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
 import { UpdateRefundBankAccountDto } from './dto/refund-bank-account.dto';
 import { decryptField, encryptField } from '../../common/crypto/field-crypto';
+import { CryptoUtil } from '../auth/crypto.util';
 
 function maskEmail(email: string | null): string | null {
   if (!email) return null;
@@ -372,9 +374,15 @@ export class CustomerProfileService {
   /**
    * Yêu cầu xóa tài khoản (R1-011, R1-019, BR-007)
    */
-  async requestAccountDelete(userId: string) {
+  async requestAccountDelete(userId: string, password: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Người dùng không tồn tại');
+    // Xác nhận lại mật khẩu: access token bị lộ không đủ để xóa tài khoản (BUG-016).
+    if (!password || !CryptoUtil.verifyPassword(password, user.passwordHash)) {
+      throw new ForbiddenException(
+        'Mật khẩu không đúng. Vui lòng nhập lại để xác nhận xóa tài khoản.',
+      );
+    }
 
     user.status = UserStatus.PENDING_DELETE;
     user.deleteRequestedAt = new Date();

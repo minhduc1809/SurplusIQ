@@ -1,3 +1,4 @@
+import { getJwtSecret } from '../../common/config/jwt-secret';
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -51,7 +52,7 @@ export interface PaymentConfirmationResult {
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
-  private readonly jwtSecret = process.env.JWT_SECRET || 'surplusiq_super_secret_jwt_key_2026';
+  private readonly jwtSecret = getJwtSecret();
 
   constructor(
     @InjectRepository(PaymentTransactionEntity)
