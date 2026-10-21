@@ -72,6 +72,13 @@ export class CustomerAiController {
     return this.aiService.chatWithCustomer(user.userId, dto);
   }
 
+  @Get('quota')
+  @ApiOperation({ summary: 'Số lượt hỏi trợ lý còn lại trong ngày (R1-082)' })
+  @ApiResponse({ status: 200, description: 'Hạn mức, đã dùng, còn lại' })
+  async getQuota(@CurrentUser() user: RequestUser) {
+    return this.aiService.getCustomerQuota(user.userId);
+  }
+
   @Post('feedback')
   @ApiOperation({ summary: 'Đánh giá câu trả lời của trợ lý tìm kiếm AI (R1-094)' })
   @ApiResponse({ status: 200, description: 'Đã ghi nhận đánh giá' })
