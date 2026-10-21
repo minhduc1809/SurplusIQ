@@ -81,6 +81,13 @@ data class RecordConsentRequest(
 /** Xóa tài khoản phải xác nhận lại bằng mật khẩu hiện tại. */
 data class RequestDeleteBody(@SerializedName("password") val password: String)
 
+/** Trạng thái tài khoản và ngày xóa dự kiến (ân hạn 7 ngày). */
+data class AccountStatusDto(
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("deleteRequestedAt") val deleteRequestedAt: String? = null,
+    @SerializedName("deleteScheduledAt") val deleteScheduledAt: String? = null
+)
+
 data class AccountDeleteResponse(
     @SerializedName("success") val success: Boolean = true,
     @SerializedName("status") val status: String? = null,

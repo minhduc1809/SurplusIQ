@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import com.surplusiq.app.ui.components.SurplusBottomNav
 import com.surplusiq.app.ui.screens.ai.AiChatHistoryScreen
 import com.surplusiq.app.ui.screens.ai.SaveBiteAiSheet
+import com.surplusiq.app.ui.screens.profile.PendingDeleteScreen
 import com.surplusiq.app.ui.viewmodel.AiViewModel
 import com.surplusiq.app.ui.screens.auth.ForgotPasswordScreen
 import com.surplusiq.app.ui.screens.auth.LoginScreen
@@ -369,6 +370,18 @@ fun SurplusAppRoot(
 
             }
         }
+        return
+    }
+
+    // Tài khoản đang chờ xóa: chỉ được xem ngày xóa dự kiến, hủy yêu cầu hoặc đăng xuất (R1-019).
+    if (profileUiState.deleteRequestStatus == "PENDING_DELETE") {
+        PendingDeleteScreen(
+            scheduledAt = profileUiState.deleteRequestedAt,
+            isBusy = profileUiState.isAccountDeleteActionLoading,
+            message = profileUiState.accountDeleteMessage,
+            onCancelDelete = { profileViewModel.cancelAccountDelete() },
+            onLogout = { authViewModel.logout() }
+        )
         return
     }
 

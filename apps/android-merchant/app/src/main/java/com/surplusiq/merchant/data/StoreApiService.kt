@@ -435,19 +435,17 @@ interface StoreApiService {
     @GET("store/export/accounting")
     suspend fun exportAccounting(@Query("fromDate") fromDate: String?, @Query("toDate") toDate: String?): Response<ExportResponse>
 
-    // settings.controller.ts không đọc JWT - lấy store từ header x-store-id, gói Pro từ x-is-pro.
+    // Cửa hàng và gói Pro do backend suy ra từ JWT; không gửi x-store-id / x-is-pro.
     @GET("store/settings")
-    suspend fun getStoreSettings(@Header("x-store-id") storeId: String): Response<StoreSettingsDto>
+    suspend fun getStoreSettings(): Response<StoreSettingsDto>
 
     @PUT("store/settings")
     suspend fun updateStoreSettings(
-        @Header("x-store-id") storeId: String,
-        @Header("x-is-pro") isPro: String,
         @Body request: UpdateStoreSettingsRequest
     ): Response<StoreSettingsDto>
 
     @GET("store/settings/history")
-    suspend fun getStoreSettingsHistory(@Header("x-store-id") storeId: String): Response<List<SettingsHistoryDto>>
+    suspend fun getStoreSettingsHistory(): Response<List<SettingsHistoryDto>>
 
     @GET("store/audit-logs")
     suspend fun getAuditLogs(

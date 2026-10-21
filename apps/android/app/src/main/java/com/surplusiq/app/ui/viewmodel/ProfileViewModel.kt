@@ -85,9 +85,12 @@ class ProfileViewModel @Inject constructor(
 
             val profile = profileResult.getOrNull()
             val favorites = favoritesResult.getOrDefault(emptySet())
+            val accountStatus = profileRepository.getAccountStatus().getOrNull()
 
             _uiState.value = _uiState.value.copy(
                 userProfile = profile,
+                deleteRequestStatus = accountStatus?.status ?: _uiState.value.deleteRequestStatus,
+                deleteRequestedAt = accountStatus?.deleteScheduledAt ?: accountStatus?.deleteRequestedAt,
                 favoriteStoreIds = favorites,
                 isLoading = false
             )

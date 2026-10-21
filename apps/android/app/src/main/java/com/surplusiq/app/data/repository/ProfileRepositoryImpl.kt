@@ -3,6 +3,7 @@ package com.surplusiq.app.data.repository
 import com.surplusiq.app.data.remote.SessionManager
 import com.surplusiq.app.data.remote.api.ProfileApiService
 import com.surplusiq.app.data.remote.dto.AccountDeleteResponse
+import com.surplusiq.app.data.remote.dto.AccountStatusDto
 import com.surplusiq.app.data.remote.dto.ConsentDto
 import com.surplusiq.app.data.remote.dto.DataExportResponse
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
@@ -97,6 +98,16 @@ class ProfileRepositoryImpl @Inject constructor(
             } else {
                 Result.failure(Exception("Không thể tải lịch sử chấp thuận (${response.code()})"))
             }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getAccountStatus(): Result<AccountStatusDto> {
+        return try {
+            val response = profileApiService.getAccountStatus()
+            if (response.isSuccessful && response.body() != null) Result.success(response.body()!!)
+            else Result.failure(Exception("Không đọc được trạng thái tài khoản (${response.code()})"))
         } catch (e: Exception) {
             Result.failure(e)
         }

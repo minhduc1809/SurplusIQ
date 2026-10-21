@@ -271,12 +271,12 @@ class StoreRepository(private val api: StoreApiService) {
 
     suspend fun exportAccounting(fromDate: String?, toDate: String?) = runCatchingCall { api.exportAccounting(fromDate, toDate) }
 
-    suspend fun getStoreSettings(storeId: String) = runCatchingCall { api.getStoreSettings(storeId) }
+    suspend fun getStoreSettings(storeId: String) = runCatchingCall { api.getStoreSettings() }
 
     suspend fun updateStoreSettings(storeId: String, isPro: Boolean, request: UpdateStoreSettingsRequest) =
-        runCatchingCall { api.updateStoreSettings(storeId, isPro.toString(), request) }
+        runCatchingCall { api.updateStoreSettings(request) }
 
-    suspend fun getStoreSettingsHistory(storeId: String) = runCatchingCall { api.getStoreSettingsHistory(storeId) }
+    suspend fun getStoreSettingsHistory(storeId: String) = runCatchingCall { api.getStoreSettingsHistory() }
 
     suspend fun getAuditLogs(action: String?, from: String?, to: String?, page: Int, actorId: String? = null) =
         runCatchingCall { api.getAuditLogs(action, from, to, page, actorId = actorId) }
