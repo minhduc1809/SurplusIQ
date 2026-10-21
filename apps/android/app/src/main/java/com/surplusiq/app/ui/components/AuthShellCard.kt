@@ -2,6 +2,7 @@ package com.surplusiq.app.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -57,10 +58,9 @@ private val FieldFillColor = Color(0xFFF8F4F0)
  * thẻ trắng bo góc lớn nổi lên từ dưới. [showBrandMark] chỉ giữ để tương thích, không còn dùng.
  */
 @Composable
-fun AuthShellCard(
+private fun AuthWaveShell(
     modifier: Modifier = Modifier,
     onBackClick: (() -> Unit)? = null,
-    showBrandMark: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Box(modifier = modifier.fillMaxSize().background(SurfaceWhite)) {
@@ -272,4 +272,45 @@ fun AuthErrorBanner(message: String) {
     ) {
         Text(text = message, color = ForestGreenDark, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
+}
+
+/** Khung đơn giản (nền trắng, nút quay lại tròn) cho các màn phụ: quên mật khẩu, OTP, đặt lại mật khẩu, mã mời. */
+@Composable
+private fun AuthPlainShell(modifier: Modifier, onBackClick: (() -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
+    Box(modifier = modifier.fillMaxSize().background(SurfaceWhite)) {
+        if (onBackClick != null) {
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(top = 8.dp, start = 20.dp)
+                    .size(40.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(Color(0xFFF8F4F0))
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = TextPrimary)
+            }
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(top = if (onBackClick != null) 64.dp else 24.dp, bottom = 24.dp)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
+            content = content
+        )
+    }
+}
+
+/** Đăng nhập và Đăng ký dùng đầu trang sóng cam ([waveHeader] = true); các màn phụ dùng khung trắng đơn giản. */
+@Composable
+fun AuthShellCard(
+    modifier: Modifier = Modifier,
+    onBackClick: (() -> Unit)? = null,
+    waveHeader: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    if (waveHeader) AuthWaveShell(modifier, onBackClick, content) else AuthPlainShell(modifier, onBackClick, content)
 }

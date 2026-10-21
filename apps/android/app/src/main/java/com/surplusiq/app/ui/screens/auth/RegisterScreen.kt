@@ -33,6 +33,7 @@ fun RegisterScreen(
     state: AuthUiState,
     onFullNameChange: (String) -> Unit,
     onPhoneChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit = {},
     onPasswordChange: (String) -> Unit,
     onRegisterClick: () -> Unit,
     onBackToLogin: () -> Unit,
@@ -43,7 +44,7 @@ fun RegisterScreen(
     var termsAccepted by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
 
-    AuthShellCard(modifier = modifier, onBackClick = onBackToLogin, showBrandMark = false) {
+    AuthShellCard(modifier = modifier, onBackClick = onBackToLogin, waveHeader = true) {
         AuthHeading(
             title = "Tạo tài khoản mới",
             subtitle = "Cùng SurplusIQ săn deal món ngon và chung tay giảm lãng phí thực phẩm"
@@ -57,6 +58,14 @@ fun RegisterScreen(
             onValueChange = onPhoneChange,
             placeholder = "Nhập số điện thoại",
             keyboardType = KeyboardType.Phone
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        AuthField(
+            label = "Email (không bắt buộc)",
+            value = state.email,
+            onValueChange = onEmailChange,
+            placeholder = "Nhập email của bạn",
+            keyboardType = KeyboardType.Email
         )
         Spacer(modifier = Modifier.height(14.dp))
         AuthField(
@@ -128,14 +137,5 @@ fun RegisterScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Text(
-            text = "Là chủ cửa hàng? Vui lòng đăng ký và quản lý suất cứu món trên website dành cho cửa hàng.",
-            fontSize = 11.sp,
-            color = TextMuted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }

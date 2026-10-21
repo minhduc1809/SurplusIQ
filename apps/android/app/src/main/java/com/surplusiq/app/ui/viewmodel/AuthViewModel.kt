@@ -15,6 +15,8 @@ import javax.inject.Inject
 
 data class AuthUiState(
     val phone: String = "",
+    /** Email khi đăng ký (không bắt buộc, dùng cùng số điện thoại). */
+    val email: String = "",
     val password: String = "",
     val fullName: String = "",
     val otp: String = "",
@@ -58,6 +60,10 @@ class AuthViewModel @Inject constructor(
 
     fun onPhoneChanged(newPhone: String) {
         _uiState.value = _uiState.value.copy(phone = newPhone, errorMessage = null)
+    }
+
+    fun onEmailChanged(newEmail: String) {
+        _uiState.value = _uiState.value.copy(email = newEmail, errorMessage = null)
     }
 
     fun onPasswordChanged(newPassword: String) {
@@ -179,6 +185,10 @@ class AuthViewModel @Inject constructor(
             _uiState.value = state.copy(errorMessage = "Vui lòng điền đầy đủ thông tin Họ tên, SĐT và Mật khẩu")
             return
         }
+        if (state.email.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email.trim()).matches()) {
+            _uiState.value = state.copy(errorMessage = "Email không đúng định dạng.")
+            return
+        }
         if (weakPassword(state.password)) {
             _uiState.value = state.copy(errorMessage = "Mật khẩu tối thiểu 8 ký tự, gồm cả chữ và số.")
             return
@@ -186,7 +196,7 @@ class AuthViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val result = authRepository.register(state.phone.trim(), state.password, state.fullName.trim())
+            val result = authRepository.register(state.phone.trim(), state.password, state.fullName.trim(), state.email.trim().ifBlank { null })
             result.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(

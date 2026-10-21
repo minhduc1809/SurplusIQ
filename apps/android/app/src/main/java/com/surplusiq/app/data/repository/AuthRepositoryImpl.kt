@@ -101,11 +101,12 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun register(phone: String, password: String, fullName: String): Result<Boolean> {
+    override suspend fun register(phone: String, password: String, fullName: String, email: String?): Result<Boolean> {
         return try {
             val response = authApiService.registerCustomer(
                 CustomerRegisterRequest(
                     phone = phone,
+                    email = email?.takeIf { it.isNotBlank() },
                     password = password,
                     fullName = fullName,
                     deviceId = sessionManager.getDeviceId()

@@ -361,6 +361,7 @@ fun SurplusAppRoot(
                         state = authState,
                         onFullNameChange = { authViewModel.onFullNameChanged(it) },
                         onPhoneChange = { authViewModel.onPhoneChanged(it) },
+                        onEmailChange = { authViewModel.onEmailChanged(it) },
                         onPasswordChange = { authViewModel.onPasswordChanged(it) },
                         onRegisterClick = { authViewModel.register() },
                         onBackToLogin = { authScreenState = AuthScreenState.LOGIN },
