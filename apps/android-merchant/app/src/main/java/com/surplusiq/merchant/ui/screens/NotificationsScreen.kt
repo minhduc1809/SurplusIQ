@@ -65,6 +65,7 @@ fun NotificationsScreen(repository: StoreRepository, canMarkAll: Boolean, onNavi
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var filter by remember { mutableStateOf<String?>(null) }
+    var tasks by remember { mutableStateOf<List<com.surplusiq.merchant.data.TaskDto>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
     fun load() {
@@ -75,6 +76,8 @@ fun NotificationsScreen(repository: StoreRepository, canMarkAll: Boolean, onNavi
             isLoading = false
             result.fold(onSuccess = { items = it.items }, onFailure = { error = it.message })
         }
+        // Việc cần làm (nhắc việc, số cuối ngày...) gom về đây thay vì chiếm chỗ ở trang chủ
+        scope.launch { repository.getTodayTasks().onSuccess { r -> tasks = r.tasks.filter { it.urgent || it.count > 0 } } }
     }
 
     fun open(n: NotificationDto) {
@@ -116,8 +119,13 @@ fun NotificationsScreen(repository: StoreRepository, canMarkAll: Boolean, onNavi
         when {
             isLoading -> FullScreenLoading()
             error != null -> ErrorState(message = error!!, onRetry = ::load)
-            shown.isEmpty() -> EmptyState("Chưa có thông báo", "Đơn mới, khiếu nại và nhắc việc sẽ hiện ở đây.")
+            shown.isEmpty() && tasks.isEmpty() -> EmptyState("Chưa có thông báo", "Đơn mới, khiếu nại và nhắc việc sẽ hiện ở đây.")
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (filter == null && tasks.isNotEmpty()) {
+                    item { Text("Việc cần làm", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = SqInk) }
+                    items(tasks, key = { "task-" + it.id }) { t -> TaskRow(t, onNavigate) }
+                    item { Text("Thông báo", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.padding(top = 6.dp)) }
+                }
                 items(shown, key = { it.id }) { n -> NotificationRow(n) { open(n) } }
             }
         }

@@ -52,7 +52,7 @@ fun LoginScreen(
     var rememberLogin by remember { mutableStateOf(true) }
 
     if (state.isTwoFactorRequired) {
-        AuthShellCard(modifier = modifier, onBackClick = onCancelTwoFactor, showBrandMark = false) {
+        AuthShellCard(modifier = modifier, onBackClick = onCancelTwoFactor) {
             AuthHeading(
                 title = "Xác thực 2 bước",
                 subtitle = "Nhập mã 6 số gửi tới ${state.twoFactorTarget ?: "tài khoản của bạn"}."
@@ -89,7 +89,7 @@ fun LoginScreen(
         return
     }
 
-    AuthShellCard(modifier = modifier, onBackClick = onBackClick) {
+    AuthShellCard(modifier = modifier, onBackClick = onBackClick, waveHeader = true) {
         AuthHeading(
             title = "Chào mừng trở lại!",
             subtitle = "Cùng SurplusIQ giải cứu món ngon mỗi ngày và giảm thiểu lãng phí thực phẩm."
@@ -170,7 +170,7 @@ fun LoginScreen(
 
         AuthGoogleButton(text = "Tiếp tục với Google", onClick = onGoogleLoginClick)
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Text(text = "Chưa có tài khoản? ", color = TextSecondary, fontSize = 13.sp)

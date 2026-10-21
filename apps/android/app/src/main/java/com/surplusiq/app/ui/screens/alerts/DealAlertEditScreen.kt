@@ -142,7 +142,7 @@ fun DealAlertEditScreen(
                         FilterChip(
                             selected = category == option.displayName,
                             onClick = { category = if (category == option.displayName) null else option.displayName },
-                            label = { Text(option.displayName) }
+                            label = { Text(option.label) }
                         )
                     }
                 }

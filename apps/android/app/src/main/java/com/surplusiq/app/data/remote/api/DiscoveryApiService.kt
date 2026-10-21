@@ -31,7 +31,8 @@ interface DiscoveryApiService {
     suspend fun findMapPins(
         @Query("latitude") latitude: Double? = null,
         @Query("longitude") longitude: Double? = null,
-        @Query("radiusKm") radiusKm: Double? = null
+        @Query("radiusKm") radiusKm: Double? = null,
+        @Query("minDiscountPercent") minDiscountPercent: Int? = null
     ): Response<List<MapPinDto>>
 
     @GET("customer/deals/{id}")

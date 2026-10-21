@@ -9,7 +9,7 @@ const candidate = (over: Record<string, unknown>) => ({
   storeId: 's1',
   itemId: 'i1',
   title: 'Bánh mì',
-  category: 'Bánh',
+  category: 'BREAD',
   pickupEnd: new Date('2026-10-21T19:30:00'),
   rankingScore: 50,
   rankingReasons: ['Cách bạn khoảng 0.3km'],
@@ -73,14 +73,14 @@ describe('DiscoveryService.getForYou (K21)', () => {
       ],
       favorites: [{ storeId: 'fav' }],
       orders: [
-        { category: 'Bánh', store_id: 'x', pickup_start: new Date('2026-10-20T18:00:00') },
-        { category: 'Bánh', store_id: 'x', pickup_start: new Date('2026-10-19T18:30:00') },
+        { category: 'BREAD', store_id: 'x', pickup_start: new Date('2026-10-20T18:00:00') },
+        { category: 'BREAD', store_id: 'x', pickup_start: new Date('2026-10-19T18:30:00') },
       ],
     });
     const res = await service.getForYou('u1', {});
     expect(res.data[0].id).toBe('a');
     expect(res.data[0].forYouReasons[0]).toBe('Cửa hàng bạn yêu thích');
-    expect(res.data[0].forYouReasons.join('|')).toContain('đã nhận 2 suất bánh');
+    expect(res.data[0].forYouReasons.join('|')).toContain('đã nhận 2 suất bánh mì');
     expect(res.meta.personalised).toBe(true);
   });
 
@@ -123,7 +123,7 @@ describe('DiscoveryService.getRadarRanking bộ lọc (KC15)', () => {
     pickup_start: new Date(Date.now() - 3600_000),
     pickup_end: new Date(Date.now() + 90 * 60_000),
     item_name: 'Món',
-    item_category: 'Bánh',
+    item_category: 'BREAD',
     item_image_url: null,
     item_allergens: [],
     store_name: 'Quán',

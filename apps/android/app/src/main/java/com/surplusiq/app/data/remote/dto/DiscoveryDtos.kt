@@ -150,12 +150,19 @@ data class MapPinDto(
     @SerializedName("storeId") val storeId: String,
     @SerializedName("storeName") val storeName: String,
     @SerializedName("storeAddress") val storeAddress: String? = null,
+    @SerializedName("storeLogoUrl") val storeLogoUrl: String? = null,
     @SerializedName("latitude") val latitude: Double,
     @SerializedName("longitude") val longitude: Double,
     @SerializedName("activeDealsCount") val activeDealsCount: Int = 0,
     @SerializedName("minPrice") val minPrice: Double? = null,
+    @SerializedName("maxPrice") val maxPrice: Double? = null,
+    @SerializedName("imageUrl") val imageUrl: String? = null,
+    @SerializedName("ratingAvg") val ratingAvg: Double? = null,
+    @SerializedName("ratingCount") val ratingCount: Int? = null,
+    @SerializedName("soonestPickupEnd") val soonestPickupEnd: String? = null,
     @SerializedName("maxDiscountPercent") val maxDiscountPercent: Int? = null,
-    @SerializedName("distanceMeters") val distanceMeters: Double? = null
+    @SerializedName("distanceMeters") val distanceMeters: Double? = null,
+    @SerializedName("categories") val categories: List<String>? = null
 )
 
 // --- Chi tiết cửa hàng (R1-027) + store trong chi tiết/so sánh deal ---

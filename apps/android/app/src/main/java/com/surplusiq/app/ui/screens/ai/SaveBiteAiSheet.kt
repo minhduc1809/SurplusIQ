@@ -1,6 +1,12 @@
 package com.surplusiq.app.ui.screens.ai
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -43,17 +49,29 @@ data class ChatMessage(
     val recommendedDeals: List<Deal> = emptyList()
 )
 
-/** Câu hỏi gợi ý: chỉ là mẫu câu hỏi, câu trả lời luôn lấy từ dữ liệu thật qua trợ lý. */
-private val SuggestedQuestions = listOf(
-    "Tìm món rẻ dưới 35k gần tôi",
-    "Hôm nay quán nào gần tôi đang có deal?",
-    "Món nào còn nhiều suất nhất?",
-    "Gợi ý bữa tối no bụng giá mềm",
-    "Tôi dị ứng đậu phộng, nên tránh món nào?",
-    "Món nào ít calo, hợp ăn kiêng?",
-    "Đơn của tôi nhận hàng lúc mấy giờ?",
-    "Cách hâm nóng bún, phở mang về"
+/** Nhóm câu hỏi gợi ý: chỉ là mẫu câu hỏi, câu trả lời luôn lấy từ dữ liệu thật qua trợ lý. */
+private data class AiTopic(val title: String, val icon: ImageVector, val questions: List<String>)
+
+private val AiTopics = listOf(
+    AiTopic("Tìm deal", Icons.Default.Search, listOf(
+        "Tìm món rẻ dưới 35k gần tôi",
+        "Hôm nay quán nào gần tôi đang có deal?",
+        "Món nào còn nhiều suất nhất?"
+    )),
+    AiTopic("Bữa ăn", Icons.Default.Restaurant, listOf(
+        "Gợi ý bữa tối no bụng giá mềm",
+        "Món nào ít calo, hợp ăn kiêng?"
+    )),
+    AiTopic("Sức khỏe", Icons.Default.HealthAndSafety, listOf(
+        "Tôi dị ứng đậu phộng, nên tránh món nào?"
+    )),
+    AiTopic("Đơn & mẹo", Icons.Default.ReceiptLong, listOf(
+        "Đơn của tôi nhận hàng lúc mấy giờ?",
+        "Cách hâm nóng bún, phở mang về"
+    ))
 )
+
+private val SuggestedQuestions = AiTopics.flatMap { it.questions }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +88,7 @@ fun SaveBiteAiSheet(
     val listState = rememberLazyListState()
     // Chỉ có lời chào mở đầu: hiện màn chào kèm câu hỏi gợi ý thay vì khoảng trống
     val isFreshChat = state.messages.size <= 1 && !state.isChatLoading
-    val canSend = state.remainingQuota > 0 && !state.isChatLoading
+    val canSend = (state.remainingQuota ?: 1) > 0 && !state.isChatLoading
 
     fun send(text: String) {
         val t = text.trim()
@@ -102,7 +120,7 @@ fun SaveBiteAiSheet(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Còn ${state.remainingQuota}/30 lượt hôm nay • ${if (state.rememberContext) "Đang ghi nhớ" else "Không ghi nhớ"}",
+                            text = (state.remainingQuota?.let { "Còn $it lượt hôm nay • " } ?: "") + if (state.rememberContext) "Đang ghi nhớ" else "Không ghi nhớ",
                             fontSize = 11.sp,
                             color = TextSecondary
                         )
@@ -209,6 +227,7 @@ private fun WelcomePanel(
     onPick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var topicIndex by remember { mutableStateOf(0) }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
@@ -234,24 +253,46 @@ private fun WelcomePanel(
             )
             Spacer(Modifier.height(22.dp))
             Text(
-                "Bạn có thể hỏi nhanh",
+                "Bạn muốn hỏi về",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = TextMuted,
                 modifier = Modifier.align(Alignment.Start)
             )
             Spacer(Modifier.height(10.dp))
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(AiTopics.size) { i ->
+                    val t = AiTopics[i]
+                    val selected = i == topicIndex
+                    Surface(
+                        onClick = { topicIndex = i },
+                        shape = RoundedCornerShape(50),
+                        color = if (selected) ForestGreenPrimary else MaterialTheme.colorScheme.surface,
+                        border = if (selected) null else BorderStroke(1.dp, ForestGreenPrimary.copy(alpha = 0.25f))
+                    ) {
+                        Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(t.icon, contentDescription = null, tint = if (selected) Color.White else ForestGreenPrimary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(t.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Color.White else TextPrimary)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
             }
         }
-        items(SuggestedQuestions) { q ->
-            SuggestionCard(text = q, enabled = enabled) { onPick(q) }
+        items(AiTopics[topicIndex].questions) { q ->
+            SuggestionCard(text = q, icon = AiTopics[topicIndex].icon, enabled = enabled) { onPick(q) }
             Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun SuggestionCard(text: String, enabled: Boolean, onClick: () -> Unit) {
+private fun SuggestionCard(text: String, icon: ImageVector, enabled: Boolean, onClick: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -262,8 +303,8 @@ private fun SuggestionCard(text: String, enabled: Boolean, onClick: () -> Unit) 
             .clickable(enabled = enabled, onClick = onClick)
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(10.dp))
+            Icon(icon, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(12.dp))
             Text(text, fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f))
         }
     }

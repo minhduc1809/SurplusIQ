@@ -16,6 +16,7 @@ import com.surplusiq.app.domain.model.BasketHoldResult
 import com.surplusiq.app.domain.model.BasketHeldItem
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.domain.model.dealCategoryOf
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.RadarDeal
 import com.surplusiq.app.domain.model.TrustpassInfo
@@ -104,7 +105,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
                 remainingStock = detail.remainingQuantity,
                 initialStock = detail.remainingQuantity,
                 pickupWindowText = pickupWindowText(detail.pickupStart, detail.pickupEnd),
-                isToday = true,
+                isToday = isToday(detail.pickupEnd),
                 distanceText = "",
                 rating = store?.rating ?: 0.0,
                 reviewCount = store?.reviewCount ?: 0,
@@ -140,7 +141,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             result = result.filter {
                 it.title.lowercase().contains(q) ||
                 it.storeName.lowercase().contains(q) ||
-                it.category.displayName.lowercase().contains(q) ||
+                it.category.label.lowercase().contains(q) ||
                 it.whatYouCouldGet.lowercase().contains(q) ||
                 it.storeAddress.lowercase().contains(q)
             }
@@ -244,7 +245,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
                                     isFavorite = favoriteOverrides[dto.storeId] ?: false,
                                     isUrgent = dto.minutesLeftToPickup <= 30
                                 ),
-                                reasons = dto.forYouReasons
+                                reasons = dto.forYouReasons,
+                                score = dto.forYouScore
                             )
                         },
                         excludedByDietary = body.meta.excludedByDietary,
@@ -316,8 +318,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<List<MapPin>> =
-        apiCall("Không thể tải bản đồ deal", { discoveryApiService.findMapPins(latitude, longitude, radiusKm) }) { pins ->
+    override suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?, minDiscountPercent: Int?): Result<List<MapPin>> =
+        apiCall("Không thể tải bản đồ deal", { discoveryApiService.findMapPins(latitude, longitude, radiusKm, minDiscountPercent) }) { pins ->
             pins.map {
                 MapPin(
                     storeId = it.storeId,
@@ -328,7 +330,17 @@ class DiscoveryRepositoryImpl @Inject constructor(
                     activeDealsCount = it.activeDealsCount,
                     minPrice = it.minPrice?.toInt(),
                     maxDiscountPercent = it.maxDiscountPercent ?: 0,
-                    distanceText = formatDistance(it.distanceMeters)
+                    distanceText = formatDistance(it.distanceMeters),
+                    categories = it.categories.orEmpty(),
+                    distanceMeters = it.distanceMeters,
+                    logoUrl = it.storeLogoUrl,
+                    maxPrice = it.maxPrice?.toInt(),
+                    imageUrl = it.imageUrl,
+                    ratingAvg = it.ratingAvg,
+                    ratingCount = it.ratingCount ?: 0,
+                    pickupUntil = runCatching {
+                        java.time.OffsetDateTime.parse(it.soonestPickupEnd).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
+                    }.getOrNull()
                 )
             }
         }
@@ -535,10 +547,10 @@ class DiscoveryRepositoryImpl @Inject constructor(
             remainingStock = dto.remainingQuantity,
             initialStock = dto.remainingQuantity + 2,
             pickupWindowText = "Còn ${dto.minutesLeftToPickup} phút để nhận",
-            isToday = true,
+            isToday = isToday(dto.pickupEnd),
             distanceText = distText,
-            rating = 4.7,
-            reviewCount = 98,
+            rating = 0.0,
+            reviewCount = 0,
             allergens = emptyList(),
             dietaryType = DietaryType.NONE,
             isFavorite = favoriteOverrides[dto.storeId] ?: false,
@@ -607,7 +619,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             remainingStock = dto.remainingQuantity,
             initialStock = dto.remainingQuantity,
             pickupWindowText = pickupWindowText(dto.pickupStart, dto.pickupEnd),
-            isToday = true,
+            isToday = isToday(dto.pickupEnd),
             distanceText = distText,
             // Danh sách deal không kèm điểm đánh giá/dị ứng: để trống thay vì bịa (chi tiết deal mới có).
             rating = 0.0,
@@ -619,24 +631,35 @@ class DiscoveryRepositoryImpl @Inject constructor(
         )
     }
 
+    private fun localDate(iso: String?) = runCatching {
+        java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDate()
+    }.getOrNull()
+
+    /** Hôm nay / Ngày mai / dd/MM theo mốc giờ kết thúc nhận; không có mốc thì coi như hôm nay (suất đang mở). */
+    private fun dayLabel(iso: String?): String {
+        val d = localDate(iso) ?: return "Hôm nay"
+        val today = java.time.LocalDate.now()
+        return when (d) {
+            today -> "Hôm nay"
+            today.plusDays(1) -> "Ngày mai"
+            else -> "%02d/%02d".format(d.dayOfMonth, d.monthValue)
+        }
+    }
+
+    private fun isToday(iso: String?) = localDate(iso)?.let { it == java.time.LocalDate.now() } ?: true
+
     /** "Hôm nay 19:00 - 21:30" từ mốc giờ ISO của backend (giờ máy); rỗng nếu thiếu dữ liệu. */
     private fun pickupWindowText(start: String?, end: String?): String {
         fun hhmm(iso: String?) = runCatching {
             java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
         }.getOrNull()
         val s = hhmm(start) ?: return ""
-        val e = hhmm(end) ?: return "Hôm nay từ $s"
-        return "Hôm nay $s - $e"
+        val day = dayLabel(start)
+        val e = hhmm(end) ?: return "$day từ $s"
+        return "$day $s - $e"
     }
 
-    private fun parseCategory(cat: String?): DealCategory {
-        return when (cat?.lowercase()) {
-            "meals", "món mặn", "cơm", "bún" -> DealCategory.MEALS
-            "baked goods", "bánh", "bakery", "bánh mì" -> DealCategory.BAKED_GOODS
-            "groceries", "rau củ", "nông sản" -> DealCategory.GROCERIES
-            else -> DealCategory.OTHER
-        }
-    }
+    private fun parseCategory(cat: String?): DealCategory = dealCategoryOf(cat)
 
     private fun parseDietary(dietary: String?): DietaryType {
         return when (dietary?.lowercase()) {

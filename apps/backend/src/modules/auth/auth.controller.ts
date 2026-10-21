@@ -24,6 +24,8 @@ import {
   VerifyOtpDto,
   ResendOtpDto,
   ChangePasswordDto,
+  RequestEmailOtpDto,
+  ConfirmEmailDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   RefreshTokenDto,
@@ -146,6 +148,30 @@ export class AuthController {
       );
     }
     return this.authService.changePassword(userId, dto);
+  }
+
+  @Post('auth/password/change/otp')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Gửi mã OTP đổi mật khẩu về email của khách hàng' })
+  async requestPasswordChangeOtp(@CurrentUser('userId') userId: string) {
+    return this.authService.requestPasswordChangeOtp(userId);
+  }
+
+  @Post('auth/email/otp')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Gửi mã OTP xác minh email mới' })
+  async requestEmailOtp(@CurrentUser('userId') userId: string, @Body() dto: RequestEmailOtpDto) {
+    return this.authService.requestEmailOtp(userId, dto.email);
+  }
+
+  @Post('auth/email/confirm')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xác minh OTP và gắn email vào tài khoản' })
+  async confirmEmail(@CurrentUser('userId') userId: string, @Body() dto: ConfirmEmailDto) {
+    return this.authService.confirmEmail(userId, dto.email, dto.code);
   }
 
   @Post('auth/password/forgot')

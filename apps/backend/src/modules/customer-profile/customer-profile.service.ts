@@ -441,7 +441,7 @@ export class CustomerProfileService {
   }
 
   /**
-   * Xuất dữ liệu cá nhân (R1-018 - link 24h)
+   * Xuất dữ liệu cá nhân (R1-018): trả dữ liệu trực tiếp cho chính chủ, app tự lưu/chia sẻ tệp
    */
   async exportUserData(userId: string) {
     const profile = await this.getProfile(userId);
@@ -457,11 +457,7 @@ export class CustomerProfileService {
       consents,
     };
 
-    return {
-      downloadUrl: `https://api.surplusiq.vn/v1/customer/data-export/download?token=${Buffer.from(userId).toString('base64')}`,
-      expiresInHours: 24,
-      data: exportPayload,
-    };
+    return { exportedAt: exportPayload.exportedAt, data: exportPayload };
   }
 
   /**

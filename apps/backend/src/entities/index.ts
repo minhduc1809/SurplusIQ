@@ -26,6 +26,8 @@ import {
   CustomerSegmentEntity,
   CustomerNoteEntity,
   AuditLogEntity,
+  StoreLegalProfileEntity,
+  StoreContractEntity,
 } from './stores';
 
 import {
@@ -227,4 +229,8 @@ export const ALL_ENTITIES = [
   // Rescue Lab (2)
   RescueLabScenarioEntity,
   RescueLabScenarioVersionEntity,
+
+  // Hồ sơ pháp lý & hợp đồng cửa hàng (2)
+  StoreLegalProfileEntity,
+  StoreContractEntity,
 ];

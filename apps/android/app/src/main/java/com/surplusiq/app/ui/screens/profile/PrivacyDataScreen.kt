@@ -65,7 +65,7 @@ fun PrivacyDataScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Xuất dữ liệu của tôi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text(
-                            "Nhận liên kết tải toàn bộ dữ liệu cá nhân, có hiệu lực 24 giờ (R1-018).",
+                            "Nhận liên kết tải toàn bộ dữ liệu cá nhân, có hiệu lực 24 giờ.",
                             fontSize = 12.sp,
                             color = TextSecondary
                         )
@@ -85,9 +85,17 @@ fun PrivacyDataScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(state.exportMessage, fontSize = 12.sp, color = ForestGreenPrimary)
                         }
-                        if (state.exportDownloadUrl != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(state.exportDownloadUrl, fontSize = 11.sp, color = TextMuted)
+                        if (state.exportJson != null) {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(onClick = {
+                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Dữ liệu cá nhân SurplusIQ")
+                                    putExtra(android.content.Intent.EXTRA_TEXT, state.exportJson)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(send, "Lưu hoặc gửi bản sao dữ liệu"))
+                            }) { Text("Lưu hoặc gửi bản sao dữ liệu") }
                         }
                     }
                 }
@@ -99,9 +107,9 @@ fun PrivacyDataScreen(
                         Text("Yêu cầu xóa tài khoản", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text(
                             if (isPendingDelete)
-                                "Tài khoản đang trong 7 ngày ân hạn trước khi bị xóa (BR-007)."
+                                "Tài khoản đang trong 7 ngày ân hạn trước khi bị xóa."
                             else
-                                "Tài khoản sẽ được ẩn danh sau 7 ngày ân hạn kể từ khi gửi yêu cầu (R1-011, R1-019, BR-007).",
+                                "Tài khoản sẽ được ẩn danh sau 7 ngày ân hạn kể từ khi gửi yêu cầu.",
                             fontSize = 12.sp,
                             color = TextSecondary
                         )
@@ -163,7 +171,7 @@ fun PrivacyDataScreen(
                     Column {
                         Text(
                             "Sau khi gửi yêu cầu, tài khoản sẽ có 7 ngày ân hạn để bạn hủy. " +
-                                "Hết thời hạn, dữ liệu cá nhân sẽ bị ẩn danh và không thể hoàn tác (BR-007)."
+                                "Hết thời hạn, dữ liệu cá nhân sẽ bị ẩn danh và không thể hoàn tác."
                         )
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(

@@ -18,6 +18,7 @@
     "migration:revert": "npm --workspace=@surplusiq/backend run migration:revert",
     "seed": "npx ts-node apps/backend/src/seed-hanoi-runner.ts",
     "seed:hanoi": "npx ts-node apps/backend/src/seed-hanoi-runner.ts",
+    "seed:test-accounts": "node scripts/seed-test-accounts.mjs",
     "seed:default": "npx ts-node apps/backend/src/seed-runner.ts",
     "dev:backend": "npm --workspace=@surplusiq/backend run start:dev",
     "dev:web": "npm --workspace=@surplusiq/web run dev",

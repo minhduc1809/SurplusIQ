@@ -1100,3 +1100,37 @@ data class PlanCatalogDto(
 data class ReportHistoryDaysDto(val basic: Int, val pro: Int)
 data class PlanQuotaDto(val key: String, val name: String, val period: String, val basic: Int, val pro: Int)
 data class PlanFeatureDto(val key: String, val name: String)
+
+/** Hồ sơ kinh doanh và hợp đồng: GET store/legal-profile. */
+data class LegalProfileDto(
+    val legalName: String,
+    val businessType: String,
+    val taxCode: String? = null,
+    val businessLicenseNo: String? = null,
+    val representativeName: String,
+    val representativePhone: String,
+    val legalAddress: String,
+)
+
+data class ContractDto(
+    val id: String,
+    val status: String,
+    val fileName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val reviewNote: String? = null,
+    val reviewedAt: String? = null,
+    val createdAt: String,
+)
+
+data class LegalOverviewDto(val profile: LegalProfileDto? = null, val contract: ContractDto? = null)
+
+data class LegalProfileRequest(
+    val legalName: String,
+    val businessType: String,
+    val taxCode: String? = null,
+    val businessLicenseNo: String? = null,
+    val representativeName: String,
+    val representativePhone: String,
+    val legalAddress: String,
+)

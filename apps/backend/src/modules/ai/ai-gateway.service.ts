@@ -927,11 +927,28 @@ export class AiGatewayService {
       refId: savedLog.id,
     });
 
+    // Số lượt còn lại lấy từ hạn mức thật của backend để app không phải tự đếm (BUG hạn mức giả 28/30).
+    const after = await this.quotaService.checkQuota({
+      userId,
+      quotaKey: QuotaKey.AI_CUSTOMER_QUERIES,
+    });
+
     return {
       conversationId: conversation.id,
       reply,
       logId: savedLog.id,
+      remainingQuota: after.remaining,
+      quotaLimit: after.limit,
     };
+  }
+
+  /** Hạn mức hỏi trợ lý trong ngày của khách (R1-082), dùng để hiển thị số lượt còn lại. */
+  async getCustomerQuota(userId: string) {
+    const q = await this.quotaService.checkQuota({
+      userId,
+      quotaKey: QuotaKey.AI_CUSTOMER_QUERIES,
+    });
+    return { limit: q.limit, used: q.used, remaining: q.remaining, resetsAt: q.resetsAt };
   }
 
   // =========================================================================

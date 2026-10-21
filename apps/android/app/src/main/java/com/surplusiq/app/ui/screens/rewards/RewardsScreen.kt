@@ -1,6 +1,14 @@
 package com.surplusiq.app.ui.screens.rewards
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -75,34 +83,14 @@ fun RewardsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
-                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = ForestGreenPrimary)) {
-                        Column(Modifier.padding(20.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Stars, contentDescription = null, tint = AmberAccent)
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text("Số dư điểm thưởng", color = Color.White, fontSize = 13.sp)
-                                    Text("${state.pointsBalance} điểm", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-                                }
-                            }
-                            Spacer(Modifier.height(14.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Button(
-                                    onClick = { onOpenRedeem(); showRedeem = true },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = ForestGreenPrimary),
-                                    modifier = Modifier.weight(1f)
-                                ) { Text("Đổi điểm", fontWeight = FontWeight.Bold) }
-                                OutlinedButton(
-                                    onClick = { onOpenRules(); showRules = true },
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                    modifier = Modifier.weight(1f)
-                                ) { Text("Quy tắc") }
-                            }
-                        }
-                    }
+                    PointsHero(
+                        balance = state.pointsBalance,
+                        onRedeem = { onOpenRedeem(); showRedeem = true },
+                        onRules = { onOpenRules(); showRules = true }
+                    )
                 }
                 state.redeemMessage?.let { item { Text(it, fontSize = 13.sp, color = ForestGreenPrimary) } }
-                item { Text("Lịch sử điểm", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary) }
+                item { Text("Lịch sử điểm", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = TextPrimary, modifier = Modifier.padding(top = 6.dp)) }
                 if (state.history.isEmpty()) {
                     item { Text("Chưa có bút toán điểm thưởng nào. Điểm được cộng sau khi bạn nhận món thành công.", color = TextSecondary, fontSize = 13.sp) }
                 } else {
@@ -200,19 +188,78 @@ private fun RulesSheet(state: RewardsUiState) {
     }
 }
 
+/** Thẻ điểm nền cam gradient có vệt sóng, số điểm lớn màu trắng; hai nút thao tác nằm ngay dưới số điểm. */
+@Composable
+private fun PointsHero(balance: Int, onRedeem: () -> Unit, onRules: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFFFFA866), Color(0xFFFF8A3D), Color(0xFFF2762B))))
+    ) {
+        Canvas(Modifier.matchParentSize()) {
+            for (i in 0..3) {
+                val y = size.height * (0.15f + 0.22f * i)
+                val wave = Path().apply {
+                    moveTo(-20f, y + size.height * 0.1f)
+                    cubicTo(size.width * 0.25f, y - size.height * 0.25f, size.width * 0.55f, y + size.height * 0.3f, size.width + 20f, y - size.height * 0.1f)
+                }
+                drawPath(wave, Color.White.copy(alpha = 0.14f - 0.025f * i), style = Stroke(width = 10f + 8f * i))
+            }
+        }
+        Column(Modifier.padding(22.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(32.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Stars, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(10.dp))
+                Text("Số dư điểm thưởng", color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("$balance", color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.width(6.dp))
+                Text("điểm", color = Color.White.copy(alpha = 0.92f), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = onRedeem,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFFF2762B)),
+                    modifier = Modifier.weight(1f).height(46.dp)
+                ) { Text("Đổi điểm", fontWeight = FontWeight.Bold) }
+                Button(
+                    onClick = onRules,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.22f), contentColor = Color.White),
+                    modifier = Modifier.weight(1f).height(46.dp)
+                ) { Text("Quy tắc", fontWeight = FontWeight.Bold) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun RewardHistoryRow(entry: RewardHistoryEntry) {
-    Card(shape = RoundedCornerShape(10.dp)) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    val positive = entry.pointsDelta >= 0
+    val tint = if (positive) ForestGreenPrimary else CoralRed
+    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 1.dp) {
+        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                Icon(if (positive) Icons.Default.Add else Icons.Default.Remove, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(ENTRY_LABELS[entry.entryType] ?: entry.entryType, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                Text(entry.reason ?: "", fontSize = 12.sp, color = TextMuted)
+                Text(ENTRY_LABELS[entry.entryType] ?: entry.entryType, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                if (!entry.reason.isNullOrBlank()) Text(entry.reason, fontSize = 12.sp, color = TextSecondary, maxLines = 2)
                 Text(formatDateTime(entry.createdAt), fontSize = 11.sp, color = TextMuted)
             }
             Text(
-                text = if (entry.pointsDelta >= 0) "+${entry.pointsDelta}" else "${entry.pointsDelta}",
-                fontWeight = FontWeight.Bold,
-                color = if (entry.pointsDelta >= 0) ForestGreenPrimary else CoralRed
+                text = if (positive) "+${entry.pointsDelta}" else "${entry.pointsDelta}",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp,
+                color = tint
             )
         }
     }

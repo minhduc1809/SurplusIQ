@@ -107,7 +107,6 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
     val today = remember { LocalDate.now() }
     val week = remember { weekOf(today) }
     var overview by remember { mutableStateOf<DailyOverviewDto?>(null) }
-    var urgentTasks by remember { mutableStateOf<List<TaskDto>>(emptyList()) }
     var reports by remember { mutableStateOf<List<ReportsOverviewDto>?>(null) }
     var lots by remember { mutableStateOf<List<RescueLot>>(emptyList()) }
     var lab by remember { mutableStateOf<LabScenario?>(null) }
@@ -120,7 +119,7 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
     fun load() {
         isLoading = true
         error = null
-        // Hai khối phụ tải song song, không chặn Dashboard: lô cần xử lý và so sánh mô phỏng - thực tế.
+        // Khối phụ tải song song, không chặn Dashboard: suất sắp hết hạn.
         scope.launch {
             repository.getRescueTimeline().onSuccess { r ->
                 lots = r.items.filter { it.dataQualityStatus != "INSUFFICIENT" && it.riskLevel != null }
@@ -128,7 +127,7 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
             }
         }
         scope.launch {
-            // Gói Cơ bản không có mô phỏng (backend trả 403) nên không hiện thẻ này.
+            // Gói Cơ bản không có phòng mô phỏng (backend trả 403) nên không hiện thẻ này.
             repository.getLabScenarios().onSuccess { list ->
                 lab = list.firstOrNull { it.latestVersion?.simulatedMetrics != null }
                 labLoaded = true
@@ -139,9 +138,6 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
             val result = repository.getDailyOverview()
             isLoading = false
             result.fold(onSuccess = { overview = it }, onFailure = { error = it.message })
-            scope.launch {
-                repository.getTodayTasks().onSuccess { res -> urgentTasks = res.tasks.filter { it.urgent || it.id == "daily_actuals" } }
-            }
             // Backend chỉ trả tổng cả khoảng: gọi 7 lần song song, mỗi lần một ngày [00:00, 00:00 hôm sau).
             val rs = coroutineScope {
                 week.map { d -> async { repository.getReportsOverview(d.toString(), d.plusDays(1).toString()) } }.awaitAll()
@@ -201,6 +197,7 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
                         )
                     }
                 }
+                item { CoreActionsCard(onNavigate) }
                 item {
                     // Số đơn đã nhận và tổng đơn đã nằm ở thẻ chỉ số bên dưới nên ở đây chỉ nêu việc chưa có chỗ nào khác.
                     HeroGaugeCard(
@@ -238,27 +235,9 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
                         }
                     }
                 }
-                item {
-                    ActionBanner(
-                        title = "Cần xử lý ngay",
-                        subtitle = if (urgentTasks.isEmpty()) "Không có việc khẩn · xem tất cả việc" else "${urgentTasks.size} việc đang chờ bạn",
-                        icon = Icons.Default.Checklist,
-                        onClick = onOpenTasks
-                    )
-                }
-                items(urgentTasks) { task -> TaskRow(task, onNavigate) }
-                if (lots.isNotEmpty()) item { LotsCard(lots) { onNavigate("rescue-timeline") } }
+                item { OrdersToHandleCard(paid = d.orders.paid, complaints = d.pendingComplaints, onNavigate = onNavigate) }
+                if (lots.isNotEmpty()) item { ExpiringOffersCard(lots) { onNavigate("rescue-timeline") } }
                 if (labLoaded) item { LabCompareCard(lab) { onNavigate("rescue-lab") } }
-                item {
-                    QuickAccessRow(
-                        listOf(
-                            QuickItem("Số cuối ngày", Icons.Default.EditNote) { onNavigate("forecast-actuals") },
-                            QuickItem("Khiếu nại", Icons.Default.ReportProblem, d.pendingComplaints) { onNavigate("complaints") },
-                            QuickItem("Báo cáo", Icons.Default.Assessment) { onNavigate("reports") },
-                            QuickItem("Khách hàng", Icons.Default.Groups) { onNavigate("customers") },
-                        )
-                    )
-                }
             }
         }
     }
@@ -266,13 +245,49 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
 
 private fun riskRank(level: String?) = when (level) { "CRITICAL" -> 3; "HIGH" -> 2; "MEDIUM" -> 1; else -> 0 }
 
-/** Lô sắp hết hạn cần xử lý trước (lấy từ cùng nguồn với màn Lô cần xử lý), tối đa 3 lô nguy cơ cao nhất. */
+/** Đơn cần xử lý: số đơn đã thanh toán đang chờ khách đến nhận và số khiếu nại chờ phản hồi. */
 @Composable
-private fun LotsCard(lots: List<RescueLot>, onOpenAll: () -> Unit) {
+private fun OrdersToHandleCard(paid: Int, complaints: Int, onNavigate: (String) -> Unit) {
+    SqCard {
+        SectionTitle("Đơn cần xử lý")
+        Spacer(Modifier.height(10.dp))
+        if (paid == 0 && complaints == 0) {
+            Text("Không có đơn nào cần xử lý lúc này.", fontSize = 13.sp, color = SqInkSoft)
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HandleTile("Chờ khách nhận", paid, "đơn đã thanh toán", Icons.Default.ShoppingBag, SqCoral, Modifier.weight(1f)) { onNavigate("orders") }
+                HandleTile("Khiếu nại", complaints, "phản hồi trong 48 giờ", Icons.Default.ReportProblem, SqCoralDeep, Modifier.weight(1f)) { onNavigate("complaints") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HandleTile(label: String, count: Int, hint: String, icon: ImageVector, tint: androidx.compose.ui.graphics.Color, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (count > 0) SqCoralWash else SqSurfaceSoft)
+            .clickable(onClick = onClick)
+            .padding(14.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.height(8.dp))
+        Text("$count", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SqInk)
+        Text(hint, fontSize = 11.sp, color = SqInkSoft)
+    }
+}
+
+/** Suất cứu món sắp hết hạn nhận: tối đa 3 suất nguy cơ tồn cao nhất, cùng nguồn với màn Suất sắp hết hạn. */
+@Composable
+private fun ExpiringOffersCard(lots: List<RescueLot>, onOpenAll: () -> Unit) {
     SqCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionTitle("Lô cần xử lý")
-            Spacer(Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                SectionTitle("Suất sắp hết hạn")
+                Text("Ưu tiên bán hoặc hạ giá trước giờ đóng nhận", fontSize = 12.sp, color = SqInkSoft)
+            }
             TextButton(onClick = onOpenAll, contentPadding = PaddingValues(0.dp)) { Text("Xem tất cả", color = SqCoralDeep, fontSize = 13.sp) }
         }
         lots.forEach { lot ->
@@ -280,8 +295,7 @@ private fun LotsCard(lots: List<RescueLot>, onOpenAll: () -> Unit) {
             Row(Modifier.fillMaxWidth().clickable(onClick = onOpenAll).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(lotName(lot.itemName, lot.kind), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SqInk, maxLines = 1)
-                    Text(topReasons(lot.riskFactors).ifEmpty { "${lot.quantityAvailable} suất còn lại" }, fontSize = 12.sp, color = SqInkSoft, maxLines = 1)
-                    Text("${lot.quantityAvailable} suất · ${minutesLeft(lot.pickupEndAt)}", fontSize = 11.sp, color = SqInkMuted)
+                    Text("Còn ${lot.quantityAvailable} suất · ${minutesLeft(lot.pickupEndAt)}", fontSize = 12.sp, color = SqInkSoft, maxLines = 1)
                 }
                 Text(style.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = style.fg, modifier = Modifier.clip(RoundedCornerShape(50)).background(style.bg).padding(horizontal = 10.dp, vertical = 4.dp))
             }
@@ -289,19 +303,60 @@ private fun LotsCard(lots: List<RescueLot>, onOpenAll: () -> Unit) {
     }
 }
 
-/** So sánh kết quả mô phỏng của kịch bản mới nhất với thực tế kỳ nền (cùng số liệu với màn Phòng mô phỏng). */
+/** Ba việc cốt lõi của chủ quán: quét QR giao món, đăng suất bán, chiến lược giá. */
+@Composable
+private fun CoreActionsCard(onNavigate: (String) -> Unit) {
+    SqCard {
+        SectionTitle("Việc chính hôm nay")
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CoreActionTile("Quét QR giao món", "Đối chiếu mã khách đưa", Icons.Default.QrCodeScanner, SqCoral, Modifier.weight(1f)) { onNavigate("verify") }
+            CoreActionTile("Đăng suất bán", "Giảm giá món còn dư", Icons.Default.LocalOffer, SqCoralDeep, Modifier.weight(1f)) { onNavigate("offer-new") }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SqSurfaceSoft).clickable { onNavigate("price-proposals") }.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.TrendingDown, contentDescription = null, tint = SqMintDeep, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Giá và chiến lược giảm giá", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SqInk)
+                Text("Đề xuất hạ giá theo giờ, duyệt hoặc từ chối", fontSize = 12.sp, color = SqInkSoft)
+            }
+            Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = SqInkMuted)
+        }
+    }
+}
+
+@Composable
+private fun CoreActionTile(title: String, hint: String, icon: ImageVector, tint: androidx.compose.ui.graphics.Color, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).background(SqCoralWash).clickable(onClick = onClick).padding(14.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(8.dp))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
+        Text(hint, fontSize = 11.sp, color = SqInkSoft)
+    }
+}
+
+/** Biểu đồ so sánh kết quả mô phỏng của kịch bản mới nhất với số liệu kỳ nền (cùng số liệu với màn Phòng mô phỏng). */
 @Composable
 private fun LabCompareCard(lab: LabScenario?, onOpen: () -> Unit) {
     SqCard(Modifier.clickable(onClick = onOpen)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionTitle("Mô phỏng và thực tế")
-            Spacer(Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                SectionTitle("Phòng mô phỏng")
+                Text("Dự đoán khi giảm giá so với thực tế kỳ nền", fontSize = 12.sp, color = SqInkSoft)
+            }
             Text("Mở", color = SqCoralDeep, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
         val m = lab?.latestVersion?.simulatedMetrics
         if (lab == null || m == null) {
-            Text("Chưa có kịch bản mô phỏng. Tạo kịch bản để so sánh dự đoán với thực tế.", fontSize = 13.sp, color = SqInkSoft, modifier = Modifier.padding(top = 4.dp))
+            Text("Chưa có kịch bản mô phỏng. Tạo kịch bản để so sánh dự đoán với thực tế.", fontSize = 13.sp, color = SqInkSoft, modifier = Modifier.padding(top = 6.dp))
         } else {
+            Spacer(Modifier.height(6.dp))
             Text("${lab.title} · giảm ${pct(lab.latestVersion.assumptions.discountRatio)} · ${m.baseline.periodDays} ngày", fontSize = 12.sp, color = SqInkSoft)
             Spacer(Modifier.height(6.dp))
             DualBarChart(dualRows(m.simulated, m.baseline), "Mô phỏng", "Thực tế")

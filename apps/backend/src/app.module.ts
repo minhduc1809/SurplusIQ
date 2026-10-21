@@ -21,6 +21,9 @@ import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { CustomerProfileModule } from './modules/customer-profile/customer-profile.module';
 import { CustomerInteractionsModule } from './modules/customer-interactions/customer-interactions.module';
 import { StoresModule } from './modules/stores/stores.module';
+import { MailModule } from './modules/mail/mail.module';
+import { MediaModule } from './modules/media/media.module';
+import { StoreLegalModule } from './modules/store-legal/store-legal.module';
 import { DecisionsModule } from './modules/decisions/decisions.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { AiModule } from './modules/ai/ai.module';
@@ -59,6 +62,9 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     CustomerProfileModule,
     CustomerInteractionsModule,
     StoresModule,
+    StoreLegalModule,
+    MailModule,
+    MediaModule,
     DecisionsModule,
     MarketingModule,
     AiModule,

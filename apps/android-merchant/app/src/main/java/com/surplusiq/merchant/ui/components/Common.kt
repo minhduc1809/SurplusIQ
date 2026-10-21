@@ -185,9 +185,9 @@ fun MerchantField(
         modifier = Modifier
             .fillMaxWidth()
             .height(54.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(SqSurfaceSoft)
-            .border(1.5.dp, borderColor, RoundedCornerShape(14.dp))
+            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -272,31 +272,6 @@ fun PrimaryButton(text: String, onClick: () -> Unit, enabled: Boolean = true, lo
             CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(22.dp))
         } else {
             Text(text = text, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
-    }
-}
-
-/** Khung chung cho các màn xác thực phụ: nút quay lại + thẻ trắng cuộn được. */
-@Composable
-fun AuthCard(onBackClick: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().background(SqCanvas)) {
-        IconButton(
-            onClick = onBackClick,
-            modifier = Modifier.padding(top = 48.dp, start = 20.dp).size(40.dp).clip(CircleShape).background(SqSurfaceSoft)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = SqCoralDeep)
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 108.dp, bottom = 32.dp)
-                .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(SqSurface).border(1.dp, SqLine, RoundedCornerShape(28.dp)).padding(24.dp),
-                content = content
-            )
         }
     }
 }

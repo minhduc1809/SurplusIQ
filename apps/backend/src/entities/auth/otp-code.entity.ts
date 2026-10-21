@@ -5,6 +5,7 @@ export enum OtpPurpose {
   RESET = 'RESET',
   TWO_FA = 'TWO_FA',
   CHANGE_ID = 'CHANGE_ID',
+  CHANGE_PASSWORD = 'CHANGE_PASSWORD',
 }
 
 @Entity('otp_codes')

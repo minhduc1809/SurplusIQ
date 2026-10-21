@@ -165,6 +165,16 @@ interface StoreApiService {
     @GET("store/items/{id}/trustpass-history")
     suspend fun getTrustpassHistory(@Path("id") id: String): Response<List<TrustpassHistoryRow>>
 
+    @GET("store/legal-profile")
+    suspend fun getLegalOverview(): Response<LegalOverviewDto>
+
+    @PUT("store/legal-profile")
+    suspend fun saveLegalProfile(@Body body: LegalProfileRequest): Response<LegalProfileDto>
+
+    @Multipart
+    @POST("store/contract")
+    suspend fun uploadContract(@Part file: MultipartBody.Part): Response<ContractDto>
+
     @Multipart
     @POST("store/uploads/image")
     suspend fun uploadImage(@Part file: MultipartBody.Part): Response<UploadResult>

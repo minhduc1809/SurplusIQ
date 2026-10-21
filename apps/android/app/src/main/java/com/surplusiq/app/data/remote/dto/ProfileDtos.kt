@@ -95,10 +95,10 @@ data class AccountDeleteResponse(
     @SerializedName("message") val message: String? = null
 )
 
-/** R1-018: xuất dữ liệu cá nhân, link tải về hiệu lực 24h */
+/** R1-018: xuất dữ liệu cá nhân, máy chủ trả thẳng dữ liệu của chính khách. */
 data class DataExportResponse(
-    @SerializedName("downloadUrl") val downloadUrl: String,
-    @SerializedName("expiresInHours") val expiresInHours: Int = 24
+    @SerializedName("exportedAt") val exportedAt: String? = null,
+    @SerializedName("data") val data: com.google.gson.JsonElement? = null
 )
 
 /** R1-077: một bản ghi payment_transactions (thanh toán hoặc hoàn tiền) của khách. */

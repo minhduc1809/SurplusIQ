@@ -88,6 +88,7 @@ import com.surplusiq.app.ui.screens.discovery.SavedDealsScreen
 import com.surplusiq.app.ui.screens.location.LocationSettingsScreen
 import com.surplusiq.app.ui.screens.location.PinLocationScreen
 import com.surplusiq.app.ui.screens.location.SavedPlacesScreen
+import com.surplusiq.app.ui.screens.store.StoreDetailPanel
 import com.surplusiq.app.ui.screens.store.StoreDetailScreen
 import com.surplusiq.app.ui.screens.store.StoreReviewsScreen
 import com.surplusiq.app.ui.viewmodel.DealAlertsViewModel
@@ -262,6 +263,8 @@ fun SurplusAppRoot(
         }
     }
     var authScreenState by remember { mutableStateOf(AuthScreenState.WELCOME) }
+    // Đổi giữa các màn đăng nhập/đăng ký thì bỏ thông báo lỗi cũ.
+    LaunchedEffect(authScreenState) { authViewModel.clearError() }
     
     // K06: lần đầu vào app (đăng nhập hoặc khách) mà chưa thiết lập vị trí -> màn quyền vị trí & bán kính.
     LaunchedEffect(authState.isLoggedIn, authState.isGuestMode) {
@@ -312,9 +315,11 @@ fun SurplusAppRoot(
                                 try {
                                     val idToken = GoogleSignInHelper.requestIdToken(context)
                                     authViewModel.loginWithGoogle(idToken)
+                                } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    // Người dùng tự đóng hộp thoại Google: không báo lỗi.
                                 } catch (e: GetCredentialException) {
                                     authViewModel.onGoogleSignInFailed(
-                                        e.localizedMessage ?: "Đăng nhập Google thất bại"
+                                        "Không đăng nhập được bằng Google. Vui lòng thử lại hoặc dùng số điện thoại."
                                     )
                                 }
                             }
@@ -357,6 +362,7 @@ fun SurplusAppRoot(
                         state = authState,
                         onFullNameChange = { authViewModel.onFullNameChanged(it) },
                         onPhoneChange = { authViewModel.onPhoneChanged(it) },
+                        onEmailChange = { authViewModel.onEmailChanged(it) },
                         onPasswordChange = { authViewModel.onPasswordChanged(it) },
                         onRegisterClick = { authViewModel.register() },
                         onBackToLogin = { authScreenState = AuthScreenState.LOGIN },
@@ -365,9 +371,11 @@ fun SurplusAppRoot(
                                 try {
                                     val idToken = GoogleSignInHelper.requestIdToken(context)
                                     authViewModel.loginWithGoogle(idToken)
+                                } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    // Người dùng tự đóng hộp thoại Google: không báo lỗi.
                                 } catch (e: GetCredentialException) {
                                     authViewModel.onGoogleSignInFailed(
-                                        e.localizedMessage ?: "Đăng nhập Google thất bại"
+                                        "Không đăng nhập được bằng Google. Vui lòng thử lại hoặc dùng số điện thoại."
                                     )
                                 }
                             }
@@ -617,6 +625,9 @@ fun SurplusAppRoot(
         is AppDestination.ChangePassword -> {
             ChangePasswordScreen(
                 state = authState,
+                hasEmail = !profileUiState.userProfile?.email.isNullOrBlank(),
+                onOtpChange = { authViewModel.onChangePasswordOtpChanged(it) },
+                onSendOtpClick = { authViewModel.requestChangePasswordOtp() },
                 onCurrentPasswordChange = { authViewModel.onCurrentPasswordChanged(it) },
                 onNewPasswordChange = { authViewModel.onNewChangePasswordChanged(it) },
                 onConfirmPasswordChange = { authViewModel.onConfirmChangePasswordChanged(it) },
@@ -638,7 +649,8 @@ fun SurplusAppRoot(
                 onBackClick = { currentDestination = AppDestination.MainTabs },
                 onRetry = { discoveryViewModel.loadForYou() },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = AppDestination.ForYou) },
-                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) }
+                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) },
+                onCustomize = { currentDestination = AppDestination.DietaryProfile }
             )
         }
 
@@ -1049,7 +1061,8 @@ fun SurplusAppRoot(
                 onReport = { storeId, reason -> storeViewModel.reportStore(storeId, reason) },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = dest) },
                 onConsumeMessage = { storeViewModel.consumeMessage() },
-                onOpenReviews = { storeId -> currentDestination = AppDestination.StoreReviews(storeId, back = dest) }
+                onOpenReviews = { storeId -> currentDestination = AppDestination.StoreReviews(storeId, back = dest) },
+                onLoadReviews = { storeId, rating -> storeViewModel.loadStoreReviews(storeId, rating) }
             )
         }
 
@@ -1131,6 +1144,7 @@ fun SurplusAppRoot(
         }
 
         is AppDestination.AiChat -> {
+            LaunchedEffect(Unit) { aiViewModel.loadQuota() }
             SaveBiteAiSheet(
                 state = aiUiState,
                 onSendMessage = { text -> aiViewModel.sendMessage(text, dealsList) },
@@ -1268,6 +1282,17 @@ fun SurplusAppRoot(
                                 onOpenStore = { storeId ->
                                     storeViewModel.openStore(storeId)
                                     currentDestination = AppDestination.StoreDetail(storeId)
+                                },
+                                storePanel = { pin, onClose ->
+                                    StoreDetailPanel(
+                                        state = storeState,
+                                        storeId = pin.storeId,
+                                        onLoad = { storeViewModel.openStore(it) },
+                                        onClose = onClose,
+                                        onToggleFavorite = { storeViewModel.toggleFavorite(it) },
+                                        onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal) },
+                                        onLoadReviews = { id, rating -> storeViewModel.loadStoreReviews(id, rating) }
+                                    )
                                 },
                                 isLoading = discoveryState.isLoading,
                                 errorMessage = discoveryState.errorMessage,

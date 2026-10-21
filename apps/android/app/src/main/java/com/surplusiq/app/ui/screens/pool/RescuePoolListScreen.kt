@@ -69,7 +69,7 @@ fun RescuePoolListScreen(
                 onValueChange = { area = it },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                placeholder = { Text("Lọc theo khu vực (vd. Quận 1)") }
+                placeholder = { Text("Lọc theo khu vực (vd. Cầu Giấy)") }
             )
             Spacer(Modifier.width(8.dp))
             IconButton(onClick = { onSearch(area) }) {

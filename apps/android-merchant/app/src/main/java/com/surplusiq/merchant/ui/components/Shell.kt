@@ -38,12 +38,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.merchant.ui.theme.*
 
-/** Tab "Thực phẩm" gồm hai màn: Món (danh mục) và Suất (bán trong ngày). */
+/** Tab "Thực phẩm" gồm ba màn: Món (danh mục), Suất (bán trong ngày) và Giá & chiến lược (đề xuất giá theo giờ). */
 @Composable
 fun FoodSwitch(current: String, onSelect: (String) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 10.dp)) {
         SqChip("Món", current == "items") { if (current != "items") onSelect("items") }
         SqChip("Suất bán", current == "offers") { if (current != "offers") onSelect("offers") }
+        SqChip("Giá & chiến lược", current == "price") { onSelect("price-proposals") }
     }
 }
 

@@ -41,3 +41,6 @@ docs/
 # Generated local demo data (served as public static files)
 apps/web/public/admin-data/
 apps/backend/uploads/
+
+# Tệp riêng tư (hợp đồng scan) không đưa vào git
+private-uploads/

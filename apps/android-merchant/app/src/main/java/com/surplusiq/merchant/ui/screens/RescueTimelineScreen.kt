@@ -92,7 +92,7 @@ fun RescueTimelineScreen(repository: StoreRepository, onBack: () -> Unit) {
     LaunchedEffect(Unit) { load() }
 
     Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp)) {
-        ScreenHeader("Lô cần xử lý", onBack) {
+        ScreenHeader("Suất sắp hết hạn", onBack) {
             IconButton(onClick = ::refresh, enabled = !refreshing) {
                 Icon(Icons.Default.Refresh, contentDescription = "Làm mới", tint = SqCoralDeep)
             }
@@ -107,7 +107,7 @@ fun RescueTimelineScreen(repository: StoreRepository, onBack: () -> Unit) {
                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item {
                         Text(
-                            "Lô cần xử lý trước, theo số lượng còn, thời gian còn và tốc độ bán." +
+                            "Suất cần xử lý trước, theo số lượng còn, thời gian còn và tốc độ bán." +
                                 (d.oldestCalculatedAt?.let { " Tính lúc ${hhmm(it)}." } ?: ""),
                             fontSize = 13.sp, color = SqInkSoft
                         )

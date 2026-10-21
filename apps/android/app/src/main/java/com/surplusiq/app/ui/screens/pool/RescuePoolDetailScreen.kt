@@ -80,9 +80,7 @@ fun RescuePoolDetailScreen(
                     CircularProgressIndicator(color = ForestGreenPrimary)
                 }
             }
-            return@Column
-        }
-
+        } else {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -142,6 +140,7 @@ fun RescuePoolDetailScreen(
                     fontSize = 13.sp
                 )
             }
+        }
         }
     }
 }

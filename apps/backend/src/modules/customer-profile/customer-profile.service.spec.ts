@@ -214,8 +214,8 @@ describe('CustomerProfileService (Full Customer Features)', () => {
       userRepo.findOne.mockResolvedValueOnce({ id: 'u1', email: 'test@example.com' });
       profileRepo.findOne.mockResolvedValueOnce({ userId: 'u1', fullName: 'Test' });
       const res = await service.exportUserData('u1');
-      expect(res.downloadUrl).toBeDefined();
-      expect(res.expiresInHours).toBe(24);
+      expect(res.exportedAt).toBeDefined();
+      expect(res.data.profile).toBeDefined();
     });
   });
 

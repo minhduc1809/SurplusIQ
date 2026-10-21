@@ -141,6 +141,12 @@ class StoreRepository(private val api: StoreApiService) {
 
     suspend fun uploadImage(file: okhttp3.MultipartBody.Part) = runCatchingCall { api.uploadImage(file) }
 
+    suspend fun getLegalOverview() = runCatchingCall { api.getLegalOverview() }
+
+    suspend fun saveLegalProfile(request: LegalProfileRequest) = runCatchingCall { api.saveLegalProfile(request) }
+
+    suspend fun uploadContract(file: okhttp3.MultipartBody.Part) = runCatchingCall { api.uploadContract(file) }
+
     suspend fun getSupportTickets() = runCatchingCall { api.getSupportTickets() }
 
     suspend fun createSupportTicket(subject: String, message: String, category: String, attachments: List<String> = emptyList()) =

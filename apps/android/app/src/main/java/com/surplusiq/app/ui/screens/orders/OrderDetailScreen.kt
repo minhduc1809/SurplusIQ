@@ -232,7 +232,7 @@ fun OrderDetailScreen(
                         Icon(Icons.Default.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(12.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Giá đã được khóa cố định theo điều khoản BR-016.",
+                            text = "Giá đã được khóa cố định từ lúc bạn đặt giữ suất.",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -260,8 +260,8 @@ fun OrderDetailScreen(
 
                     MoreActions(
                         "Theo dõi đơn, nhắn cửa hàng, báo sự cố" to { onOpenTracking?.invoke(order) },
-                        "Đổi sang suất khác (KX05)" to { onOpenSwap?.invoke(order) },
-                        "Tặng suất cho bạn bè (KX18)" to { showGiftDialog = true },
+                        "Đổi sang suất khác" to { onOpenSwap?.invoke(order) },
+                        "Tặng suất cho bạn bè" to { showGiftDialog = true },
                         "Xem biên nhận" to { onOpenReceipt(order) },
                         "Hủy đơn (hoàn 100% trước 60p)" to openCancel
                     )
@@ -324,7 +324,7 @@ fun OrderDetailScreen(
                         Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Đính kèm biên lai chuyển khoản (KX02)",
+                            text = "Đính kèm biên lai chuyển khoản",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -342,7 +342,7 @@ fun OrderDetailScreen(
                         Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Xin gia hạn giờ nhận hàng (KX04)",
+                            text = "Xin gia hạn giờ nhận hàng",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -504,7 +504,7 @@ fun OrderDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "Xin gia hạn giờ hẹn nhận hàng (KX04)",
+                    text = "Xin gia hạn giờ hẹn nhận hàng",
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
@@ -581,7 +581,7 @@ private fun proxyStatusLabel(status: String): Pair<String, Color> = when (status
     else -> status to TextMuted
 }
 
-/** K29 - mã nhận hộ 8 ký tự (R1-052): trạng thái, chia sẻ qua bảng chia sẻ Android, thu hồi. */
+/** K29 - mã nhận hộ 8 ký tự: trạng thái, chia sẻ qua bảng chia sẻ Android, thu hồi. */
 @Composable
 private fun ProxyPickupCodeSection(
     order: ActiveOrder,
@@ -598,7 +598,7 @@ private fun ProxyPickupCodeSection(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "Mã nhận hộ (R1-052)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Text(text = "Mã nhận hộ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Cho người thân/bạn bè nhận hàng thay bạn. Mã dùng một lần, hết hạn theo khung nhận.",

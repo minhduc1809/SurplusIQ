@@ -12,7 +12,14 @@ data class CustomerAiChatResponse(
     @SerializedName("reply") val reply: String,
     @SerializedName("conversationId") val conversationId: String? = null,
     @SerializedName("recommendedDealIds") val recommendedDealIds: List<String> = emptyList(),
-    @SerializedName("remainingQuota") val remainingQuota: Int = 30
+    @SerializedName("remainingQuota") val remainingQuota: Int? = null
+)
+
+/** Hạn mức hỏi trợ lý trong ngày lấy từ máy chủ. */
+data class AiQuotaDto(
+    @SerializedName("limit") val limit: Int,
+    @SerializedName("used") val used: Int,
+    @SerializedName("remaining") val remaining: Int
 )
 
 data class AiMatchedOfferDto(

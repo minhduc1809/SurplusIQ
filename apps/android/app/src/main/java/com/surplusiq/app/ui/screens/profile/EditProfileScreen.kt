@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Radar
@@ -61,6 +62,7 @@ fun EditProfileScreen(
     }
 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var showEmailSheet by remember { mutableStateOf(false) }
     var localErrorMessage by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -281,6 +283,38 @@ fun EditProfileScreen(
                         )
                     }
 
+                    // Email: chỉ gắn/đổi sau khi xác minh bằng OTP gửi về chính email đó
+                    Column {
+                        Text(
+                            text = "Email",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = userProfile?.email ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            placeholder = { Text("Chưa thêm email") },
+                            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = TextMuted) },
+                            trailingIcon = {
+                                TextButton(onClick = { showEmailSheet = true }) {
+                                    Text(if (userProfile?.email.isNullOrBlank()) "Thêm" else "Đổi", fontWeight = FontWeight.Bold, color = ForestGreenPrimary)
+                                }
+                            },
+                            supportingText = {
+                                Text(
+                                    text = "Dùng để nhận mã OTP khi đổi mật khẩu và đăng nhập bằng email.",
+                                    fontSize = 11.sp,
+                                    color = TextMuted
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
                     // Bán kính tìm kiếm deal (R1-009: 0.5 - 10 km)
                     Column {
                         Row(
@@ -383,6 +417,81 @@ fun EditProfileScreen(
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+        }
+    }
+
+    if (showEmailSheet) {
+        EmailVerifySheet(
+            viewModel = viewModel,
+            onDismiss = { showEmailSheet = false }
+        )
+    }
+}
+
+/** Thêm/đổi email: nhập email -> nhận OTP -> nhập mã để xác nhận. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EmailVerifySheet(viewModel: ProfileViewModel, onDismiss: () -> Unit) {
+    var email by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+    var sent by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var preview by remember { mutableStateOf<String?>(null) }
+    var info by remember { mutableStateOf<String?>(null) }
+    val emailValid = android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Xác minh email", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it; error = null },
+                enabled = !sent,
+                singleLine = true,
+                label = { Text("Email mới") },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (sent) {
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it.filter(Char::isDigit).take(6); error = null },
+                    singleLine = true,
+                    label = { Text("Mã OTP 6 số") },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                info?.let { Text(it, fontSize = 12.sp, color = TextSecondary) }
+                preview?.let { Text("Môi trường thử nghiệm: mã là $it (chưa gửi email thật).", fontSize = 12.sp, color = TextSecondary) }
+            }
+            error?.let { Text(it, color = CoralRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+            Button(
+                onClick = {
+                    busy = true; error = null
+                    if (!sent) {
+                        viewModel.requestEmailOtp(email) { ok, msg, pv ->
+                            busy = false
+                            if (ok) { sent = true; preview = pv; info = if (pv == null) "Đã gửi mã OTP tới ${email.trim()}. Kiểm tra hộp thư (cả mục Spam)." else null } else error = msg
+                        }
+                    } else {
+                        viewModel.confirmEmail(email, code) { ok, msg ->
+                            busy = false
+                            if (ok) onDismiss() else error = msg
+                        }
+                    }
+                },
+                enabled = !busy && if (sent) code.length == 6 else emailValid,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) {
+                if (busy) CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                else Text(if (sent) "Xác nhận email" else "Gửi mã OTP", fontWeight = FontWeight.Bold)
             }
         }
     }

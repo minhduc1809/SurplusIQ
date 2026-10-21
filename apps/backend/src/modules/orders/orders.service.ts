@@ -593,8 +593,8 @@ export class OrdersService {
   /**
    * Danh sách đơn đang hoạt động / chờ nhận hàng của khách (R1-055)
    */
-  async getCustomerActiveOrders(customerId: string): Promise<OrderEntity[]> {
-    return this.orderRepo.find({
+  async getCustomerActiveOrders(customerId: string) {
+    const orders = await this.orderRepo.find({
       where: {
         customerId,
         status: In([OrderStatus.PENDING_PAYMENT, OrderStatus.PAID]),
@@ -602,6 +602,39 @@ export class OrdersService {
       order: {
         createdAt: 'DESC',
       },
+    });
+    if (orders.length === 0) return [];
+
+    // Đơn thô không có tên quán, tên món và khung giờ nhận: bổ sung từ suất, món và cửa hàng để app hiển thị đủ.
+    const rows = await this.offerRepo
+      .createQueryBuilder('o')
+      .leftJoin(StoreEntity, 's', 's.id = o.store_id')
+      .leftJoin(ItemEntity, 'i', 'i.id = o.item_id')
+      .where('o.id IN (:...ids)', { ids: [...new Set(orders.map((o) => o.offerId))] })
+      .select([
+        'o.id AS offer_id',
+        's.name AS store_name',
+        's.address AS store_address',
+        's.logo_url AS store_logo_url',
+        'i.name AS item_name',
+        'i.image_url AS image_url',
+        'o.pickup_start AS pickup_start',
+        'o.pickup_end AS pickup_end',
+      ])
+      .getRawMany();
+    const byOffer = new Map(rows.map((r) => [r.offer_id as string, r]));
+
+    return orders.map((o) => {
+      const r = byOffer.get(o.offerId);
+      return {
+        ...o,
+        storeName: r?.store_name ?? null,
+        storeAddress: r?.store_address ?? null,
+        storeLogoUrl: r?.store_logo_url ?? null,
+        itemName: r?.item_name ?? null,
+        imageUrl: r?.image_url ?? null,
+        offer: r ? { pickupStart: r.pickup_start, pickupEnd: r.pickup_end } : null,
+      };
     });
   }
 

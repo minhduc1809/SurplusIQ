@@ -107,12 +107,12 @@ class OrderRepositoryImpl @Inject constructor(
                     val known = sessionOrders.find { it.id == dto.id }
                     val deal = known?.deal ?: Deal(
                         id = dto.offerId, storeId = dto.storeId, storeName = dto.storeName.orEmpty(),
-                        storeAddress = "", storeLogoUrl = "", coverImageUrl = "",
+                        storeAddress = dto.storeAddress.orEmpty(), storeLogoUrl = dto.storeLogoUrl.orEmpty(), coverImageUrl = dto.imageUrl.orEmpty(),
                         title = dto.itemName.orEmpty(), description = "", whatYouCouldGet = "",
-                        category = com.surplusiq.app.domain.model.DealCategory.MEALS,
+                        category = com.surplusiq.app.domain.model.DealCategory.OTHER,
                         originalPrice = dto.unitPrice.toInt(), discountPrice = dto.unitPrice.toInt(),
                         discountPercent = 0, remainingStock = 0, initialStock = 0,
-                        pickupWindowText = dto.pickupSlot.orEmpty(), distanceText = "",
+                        pickupWindowText = dto.pickupSlot ?: pickupWindowOf(dto.offer?.pickupStart, dto.offer?.pickupEnd), distanceText = "",
                         rating = 0.0, reviewCount = 0, allergens = emptyList()
                     )
                     upsertSessionOrder(
@@ -122,7 +122,7 @@ class OrderRepositoryImpl @Inject constructor(
                             holdExpiresAtMillis = parseIsoToMillis(dto.holdExpiresAt) ?: 0L,
                             status = status, qrToken = known?.qrToken.orEmpty(),
                             fallbackPin = known?.fallbackPin.orEmpty(),
-                            pickupWindow = known?.pickupWindow ?: dto.pickupSlot.orEmpty()
+                            pickupWindow = known?.pickupWindow ?: dto.pickupSlot ?: pickupWindowOf(dto.offer?.pickupStart, dto.offer?.pickupEnd)
                         )
                     )
                 }
@@ -379,5 +379,22 @@ class OrderRepositoryImpl @Inject constructor(
 
     private fun networkError(e: Exception): Exception {
         return Exception("Không kết nối được. Kiểm tra mạng rồi thử lại.", e)
+    }
+
+    /** "Hôm nay 19:00 - 21:30" từ mốc giờ ISO của suất; rỗng nếu thiếu dữ liệu. */
+    private fun pickupWindowOf(start: String?, end: String?): String {
+        fun at(iso: String?) = runCatching {
+            java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault())
+        }.getOrNull()
+        val s = at(start) ?: return ""
+        val e = at(end)
+        val today = java.time.LocalDate.now()
+        val day = when (s.toLocalDate()) {
+            today -> "Hôm nay"
+            today.plusDays(1) -> "Ngày mai"
+            else -> "%02d/%02d".format(s.dayOfMonth, s.monthValue)
+        }
+        val from = s.toLocalTime().toString().take(5)
+        return if (e != null) "$day $from - ${e.toLocalTime().toString().take(5)}" else "$day từ $from"
     }
 }

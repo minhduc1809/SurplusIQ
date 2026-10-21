@@ -190,7 +190,7 @@ private fun BatchFixSheet(repository: StoreRepository, itemIds: List<String>, on
             Text("Sửa ${itemIds.size} món", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SqInk)
             Text("Trường để trống sẽ giữ nguyên. Giá vốn và dị ứng cần sửa từng món.", fontSize = 12.sp, color = SqInkSoft)
             Spacer(modifier = Modifier.height(14.dp))
-            SqDropdown("Loại món", listOf<Pair<String?, String>>(null to "Giữ nguyên") + ITEM_CATEGORIES.map { it to it }, category) { category = it }
+            SqDropdown("Loại món", listOf<Pair<String?, String>>(null to "Giữ nguyên") + FOOD_CATEGORIES, category) { category = it }
             Spacer(modifier = Modifier.height(10.dp))
             SqField("Trọng lượng (g)", weight, keyboardType = KeyboardType.Number, hint = "10–5.000g") { weight = it.filter(Char::isDigit).take(4) }
             Spacer(modifier = Modifier.height(10.dp))

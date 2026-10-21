@@ -251,6 +251,7 @@ class ProfileRepositoryImpl @Inject constructor(
         return UserProfile(
             id = dto.id,
             phone = dto.phone,
+            email = dto.email,
             fullName = dto.fullName,
             avatarUrl = dto.avatarUrl,
             searchRadiusKm = dto.searchRadiusKm ?: 5.0,

@@ -4222,5 +4222,16 @@
     "perm": "",
     "plan": "",
     "pub": ""
+  },
+  {
+    "file": "backend/src/modules/ai/customer-ai.controller.ts",
+    "line": 75,
+    "method": "GET",
+    "path": "/customer/ai/quota",
+    "roles": "CUSTOMER",
+    "chan": "CUSTOMER",
+    "perm": "",
+    "plan": "",
+    "pub": ""
   }
 ]
