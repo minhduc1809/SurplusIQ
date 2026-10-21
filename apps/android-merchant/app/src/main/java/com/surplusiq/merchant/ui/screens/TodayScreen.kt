@@ -109,6 +109,8 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
     var overview by remember { mutableStateOf<DailyOverviewDto?>(null) }
     var reports by remember { mutableStateOf<List<ReportsOverviewDto>?>(null) }
     var lots by remember { mutableStateOf<List<RescueLot>>(emptyList()) }
+    var lab by remember { mutableStateOf<LabScenario?>(null) }
+    var labLoaded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(today) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -122,6 +124,13 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
             repository.getRescueTimeline().onSuccess { r ->
                 lots = r.items.filter { it.dataQualityStatus != "INSUFFICIENT" && it.riskLevel != null }
                     .sortedByDescending { riskRank(it.riskLevel) }.take(3)
+            }
+        }
+        scope.launch {
+            // Gói Cơ bản không có phòng mô phỏng (backend trả 403) nên không hiện thẻ này.
+            repository.getLabScenarios().onSuccess { list ->
+                lab = list.firstOrNull { it.latestVersion?.simulatedMetrics != null }
+                labLoaded = true
             }
         }
         scope.launch {
@@ -228,6 +237,7 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
                 }
                 item { OrdersToHandleCard(paid = d.orders.paid, complaints = d.pendingComplaints, onNavigate = onNavigate) }
                 if (lots.isNotEmpty()) item { ExpiringOffersCard(lots) { onNavigate("rescue-timeline") } }
+                if (labLoaded) item { LabCompareCard(lab) { onNavigate("rescue-lab") } }
             }
         }
     }
@@ -328,5 +338,28 @@ private fun CoreActionTile(title: String, hint: String, icon: ImageVector, tint:
         Spacer(Modifier.height(8.dp))
         Text(title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
         Text(hint, fontSize = 11.sp, color = SqInkSoft)
+    }
+}
+
+/** Biểu đồ so sánh kết quả mô phỏng của kịch bản mới nhất với số liệu kỳ nền (cùng số liệu với màn Phòng mô phỏng). */
+@Composable
+private fun LabCompareCard(lab: LabScenario?, onOpen: () -> Unit) {
+    SqCard(Modifier.clickable(onClick = onOpen)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                SectionTitle("Phòng mô phỏng")
+                Text("Dự đoán khi giảm giá so với thực tế kỳ nền", fontSize = 12.sp, color = SqInkSoft)
+            }
+            Text("Mở", color = SqCoralDeep, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+        val m = lab?.latestVersion?.simulatedMetrics
+        if (lab == null || m == null) {
+            Text("Chưa có kịch bản mô phỏng. Tạo kịch bản để so sánh dự đoán với thực tế.", fontSize = 13.sp, color = SqInkSoft, modifier = Modifier.padding(top = 6.dp))
+        } else {
+            Spacer(Modifier.height(6.dp))
+            Text("${lab.title} · giảm ${pct(lab.latestVersion.assumptions.discountRatio)} · ${m.baseline.periodDays} ngày", fontSize = 12.sp, color = SqInkSoft)
+            Spacer(Modifier.height(6.dp))
+            DualBarChart(dualRows(m.simulated, m.baseline), "Mô phỏng", "Thực tế")
+        }
     }
 }

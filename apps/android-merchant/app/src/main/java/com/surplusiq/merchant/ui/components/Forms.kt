@@ -204,7 +204,11 @@ fun RemoteImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 12.dp,
         if (url.isNullOrBlank() || value != null) return@produceState
         value = withContext(Dispatchers.IO) {
             runCatching {
-                val conn = URL(url).openConnection().apply { connectTimeout = 8000; readTimeout = 8000 }
+                // Ảnh từ kho ngoài tải qua backend để không phụ thuộc mạng của máy
+                val source = if (url.startsWith("https://images.unsplash.com/") || url.startsWith("https://res.cloudinary.com/"))
+                    com.surplusiq.merchant.BuildConfig.API_BASE_URL.trimEnd('/') + "/media/proxy?url=" + java.net.URLEncoder.encode(url, "UTF-8")
+                else url
+                val conn = URL(source).openConnection().apply { connectTimeout = 8000; readTimeout = 8000 }
                 conn.getInputStream().use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
             }.getOrNull()
         }?.also { imageCache.put(url, it) }
