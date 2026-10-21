@@ -333,7 +333,14 @@ class DiscoveryRepositoryImpl @Inject constructor(
                     distanceText = formatDistance(it.distanceMeters),
                     categories = it.categories.orEmpty(),
                     distanceMeters = it.distanceMeters,
-                    logoUrl = it.storeLogoUrl
+                    logoUrl = it.storeLogoUrl,
+                    maxPrice = it.maxPrice?.toInt(),
+                    imageUrl = it.imageUrl,
+                    ratingAvg = it.ratingAvg,
+                    ratingCount = it.ratingCount ?: 0,
+                    pickupUntil = runCatching {
+                        java.time.OffsetDateTime.parse(it.soonestPickupEnd).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
+                    }.getOrNull()
                 )
             }
         }
