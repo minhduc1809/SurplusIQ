@@ -4,6 +4,7 @@ import com.surplusiq.app.data.remote.SessionManager
 import com.surplusiq.app.data.remote.api.ProfileApiService
 import com.surplusiq.app.data.remote.dto.AccountDeleteResponse
 import com.surplusiq.app.data.remote.dto.AccountStatusDto
+import com.surplusiq.app.data.remote.dto.RequestDeleteBody
 import com.surplusiq.app.data.remote.dto.ConsentDto
 import com.surplusiq.app.data.remote.dto.DataExportResponse
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
