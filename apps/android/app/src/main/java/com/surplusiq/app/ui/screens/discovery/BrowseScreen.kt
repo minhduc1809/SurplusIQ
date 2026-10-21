@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.StarOutline
@@ -38,10 +39,15 @@ fun BrowseScreen(
     isRadarLoading: Boolean = false,
     radarErrorMessage: String? = null,
     onLoadRadar: () -> Unit = {},
+    radarSettings: com.surplusiq.app.domain.model.RadarSettings = com.surplusiq.app.domain.model.RadarSettings(),
+    locationLabel: String? = null,
+    onApplyRadarSettings: (com.surplusiq.app.domain.model.RadarSettings) -> Unit = {},
+    onOpenLocation: () -> Unit = {},
     onOpenSavedDeals: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showRadar by remember { mutableStateOf(false) }
+    var showRadarSettings by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -96,6 +102,23 @@ fun BrowseScreen(
         }
 
         if (showRadar) {
+            TextButton(
+                onClick = { showRadarSettings = true },
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Icon(Icons.Default.Tune, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Thiết lập Radar", color = ForestGreenPrimary, fontWeight = FontWeight.SemiBold)
+            }
+            if (showRadarSettings) {
+                RadarSettingsSheet(
+                    settings = radarSettings,
+                    locationLabel = locationLabel,
+                    onDismiss = { showRadarSettings = false },
+                    onOpenLocation = { showRadarSettings = false; onOpenLocation() },
+                    onApply = { onApplyRadarSettings(it); showRadarSettings = false }
+                )
+            }
             when {
                 isRadarLoading -> {
                     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {

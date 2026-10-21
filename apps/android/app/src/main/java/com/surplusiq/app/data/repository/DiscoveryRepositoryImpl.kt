@@ -181,14 +181,22 @@ class DiscoveryRepositoryImpl @Inject constructor(
         latitude: Double?,
         longitude: Double?,
         radiusKm: Double?,
-        budgetMax: Double?
+        budgetMax: Double?,
+        pickupFrom: String?,
+        pickupTo: String?,
+        excludeAllergens: List<String>?,
+        prioritizeInTime: Boolean?
     ): Result<List<RadarDeal>> {
         return try {
             val response = discoveryApiService.getRadarRanking(
                 latitude = latitude,
                 longitude = longitude,
                 radiusKm = radiusKm,
-                budgetMax = budgetMax
+                budgetMax = budgetMax,
+                pickupFrom = pickupFrom,
+                pickupTo = pickupTo,
+                excludeAllergens = excludeAllergens?.takeIf { it.isNotEmpty() }?.joinToString(","),
+                prioritizeInTime = prioritizeInTime
             )
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!.data.map { mapRadarItemToRadarDeal(it) })

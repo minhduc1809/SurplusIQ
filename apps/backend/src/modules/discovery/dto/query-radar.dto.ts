@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 /** Rescue Radar (CM-C05): xếp hạng deal theo khả năng nhận, không chỉ khoảng cách/giảm giá. */
 export class QueryRadarDto {
@@ -35,6 +36,33 @@ export class QueryRadarDto {
   @IsOptional()
   @IsString()
   travelTimeSource?: string;
+
+  @ApiPropertyOptional({
+    description: 'Chỉ lấy suất có khung nhận giao với [pickupFrom, pickupTo] (ISO 8601)',
+  })
+  @IsOptional()
+  @IsDateString()
+  pickupFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Kết thúc khung giờ nhận mong muốn (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  pickupTo?: string;
+
+  @ApiPropertyOptional({
+    description: 'Loại các suất chứa chất gây dị ứng này, cách nhau bằng dấu phẩy',
+  })
+  @IsOptional()
+  @IsString()
+  excludeAllergens?: string;
+
+  @ApiPropertyOptional({
+    description: 'Ưu tiên deal còn đủ thời gian để nhận kịp, ẩn suất sắp hết giờ',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  prioritizeInTime?: boolean;
 
   @ApiPropertyOptional({ default: 20 })
   @IsOptional()

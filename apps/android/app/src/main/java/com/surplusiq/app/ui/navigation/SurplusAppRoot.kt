@@ -1177,6 +1177,13 @@ fun SurplusAppRoot(
                                 isRadarLoading = discoveryState.isRadarLoading,
                                 radarErrorMessage = discoveryState.radarErrorMessage,
                                 onLoadRadar = { discoveryViewModel.loadRadarRanking() },
+                                radarSettings = discoveryState.radarSettings,
+                                locationLabel = discoveryState.location.label,
+                                onApplyRadarSettings = { discoveryViewModel.updateRadarSettings(it) },
+                                onOpenLocation = {
+                                    placesViewModel.startSelection()
+                                    currentDestination = AppDestination.LocationSettings
+                                },
                                 onOpenSavedDeals = { currentDestination = AppDestination.SavedDeals }
                             )
                         }

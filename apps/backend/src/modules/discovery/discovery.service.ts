@@ -963,6 +963,11 @@ export class DiscoveryService {
       qb.andWhere('o.current_price <= :budgetMax', { budgetMax: query.budgetMax });
     }
 
+    // Khung giờ nhận khách mong muốn (KC15): suất nào có khung nhận giao với khoảng này mới được xét.
+    if (query.pickupFrom)
+      qb.andWhere('o.pickup_end >= :pickupFrom', { pickupFrom: query.pickupFrom });
+    if (query.pickupTo) qb.andWhere('o.pickup_start <= :pickupTo', { pickupTo: query.pickupTo });
+
     // distance_meters đưa vào cùng select() - addSelect() sau select() sẽ bị
     // TypeORM reset mất cột đã thêm trước đó.
     qb.select([
@@ -977,6 +982,7 @@ export class DiscoveryService {
       'i.name AS item_name',
       'i.category AS item_category',
       'i.image_url AS item_image_url',
+      'i.allergens AS item_allergens',
       's.name AS store_name',
       's.address AS store_address',
     ]);
@@ -985,7 +991,29 @@ export class DiscoveryService {
     const rawResults = await qb.limit(500).getRawMany();
     const now = Date.now();
 
-    const ranked = rawResults.map((r) => {
+    // Dị ứng là điều kiện an toàn nên loại hẳn, không chỉ hạ điểm.
+    const avoid = new Set(
+      (query.excludeAllergens ?? '')
+        .split(',')
+        .map((a) => a.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    // Ưu tiên nhận kịp: ẩn suất còn dưới 15 phút và đẩy trọng số thời gian lên (không khẳng định đến kịp khi thiếu nguồn di chuyển).
+    const inTime = query.prioritizeInTime === true;
+    let hiddenByAllergens = 0;
+    const safeResults = rawResults.filter((r) => {
+      if (
+        avoid.size > 0 &&
+        (r.item_allergens ?? []).some((a: string) => avoid.has(String(a).toLowerCase()))
+      ) {
+        hiddenByAllergens += 1;
+        return false;
+      }
+      if (inTime && (new Date(r.pickup_end).getTime() - now) / 60000 < 15) return false;
+      return true;
+    });
+
+    const ranked = safeResults.map((r) => {
       const distanceMeters = r.distance_meters !== null ? Number(r.distance_meters) : null;
       const minutesLeft = Math.max(0, (new Date(r.pickup_end).getTime() - now) / 60000);
       const orig = Number(r.original_price || 0);
@@ -999,14 +1027,14 @@ export class DiscoveryService {
 
       if (distanceMeters !== null) {
         const distanceScore = Math.max(0, 1 - distanceMeters / ((query.radiusKm || 5) * 1000));
-        score += distanceScore * 40;
+        score += distanceScore * (inTime ? 30 : 40);
         reasons.push(`Cách bạn khoảng ${(distanceMeters / 1000).toFixed(1)}km`);
       } else {
         reasons.push('Chưa có vị trí để tính khoảng cách - nhập địa điểm để cải thiện xếp hạng');
       }
 
       const timeScore = Math.min(1, minutesLeft / 120);
-      score += timeScore * 35;
+      score += timeScore * (inTime ? 45 : 35);
       reasons.push(
         minutesLeft > 30
           ? `Còn ${Math.round(minutesLeft)} phút để nhận`
@@ -1052,6 +1080,7 @@ export class DiscoveryService {
       data: ranked.slice(0, limit),
       meta: {
         total: ranked.length,
+        hiddenByAllergens,
         locationSource: hasCoords ? 'GPS_OR_SELECTED' : 'NONE',
       },
     };

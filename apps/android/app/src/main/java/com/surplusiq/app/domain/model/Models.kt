@@ -115,6 +115,20 @@ data class UserImpactStats(
 )
 
 /** Rescue Radar (CM-C05): deal xếp hạng kèm lý do - không chỉ khoảng cách/giảm giá. */
+/** KC15: thiết lập Radar do khách chọn. Điểm xuất phát lấy từ vị trí khám phá đang chọn (K06 đến K08). */
+data class RadarSettings(
+    val budgetMax: Int? = null,
+    val window: RadarWindow = RadarWindow.ANY,
+    val hideMyAllergens: Boolean = true,
+    val prioritizeInTime: Boolean = false
+)
+
+enum class RadarWindow(val label: String) {
+    ANY("Bất kỳ giờ nào"),
+    NEXT_2H("2 giờ tới"),
+    EVENING("Tối nay 17:00 - 21:00")
+}
+
 data class RadarDeal(
     val deal: Deal,
     val minutesLeftToPickup: Int,

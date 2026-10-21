@@ -36,6 +36,7 @@ data class DiscoveryUiState(
     val errorMessage: String? = null,
     // Rescue Radar (CM-C05)
     val radarDeals: List<RadarDeal> = emptyList(),
+    val radarSettings: com.surplusiq.app.domain.model.RadarSettings = com.surplusiq.app.domain.model.RadarSettings(),
     val isRadarLoading: Boolean = false,
     val radarErrorMessage: String? = null,
     // K21: Gợi ý dành cho bạn
@@ -74,6 +75,7 @@ data class DiscoveryUiState(
 class DiscoveryViewModel @Inject constructor(
     private val discoveryRepository: DiscoveryRepository,
     private val locationRepository: LocationRepository,
+    private val profileRepository: com.surplusiq.app.domain.repository.ProfileRepository,
     private val realtimeWebSocketClient: RealtimeWebSocketClient
 ) : ViewModel() {
 
@@ -217,10 +219,38 @@ class DiscoveryViewModel @Inject constructor(
         }
     }
 
+    fun updateRadarSettings(settings: com.surplusiq.app.domain.model.RadarSettings) {
+        _uiState.value = _uiState.value.copy(radarSettings = settings)
+        loadRadarRanking()
+    }
+
     fun loadRadarRanking() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isRadarLoading = true, radarErrorMessage = null)
-            val result = discoveryRepository.getRadarRanking()
+            val state = _uiState.value
+            val settings = state.radarSettings
+            val now = java.time.ZonedDateTime.now()
+            val (from, to) = when (settings.window) {
+                com.surplusiq.app.domain.model.RadarWindow.ANY -> null to null
+                com.surplusiq.app.domain.model.RadarWindow.NEXT_2H -> now.toInstant().toString() to now.plusHours(2).toInstant().toString()
+                com.surplusiq.app.domain.model.RadarWindow.EVENING -> {
+                    val start = now.withHour(17).withMinute(0).withSecond(0).withNano(0)
+                    start.toInstant().toString() to start.withHour(21).toInstant().toString()
+                }
+            }
+            // Dị ứng lấy từ hồ sơ ăn uống ngay trước khi gọi, để lần tải đầu tiên cũng đã loại món không an toàn.
+            val myAllergens = if (settings.hideMyAllergens) profileRepository.getDietaryProfile().getOrNull()?.allergens.orEmpty() else emptyList()
+            // Điểm xuất phát là vị trí khám phá khách đã chọn; trước đây Radar bỏ qua vị trí nên không tính được khoảng cách.
+            val result = discoveryRepository.getRadarRanking(
+                latitude = state.location.latitude,
+                longitude = state.location.longitude,
+                radiusKm = state.location.radiusKm,
+                budgetMax = settings.budgetMax?.toDouble(),
+                pickupFrom = from,
+                pickupTo = to,
+                excludeAllergens = myAllergens,
+                prioritizeInTime = settings.prioritizeInTime.takeIf { it }
+            )
             result.fold(
                 onSuccess = { radarDeals ->
                     _uiState.value = _uiState.value.copy(radarDeals = radarDeals, isRadarLoading = false)

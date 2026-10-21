@@ -33,7 +33,11 @@ interface DiscoveryRepository {
         latitude: Double? = null,
         longitude: Double? = null,
         radiusKm: Double? = null,
-        budgetMax: Double? = null
+        budgetMax: Double? = null,
+        pickupFrom: String? = null,
+        pickupTo: String? = null,
+        excludeAllergens: List<String>? = null,
+        prioritizeInTime: Boolean? = null
     ): Result<List<RadarDeal>>
 
     /** K21: gợi ý dành cho bạn theo thói quen thật, đã loại món không hợp hồ sơ ăn uống. */

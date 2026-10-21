@@ -54,6 +54,10 @@ interface DiscoveryApiService {
         @Query("radiusKm") radiusKm: Double? = null,
         @Query("budgetMax") budgetMax: Double? = null,
         @Query("travelTimeSource") travelTimeSource: String? = null,
+        @Query("pickupFrom") pickupFrom: String? = null,
+        @Query("pickupTo") pickupTo: String? = null,
+        @Query("excludeAllergens") excludeAllergens: String? = null,
+        @Query("prioritizeInTime") prioritizeInTime: Boolean? = null,
         @Query("limit") limit: Int? = null
     ): Response<RadarResponseDto>
 
