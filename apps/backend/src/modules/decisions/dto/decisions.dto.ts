@@ -37,7 +37,7 @@ export class LogDailyActualDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsNotEmpty({ message: 'itemId không được để trống.' })
-  @IsUUID('4', { message: 'itemId phải là định dạng UUID hợp lệ.' })
+  @IsUUID('all', { message: 'itemId phải là định dạng UUID hợp lệ.' })
   itemId: string;
 
   @ApiProperty({

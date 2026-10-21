@@ -247,7 +247,7 @@ export class SurpriseBagItemDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsNotEmpty()
-  @IsUUID('4')
+  @IsUUID('all')
   itemId: string;
 
   @ApiProperty({

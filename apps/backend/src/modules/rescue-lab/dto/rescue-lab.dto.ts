@@ -37,7 +37,7 @@ export class RescueLabVersionParamsDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(100)
-  @IsUUID('4', { each: true, message: 'itemIds phải là UUID.' })
+  @IsUUID('all', { each: true, message: 'itemIds phải là UUID.' })
   itemIds?: string[];
 
   @ApiPropertyOptional({
@@ -134,6 +134,6 @@ export class CompareRescueLabVersionsDto {
   @ArrayMinSize(2, { message: 'Chọn ít nhất 2 phiên bản để so sánh.' })
   @ArrayMaxSize(5)
   @ArrayUnique()
-  @IsUUID('4', { each: true })
+  @IsUUID('all', { each: true })
   versionIds: string[];
 }

@@ -41,7 +41,7 @@ export class QueryOffersDto {
     example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
   })
   @IsOptional()
-  @IsUUID('4', { message: 'itemId phải là UUID v4 hợp lệ.' })
+  @IsUUID('all', { message: 'itemId phải là UUID v4 hợp lệ.' })
   itemId?: string;
 
   @ApiPropertyOptional({

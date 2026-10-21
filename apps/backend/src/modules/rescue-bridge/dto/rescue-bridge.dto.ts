@@ -26,7 +26,7 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export class CreateTransferDto {
   @ApiProperty({ description: 'Suất/lô còn lại cần bàn giao (batch/slot)' })
-  @IsUUID('4', { message: 'offerId phải là UUID hợp lệ.' })
+  @IsUUID('all', { message: 'offerId phải là UUID hợp lệ.' })
   offerId: string;
 
   @ApiProperty({
@@ -79,7 +79,7 @@ export class CreateTransferDto {
 
 export class SendTransferDto {
   @ApiProperty({ description: 'Đơn vị tiếp nhận chọn từ danh sách ghép nối hợp lệ (BR-B03-02)' })
-  @IsUUID('4', { message: 'recipientOrgId phải là UUID hợp lệ.' })
+  @IsUUID('all', { message: 'recipientOrgId phải là UUID hợp lệ.' })
   recipientOrgId: string;
 }
 
