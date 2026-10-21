@@ -306,7 +306,6 @@ private fun SuggestionCard(text: String, icon: ImageVector, enabled: Boolean, on
             Icon(icon, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(12.dp))
             Text(text, fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f))
-            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
         }
     }
 }

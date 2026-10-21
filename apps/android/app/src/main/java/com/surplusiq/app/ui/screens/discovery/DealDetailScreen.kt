@@ -599,7 +599,7 @@ fun DealDetailScreen(
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
-                                text = "💡 Hướng dẫn hâm nóng & Bảo quản:",
+                                text = "Hướng dẫn hâm nóng & bảo quản",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 color = Color(0xFF513F9E)
@@ -620,7 +620,7 @@ fun DealDetailScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "🌿 Cùng SurplusIQ giảm phát thải CO2 và bảo vệ môi trường!",
+                                text = "Cùng SurplusIQ giảm lãng phí thực phẩm và bảo vệ môi trường.",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = ForestGreenDark

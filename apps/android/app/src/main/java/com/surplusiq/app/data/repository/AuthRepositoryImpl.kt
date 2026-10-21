@@ -188,7 +188,7 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Boolean> {
+    override suspend fun changePassword(currentPassword: String, newPassword: String, otpCode: String?): Result<Boolean> {
         val userId = sessionManager.getUserId()
         if (userId.isNullOrBlank()) {
             return Result.failure(Exception("Bạn cần đăng nhập lại để đổi mật khẩu."))
@@ -196,7 +196,7 @@ class AuthRepositoryImpl @Inject constructor(
         return try {
             val response = authApiService.changePassword(
                 userId,
-                ChangePasswordRequest(currentPassword, newPassword)
+                ChangePasswordRequest(currentPassword, newPassword, otpCode)
             )
             if (response.isSuccessful) Result.success(true)
             else Result.failure(
@@ -210,6 +210,39 @@ class AuthRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
         }
+    }
+
+    private fun otpResult(response: retrofit2.Response<Map<String, Any>>, fallback: String): Result<com.surplusiq.app.domain.repository.OtpSent> =
+        if (response.isSuccessful) {
+            val body = response.body().orEmpty()
+            Result.success(
+                com.surplusiq.app.domain.repository.OtpSent(
+                    message = body["message"] as? String ?: "Đã gửi mã OTP về email của bạn.",
+                    preview = body["otpPreview"] as? String
+                )
+            )
+        } else {
+            Result.failure(Exception(extractErrorMessage(response.errorBody()?.string(), friendlyStatusMessage(response.code(), fallback))))
+        }
+
+    override suspend fun requestPasswordChangeOtp(): Result<com.surplusiq.app.domain.repository.OtpSent> = try {
+        otpResult(authApiService.requestPasswordChangeOtp(), "Không gửi được mã OTP.")
+    } catch (e: Exception) {
+        Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
+    }
+
+    override suspend fun requestEmailOtp(email: String): Result<com.surplusiq.app.domain.repository.OtpSent> = try {
+        otpResult(authApiService.requestEmailOtp(com.surplusiq.app.data.remote.dto.EmailOtpRequest(email.trim())), "Không gửi được mã OTP.")
+    } catch (e: Exception) {
+        Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
+    }
+
+    override suspend fun confirmEmail(email: String, code: String): Result<Boolean> = try {
+        val response = authApiService.confirmEmail(com.surplusiq.app.data.remote.dto.EmailConfirmRequest(email.trim(), code.trim()))
+        if (response.isSuccessful) Result.success(true)
+        else Result.failure(Exception(extractErrorMessage(response.errorBody()?.string(), friendlyStatusMessage(response.code(), "Không xác minh được email."))))
+    } catch (e: Exception) {
+        Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
     }
 
     override suspend fun logout(): Result<Boolean> {

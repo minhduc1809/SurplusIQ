@@ -230,6 +230,8 @@ data class RewardHistoryEntry(
 data class UserProfile(
     val id: String,
     val phone: String,
+    /** Email đã che bớt ký tự (vd. k***@gmail.com); null nếu chưa thêm email. */
+    val email: String? = null,
     val fullName: String,
     val avatarUrl: String? = null,
     val searchRadiusKm: Double = 5.0,

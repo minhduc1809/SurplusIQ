@@ -229,24 +229,13 @@ private fun ReasonPanel(item: ForYouDeal) {
             Spacer(Modifier.width(6.dp))
             Text("Vì sao món này hợp với bạn?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
         }
-        item.reasons.forEach { reason ->
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(SkyBlueContainer).padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(reasonIcon(reason), contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(reason, fontSize = 12.sp, color = TextPrimary, lineHeight = 16.sp)
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(SkyBlueContainer).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            item.reasons.forEach { reason ->
+                Text("•  $reason", fontSize = 12.sp, color = TextPrimary, lineHeight = 17.sp)
             }
         }
     }
-}
-
-private fun reasonIcon(reason: String): ImageVector = when {
-    "yêu thích" in reason -> Icons.Default.FavoriteBorder
-    "đã nhận" in reason -> Icons.Default.Eco
-    "Khung nhận" in reason || "phút" in reason -> Icons.Default.Schedule
-    "Giảm" in reason -> Icons.Default.LocalOffer
-    "Cách bạn" in reason -> Icons.Default.NearMe
-    else -> Icons.Default.VerifiedUser
 }

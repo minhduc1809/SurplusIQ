@@ -624,6 +624,9 @@ fun SurplusAppRoot(
         is AppDestination.ChangePassword -> {
             ChangePasswordScreen(
                 state = authState,
+                hasEmail = !profileUiState.userProfile?.email.isNullOrBlank(),
+                onOtpChange = { authViewModel.onChangePasswordOtpChanged(it) },
+                onSendOtpClick = { authViewModel.requestChangePasswordOtp() },
                 onCurrentPasswordChange = { authViewModel.onCurrentPasswordChanged(it) },
                 onNewPasswordChange = { authViewModel.onNewChangePasswordChanged(it) },
                 onConfirmPasswordChange = { authViewModel.onConfirmChangePasswordChanged(it) },

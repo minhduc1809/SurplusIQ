@@ -52,6 +52,15 @@ interface AuthApiService {
         @Body request: ResetPasswordRequest
     ): Response<Map<String, Any>>
 
+    @POST("auth/password/change/otp")
+    suspend fun requestPasswordChangeOtp(): Response<Map<String, Any>>
+
+    @POST("auth/email/otp")
+    suspend fun requestEmailOtp(@Body request: EmailOtpRequest): Response<Map<String, Any>>
+
+    @POST("auth/email/confirm")
+    suspend fun confirmEmail(@Body request: EmailConfirmRequest): Response<Map<String, Any>>
+
     @POST("auth/password/change")
     suspend fun changePassword(
         @Header("x-user-id") userId: String,

@@ -12,7 +12,12 @@ interface AuthRepository {
     suspend fun resendOtp(phone: String): Result<Boolean>
     suspend fun forgotPassword(target: String): Result<Boolean>
     suspend fun resetPassword(target: String, otpCode: String, newPassword: String): Result<Boolean>
-    suspend fun changePassword(currentPassword: String, newPassword: String): Result<Boolean>
+    suspend fun changePassword(currentPassword: String, newPassword: String, otpCode: String? = null): Result<Boolean>
+    /** Gửi OTP đổi mật khẩu về email của tài khoản. */
+    suspend fun requestPasswordChangeOtp(): Result<OtpSent>
+    /** Gửi OTP xác minh email mới. */
+    suspend fun requestEmailOtp(email: String): Result<OtpSent>
+    suspend fun confirmEmail(email: String, code: String): Result<Boolean>
     suspend fun logout(): Result<Boolean>
     suspend fun getTwoFactorStatus(): Result<TwoFactorStatus>
     suspend fun setTwoFactor(enabled: Boolean, password: String): Result<Boolean>
@@ -22,3 +27,6 @@ interface AuthRepository {
     fun isLoggedIn(): Boolean
     fun getCurrentUserName(): String
 }
+
+/** Kết quả gửi OTP; [preview] chỉ có ở môi trường thử nghiệm (chưa gửi email thật). */
+data class OtpSent(val message: String, val preview: String? = null)

@@ -38,6 +38,9 @@ data class AuthUiState(
     val newChangePassword: String = "",
     val confirmChangePassword: String = "",
     val isChangePasswordSuccess: Boolean = false,
+    val changePasswordOtp: String = "",
+    val changePasswordOtpSent: Boolean = false,
+    val changePasswordOtpPreview: String? = null,
     // Bước mã 2FA khi đăng nhập (R1-013)
     val isTwoFactorRequired: Boolean = false,
     val twoFactorTarget: String? = null,
@@ -368,6 +371,32 @@ class AuthViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(confirmChangePassword = value, errorMessage = null)
     }
 
+    fun onChangePasswordOtpChanged(value: String) {
+        _uiState.value = _uiState.value.copy(changePasswordOtp = value.filter { it.isDigit() }.take(6), errorMessage = null)
+    }
+
+    /** Kiểm tra form rồi gửi OTP về email; sau khi gửi mới hiện ô nhập mã. */
+    fun requestChangePasswordOtp() {
+        val state = _uiState.value
+        validateChangePasswordForm(state)?.let { _uiState.value = state.copy(errorMessage = it); return }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            authRepository.requestPasswordChangeOtp().fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(isLoading = false, changePasswordOtpSent = true, changePasswordOtpPreview = it.preview)
+                },
+                onFailure = { _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = it.message ?: "Không gửi được mã OTP.") }
+            )
+        }
+    }
+
+    private fun validateChangePasswordForm(state: AuthUiState): String? = when {
+        state.currentPassword.isBlank() -> "Vui lòng nhập mật khẩu hiện tại."
+        weakPassword(state.newChangePassword) -> "Mật khẩu mới tối thiểu 8 ký tự, gồm cả chữ và số."
+        state.newChangePassword != state.confirmChangePassword -> "Mật khẩu nhập lại không khớp."
+        else -> null
+    }
+
     fun changePassword() {
         val state = _uiState.value
         if (state.currentPassword.isBlank()) {
@@ -384,12 +413,14 @@ class AuthViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val result = authRepository.changePassword(state.currentPassword, state.newChangePassword)
+            val result = authRepository.changePassword(state.currentPassword, state.newChangePassword, state.changePasswordOtp.ifBlank { null })
             result.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isChangePasswordSuccess = true,
+                        changePasswordOtp = "",
+                        changePasswordOtpSent = false,
                         currentPassword = "",
                         newChangePassword = "",
                         confirmChangePassword = ""
@@ -411,6 +442,9 @@ class AuthViewModel @Inject constructor(
             newChangePassword = "",
             confirmChangePassword = "",
             isChangePasswordSuccess = false,
+            changePasswordOtp = "",
+            changePasswordOtpSent = false,
+            changePasswordOtpPreview = null,
             errorMessage = null
         )
     }

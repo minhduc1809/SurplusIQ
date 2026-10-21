@@ -22,7 +22,15 @@ data class ResetPasswordRequest(
 
 data class ChangePasswordRequest(
     @SerializedName("currentPassword") val currentPassword: String,
-    @SerializedName("newPassword") val newPassword: String
+    @SerializedName("newPassword") val newPassword: String,
+    @SerializedName("otpCode") val otpCode: String? = null
+)
+
+data class EmailOtpRequest(@SerializedName("email") val email: String)
+
+data class EmailConfirmRequest(
+    @SerializedName("email") val email: String,
+    @SerializedName("code") val code: String
 )
 
 data class CustomerLoginRequest(

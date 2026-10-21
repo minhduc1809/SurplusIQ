@@ -284,6 +284,31 @@ class ProfileViewModel @Inject constructor(
      * @param avatarUrl URL hoặc path ảnh đại diện
      * @param searchRadiusKm Bán kính tìm kiếm deal mặc định (0.5 - 10 km)
      */
+    /** Gửi OTP xác minh [email] mới; [onResult] nhận (thành công, thông báo hoặc mã thử nghiệm). */
+    fun requestEmailOtp(email: String, onResult: (Boolean, String?, String?) -> Unit) {
+        viewModelScope.launch {
+            authRepository.requestEmailOtp(email).fold(
+                onSuccess = { onResult(true, it.message, it.preview) },
+                onFailure = { onResult(false, it.message ?: "Không gửi được mã OTP.", null) }
+            )
+        }
+    }
+
+    /** Xác minh OTP rồi tải lại hồ sơ để hiện email mới. */
+    fun confirmEmail(email: String, code: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            authRepository.confirmEmail(email, code).fold(
+                onSuccess = {
+                    profileRepository.getProfile().getOrNull()?.let { p ->
+                        _uiState.value = _uiState.value.copy(userProfile = p)
+                    }
+                    onResult(true, null)
+                },
+                onFailure = { onResult(false, it.message ?: "Không xác minh được email.") }
+            )
+        }
+    }
+
     fun updateProfile(
         fullName: String,
         avatarUrl: String?,
