@@ -159,6 +159,30 @@ describe('TC-SEC-PAY – RISK-01/02: thanh toán', () => {
       `webhook không chữ ký trả ${r.status} và đơn ${order.code} thành ${o.body.status} dù chưa chuyển tiền`,
     );
   });
+  it('TC-SEC-PAY-001b [BUG-003] webhook có đúng khóa xác thực thì được xử lý', async (t) => {
+    const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+    if (!secret) return t.skip('BLOCKED – test không có PAYMENT_WEBHOOK_SECRET');
+    const { order } = await createPaidOrderPendingOnly();
+    const r = await http('POST', '/payments/webhook', {
+      headers: { 'x-webhook-secret': secret },
+      body: {
+        gatewayTxnId: 'OK_' + randomUUID().slice(0, 8),
+        amount: order.totalAmount,
+        orderCode: order.code,
+        transferMessage: 'SUQ' + order.code,
+      },
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.body)?.slice(0, 120));
+    const o = await http('GET', `/customer/orders/${order.id}`, { token: tokens.customerA });
+    assert.equal(o.body.status, 'PAID');
+  });
+  it('TC-SEC-PAY-001c webhook sai khóa trả 401', async () => {
+    const r = await http('POST', '/payments/webhook', {
+      headers: { 'x-webhook-secret': 'sai' },
+      body: { gatewayTxnId: 'X_' + randomUUID().slice(0, 8), amount: 1, orderCode: 'X' },
+    });
+    assert.equal(r.status, 401);
+  });
   it('TC-SEC-PAY-002 [BR-016] webhook sai số tiền không làm đơn PAID', async () => {
     const { order } = await createPaidOrderPendingOnly();
     await http('POST', '/payments/webhook', {

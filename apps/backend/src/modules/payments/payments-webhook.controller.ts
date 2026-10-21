@@ -7,7 +7,10 @@ import {
   ValidationPipe,
   HttpCode,
   HttpStatus,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { timingSafeEqual } from 'node:crypto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { PaymentWebhookDto, ConfirmPaymentDto } from './dto';
@@ -30,7 +33,21 @@ export class PaymentsWebhookController {
   })
   @ApiResponse({ status: 400, description: 'Sai số tiền chốt hoặc payload không hợp lệ' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng tương ứng' })
-  async handleWebhook(@Body() dto: PaymentWebhookDto) {
+  async handleWebhook(
+    @Body() dto: PaymentWebhookDto,
+    @Headers('x-webhook-secret') providedSecret?: string,
+  ) {
+    // Chưa chọn nhà cung cấp biến động số dư: chỉ nhận khi gửi đúng PAYMENT_WEBHOOK_SECRET (BUG-003).
+    // Thiếu cấu hình khóa thì đóng hẳn; production xác nhận qua confirmByAdmin.
+    const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+    const expected = Buffer.from(secret ?? '');
+    const given = Buffer.from(providedSecret ?? '');
+    if (!secret || expected.length !== given.length || !timingSafeEqual(expected, given)) {
+      throw new UnauthorizedException({
+        code: 'WEBHOOK_UNAUTHORIZED',
+        message: 'Webhook thiếu hoặc sai khóa xác thực',
+      });
+    }
     return this.paymentsService.processPaymentWebhook(dto);
   }
 
