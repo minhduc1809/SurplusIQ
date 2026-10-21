@@ -16,6 +16,7 @@ import com.surplusiq.app.domain.model.BasketHoldResult
 import com.surplusiq.app.domain.model.BasketHeldItem
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.domain.model.dealCategoryOf
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.RadarDeal
 import com.surplusiq.app.domain.model.TrustpassInfo
@@ -140,7 +141,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             result = result.filter {
                 it.title.lowercase().contains(q) ||
                 it.storeName.lowercase().contains(q) ||
-                it.category.displayName.lowercase().contains(q) ||
+                it.category.label.lowercase().contains(q) ||
                 it.whatYouCouldGet.lowercase().contains(q) ||
                 it.storeAddress.lowercase().contains(q)
             }
@@ -538,8 +539,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
             pickupWindowText = "Còn ${dto.minutesLeftToPickup} phút để nhận",
             isToday = true,
             distanceText = distText,
-            rating = 4.7,
-            reviewCount = 98,
+            rating = 0.0,
+            reviewCount = 0,
             allergens = emptyList(),
             dietaryType = DietaryType.NONE,
             isFavorite = favoriteOverrides[dto.storeId] ?: false,
@@ -630,14 +631,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
         return "Hôm nay $s - $e"
     }
 
-    private fun parseCategory(cat: String?): DealCategory {
-        return when (cat?.lowercase()) {
-            "meals", "món mặn", "cơm", "bún" -> DealCategory.MEALS
-            "baked goods", "bánh", "bakery", "bánh mì" -> DealCategory.BAKED_GOODS
-            "groceries", "rau củ", "nông sản" -> DealCategory.GROCERIES
-            else -> DealCategory.OTHER
-        }
-    }
+    private fun parseCategory(cat: String?): DealCategory = dealCategoryOf(cat)
 
     private fun parseDietary(dietary: String?): DietaryType {
         return when (dietary?.lowercase()) {

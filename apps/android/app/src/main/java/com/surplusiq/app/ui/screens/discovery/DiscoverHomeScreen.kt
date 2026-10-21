@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.surplusiq.app.R
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.ui.components.icon
 import com.surplusiq.app.domain.model.LocationSettings
 import com.surplusiq.app.domain.model.MapPin
 import com.surplusiq.app.ui.components.DealCard
@@ -139,7 +140,7 @@ fun DiscoverHomeScreen(
                 Text("Khám Phá", fontSize = 12.sp, color = TextSecondary)
             }
             NotificationBellIcon(unreadCount = unreadNotificationCount, onClick = onOpenNotifications)
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(14.dp))
             Box(
                 modifier = Modifier.size(38.dp).clip(CircleShape).background(ForestGreenPrimary).clickable(onClick = onOpenProfile),
                 contentAlignment = Alignment.Center
@@ -342,7 +343,7 @@ fun DiscoverHomeScreen(
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             item { CategoryTile("Tất cả", Icons.Default.Apps, category == null) { category = null } }
                             items(DealCategory.values().toList()) { c ->
-                                CategoryTile(c.shortName(), c.icon(), category == c) { category = if (category == c) null else c }
+                                CategoryTile(c.label, c.icon(), category == c) { category = if (category == c) null else c }
                             }
                         }
                     }
@@ -425,20 +426,6 @@ fun SectionHeader(
             modifier = Modifier.clickable { onSeeAllClick() }.padding(start = 12.dp, top = 2.dp, bottom = 8.dp)
         )
     }
-}
-
-private fun DealCategory.shortName() = when (this) {
-    DealCategory.MEALS -> "Món chính"
-    DealCategory.BAKED_GOODS -> "Bánh & Đồ ngọt"
-    DealCategory.GROCERIES -> "Nông sản"
-    DealCategory.OTHER -> "Khác"
-}
-
-private fun DealCategory.icon() = when (this) {
-    DealCategory.MEALS -> Icons.Default.Restaurant
-    DealCategory.BAKED_GOODS -> Icons.Default.BakeryDining
-    DealCategory.GROCERIES -> Icons.Default.LocalGroceryStore
-    DealCategory.OTHER -> Icons.Default.Category
 }
 
 /** Ô danh mục bo vuông: chọn thì nền cam, chữ trắng. */

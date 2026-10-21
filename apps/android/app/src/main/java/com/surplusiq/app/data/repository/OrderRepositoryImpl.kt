@@ -109,7 +109,7 @@ class OrderRepositoryImpl @Inject constructor(
                         id = dto.offerId, storeId = dto.storeId, storeName = dto.storeName.orEmpty(),
                         storeAddress = "", storeLogoUrl = "", coverImageUrl = "",
                         title = dto.itemName.orEmpty(), description = "", whatYouCouldGet = "",
-                        category = com.surplusiq.app.domain.model.DealCategory.MEALS,
+                        category = com.surplusiq.app.domain.model.DealCategory.OTHER,
                         originalPrice = dto.unitPrice.toInt(), discountPrice = dto.unitPrice.toInt(),
                         discountPercent = 0, remainingStock = 0, initialStock = 0,
                         pickupWindowText = dto.pickupSlot.orEmpty(), distanceText = "",

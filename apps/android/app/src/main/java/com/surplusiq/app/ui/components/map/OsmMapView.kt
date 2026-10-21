@@ -49,8 +49,8 @@ private val MapTileSource = XYTileSource(
     "© OpenStreetMap contributors, OSM France"
 )
 
-/** Mức zoom từ đây trở lên thì ghim quán hiện dạng bong bóng có tên và giá. */
-private const val BUBBLE_MIN_ZOOM = 15.0
+/** Từ mức zoom này trở lên mọi ghim hiện bong bóng tên và giá; xa hơn chỉ ghim đang chọn có bong bóng, còn lại là chấm. */
+private const val BUBBLE_MIN_ZOOM = 16.5
 
 /**
  * OpenStreetMap Compose Component sử dụng OsmDroid Native (Chi phí 0đ, không cần API Key Google Maps).
@@ -142,13 +142,14 @@ fun OsmMapView(
                 }
 
                 // Vẽ các Marker cửa hàng có Deal
-                pins.forEach { pin ->
+                // Ghim đang chọn vẽ sau cùng để bong bóng nổi lên trên các ghim khác
+                pins.sortedBy { it.storeId == selectedStoreId }.forEach { pin ->
                     val marker = Marker(mapView).apply {
                         position = GeoPoint(pin.latitude, pin.longitude)
                         title = pin.storeName
                         setInfoWindow(null) // thông tin đã nằm ngay trong bong bóng, thẻ chi tiết hiện ở dưới màn hình
 
-                        if (showBubbles) {
+                        if (showBubbles || pin.storeId == selectedStoreId) {
                             val bubble = pinBubbleDrawable(mapView.context, pin, pin.storeId == selectedStoreId)
                             icon = bubble
                             val density = mapView.context.resources.displayMetrics.density

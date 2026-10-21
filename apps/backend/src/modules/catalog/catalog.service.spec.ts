@@ -159,7 +159,7 @@ describe('CatalogService', () => {
       await service.getItems(mockStoreId, { category: 'Bánh ngọt' });
 
       expect(qb.andWhere).toHaveBeenCalledWith('item.category = :category', {
-        category: 'Bánh ngọt',
+        category: 'SWEET',
       });
     });
   });

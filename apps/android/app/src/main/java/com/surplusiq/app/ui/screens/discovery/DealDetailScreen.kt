@@ -255,7 +255,8 @@ fun DealDetailScreen(
                         text = deal.title,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f).padding(end = 12.dp)
                     )
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
@@ -266,6 +267,7 @@ fun DealDetailScreen(
                         )
                         Text(
                             text = "${String.format("%,d", deal.discountPrice)} ₫",
+                            softWrap = false,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = ForestGreenPrimary
@@ -604,10 +606,10 @@ fun DealDetailScreen(
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             val storageGuide = when (deal.category) {
-                                DealCategory.BAKED_GOODS -> "• Làm nóng: Xịt một chút nước lên vỏ bánh rồi nướng ở 180°C trong 3-4 phút để vỏ giòn rụm như mới ra lò.\n• Bảo quản: Để ngăn đông nếu không dùng hết trong 24h, khi ăn chỉ cần rã đông ở nhiệt độ phòng."
-                                DealCategory.MEALS -> "• Hâm nóng: Sử dụng chảo với một chút dầu/nước, hoặc đậy kín trong lò vi sóng để món ăn không bị khô.\n• Bảo quản: Giữ ở ngăn mát tủ lạnh (dưới 5°C) và dùng tốt nhất trong vòng 24 giờ."
-                                DealCategory.GROCERIES -> "• Sơ chế: Rửa sạch và để ráo nước trước khi cho vào hộp kín trong ngăn mát.\n• Ý tưởng chế biến: Có thể nấu canh soup thanh nhiệt, làm salad trộn sốt mè rang hoặc làm sinh tố trái cây."
-                                DealCategory.OTHER -> "• Bảo quản nơi khô ráo, thoáng mát hoặc ngăn mát tủ lạnh tùy tính chất thực phẩm.\n• Dùng hết trong khung thời gian khuyến nghị để đảm bảo hương vị chuẩn nhất."
+                                DealCategory.BREAD, DealCategory.SWEET -> "• Làm nóng: Xịt một chút nước lên vỏ bánh rồi nướng ở 180°C trong 3-4 phút để vỏ giòn rụm như mới ra lò.\n• Bảo quản: Để ngăn đông nếu không dùng hết trong 24h, khi ăn chỉ cần rã đông ở nhiệt độ phòng."
+                                DealCategory.RICE, DealCategory.NOODLE, DealCategory.FASTFOOD, DealCategory.SNACK -> "• Hâm nóng: Sử dụng chảo với một chút dầu/nước, hoặc đậy kín trong lò vi sóng để món ăn không bị khô.\n• Bảo quản: Giữ ở ngăn mát tủ lạnh (dưới 5°C) và dùng tốt nhất trong vòng 24 giờ."
+                                DealCategory.PRODUCE, DealCategory.HEALTHY -> "• Sơ chế: Rửa sạch và để ráo nước trước khi cho vào hộp kín trong ngăn mát.\n• Ý tưởng chế biến: Có thể nấu canh soup thanh nhiệt, làm salad trộn sốt mè rang hoặc làm sinh tố trái cây."
+                                DealCategory.DRINK, DealCategory.OTHER -> "• Bảo quản nơi khô ráo, thoáng mát hoặc ngăn mát tủ lạnh tùy tính chất thực phẩm.\n• Dùng hết trong khung thời gian khuyến nghị để đảm bảo hương vị chuẩn nhất."
                             }
                             Text(
                                 text = storageGuide,

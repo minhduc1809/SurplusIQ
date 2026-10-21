@@ -77,9 +77,7 @@ fun ReportViolationScreen(
                     ) { Text("Xong") }
                 }
             )
-            return@Column
-        }
-
+        } else {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -166,6 +164,7 @@ fun ReportViolationScreen(
                 fontSize = 11.sp,
                 color = TextSecondary
             )
+        }
         }
     }
 }

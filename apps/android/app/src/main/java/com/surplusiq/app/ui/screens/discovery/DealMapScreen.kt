@@ -24,6 +24,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.domain.model.dealCategoryOf
+import com.surplusiq.app.ui.components.accent
+import com.surplusiq.app.ui.components.icon
+import androidx.compose.material.icons.filled.Apps
 import com.surplusiq.app.domain.model.LocationSettings
 import com.surplusiq.app.domain.model.MapPin
 import com.surplusiq.app.ui.components.map.OsmMapView
@@ -57,11 +62,10 @@ fun DealMapScreen(
     val requestLocation = rememberLocationPermissionRequest(onGranted = onLocateMe, onDenied = onLocatePermissionDenied)
     val context = LocalContext.current
     var selectedPin by remember { mutableStateOf<MapPin?>(null) }
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
-    // Lọc theo loại món ngay trên danh sách ghim đã tải; danh sách loại lấy từ chính các suất đang mở
-    val categories = remember(pins) { pins.flatMap { it.categories }.distinct().sorted() }
+    var selectedCategory by remember { mutableStateOf<DealCategory?>(null) }
+    // Lọc theo nhóm món ngay trên danh sách ghim đã tải (quán hiện nếu có ít nhất một suất thuộc nhóm đó)
     val shownPins = remember(pins, selectedCategory) {
-        selectedCategory?.let { c -> pins.filter { c in it.categories } } ?: pins
+        selectedCategory?.let { c -> pins.filter { p -> p.categories.any { dealCategoryOf(it) == c } } } ?: pins
     }
 
     val centerLat = location.latitude ?: pins.firstOrNull()?.latitude ?: DefaultMapCenter.LATITUDE
@@ -75,7 +79,7 @@ fun DealMapScreen(
         OsmMapView(
             centerLatitude = centerLat,
             centerLongitude = centerLng,
-            zoomLevel = 14.5,
+            zoomLevel = 15.5,
             radiusKm = if (location.hasCoordinates) location.radiusKm else null,
             pins = shownPins,
             selectedStoreId = selectedPin?.storeId,
@@ -119,6 +123,19 @@ fun DealMapScreen(
                 }
             }
 
+            // Chip nhóm món: cuộn ngang ngay dưới thanh trạng thái
+            Row(
+                Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MapCategoryChip("Tất cả", Icons.Default.Apps, ForestGreenPrimary, selectedCategory == null) { selectedCategory = null }
+                DealCategory.values().forEach { c ->
+                    MapCategoryChip(c.label, c.icon(), c.accent(), selectedCategory == c) {
+                        selectedCategory = if (selectedCategory == c) null else c
+                    }
+                }
+            }
+
             when {
                 isLoading -> LinearProgressIndicator(
                     Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -127,7 +144,7 @@ fun DealMapScreen(
                 locateError != null -> MapBanner(locateError, actionLabel = null, onAction = {})
                 errorMessage != null -> MapBanner(errorMessage, actionLabel = "Thử lại", onAction = onLoad)
                 shownPins.isEmpty() && selectedCategory != null -> MapBanner(
-                    "Không có cửa hàng nào bán loại \"$selectedCategory\" trong khu vực này.",
+                    "Không có cửa hàng nào bán nhóm \"${selectedCategory?.label}\" trong khu vực này.",
                     actionLabel = null,
                     onAction = {}
                 )
@@ -137,26 +154,6 @@ fun DealMapScreen(
                     actionLabel = null,
                     onAction = {}
                 )
-            }
-        }
-
-        // Chip lọc theo loại món
-        if (categories.isNotEmpty()) {
-            Row(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = if (selectedPin != null) 210.dp else 16.dp, start = 12.dp, end = 12.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(selected = selectedCategory == null, onClick = { selectedCategory = null }, label = { Text("Tất cả") })
-                categories.forEach { c ->
-                    FilterChip(
-                        selected = selectedCategory == c,
-                        onClick = { selectedCategory = if (selectedCategory == c) null else c },
-                        label = { Text(c) }
-                    )
-                }
             }
         }
 
@@ -200,6 +197,22 @@ fun DealMapScreen(
                     onOpenStore = { onOpenStore(pin.storeId) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun MapCategoryChip(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, accent: androidx.compose.ui.graphics.Color, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        color = if (selected) accent else MaterialTheme.colorScheme.surface,
+        shadowElevation = 3.dp
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = if (selected) androidx.compose.ui.graphics.Color.White else accent, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (selected) androidx.compose.ui.graphics.Color.White else TextPrimary)
         }
     }
 }

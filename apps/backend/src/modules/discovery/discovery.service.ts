@@ -31,6 +31,7 @@ import { SuggestBasketDto } from './dto/suggest-basket.dto';
 import { BasketSubstitutesQueryDto, BasketCheckoutDto } from './dto/basket-checkout.dto';
 import { OrdersService } from '../orders/orders.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { FOOD_CATEGORIES, normalizeFoodCategory } from '../catalog/food-category';
 
 export interface DealResponseItem {
   id: string;
@@ -120,7 +121,7 @@ export class DiscoveryService {
 
     // 2. Bộ lọc danh mục món (R1-023)
     if (query.category) {
-      qb.andWhere('i.category ILIKE :category', { category: `%${query.category}%` });
+      qb.andWhere('i.category = :category', { category: normalizeFoodCategory(query.category) });
     }
 
     // 3. Bộ lọc giá tối đa (R1-023)
@@ -269,7 +270,7 @@ export class DiscoveryService {
     }
 
     if (query.category) {
-      qb.andWhere('i.category ILIKE :category', { category: `%${query.category}%` });
+      qb.andWhere('i.category = :category', { category: normalizeFoodCategory(query.category) });
     }
 
     // distance_meters đưa vào cùng select() - addSelect() sau select() sẽ bị
@@ -1169,7 +1170,9 @@ export class DiscoveryService {
         const bought = boughtByCategory.get(d.category) ?? 0;
         if (bought > 0) {
           bonus += Math.min(20, bought * 7);
-          reasons.push(`Vì bạn đã nhận ${bought} suất ${d.category.toLowerCase()} gần đây`);
+          reasons.push(
+            `Vì bạn đã nhận ${bought} suất ${(FOOD_CATEGORIES.find((c) => c.code === d.category)?.label ?? 'món').toLowerCase()} gần đây`,
+          );
         }
         const pickupHour = new Date(d.pickupEnd).getHours();
         if (boughtHours.some((h) => Math.abs(h - pickupHour) <= 2)) {

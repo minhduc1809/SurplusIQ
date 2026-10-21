@@ -27,12 +27,23 @@ data class Deal(
     val isUrgent: Boolean = false  // Closes in less than 60 mins
 )
 
-enum class DealCategory(val displayName: String, val subtitle: String) {
-    MEALS("Meals", "Cơm, bún, mì, món mặn"),
-    BAKED_GOODS("Baked goods", "Bánh mì, bánh ngọt, croissant, tiramisu"),
-    GROCERIES("Groceries", "Rau củ hữu cơ, trái cây, nông sản"),
-    OTHER("Other", "Thức uống, combo đặc biệt")
+/** 10 nhóm món chuẩn; [displayName] là mã gửi/nhận với backend, [label] là tên ngắn hiển thị. */
+enum class DealCategory(val displayName: String, val label: String, val subtitle: String) {
+    RICE("RICE", "Cơm", "Cơm tấm, cơm gà, cơm phần"),
+    NOODLE("NOODLE", "Phở & Bún", "Phở, bún, mì, miến, cháo"),
+    BREAD("BREAD", "Bánh mì", "Bánh mì kẹp, bánh mì que"),
+    FASTFOOD("FASTFOOD", "Đồ nhanh", "Burger, pizza, gà rán, khoai chiên"),
+    SNACK("SNACK", "Ăn vặt", "Xiên nướng, bánh tráng, bánh bao"),
+    HEALTHY("HEALTHY", "Healthy", "Salad, ngũ cốc, món chay"),
+    SWEET("SWEET", "Bánh ngọt", "Bánh kem, croissant, chè, kem"),
+    DRINK("DRINK", "Đồ uống", "Trà sữa, cà phê, nước ép, sinh tố"),
+    PRODUCE("PRODUCE", "Nông sản", "Rau củ quả, trái cây, trứng"),
+    OTHER("OTHER", "Khác", "Lẩu và món không thuộc nhóm trên")
 }
+
+/** Mã backend (hoặc giá trị cũ) -> nhóm món; không nhận ra thì là Khác. */
+fun dealCategoryOf(code: String?): DealCategory =
+    DealCategory.values().firstOrNull { it.displayName.equals(code?.trim(), ignoreCase = true) } ?: DealCategory.OTHER
 
 enum class DietaryType(val displayName: String) {
     NONE("Bình thường"),
@@ -48,12 +59,7 @@ enum class CollectionTimeSlot(val title: String, val timeRange: String) {
 
 data class UserPreferences(
     val filterMatchingOnly: Boolean = true,
-    val categories: Set<DealCategory> = setOf(
-        DealCategory.MEALS,
-        DealCategory.BAKED_GOODS,
-        DealCategory.GROCERIES,
-        DealCategory.OTHER
-    ),
+    val categories: Set<DealCategory> = DealCategory.values().toSet(),
     val dietaryPreference: DietaryType = DietaryType.NONE,
     val collectionTimes: Set<CollectionTimeSlot> = setOf(
         CollectionTimeSlot.MORNING,
@@ -243,13 +249,7 @@ data class NotificationSettings(
     val reminderPush: Boolean = true
 )
 
-/** Tên hiển thị tiếng Việt; [DealCategory.displayName] giữ nguyên vì còn dùng làm giá trị lọc gửi backend. */
-fun DealCategory.viName() = when (this) {
-    DealCategory.MEALS -> "Món chính"
-    DealCategory.BAKED_GOODS -> "Bánh"
-    DealCategory.GROCERIES -> "Nông sản"
-    DealCategory.OTHER -> "Khác"
-}
+fun DealCategory.viName() = label
 
 fun CollectionTimeSlot.viTitle() = when (this) {
     CollectionTimeSlot.MORNING -> "Sáng"

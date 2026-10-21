@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { normalizeFoodCategory } from '../catalog/food-category';
 import { Logger } from '@nestjs/common';
 import {
   UserEntity,
@@ -1645,7 +1646,7 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
           id: itemId,
           storeId: storeDef.id,
           name: storeDef.item.name,
-          category: storeDef.item.category,
+          category: normalizeFoodCategory(storeDef.item.category, storeDef.item.name),
           originalPrice: storeDef.item.originalPrice,
           standardShelfLifeHours: storeDef.item.shelfLifeHours,
           ingredients: storeDef.item.ingredients,

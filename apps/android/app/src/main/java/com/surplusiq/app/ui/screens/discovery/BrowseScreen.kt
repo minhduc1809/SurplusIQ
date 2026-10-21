@@ -165,9 +165,7 @@ fun BrowseScreen(
                     }
                 }
             }
-            return@Column
-        }
-
+        } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
@@ -209,6 +207,7 @@ fun BrowseScreen(
                     onFavoriteToggle = onFavoriteToggle
                 )
             }
+        }
         }
     }
 }

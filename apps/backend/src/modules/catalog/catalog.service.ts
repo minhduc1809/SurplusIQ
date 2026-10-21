@@ -27,6 +27,7 @@ import { CATALOG_CONSTANTS } from './catalog.constants';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
+import { normalizeFoodCategory } from './food-category';
 
 export interface PaginatedItemsResult {
   data: ItemEntity[];
@@ -98,7 +99,7 @@ export class CatalogService {
 
     // Lọc theo danh mục
     if (query.category && query.category.trim()) {
-      qb.andWhere('item.category = :category', { category: query.category.trim() });
+      qb.andWhere('item.category = :category', { category: normalizeFoodCategory(query.category) });
     }
 
     // Sắp xếp
@@ -200,6 +201,7 @@ export class CatalogService {
     const newItem = this.itemRepo.create({
       ...dto,
       name: trimmedName,
+      category: normalizeFoodCategory(dto.category, trimmedName),
       storeId,
       status: ItemStatus.ACTIVE,
       allergens: dto.allergens || [],
@@ -283,7 +285,8 @@ export class CatalogService {
     const oldPrice = item.originalPrice;
 
     // Cập nhật các trường được truyền vào
-    if (dto.category !== undefined) item.category = dto.category;
+    if (dto.category !== undefined)
+      item.category = normalizeFoodCategory(dto.category, dto.name ?? item.name);
     if (dto.originalPrice !== undefined) item.originalPrice = dto.originalPrice;
     if (dto.costPrice !== undefined) item.costPrice = dto.costPrice;
     if (dto.standardShelfLifeHours !== undefined)
@@ -634,7 +637,8 @@ export class CatalogService {
     const updatedIds: string[] = [];
 
     for (const item of storeItems) {
-      if (dto.category !== undefined) item.category = dto.category;
+      if (dto.category !== undefined)
+        item.category = normalizeFoodCategory(dto.category, item.name);
       if (dto.standardShelfLifeHours !== undefined)
         item.standardShelfLifeHours = dto.standardShelfLifeHours;
       if (dto.estimatedWeightGrams !== undefined) item.weightGrams = dto.estimatedWeightGrams;
