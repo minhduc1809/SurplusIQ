@@ -7,8 +7,12 @@ import {
   Badge,
   Box,
   ButtonBase,
+  Button,
   Chip,
   Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   InputAdornment,
@@ -93,6 +97,9 @@ export function AdminTopbar({
   const [notificationAnchor, setNotificationAnchor] = useState<HTMLElement | null>(null);
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
   const [twoFactorStatusMsg, setTwoFactorStatusMsg] = useState<string | null>(null);
+  // Bật/tắt 2FA phải nhập lại mật khẩu: lưu mục tiêu (bật hay tắt) để mở hộp xác nhận.
+  const [twoFactorTarget, setTwoFactorTarget] = useState<boolean | null>(null);
+  const [twoFactorPassword, setTwoFactorPassword] = useState('');
 
   const snapshotState = useOptionalAdminSnapshot();
 
@@ -235,9 +242,9 @@ export function AdminTopbar({
     onLogout?.();
   };
 
-  const handleToggle2FA = async (enable: boolean) => {
+  const handleToggle2FA = async (enable: boolean, password: string) => {
     try {
-      const res = await adminAuthApi.toggleTwoFactor(enable);
+      const res = await adminAuthApi.toggleTwoFactor(enable, password);
       setTwoFactorStatusMsg(
         res.twoFactorEnabled
           ? 'Đã bật xác thực 2FA (OTP) cho tài khoản Admin.'
@@ -780,7 +787,7 @@ export function AdminTopbar({
         <Divider sx={{ my: 0.5 }} />
 
         <MenuItem
-          onClick={() => void handleToggle2FA(true)}
+          onClick={() => setTwoFactorTarget(true)}
           sx={{ mx: 1, my: 0.25, borderRadius: '8px', gap: 1.25, fontSize: 12.5 }}
         >
           <Key size={17} color="#1F3BB3" />
@@ -788,7 +795,7 @@ export function AdminTopbar({
         </MenuItem>
 
         <MenuItem
-          onClick={() => void handleToggle2FA(false)}
+          onClick={() => setTwoFactorTarget(false)}
           sx={{ mx: 1, my: 0.25, borderRadius: '8px', gap: 1.25, fontSize: 12.5 }}
         >
           <Key size={17} color="#64748B" />
@@ -821,6 +828,42 @@ export function AdminTopbar({
           </Box>
         )}
       </Menu>
+
+      <Dialog
+        open={twoFactorTarget !== null}
+        onClose={() => setTwoFactorTarget(null)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>{twoFactorTarget ? 'Bật xác thực 2FA' : 'Tắt xác thực 2FA'}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            margin="dense"
+            type="password"
+            label="Mật khẩu hiện tại"
+            value={twoFactorPassword}
+            onChange={(e) => setTwoFactorPassword(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTwoFactorTarget(null)}>Hủy</Button>
+          <Button
+            variant="contained"
+            disabled={!twoFactorPassword}
+            onClick={() => {
+              const target = twoFactorTarget;
+              const password = twoFactorPassword;
+              setTwoFactorTarget(null);
+              setTwoFactorPassword('');
+              if (target !== null) void handleToggle2FA(target, password);
+            }}
+          >
+            Xác nhận
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

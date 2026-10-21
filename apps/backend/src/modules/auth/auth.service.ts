@@ -240,24 +240,33 @@ export class AuthService {
       });
 
       if (!isTrusted) {
-        // Sinh OTP 2FA và yêu cầu bước tiếp theo
-        const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
-        const otpEntity = this.otpRepo.create({
-          target: user.phone || user.email || user.id,
-          purpose: OtpPurpose.TWO_FA,
-          codeHash: CryptoUtil.sha256(otp),
-          expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
-        });
-        await this.otpRepo.save(otpEntity);
+        const otpTarget = user.phone || user.email || user.id;
+        if (dto.otpCode?.trim()) {
+          await this.verifyOtp({
+            target: otpTarget,
+            code: dto.otpCode.trim(),
+            purpose: OtpPurpose.TWO_FA,
+          });
+        } else {
+          // Sinh OTP 2FA và yêu cầu bước tiếp theo
+          const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
+          const otpEntity = this.otpRepo.create({
+            target: otpTarget,
+            purpose: OtpPurpose.TWO_FA,
+            codeHash: CryptoUtil.sha256(otp),
+            expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
+          });
+          await this.otpRepo.save(otpEntity);
 
-        this.logger.log(`[2FA OTP SIMULATION] Mã xác thực 2FA: ${otp}`);
+          this.logger.log(`[2FA OTP SIMULATION] Mã xác thực 2FA: ${otp}`);
 
-        return {
-          twoFactorRequired: true,
-          target: user.phone || user.email,
-          message: 'Vui lòng xác thực mã 2FA gửi về số điện thoại / email của bạn',
-          otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
-        };
+          return {
+            twoFactorRequired: true,
+            target: this.maskContact(otpTarget),
+            message: 'Vui lòng xác thực mã 2FA gửi về số điện thoại / email của bạn',
+            otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
+          };
+        }
       }
     }
 
@@ -940,32 +949,80 @@ export class AuthService {
   /**
    * Danh sách phiên đăng nhập (R1-014)
    */
-  async getSessions(userId: string) {
-    return this.refreshTokenRepo.find({
-      where: {
-        userId,
-        expiresAt: MoreThan(new Date()),
-      },
+  async getSessions(userId: string, currentDeviceId?: string) {
+    const sessions = await this.refreshTokenRepo.find({
+      where: { userId, revokedAt: IsNull(), expiresAt: MoreThan(new Date()) },
       order: { lastUsedAt: 'DESC' },
     });
+    // Không trả tokenHash; chỉ phiên của thiết bị đang dùng được đánh dấu isCurrent.
+    return sessions.map((t) => ({
+      id: t.id,
+      deviceId: t.deviceId,
+      deviceName: t.deviceName,
+      ip: t.ip,
+      lastUsedAt: t.lastUsedAt,
+      expiresAt: t.expiresAt,
+      isCurrent: !!currentDeviceId && t.deviceId === currentDeviceId,
+    }));
   }
 
   /**
-   * Xóa / Thu hồi phiên đăng nhập cụ thể (R1-014)
+   * Xóa / Thu hồi phiên đăng nhập cụ thể (R1-014). Thiết bị bị thu hồi cũng mất tin cậy 2FA.
    */
   async revokeSession(userId: string, sessionId: string) {
+    const session = await this.refreshTokenRepo.findOne({ where: { id: sessionId, userId } });
+    if (!session || session.revokedAt) {
+      throw new NotFoundException('Không tìm thấy phiên đăng nhập đang hoạt động.');
+    }
     await this.refreshTokenRepo.update({ id: sessionId, userId }, { revokedAt: new Date() });
+    await this.trustedDeviceRepo.delete({ userId, deviceId: session.deviceId });
     return { success: true, message: 'Đã thu hồi phiên đăng nhập' };
+  }
+
+  /** Che bớt email hoặc số điện thoại trước khi trả về app. */
+  private maskContact(value: string | null | undefined): string | null {
+    if (!value) return null;
+    if (value.includes('@')) return value.replace(/^(.).*(@.*)$/, '$1***$2');
+    return value.length > 5 ? `${value.slice(0, 3)}***${value.slice(-2)}` : value;
+  }
+
+  /** Trạng thái 2FA và nơi nhận mã (che bớt) để app hiển thị trước khi bật (R1-013). */
+  async get2faStatus(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Tài khoản không tồn tại.');
+    return {
+      twoFactorEnabled: !!user.twoFactorEnabled,
+      target: this.maskContact(user.email || user.phone),
+      trustedDeviceDays: AUTH_CONSTANTS.TRUSTED_DEVICE_DAYS,
+    };
   }
 
   /**
    * Bật / Tắt xác thực 2 bước 2FA (R1-013)
    */
-  async toggle2fa(userId: string, dto: Enable2faDto) {
+  async toggle2fa(userId: string, dto: Enable2faDto, currentDeviceId?: string) {
     const isEnabled = dto.enabled ?? dto.enable ?? true;
-    await this.userRepo.update(userId, {
-      twoFactorEnabled: isEnabled,
-    });
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Tài khoản không tồn tại.');
+    if (!dto.password || !CryptoUtil.verifyPassword(dto.password, user.passwordHash)) {
+      throw new UnauthorizedException({
+        code: AUTH_ERRORS.INVALID_CREDENTIALS,
+        message: 'Mật khẩu xác nhận không chính xác.',
+      });
+    }
+    if (isEnabled && !user.email && !user.phone) {
+      throw new BadRequestException('Cần có email hoặc số điện thoại để nhận mã xác thực 2 bước.');
+    }
+    await this.userRepo.update(userId, { twoFactorEnabled: isEnabled });
+    // Thiết bị từng đăng nhập khi chưa bật 2FA không được miễn mã: chỉ giữ thiết bị đang dùng.
+    await this.trustedDeviceRepo.delete({ userId });
+    if (isEnabled && currentDeviceId) {
+      await this.trustedDeviceRepo.save({
+        userId,
+        deviceId: currentDeviceId,
+        expiresAt: new Date(Date.now() + AUTH_CONSTANTS.TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000),
+      });
+    }
     return {
       success: true,
       twoFactorEnabled: isEnabled,
@@ -999,6 +1056,12 @@ export class AuthService {
       expiresIn: AUTH_CONSTANTS.JWT_ACCESS_EXPIRES_IN,
     });
 
+    // Mỗi thiết bị chỉ giữ một phiên: đăng nhập lại thu hồi phiên cũ của cùng thiết bị để danh sách thiết bị không bị trùng.
+    await this.refreshTokenRepo.update(
+      { userId: user.id, deviceId, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+
     const refreshTokenPlain = CryptoUtil.generateRandomToken();
     const tokenHash = CryptoUtil.sha256(refreshTokenPlain);
 
@@ -1015,15 +1078,20 @@ export class AuthService {
     });
     await this.refreshTokenRepo.save(refreshTokenEntity);
 
-    // Ghi nhận thiết bị tin cậy nếu có 2FA
-    const trustedExpires = new Date(
-      Date.now() + AUTH_CONSTANTS.TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000,
-    );
-    await this.trustedDeviceRepo.save({
-      userId: user.id,
-      deviceId,
-      expiresAt: trustedExpires,
-    });
+    // Chỉ khi 2FA đang bật (tức đã qua bước mã hoặc thiết bị đã tin cậy) mới gia hạn tin cậy; không tạo bản ghi trùng.
+    if (user.twoFactorEnabled) {
+      const trustedExpires = new Date(
+        Date.now() + AUTH_CONSTANTS.TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000,
+      );
+      const existing = await this.trustedDeviceRepo.findOne({
+        where: { userId: user.id, deviceId },
+      });
+      await this.trustedDeviceRepo.save(
+        existing
+          ? { ...existing, expiresAt: trustedExpires }
+          : { userId: user.id, deviceId, expiresAt: trustedExpires },
+      );
+    }
 
     return {
       accessToken,
