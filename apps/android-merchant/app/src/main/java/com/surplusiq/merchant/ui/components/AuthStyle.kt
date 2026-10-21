@@ -1,6 +1,10 @@
 package com.surplusiq.merchant.ui.components
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -33,31 +37,27 @@ import com.surplusiq.merchant.ui.theme.*
 private val CoralLight = Color(0xFFFFA866)
 
 /**
- * Khung dùng chung cho đăng nhập, đăng ký, OTP, quên mật khẩu của app cửa hàng: cùng bố cục app khách hàng
- * (dải cam nhạt có nút "Quay lại" và logo, thẻ trắng bo góc lớn nổi lên). [showBrandMark] hiện biểu tượng và khẩu hiệu.
+ * Khung dùng chung cho luồng xác thực của app cửa hàng: dải cam có vệt sóng phía trên (nút "Quay lại" bên trái, tên app ở giữa),
+ * thẻ trắng bo góc lớn nổi lên từ dưới. [showBrandMark] chỉ giữ để tương thích, không còn dùng.
  */
 @Composable
 fun AuthCard(
-    onBackClick: (() -> Unit)?,
-    showBrandMark: Boolean = false,
+    modifier: Modifier = Modifier,
+    onBackClick: (() -> Unit)? = null,
+    showBrandMark: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFFFFE3D0), Color(0xFFFFF3EA), SqSurface)))
-    ) {
+    Box(modifier = modifier.fillMaxSize().background(SqSurface)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding()) {
-            Row(
-                Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Box(Modifier.fillMaxWidth().height(170.dp)) {
+                AuthWaveBackground(Modifier.matchParentSize())
                 if (onBackClick != null) {
                     Row(
                         Modifier
+                            .statusBarsPadding()
+                            .padding(start = 20.dp, top = 12.dp)
                             .clip(RoundedCornerShape(50))
-                            .background(Color.White.copy(alpha = 0.85f))
+                            .background(Color.White.copy(alpha = 0.9f))
                             .clickable(onClick = onBackClick)
                             .padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -65,60 +65,50 @@ fun AuthCard(
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null, tint = SqInk, modifier = Modifier.size(20.dp))
                         Text("Quay lại", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SqInk)
                     }
-                } else {
-                    Spacer(Modifier.width(1.dp))
                 }
-                Box(
-                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.85f)).padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.logo_surplusiq),
-                        contentDescription = "SurplusIQ",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.height(26.dp)
-                    )
-                }
+                Text(
+                    "SurplusIQ",
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.Center).padding(top = 20.dp)
+                )
             }
-
-            if (showBrandMark) {
-                Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        Modifier
-                            .size(76.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(Brush.linearGradient(listOf(CoralLight, SqCoral))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.logo_surplusiq_icon),
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.size(44.dp)
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "QUẢN LÝ THÔNG MINH • GIẢM LÃNG PHÍ",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SqCoralDeep,
-                        letterSpacing = 0.6.sp
-                    )
-                }
-            } else {
-                Spacer(Modifier.height(24.dp))
-            }
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f, fill = false)
+                    .offset(y = (-28).dp)
                     .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
                     .background(SqSurface)
-                    .padding(horizontal = 24.dp, vertical = 28.dp)
+                    .padding(horizontal = 24.dp, vertical = 24.dp)
                     .navigationBarsPadding(),
                 content = content
             )
+        }
+    }
+}
+
+/** Nền cam có các vệt sóng mờ như họa tiết thẻ ngân hàng. */
+@Composable
+private fun AuthWaveBackground(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        drawRect(
+            Brush.linearGradient(
+                listOf(Color(0xFFFFA866), Color(0xFFFF8A3D), Color(0xFFF2762B)),
+                start = Offset(0f, 0f),
+                end = Offset(w, h)
+            )
+        )
+        for (i in 0..5) {
+            val y = h * (0.10f + 0.16f * i)
+            val wave = Path().apply {
+                moveTo(-20f, y + h * 0.20f)
+                cubicTo(w * 0.22f, y - h * 0.30f, w * 0.48f, y + h * 0.42f, w * 0.72f, y + h * 0.04f)
+                cubicTo(w * 0.86f, y - h * 0.14f, w * 0.96f, y - h * 0.02f, w + 20f, y - h * 0.16f)
+            }
+            drawPath(wave, Color.White.copy(alpha = 0.16f - 0.02f * i), style = Stroke(width = 10f + 7f * i))
         }
     }
 }
@@ -177,7 +167,7 @@ fun AuthGradientButton(text: String, enabled: Boolean = true, loading: Boolean =
 /** Đường kẻ kèm chữ giữa (vd. "HOẶC"). */
 @Composable
 fun AuthDivider(text: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         HorizontalDivider(modifier = Modifier.weight(1f), color = SqLine)
         Text(text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = SqInkMuted, letterSpacing = 0.6.sp, modifier = Modifier.padding(horizontal = 12.dp))
         HorizontalDivider(modifier = Modifier.weight(1f), color = SqLine)
