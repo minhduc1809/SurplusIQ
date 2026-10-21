@@ -6,7 +6,7 @@ data class AiAssistantResponse(
     val reply: String,
     val conversationId: String? = null,
     val recommendedDeals: List<Deal>,
-    val remainingQuota: Int
+    val remainingQuota: Int?
 )
 
 interface AiRepository {
@@ -16,6 +16,9 @@ interface AiRepository {
         conversationId: String? = null,
         availableDeals: List<Deal> = emptyList()
     ): Result<AiAssistantResponse>
+
+    /** Số lượt hỏi trợ lý còn lại trong ngày, lấy từ máy chủ. */
+    suspend fun getRemainingQuota(): Result<Int>
 
     suspend fun checkAllergies(
         dealId: String,

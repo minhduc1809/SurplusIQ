@@ -6,6 +6,9 @@ import retrofit2.http.*
 
 interface AiApiService {
 
+    @GET("customer/ai/quota")
+    suspend fun getQuota(): Response<AiQuotaDto>
+
     @POST("customer/ai/chat")
     suspend fun chatWithAi(
         @Body request: CustomerAiChatRequest

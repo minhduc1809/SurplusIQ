@@ -1131,6 +1131,7 @@ fun SurplusAppRoot(
         }
 
         is AppDestination.AiChat -> {
+            LaunchedEffect(Unit) { aiViewModel.loadQuota() }
             SaveBiteAiSheet(
                 state = aiUiState,
                 onSendMessage = { text -> aiViewModel.sendMessage(text, dealsList) },

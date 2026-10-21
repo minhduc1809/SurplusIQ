@@ -70,7 +70,7 @@ fun SaveBiteAiSheet(
     val listState = rememberLazyListState()
     // Chỉ có lời chào mở đầu: hiện màn chào kèm câu hỏi gợi ý thay vì khoảng trống
     val isFreshChat = state.messages.size <= 1 && !state.isChatLoading
-    val canSend = state.remainingQuota > 0 && !state.isChatLoading
+    val canSend = (state.remainingQuota ?: 1) > 0 && !state.isChatLoading
 
     fun send(text: String) {
         val t = text.trim()
@@ -102,7 +102,7 @@ fun SaveBiteAiSheet(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Còn ${state.remainingQuota}/30 lượt hôm nay • ${if (state.rememberContext) "Đang ghi nhớ" else "Không ghi nhớ"}",
+                            text = (state.remainingQuota?.let { "Còn $it lượt hôm nay • " } ?: "") + if (state.rememberContext) "Đang ghi nhớ" else "Không ghi nhớ",
                             fontSize = 11.sp,
                             color = TextSecondary
                         )
