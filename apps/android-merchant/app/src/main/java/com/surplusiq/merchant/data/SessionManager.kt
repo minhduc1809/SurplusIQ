@@ -57,6 +57,13 @@ class SessionManager(context: Context) {
             .apply()
     }
 
+    /** Ghi nhớ đăng nhập (mặc định bật). Tắt thì phiên bị xóa ở lần mở app kế tiếp. */
+    fun isRememberLogin(): Boolean = prefs.getBoolean("remember_login", true)
+
+    fun setRememberLogin(remember: Boolean) {
+        prefs.edit().putBoolean("remember_login", remember).apply()
+    }
+
     fun isLoggedIn(): Boolean = !getAccessToken().isNullOrBlank()
 
     fun logout() {

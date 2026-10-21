@@ -94,6 +94,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val session = SessionManager(applicationContext)
+        // Bỏ chọn "Ghi nhớ đăng nhập": mỗi lần mở app mới phải đăng nhập lại.
+        if (!session.isRememberLogin()) session.logout()
         val repository = StoreRepository(ApiClient.get(session))
 
         setContent {
