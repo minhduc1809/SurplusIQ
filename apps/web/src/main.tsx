@@ -10,9 +10,14 @@ document.head.appendChild(styleTag);
 
 const AdminApp = lazy(() => import('./modules/platform-admin/AdminApp'));
 const MerchantApp = lazy(() => import('./App'));
+const MerchantV2App = lazy(() => import('./modules/merchant-v2/MerchantV2App'));
 
 const isAdminPath = () =>
   window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
+
+const isMerchantV2Path = () =>
+  window.location.pathname === '/merchant-v2' ||
+  window.location.pathname.startsWith('/merchant-v2/');
 
 function AppLoadingScreen({ label }: { label: string }) {
   return (
@@ -51,16 +56,21 @@ function AppLoadingScreen({ label }: { label: string }) {
   );
 }
 
-// Hai cổng độc lập trên cùng một origin: /admin/* là Super Admin, còn lại là cổng cửa hàng.
+// Ba cổng độc lập trên cùng một origin:
+//   /admin/*       → Super Admin
+//   /merchant-v2/* → Merchant Dashboard V2 (MUI, dark mode)
+//   /             → Merchant Dashboard V1 (Vanilla CSS)
 function RootApplication() {
   const admin = isAdminPath();
+  const v2 = isMerchantV2Path();
+  const label = admin
+    ? 'Đang tải SurplusIQ Admin…'
+    : v2
+      ? 'Đang tải Merchant Dashboard V2…'
+      : 'Đang tải SurplusIQ…';
   return (
-    <Suspense
-      fallback={
-        <AppLoadingScreen label={admin ? 'Đang tải SurplusIQ Admin…' : 'Đang tải SurplusIQ…'} />
-      }
-    >
-      {admin ? <AdminApp /> : <MerchantApp />}
+    <Suspense fallback={<AppLoadingScreen label={label} />}>
+      {admin ? <AdminApp /> : v2 ? <MerchantV2App /> : <MerchantApp />}
     </Suspense>
   );
 }
