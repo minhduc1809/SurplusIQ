@@ -116,11 +116,30 @@ fun ImpactScreen(
                     if (badges != null) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            "Huy hiệu (${badges.unlockedCount}/${badges.totalBadges}) • ${badges.currentBadgeTitle}",
+                            "Huy hiệu (${badges.unlockedCount}/${badges.totalBadges}) • ${badges.currentBadgeTitle ?: "Chưa mở huy hiệu nào"}",
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = TextPrimary
                         )
+                        badges.nextBadge?.let {
+                            Text("Tiếp theo: ${it.name} (${it.progress}%)", fontSize = 12.sp, color = TextSecondary)
+                        }
+                        if (impact.totalOrders > 0) {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    // Chỉ chia sẻ số tổng hợp, không kèm tên, đơn hàng hay vị trí (R1-081).
+                                    val card = badges.shareCard
+                                    com.surplusiq.app.ui.util.shareText(
+                                        context,
+                                        listOf(card.title, card.statLine, card.hashtag, card.shareUrl).joinToString("\n"),
+                                        "Chia sẻ thành tích"
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Chia sẻ thành tích", color = ForestGreenPrimary) }
+                        }
                         Spacer(modifier = Modifier.height(10.dp))
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),

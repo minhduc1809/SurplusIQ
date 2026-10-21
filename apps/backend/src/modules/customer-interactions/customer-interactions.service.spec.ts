@@ -633,6 +633,46 @@ describe('CustomerInteractionsService', () => {
       expect(badges.badges[0].isUnlocked).toBe(true);
     });
 
+    it('huy hiệu mở khóa đúng điều kiện: Dũng Sĩ Tiết Kiệm cần cả 10 suất và 200.000đ', async () => {
+      jest.spyOn(service, 'getCustomerImpact').mockResolvedValueOnce({
+        totalOrders: 12,
+        totalFoodSavedKg: 3.6,
+        totalSavingsVnd: 150000,
+      });
+      const res = await service.getCustomerImpactBadges('user-1');
+      const silver = res.badges.find((b) => b.id === 'SILVER_CHAMPION');
+      expect(silver).toMatchObject({ isUnlocked: false, progress: 75 });
+      expect(res.nextBadge).toMatchObject({ id: 'SILVER_CHAMPION' });
+    });
+
+    it('huy hiệu mở bằng kg thì tiến độ là 100, khách mới chưa có huy hiệu nào', async () => {
+      jest.spyOn(service, 'getCustomerImpact').mockResolvedValueOnce({
+        totalOrders: 3,
+        totalFoodSavedKg: 2.2,
+        totalSavingsVnd: 90000,
+      });
+      const res = await service.getCustomerImpactBadges('user-1');
+      expect(res.badges.find((b) => b.id === 'GREEN_PIONEER')).toMatchObject({
+        isUnlocked: true,
+        progress: 100,
+      });
+
+      jest
+        .spyOn(service, 'getCustomerImpact')
+        .mockResolvedValueOnce({ totalOrders: 0, totalFoodSavedKg: 0, totalSavingsVnd: 0 });
+      const fresh = await service.getCustomerImpactBadges('user-1');
+      expect(fresh.unlockedCount).toBe(0);
+      expect(fresh.currentBadgeTitle).toBeNull();
+    });
+
+    it('thẻ chia sẻ không chứa mã khách', async () => {
+      jest
+        .spyOn(service, 'getCustomerImpact')
+        .mockResolvedValueOnce({ totalOrders: 1, totalFoodSavedKg: 0.3, totalSavingsVnd: 20000 });
+      const res = await service.getCustomerImpactBadges('user-uuid-123');
+      expect(JSON.stringify(res.shareCard)).not.toContain('user-uuid-123');
+    });
+
     it('lấy danh sách câu hỏi thường gặp FAQ (R1-072)', async () => {
       const faq = await service.getHelpCenterFaq();
       expect(faq.length).toBeGreaterThan(0);

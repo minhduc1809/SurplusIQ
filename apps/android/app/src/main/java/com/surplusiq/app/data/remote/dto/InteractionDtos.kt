@@ -89,9 +89,16 @@ data class ShareCardDto(
     @SerializedName("hashtag") val hashtag: String
 )
 
+data class NextBadgeDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("progress") val progress: Int
+)
+
 data class CustomerImpactBadgesResponse(
     @SerializedName("impact") val impact: CustomerImpactDto,
-    @SerializedName("currentBadgeTitle") val currentBadgeTitle: String,
+    @SerializedName("currentBadgeTitle") val currentBadgeTitle: String? = null,
+    @SerializedName("nextBadge") val nextBadge: NextBadgeDto? = null,
     @SerializedName("unlockedCount") val unlockedCount: Int,
     @SerializedName("totalBadges") val totalBadges: Int,
     @SerializedName("badges") val badges: List<ImpactBadgeDto>,

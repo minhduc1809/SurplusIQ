@@ -338,61 +338,90 @@ export class CustomerInteractionsService {
     const impact = await this.getCustomerImpact(customerId);
     const { totalOrders, totalFoodSavedKg, totalSavingsVnd } = impact;
 
-    const badges = [
+    // Mỗi huy hiệu khai báo điều kiện một lần; tiến độ và trạng thái mở khóa cùng tính từ điều kiện đó
+    // nên không thể lệch nhau (trước đây mô tả ghi 200.000đ nhưng chỉ kiểm số đơn).
+    const current = { orders: totalOrders, kg: totalFoodSavedKg, savings: totalSavingsVnd };
+    type Req = { key: keyof typeof current; target: number };
+    const ratio = (r: Req) => Math.min(1, current[r.key] / r.target);
+    const defs: {
+      id: string;
+      name: string;
+      description: string;
+      icon: string;
+      any?: Req[];
+      all?: Req[];
+    }[] = [
       {
         id: 'BRONZE_RESCUER',
         name: 'Người Cứu Món Tập Sự',
-        description: 'Giải cứu thành công suất bánh đầu tiên.',
+        description: 'Nhận thành công suất cứu đầu tiên.',
         icon: '🥉',
-        isUnlocked: totalOrders >= 1,
-        progress: Math.min(100, Math.round((totalOrders / 1) * 100)),
+        all: [{ key: 'orders', target: 1 }],
       },
       {
         id: 'GREEN_PIONEER',
         name: 'Chiến Binh Xanh',
-        description: 'Giải cứu từ 5 suất ăn hoặc 2kg thực phẩm.',
+        description: 'Nhận 5 suất hoặc cứu 2kg thực phẩm.',
         icon: '🌱',
-        isUnlocked: totalOrders >= 5 || totalFoodSavedKg >= 2,
-        progress: Math.min(100, Math.round((totalOrders / 5) * 100)),
+        any: [
+          { key: 'orders', target: 5 },
+          { key: 'kg', target: 2 },
+        ],
       },
       {
         id: 'SILVER_CHAMPION',
         name: 'Dũng Sĩ Tiết Kiệm',
-        description: 'Giải cứu từ 10 suất ăn và tiết kiệm hơn 200.000đ.',
+        description: 'Nhận 10 suất và tiết kiệm từ 200.000đ.',
         icon: '🥈',
-        isUnlocked: totalOrders >= 10,
-        progress: Math.min(100, Math.round((totalOrders / 10) * 100)),
+        all: [
+          { key: 'orders', target: 10 },
+          { key: 'savings', target: 200000 },
+        ],
       },
       {
         id: 'PLANET_HERO',
         name: 'Anh Hùng Hành Tinh',
-        description: 'Giải cứu từ 25 suất ăn hoặc hơn 10kg thực phẩm.',
+        description: 'Nhận 25 suất hoặc cứu 10kg thực phẩm.',
         icon: '🌍',
-        isUnlocked: totalOrders >= 25 || totalFoodSavedKg >= 10,
-        progress: Math.min(100, Math.round((totalOrders / 25) * 100)),
+        any: [
+          { key: 'orders', target: 25 },
+          { key: 'kg', target: 10 },
+        ],
       },
       {
         id: 'ZERO_WASTE_MASTER',
         name: 'Bậc Thầy Chống Lãng Phí',
-        description: 'Giải cứu trên 50 suất ăn - giảm phát thải rác thải thực phẩm xuất sắc.',
+        description: 'Nhận 50 suất cứu.',
         icon: '👑',
-        isUnlocked: totalOrders >= 50,
-        progress: Math.min(100, Math.round((totalOrders / 50) * 100)),
+        all: [{ key: 'orders', target: 50 }],
       },
     ];
+    const badges = defs.map(({ any, all, ...b }) => {
+      const progress = Math.round(
+        100 * (any ? Math.max(...any.map(ratio)) : Math.min(...(all ?? []).map(ratio))),
+      );
+      return { ...b, isUnlocked: progress >= 100, progress };
+    });
 
-    const currentBadge = [...badges].reverse().find((b) => b.isUnlocked) || badges[0];
+    const currentBadge = [...badges].reverse().find((b) => b.isUnlocked) || null;
+    const nextBadge = badges.find((b) => !b.isUnlocked) || null;
 
     return {
       impact,
-      currentBadgeTitle: currentBadge.name,
+      currentBadgeTitle: currentBadge?.name ?? null,
+      nextBadge: nextBadge && {
+        id: nextBadge.id,
+        name: nextBadge.name,
+        progress: nextBadge.progress,
+      },
       unlockedCount: badges.filter((b) => b.isUnlocked).length,
       totalBadges: badges.length,
       badges,
       shareCard: {
         title: `Tôi đã cứu được ${totalFoodSavedKg}kg thực phẩm cùng SurplusIQ!`,
         statLine: `${totalOrders} đơn hàng hoàn tất • Tiết kiệm ${totalSavingsVnd.toLocaleString('vi-VN')}đ`,
-        shareUrl: `https://surplusiq.vn/impact/${customerId}`,
+        // Không đưa mã khách vào đường dẫn: thẻ chia sẻ không được chứa dữ liệu cá nhân (R1-081).
+        shareUrl: 'https://surplusiq.vn',
         hashtag: '#SurplusIQ #GiaiCuuThucPham #ZeroWasteVietnam',
       },
     };
