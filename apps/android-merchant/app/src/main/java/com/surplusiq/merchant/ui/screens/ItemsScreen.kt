@@ -80,7 +80,7 @@ private fun ItemFilterSheet(status: String, category: String?, sort: String, onS
             Spacer(Modifier.height(8.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SqChip("Tất cả", category == null) { onCategory(null) }
-                ITEM_CATEGORIES.forEach { c -> SqChip(c, category == c) { onCategory(c) } }
+                FOOD_CATEGORIES.forEach { (code, label) -> SqChip(label, category == code) { onCategory(code) } }
             }
             Spacer(Modifier.height(18.dp))
             Text("Sắp xếp", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SqInkSoft)
@@ -249,7 +249,7 @@ private fun ItemCard(item: ItemDto, onOpen: () -> Unit, onAddPhoto: () -> Unit, 
         Spacer(Modifier.height(8.dp))
         Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SqInk, maxLines = 2, overflow = TextOverflow.Ellipsis, minLines = 2)
         Text(
-            listOfNotNull(item.category, item.standardShelfLifeHours?.let { "HSD ${it}h" }).joinToString(" · "),
+            listOfNotNull(categoryLabel(item.category), item.standardShelfLifeHours?.let { "HSD ${it}h" }).joinToString(" · "),
             fontSize = 11.sp, color = SqInkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis
         )
         Spacer(Modifier.height(6.dp))

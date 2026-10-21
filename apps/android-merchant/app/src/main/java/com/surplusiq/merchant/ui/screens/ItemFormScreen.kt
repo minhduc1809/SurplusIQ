@@ -34,7 +34,6 @@ import com.surplusiq.merchant.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** Khớp ITEM_CATEGORIES / COMMON_ALLERGENS trong catalog.constants.ts. */
-internal val ITEM_CATEGORIES = listOf("Bánh mì", "Bánh ngọt", "Bánh kem", "Đồ uống", "Món mặn", "Khác")
 internal val COMMON_ALLERGENS = listOf(
     "Gluten", "Trứng", "Sữa (Lactose)", "Đậu phộng (Lạc)", "Đậu nành", "Hạt cây (Hạnh nhân, Óc chó, Điều)",
     "Giáp xác (Tôm, Cua)", "Cá", "Mè (Vừng)", "Cần tây", "Mù tạt", "Sulfite", "Đậu lupin", "Động vật thân mềm",
@@ -179,8 +178,8 @@ fun ItemFormScreen(repository: StoreRepository, itemId: String?, onSaved: (Strin
                         Text("Loại món", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SqInkSoft)
                         Spacer(modifier = Modifier.height(8.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            (ITEM_CATEGORIES + listOf(category).filter { it.isNotBlank() && it !in ITEM_CATEGORIES }).forEach { c ->
-                                SqChip(c, category == c) { category = c }
+                            FOOD_CATEGORIES.forEach { (code, label) ->
+                                SqChip(label, category.equals(code, ignoreCase = true)) { category = code }
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))

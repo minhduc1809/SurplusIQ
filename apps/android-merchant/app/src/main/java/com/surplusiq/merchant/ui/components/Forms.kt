@@ -22,6 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocalGroceryStore
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.KebabDining
+import androidx.compose.material.icons.filled.RamenDining
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -105,8 +109,13 @@ fun TabHeader(title: String, addLabel: String, onAdd: () -> Unit, menu: List<Men
         Text(text = title, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.weight(1f))
         OverflowMenu(menu)
         Spacer(modifier = Modifier.width(4.dp))
-        IconButton(onClick = onAdd, modifier = Modifier.clip(CircleShape).background(SqCoral)) {
-            Icon(Icons.Default.Add, contentDescription = addLabel, tint = Color.White)
+        Row(
+            Modifier.clip(RoundedCornerShape(50)).background(SqCoral).clickable(onClick = onAdd).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(addLabel, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
     }
 }
@@ -491,14 +500,33 @@ fun rememberFileSaver(mimeType: String, onResult: (Boolean) -> Unit): (fileName:
 }
 
 /** Icon minh họa theo nhóm món khi chưa có ảnh; nhóm lạ dùng icon món ăn chung. */
-fun categoryIcon(category: String?): androidx.compose.ui.graphics.vector.ImageVector {
-    val c = category.orEmpty().lowercase()
-    return when {
-        listOf("bakery", "baked", "bread", "bánh mì", "bánh nướng").any { it in c } -> Icons.Default.BakeryDining
-        listOf("cake", "dessert", "sweet", "ngọt", "kem").any { it in c } -> Icons.Default.Cake
-        listOf("drink", "beverage", "coffee", "tea", "đồ uống", "cà phê", "trà").any { it in c } -> Icons.Default.LocalCafe
-        listOf("rice", "meal", "main", "cơm", "mì", "phở").any { it in c } -> Icons.Default.RiceBowl
-        listOf("fast", "snack", "ăn vặt").any { it in c } -> Icons.Default.Fastfood
-        else -> Icons.Default.Restaurant
-    }
+fun categoryIcon(category: String?): androidx.compose.ui.graphics.vector.ImageVector = when (category.orEmpty().uppercase()) {
+    "RICE" -> Icons.Default.RiceBowl
+    "NOODLE" -> Icons.Default.RamenDining
+    "BREAD" -> Icons.Default.BakeryDining
+    "FASTFOOD" -> Icons.Default.Fastfood
+    "SNACK" -> Icons.Default.KebabDining
+    "HEALTHY" -> Icons.Default.Eco
+    "SWEET" -> Icons.Default.Cake
+    "DRINK" -> Icons.Default.LocalCafe
+    "PRODUCE" -> Icons.Default.LocalGroceryStore
+    else -> Icons.Default.Restaurant
 }
+
+/** 10 nhóm món chuẩn (mã gửi lên máy chủ, tên hiển thị); khớp food-category.ts ở backend và app khách. */
+val FOOD_CATEGORIES = listOf(
+    "RICE" to "Cơm",
+    "NOODLE" to "Phở & Bún",
+    "BREAD" to "Bánh mì",
+    "FASTFOOD" to "Đồ nhanh",
+    "SNACK" to "Ăn vặt",
+    "HEALTHY" to "Healthy",
+    "SWEET" to "Bánh ngọt",
+    "DRINK" to "Đồ uống",
+    "PRODUCE" to "Nông sản",
+    "OTHER" to "Khác",
+)
+
+/** Tên hiển thị của một nhóm món; giá trị lạ (dữ liệu cũ) giữ nguyên. */
+fun categoryLabel(code: String?): String =
+    FOOD_CATEGORIES.firstOrNull { it.first.equals(code, ignoreCase = true) }?.second ?: code.orEmpty().ifBlank { "Khác" }

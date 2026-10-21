@@ -72,7 +72,7 @@ fun ItemDetailScreen(repository: StoreRepository, itemId: String, onNavigate: (S
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StatusBadge(it.status)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(it.category, fontSize = 13.sp, color = SqInkSoft)
+                    Text(categoryLabel(it.category), fontSize = 13.sp, color = SqInkSoft)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -120,7 +120,7 @@ fun ItemDetailScreen(repository: StoreRepository, itemId: String, onNavigate: (S
 
                 InlineError(actionError)
                 if (it.status == "ACTIVE") {
-                    PrimaryButton("Tạo suất từ món này") { onNavigate("offer-new?itemId=$itemId") }
+                    PrimaryButton("Đăng suất bán hôm nay") { onNavigate("offer-new?itemId=$itemId") }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 OutlinedButton(
