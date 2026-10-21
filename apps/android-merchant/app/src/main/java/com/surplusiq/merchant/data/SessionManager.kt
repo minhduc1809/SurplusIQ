@@ -17,10 +17,10 @@ class SessionManager(context: Context) {
         private const val KEY_USER_ID = "user_id"
         private const val KEY_PERMISSION = "permission"
         // 10.0.2.2 ánh xạ tới localhost máy host khi chạy trên Android Emulator.
-        // shortcut: hardcode cho dev; thêm màn Cài đặt đổi BASE_URL khi build bản thật.
+        // Địa chỉ backend cấu hình lúc build qua -PAPI_BASE_URL (xem build.gradle.kts).
         /** Bật khi refresh token hết hạn/bị thu hồi: UI quay về màn đăng nhập. */
         val expired = MutableStateFlow(false)
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:4000/"
+        val DEFAULT_BASE_URL: String = com.surplusiq.merchant.BuildConfig.API_BASE_URL
     }
 
     fun getAccessToken(): String? = prefs.getString(KEY_TOKEN, null)
