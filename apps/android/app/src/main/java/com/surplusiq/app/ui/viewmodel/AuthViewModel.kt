@@ -2,6 +2,7 @@ package com.surplusiq.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.surplusiq.app.domain.model.LoginOutcome
 import com.surplusiq.app.domain.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -34,7 +35,13 @@ data class AuthUiState(
     val currentPassword: String = "",
     val newChangePassword: String = "",
     val confirmChangePassword: String = "",
-    val isChangePasswordSuccess: Boolean = false
+    val isChangePasswordSuccess: Boolean = false,
+    // Bước mã 2FA khi đăng nhập (R1-013)
+    val isTwoFactorRequired: Boolean = false,
+    val twoFactorTarget: String? = null,
+    val twoFactorCode: String = "",
+    /** Chỉ có ở môi trường phát triển, vì mã chưa được gửi qua SMS/email thật. */
+    val twoFactorDevHint: String? = null
 )
 
 @HiltViewModel
@@ -74,17 +81,55 @@ class AuthViewModel @Inject constructor(
             _uiState.value = state.copy(errorMessage = "Vui lòng nhập đầy đủ Số điện thoại và Mật khẩu")
             return
         }
+        submitLogin(state.phone.trim(), state.password, null)
+    }
 
+    fun onTwoFactorCodeChanged(code: String) {
+        if (code.length <= 6 && code.all { it.isDigit() }) {
+            _uiState.value = _uiState.value.copy(twoFactorCode = code, errorMessage = null)
+        }
+    }
+
+    /** Gửi mã 2FA kèm lại thông tin đăng nhập; máy chủ chỉ cấp phiên khi mã đúng. */
+    fun submitTwoFactor() {
+        val state = _uiState.value
+        if (state.twoFactorCode.length < 6) {
+            _uiState.value = state.copy(errorMessage = "Nhập đủ 6 số của mã xác thực.")
+            return
+        }
+        submitLogin(state.phone.trim(), state.password, state.twoFactorCode)
+    }
+
+    /** Gửi lại mã: đăng nhập lại không kèm mã để máy chủ sinh mã mới. */
+    fun resendTwoFactor() {
+        val state = _uiState.value
+        _uiState.value = state.copy(twoFactorCode = "")
+        submitLogin(state.phone.trim(), state.password, null)
+    }
+
+    fun cancelTwoFactor() {
+        _uiState.value = _uiState.value.copy(
+            isTwoFactorRequired = false, twoFactorCode = "", twoFactorTarget = null,
+            twoFactorDevHint = null, password = "", errorMessage = null
+        )
+    }
+
+    private fun submitLogin(phone: String, password: String, otpCode: String?) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val result = authRepository.login(state.phone.trim(), state.password)
+            val result = authRepository.login(phone, password, otpCode)
             result.fold(
-                onSuccess = {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        isLoggedIn = true,
-                        isGuestMode = false
-                    )
+                onSuccess = { outcome ->
+                    _uiState.value = when (outcome) {
+                        is LoginOutcome.Success -> _uiState.value.copy(
+                            isLoading = false, isLoggedIn = true, isGuestMode = false,
+                            isTwoFactorRequired = false, twoFactorCode = "", twoFactorDevHint = null
+                        )
+                        is LoginOutcome.TwoFactorRequired -> _uiState.value.copy(
+                            isLoading = false, isTwoFactorRequired = true,
+                            twoFactorTarget = outcome.target, twoFactorDevHint = outcome.otpPreview
+                        )
+                    }
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(

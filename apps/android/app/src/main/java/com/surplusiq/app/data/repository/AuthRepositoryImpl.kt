@@ -9,7 +9,11 @@ import com.surplusiq.app.data.remote.dto.ForgotPasswordRequest
 import com.surplusiq.app.data.remote.dto.GoogleLoginRequest
 import com.surplusiq.app.data.remote.dto.ResendOtpRequest
 import com.surplusiq.app.data.remote.dto.ResetPasswordRequest
+import com.surplusiq.app.data.remote.dto.TwoFactorToggleRequest
 import com.surplusiq.app.data.remote.dto.VerifyOtpRequest
+import com.surplusiq.app.domain.model.LoginOutcome
+import com.surplusiq.app.domain.model.LoginSession
+import com.surplusiq.app.domain.model.TwoFactorStatus
 import com.surplusiq.app.domain.repository.AuthRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,28 +29,32 @@ class AuthRepositoryImpl @Inject constructor(
     private val sessionManager: SessionManager
 ) : AuthRepository {
 
-    override suspend fun login(phone: String, password: String): Result<Boolean> {
+    override suspend fun login(phone: String, password: String, otpCode: String?): Result<LoginOutcome> {
         return try {
             val response = authApiService.loginCustomer(
                 CustomerLoginRequest(
                     identifier = phone,
                     phone = phone,
                     password = password,
-                    deviceId = sessionManager.getDeviceId()
+                    deviceId = sessionManager.getDeviceId(),
+                    otpCode = otpCode
                 )
             )
             val body = response.body()
-            if (response.isSuccessful && body != null) {
-                sessionManager.saveSession(
-                    accessToken = body.accessToken,
-                    refreshToken = body.refreshToken,
-                    userId = body.user?.id ?: "",
-                    phone = phone,
-                    fullName = body.user?.fullName ?: ""
-                )
-                Result.success(true)
-            } else {
-                Result.failure(
+            when {
+                response.isSuccessful && body?.twoFactorRequired == true ->
+                    Result.success(LoginOutcome.TwoFactorRequired(body.target, body.message, body.otpPreview))
+                response.isSuccessful && body?.accessToken != null && body.refreshToken != null -> {
+                    sessionManager.saveSession(
+                        accessToken = body.accessToken,
+                        refreshToken = body.refreshToken,
+                        userId = body.user?.id ?: "",
+                        phone = phone,
+                        fullName = body.user?.fullName ?: ""
+                    )
+                    Result.success(LoginOutcome.Success)
+                }
+                else -> Result.failure(
                     Exception(
                         extractErrorMessage(
                             response.errorBody()?.string(),
@@ -214,6 +222,39 @@ class AuthRepositoryImpl @Inject constructor(
         }
         sessionManager.clearSession()
         return Result.success(true)
+    }
+
+    override suspend fun getTwoFactorStatus(): Result<TwoFactorStatus> = call("Không tải được trạng thái xác thực 2 bước.") {
+        val r = authApiService.getTwoFactorStatus()
+        r to r.body()?.let { TwoFactorStatus(it.twoFactorEnabled, it.target, it.trustedDeviceDays) }
+    }
+
+    override suspend fun setTwoFactor(enabled: Boolean, password: String): Result<Boolean> =
+        call("Không cập nhật được xác thực 2 bước.") {
+            val request = TwoFactorToggleRequest(password)
+            val r = if (enabled) authApiService.enableTwoFactor(request) else authApiService.disableTwoFactor(request)
+            r to (if (r.isSuccessful) enabled else null)
+        }
+
+    override suspend fun getSessions(): Result<List<LoginSession>> = call("Không tải được danh sách thiết bị.") {
+        val r = authApiService.getSessions()
+        r to r.body()?.map {
+            LoginSession(it.id, it.deviceName?.takeIf { n -> n.isNotBlank() } ?: "Thiết bị không tên", it.ip, it.lastUsedAt, it.isCurrent)
+        }
+    }
+
+    override suspend fun revokeSession(sessionId: String): Result<Boolean> = call("Không thu hồi được phiên đăng nhập.") {
+        val r = authApiService.revokeSession(sessionId)
+        r to (if (r.isSuccessful) true else null)
+    }
+
+    /** Gọi API cần đăng nhập, trả lỗi thật của máy chủ thay vì thành công giả. */
+    private suspend fun <T> call(fallback: String, block: suspend () -> Pair<retrofit2.Response<*>, T?>): Result<T> = try {
+        val (response, value) = block()
+        if (response.isSuccessful && value != null) Result.success(value)
+        else Result.failure(Exception(extractErrorMessage(response.errorBody()?.string(), friendlyStatusMessage(response.code(), fallback))))
+    } catch (e: Exception) {
+        Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
     }
 
     override fun isLoggedIn(): Boolean = sessionManager.isLoggedIn()

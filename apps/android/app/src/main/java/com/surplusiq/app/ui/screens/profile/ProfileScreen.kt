@@ -55,6 +55,8 @@ fun ProfileScreen(
     onOpenTransactions: () -> Unit = {},
     onOpenRefundBankAccount: () -> Unit = {},
     onOpenOnboarding: () -> Unit = {},
+    onOpenTwoFactor: () -> Unit = {},
+    onOpenDevices: () -> Unit = {},
     onOpenOrderLock: () -> Unit = {},
     onOpenComplaints: () -> Unit = {},
     onOpenMyReviews: () -> Unit = {},
@@ -237,7 +239,9 @@ fun ProfileScreen(
                     Triple(Icons.AutoMirrored.Filled.HelpOutline, "Câu hỏi thường gặp", onOpenHelpCenter),
                     Triple(Icons.Default.Info, "Giới thiệu & hướng dẫn ứng dụng", onOpenOnboarding),
                     Triple(Icons.Default.Shield, "Quyền riêng tư & dữ liệu", onOpenPrivacyData),
-                    Triple(Icons.Default.Lock, "Đổi mật khẩu", onOpenChangePassword)
+                    Triple(Icons.Default.Lock, "Đổi mật khẩu", onOpenChangePassword),
+                    Triple(Icons.Default.VerifiedUser, "Xác thực hai bước", onOpenTwoFactor),
+                    Triple(Icons.Default.Devices, "Thiết bị đăng nhập", onOpenDevices)
                 ).forEach { (icon, title, action) ->
                     HorizontalDivider(color = divider)
                     ProfileMenuItem(icon, title, "", action)

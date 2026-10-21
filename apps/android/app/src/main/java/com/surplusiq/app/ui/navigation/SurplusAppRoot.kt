@@ -65,6 +65,9 @@ import com.surplusiq.app.ui.viewmodel.InteractionsViewModel
 import com.surplusiq.app.ui.viewmodel.MyOrdersViewModel
 import com.surplusiq.app.ui.viewmodel.ProfileViewModel
 import com.surplusiq.app.ui.viewmodel.RewardsViewModel
+import com.surplusiq.app.ui.viewmodel.SecurityViewModel
+import com.surplusiq.app.ui.screens.profile.DevicesScreen
+import com.surplusiq.app.ui.screens.profile.TwoFactorScreen
 import com.surplusiq.app.ui.viewmodel.NotificationsViewModel
 import com.surplusiq.app.ui.viewmodel.RescuePoolViewModel
 import com.surplusiq.app.ui.screens.pool.RescuePoolDetailScreen
@@ -151,6 +154,9 @@ sealed class AppDestination {
     object RefundBankAccount : AppDestination()
     // KX09: Onboarding 4 slide vuốt ngang
     object Onboarding : AppDestination()
+    // K55, K56: bảo mật tài khoản
+    object TwoFactor : AppDestination()
+    object Devices : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -169,6 +175,7 @@ fun SurplusAppRoot(
     myOrdersViewModel: MyOrdersViewModel = hiltViewModel(),
     interactionsViewModel: InteractionsViewModel = hiltViewModel(),
     rewardsViewModel: RewardsViewModel = hiltViewModel(),
+    securityViewModel: SecurityViewModel = hiltViewModel(),
     notificationsViewModel: NotificationsViewModel = hiltViewModel(),
     rescuePoolViewModel: RescuePoolViewModel = hiltViewModel(),
     profileViewModel: ProfileViewModel = hiltViewModel(),
@@ -191,6 +198,7 @@ fun SurplusAppRoot(
     val discoveryState by discoveryViewModel.uiState.collectAsState()
     val myOrdersState by myOrdersViewModel.uiState.collectAsState()
     val rewardsState by rewardsViewModel.uiState.collectAsState()
+    val securityState by securityViewModel.uiState.collectAsState()
     val notificationsState by notificationsViewModel.uiState.collectAsState()
     val interactionsState by interactionsViewModel.uiState.collectAsState()
     val profileUiState by profileViewModel.uiState.collectAsState()
@@ -257,6 +265,10 @@ fun SurplusAppRoot(
                         onPhoneChange = { authViewModel.onPhoneChanged(it) },
                         onPasswordChange = { authViewModel.onPasswordChanged(it) },
                         onLoginClick = { authViewModel.login() },
+                        onTwoFactorCodeChange = { authViewModel.onTwoFactorCodeChanged(it) },
+                        onSubmitTwoFactor = { authViewModel.submitTwoFactor() },
+                        onResendTwoFactor = { authViewModel.resendTwoFactor() },
+                        onCancelTwoFactor = { authViewModel.cancelTwoFactor() },
                         onNavigateToRegister = { authScreenState = AuthScreenState.REGISTER },
                         onNavigateToForgotPassword = {
                             authViewModel.resetForgotPasswordFlow()
@@ -500,6 +512,26 @@ fun SurplusAppRoot(
                     authViewModel.resetChangePasswordFlow()
                     currentDestination = AppDestination.MainTabs
                 }
+            )
+        }
+
+        is AppDestination.TwoFactor -> {
+            TwoFactorScreen(
+                state = securityState,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onRetry = { securityViewModel.load() },
+                onToggle = { enabled, password -> securityViewModel.setTwoFactor(enabled, password) },
+                onConsumeMessage = { securityViewModel.consumeMessage() }
+            )
+        }
+
+        is AppDestination.Devices -> {
+            DevicesScreen(
+                state = securityState,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onRetry = { securityViewModel.load() },
+                onRevoke = { securityViewModel.revokeSession(it.id) },
+                onConsumeMessage = { securityViewModel.consumeMessage() }
             )
         }
 
@@ -1243,6 +1275,14 @@ fun SurplusAppRoot(
                                 },
                                 onOpenNotificationSettings = {
                                     currentDestination = AppDestination.NotificationSettings
+                                },
+                                onOpenTwoFactor = {
+                                    securityViewModel.load()
+                                    currentDestination = AppDestination.TwoFactor
+                                },
+                                onOpenDevices = {
+                                    securityViewModel.load()
+                                    currentDestination = AppDestination.Devices
                                 },
                                 onLogout = { authViewModel.logout() }
                             )

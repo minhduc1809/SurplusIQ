@@ -28,7 +28,9 @@ data class CustomerLoginRequest(
     @SerializedName("identifier") val identifier: String,
     @SerializedName("phone") val phone: String = identifier,
     @SerializedName("password") val password: String,
-    @SerializedName("deviceId") val deviceId: String
+    @SerializedName("deviceId") val deviceId: String,
+    @SerializedName("otpCode") val otpCode: String? = null,
+    @SerializedName("deviceName") val deviceName: String? = android.os.Build.MODEL
 )
 
 data class VerifyOtpRequest(

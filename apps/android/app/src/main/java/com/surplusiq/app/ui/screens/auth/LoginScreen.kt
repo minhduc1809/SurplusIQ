@@ -32,6 +32,10 @@ fun LoginScreen(
     onPhoneChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
+    onTwoFactorCodeChange: (String) -> Unit = {},
+    onSubmitTwoFactor: () -> Unit = {},
+    onResendTwoFactor: () -> Unit = {},
+    onCancelTwoFactor: () -> Unit = {},
     onNavigateToRegister: () -> Unit,
     onNavigateToForgotPassword: () -> Unit = {},
     onContinueAsGuest: () -> Unit,
@@ -40,6 +44,44 @@ fun LoginScreen(
     modifier: Modifier = Modifier
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
+
+    if (state.isTwoFactorRequired) {
+        AuthShellCard(modifier = modifier, onBackClick = onCancelTwoFactor) {
+            AuthHeading(
+                title = "Xác thực 2 bước",
+                subtitle = "Nhập mã 6 số gửi tới ${state.twoFactorTarget ?: "tài khoản của bạn"}."
+            )
+            AuthField(
+                label = "Mã xác thực",
+                value = state.twoFactorCode,
+                onValueChange = onTwoFactorCodeChange,
+                placeholder = "000000",
+                keyboardType = KeyboardType.NumberPassword
+            )
+            if (state.twoFactorDevHint != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Môi trường thử nghiệm: mã là ${state.twoFactorDevHint} (chưa gửi SMS/email thật).",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+            }
+            if (state.errorMessage != null) {
+                AuthErrorBanner(state.errorMessage)
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            AuthPrimaryButton(text = "Xác nhận", isLoading = state.isLoading, onClick = onSubmitTwoFactor)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Gửi lại mã",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = ForestGreenDark,
+                modifier = Modifier.align(Alignment.CenterHorizontally).clickable { onResendTwoFactor() }
+            )
+        }
+        return
+    }
 
     AuthShellCard(modifier = modifier, onBackClick = onBackClick) {
         AuthHeading(title = "Chào mừng trở lại!", subtitle = "Đăng nhập để tiếp tục cứu món cùng SurplusIQ.")
