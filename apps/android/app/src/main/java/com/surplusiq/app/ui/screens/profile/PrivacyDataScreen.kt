@@ -65,7 +65,7 @@ fun PrivacyDataScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Xuất dữ liệu của tôi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text(
-                            "Nhận liên kết tải toàn bộ dữ liệu cá nhân, có hiệu lực 24 giờ (R1-018).",
+                            "Nhận liên kết tải toàn bộ dữ liệu cá nhân, có hiệu lực 24 giờ.",
                             fontSize = 12.sp,
                             color = TextSecondary
                         )
@@ -107,9 +107,9 @@ fun PrivacyDataScreen(
                         Text("Yêu cầu xóa tài khoản", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text(
                             if (isPendingDelete)
-                                "Tài khoản đang trong 7 ngày ân hạn trước khi bị xóa (BR-007)."
+                                "Tài khoản đang trong 7 ngày ân hạn trước khi bị xóa."
                             else
-                                "Tài khoản sẽ được ẩn danh sau 7 ngày ân hạn kể từ khi gửi yêu cầu (R1-011, R1-019, BR-007).",
+                                "Tài khoản sẽ được ẩn danh sau 7 ngày ân hạn kể từ khi gửi yêu cầu.",
                             fontSize = 12.sp,
                             color = TextSecondary
                         )
@@ -171,7 +171,7 @@ fun PrivacyDataScreen(
                     Column {
                         Text(
                             "Sau khi gửi yêu cầu, tài khoản sẽ có 7 ngày ân hạn để bạn hủy. " +
-                                "Hết thời hạn, dữ liệu cá nhân sẽ bị ẩn danh và không thể hoàn tác (BR-007)."
+                                "Hết thời hạn, dữ liệu cá nhân sẽ bị ẩn danh và không thể hoàn tác."
                         )
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(

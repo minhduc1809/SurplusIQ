@@ -105,7 +105,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
                 remainingStock = detail.remainingQuantity,
                 initialStock = detail.remainingQuantity,
                 pickupWindowText = pickupWindowText(detail.pickupStart, detail.pickupEnd),
-                isToday = true,
+                isToday = isToday(detail.pickupEnd),
                 distanceText = "",
                 rating = store?.rating ?: 0.0,
                 reviewCount = store?.reviewCount ?: 0,
@@ -538,7 +538,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             remainingStock = dto.remainingQuantity,
             initialStock = dto.remainingQuantity + 2,
             pickupWindowText = "Còn ${dto.minutesLeftToPickup} phút để nhận",
-            isToday = true,
+            isToday = isToday(dto.pickupEnd),
             distanceText = distText,
             rating = 0.0,
             reviewCount = 0,
@@ -610,7 +610,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             remainingStock = dto.remainingQuantity,
             initialStock = dto.remainingQuantity,
             pickupWindowText = pickupWindowText(dto.pickupStart, dto.pickupEnd),
-            isToday = true,
+            isToday = isToday(dto.pickupEnd),
             distanceText = distText,
             // Danh sách deal không kèm điểm đánh giá/dị ứng: để trống thay vì bịa (chi tiết deal mới có).
             rating = 0.0,
@@ -622,14 +622,32 @@ class DiscoveryRepositoryImpl @Inject constructor(
         )
     }
 
+    private fun localDate(iso: String?) = runCatching {
+        java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDate()
+    }.getOrNull()
+
+    /** Hôm nay / Ngày mai / dd/MM theo mốc giờ kết thúc nhận; không có mốc thì coi như hôm nay (suất đang mở). */
+    private fun dayLabel(iso: String?): String {
+        val d = localDate(iso) ?: return "Hôm nay"
+        val today = java.time.LocalDate.now()
+        return when (d) {
+            today -> "Hôm nay"
+            today.plusDays(1) -> "Ngày mai"
+            else -> "%02d/%02d".format(d.dayOfMonth, d.monthValue)
+        }
+    }
+
+    private fun isToday(iso: String?) = localDate(iso)?.let { it == java.time.LocalDate.now() } ?: true
+
     /** "Hôm nay 19:00 - 21:30" từ mốc giờ ISO của backend (giờ máy); rỗng nếu thiếu dữ liệu. */
     private fun pickupWindowText(start: String?, end: String?): String {
         fun hhmm(iso: String?) = runCatching {
             java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
         }.getOrNull()
         val s = hhmm(start) ?: return ""
-        val e = hhmm(end) ?: return "Hôm nay từ $s"
-        return "Hôm nay $s - $e"
+        val day = dayLabel(start)
+        val e = hhmm(end) ?: return "$day từ $s"
+        return "$day $s - $e"
     }
 
     private fun parseCategory(cat: String?): DealCategory = dealCategoryOf(cat)

@@ -152,7 +152,7 @@ fun CreateComplaintScreen(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Thời hạn khiếu nại (Quy chuẩn BR-026)",
+                            text = "Thời hạn khiếu nại",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = CoralRed
