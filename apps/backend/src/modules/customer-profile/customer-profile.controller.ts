@@ -13,6 +13,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CustomerProfileService } from './customer-profile.service';
 import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
+import { AllowPendingDelete } from '../../common/decorators/allow-pending-delete.decorator';
 import { RequestDeleteDto } from './dto/request-delete.dto';
 import { RecordConsentDto } from './dto/record-consent.dto';
 import { CreateSavedPlaceDto } from './dto/saved-place.dto';
@@ -158,7 +159,15 @@ export class CustomerProfileController {
     return this.profileService.requestAccountDelete(user?.userId, dto.password);
   }
 
+  @Get('account-status')
+  @AllowPendingDelete()
+  @ApiOperation({ summary: 'Xem trạng thái tài khoản và ngày xóa dự kiến (R1-019)' })
+  async getAccountStatus(@CurrentUser() user: RequestUser) {
+    return this.profileService.getAccountStatus(user?.userId);
+  }
+
   @Delete('delete-request')
+  @AllowPendingDelete()
   @ApiOperation({ summary: 'Hủy yêu cầu xóa tài khoản trong 7 ngày ân hạn (R1-019)' })
   async cancelAccountDelete(@CurrentUser() user: RequestUser) {
     return this.profileService.cancelAccountDelete(user?.userId);

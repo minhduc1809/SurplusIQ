@@ -1600,6 +1600,11 @@ export class DiscoveryService {
     if (!offer) {
       throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
     }
+    // Công khai chỉ cho suất đang hiển thị: suất đã gỡ/hết hạn hoặc cửa hàng bị khóa trả 404 (Q-08).
+    const store = await this.storeRepo.findOne({ where: { id: offer.storeId } });
+    if (offer.status !== OfferStatus.OPEN || !store || store.status !== StoreStatus.ACTIVE) {
+      throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
+    }
 
     let itemName = 'Món cứu cứu';
     if (offer.itemId) {

@@ -30,7 +30,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
     }
     const user = await this.users.findOne({ where: { id: payload.sub } });
-    if (!user || user.status !== UserStatus.ACTIVE || user.role !== payload.role) {
+    const pendingDelete = user?.status === UserStatus.PENDING_DELETE && user.role === 'CUSTOMER';
+    if (
+      !user ||
+      (user.status !== UserStatus.ACTIVE && !pendingDelete) ||
+      user.role !== payload.role
+    ) {
       throw new UnauthorizedException(
         'Tài khoản không còn hoạt động hoặc quyền truy cập đã thay đổi',
       );
@@ -42,6 +47,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       phone: user.phone,
       storeId: payload.storeId,
       deviceId: payload.deviceId,
+      accountStatus: user.status,
     };
   }
 }

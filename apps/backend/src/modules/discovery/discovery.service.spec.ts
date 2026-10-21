@@ -435,7 +435,10 @@ describe('DiscoveryService', () => {
         createdAt: new Date('2026-10-10T08:00:00Z'),
         updatedAt: new Date('2026-10-10T11:00:00Z'),
         itemId: 'item-1',
+        status: OfferStatus.OPEN,
+        storeId: 'store-1',
       });
+      storeRepo.findOne.mockResolvedValueOnce({ id: 'store-1', status: StoreStatus.ACTIVE });
       itemRepo.findOne.mockResolvedValueOnce({ name: 'Set Sushi' });
 
       const res = await service.getPriceHistory('off-1');
@@ -446,6 +449,23 @@ describe('DiscoveryService', () => {
       expect(res.discountPercent).toBe(50);
       expect(res.timeline.length).toBeGreaterThanOrEqual(2);
       expect(res.transparencyCommitment).toBeDefined();
+    });
+
+    it('Q-08: suất đã gỡ hoặc cửa hàng bị khóa trả 404', async () => {
+      offerRepo.findOne.mockResolvedValueOnce({
+        id: 'off-2',
+        status: OfferStatus.CANCELLED,
+        storeId: 'store-1',
+      });
+      storeRepo.findOne.mockResolvedValueOnce({ id: 'store-1', status: StoreStatus.ACTIVE });
+      await expect(service.getPriceHistory('off-2')).rejects.toThrow(NotFoundException);
+      offerRepo.findOne.mockResolvedValueOnce({
+        id: 'off-3',
+        status: OfferStatus.OPEN,
+        storeId: 'store-1',
+      });
+      storeRepo.findOne.mockResolvedValueOnce({ id: 'store-1', status: StoreStatus.SUSPENDED });
+      await expect(service.getPriceHistory('off-3')).rejects.toThrow(NotFoundException);
     });
   });
 });

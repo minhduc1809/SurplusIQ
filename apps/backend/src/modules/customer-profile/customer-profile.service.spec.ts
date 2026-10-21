@@ -167,9 +167,22 @@ describe('CustomerProfileService (Full Customer Features)', () => {
         status: UserStatus.ACTIVE,
         passwordHash: CryptoUtil.hashPassword('Mat-khau-1'),
       });
+      orderRepo.count = jest.fn().mockResolvedValue(0);
       const res = await service.requestAccountDelete('u1', 'Mat-khau-1');
       expect(res.status).toBe(UserStatus.PENDING_DELETE);
       expect(res.deleteRequestedAt).toBeDefined();
+    });
+
+    it('BUG-017: còn đơn đang xử lý thì chặn yêu cầu xóa', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'u1',
+        status: UserStatus.ACTIVE,
+        passwordHash: CryptoUtil.hashPassword('Mat-khau-1'),
+      });
+      orderRepo.count = jest.fn().mockResolvedValue(2);
+      await expect(service.requestAccountDelete('u1', 'Mat-khau-1')).rejects.toThrow(
+        'chưa hoàn tất',
+      );
     });
 
     it('BUG-016: sai mật khẩu hoặc thiếu mật khẩu thì KHÔNG được chuyển PENDING_DELETE', async () => {

@@ -1,5 +1,8 @@
 import {
   Controller,
+  HttpException,
+  HttpStatus,
+  Req,
   Get,
   Post,
   Put,
@@ -26,6 +29,9 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
+
+const PRICE_HISTORY_LIMIT_PER_MIN = 30;
+const priceHistoryHits = new Map<string, { count: number; resetAt: number }>();
 
 @ApiTags('Customer - Deals Discovery')
 @Controller('customer')
@@ -340,12 +346,24 @@ export class CustomerDealsController {
     return this.discoveryService.getBackInStockStatus(user?.userId, id);
   }
 
+  @Public()
   @Get('deals/:id/price-history')
   @ApiOperation({
     summary: 'Lịch sử giá và biến động giá cứu món minh bạch (KX07)',
   })
   @ApiResponse({ status: 200, description: 'Lịch sử biến động giá của deal' })
-  async getPriceHistory(@Param('id') id: string) {
+  async getPriceHistory(@Param('id') id: string, @Req() req: { ip?: string }) {
+    // shortcut: bộ đếm trong bộ nhớ theo IP, chạy 1 instance; nhiều instance thì chuyển sang Redis.
+    const now = Date.now();
+    const key = req.ip ?? 'unknown';
+    const hit = priceHistoryHits.get(key);
+    if (!hit || hit.resetAt <= now) priceHistoryHits.set(key, { count: 1, resetAt: now + 60_000 });
+    else if (++hit.count > PRICE_HISTORY_LIMIT_PER_MIN) {
+      throw new HttpException(
+        { code: 'RATE_LIMITED', message: 'Bạn gọi quá nhanh. Vui lòng thử lại sau ít phút.' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     return this.discoveryService.getPriceHistory(id);
   }
 }

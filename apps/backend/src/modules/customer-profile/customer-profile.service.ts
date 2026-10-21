@@ -18,7 +18,7 @@ import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
 import { ConsentEntity, ConsentType } from '../../entities/auth/consent.entity';
 import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
 import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
-import { OrderEntity } from '../../entities/orders/order.entity';
+import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { PromotionWalletEntity } from '../../entities/marketing/promotion-wallet.entity';
 import { PromotionEntity, PromotionStatus } from '../../entities/marketing/promotion.entity';
 import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
@@ -384,6 +384,17 @@ export class CustomerProfileService {
       );
     }
 
+    // Còn đơn đang xử lý thì chưa cho xóa, tránh dính logic hủy đơn và hoàn tiền (BUG-017, CẦN XÁC NHẬN).
+    const openOrders = await this.orderRepo.count({
+      where: { customerId: userId, status: In([OrderStatus.PENDING_PAYMENT, OrderStatus.PAID]) },
+    });
+    if (openOrders > 0) {
+      throw new ConflictException({
+        code: 'ACCOUNT_DELETE_BLOCKED_OPEN_ORDERS',
+        message: `Bạn còn ${openOrders} đơn chưa hoàn tất. Hãy nhận hàng hoặc hủy đơn trước khi xóa tài khoản.`,
+      });
+    }
+
     user.status = UserStatus.PENDING_DELETE;
     user.deleteRequestedAt = new Date();
     await this.userRepo.save(user);
@@ -403,6 +414,7 @@ export class CustomerProfileService {
   async cancelAccountDelete(userId: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Người dùng không tồn tại');
+    // Hủy lặp lại khi đã ACTIVE: idempotent, không đổi dữ liệu.
 
     user.status = UserStatus.ACTIVE;
     user.deleteRequestedAt = null;
@@ -412,6 +424,19 @@ export class CustomerProfileService {
       success: true,
       status: user.status,
       message: 'Đã hủy yêu cầu xóa tài khoản thành công.',
+    };
+  }
+
+  /** Trạng thái tài khoản và ngày xóa dự kiến, cho màn hình chờ xóa của app (BUG-017). */
+  async getAccountStatus(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Người dùng không tồn tại');
+    return {
+      status: user.status,
+      deleteRequestedAt: user.deleteRequestedAt,
+      deleteScheduledAt: user.deleteRequestedAt
+        ? new Date(new Date(user.deleteRequestedAt).getTime() + 7 * 24 * 60 * 60 * 1000)
+        : null,
     };
   }
 

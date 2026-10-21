@@ -747,7 +747,9 @@ export class AuthService {
     }
 
     const user = await this.userRepo.findOne({ where: { id: tokenRecord.userId } });
-    if (!user || user.status !== UserStatus.ACTIVE) {
+    const pendingDelete =
+      user?.status === UserStatus.PENDING_DELETE && user.role === UserRole.CUSTOMER;
+    if (!user || (user.status !== UserStatus.ACTIVE && !pendingDelete)) {
       throw new UnauthorizedException('Người dùng không còn hoạt động');
     }
 
@@ -841,7 +843,10 @@ export class AuthService {
   }
 
   private assertActiveUser(user: UserEntity) {
-    if (user.status !== UserStatus.ACTIVE) {
+    // Khách đang chờ xóa vẫn đăng nhập được (phiên bị giới hạn) để hủy yêu cầu trong 7 ngày ân hạn (BUG-017).
+    const pendingDelete =
+      user.status === UserStatus.PENDING_DELETE && user.role === UserRole.CUSTOMER;
+    if (user.status !== UserStatus.ACTIVE && !pendingDelete) {
       throw new ForbiddenException({
         code: AUTH_ERRORS.LOCKED,
         message: 'Tài khoản đã bị khóa hoặc không còn hoạt động',
@@ -1103,6 +1108,11 @@ export class AuthService {
         storeId,
         permission,
       },
+      accountStatus: user.status,
+      deleteScheduledAt:
+        user.status === UserStatus.PENDING_DELETE && user.deleteRequestedAt
+          ? new Date(new Date(user.deleteRequestedAt).getTime() + 7 * 24 * 60 * 60 * 1000)
+          : null,
     };
   }
 }
