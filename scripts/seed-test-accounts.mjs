@@ -49,6 +49,13 @@ const USERS = [
   ['quanly.hanoi@surplusiq.vn', '0988300001', 'STORE_USER', 'ACTIVE', 'Vũ Thanh Tùng'],
   ['quay.hanoi@surplusiq.vn', '0988300002', 'STORE_USER', 'ACTIVE', 'Ngô Bích Ngọc'],
   ['chuthucan.choduyet@surplusiq.vn', '0988300003', 'STORE_USER', 'ACTIVE', 'Hoàng Đức Anh'],
+  [
+    'chuthucan2.hanoi@surplusiq.vn',
+    '0988300004',
+    'STORE_USER',
+    'ACTIVE',
+    'Chủ quán Bún chả Sinh Từ',
+  ],
 ];
 for (const [email, phone, role, status, fullName] of USERS) {
   await q(
@@ -81,6 +88,11 @@ await q(
    on conflict (id) do nothing`,
   [STORE_PENDING, await uid('chuthucan.choduyet@surplusiq.vn')],
 );
+// Quán Bún chả Sinh Từ thuộc chủ quán thứ hai (gói Cơ bản); seed:hanoi mặc định gán cả 50 quán cho một chủ.
+await q('update stores set owner_user_id=$1 where id=$2', [
+  await uid('chuthucan2.hanoi@surplusiq.vn'),
+  STORE_B,
+]);
 const member = (store, email, permission) =>
   uid(email).then((u) =>
     q(
@@ -103,6 +115,7 @@ const sub = (store, plan) =>
   );
 await sub(STORE_A, 'PRO');
 await sub(STORE_B, 'BASIC');
+await sub('33333333-3333-3333-3333-333333333301', 'BASIC'); // Rincón Pasteur: gói Cơ bản
 
 // ---------- 3. Dữ liệu qua API ----------
 const call = async (method, path, { token, body } = {}) => {
@@ -178,6 +191,18 @@ if (openA < 4) {
     );
     byTitle[name] = offer;
   }
+}
+// Món tạo qua API chưa có ảnh: dùng ảnh của một món tương tự đã có trong dữ liệu 50 quán (cùng nguồn ảnh thật)
+for (const [name, like] of [
+  ['Phở gà ta', '%phở%'],
+  ['Quẩy giòn (10 cái)', '%bánh%'],
+  ['Nem rán Hà Nội (5 cái)', '%nem%'],
+]) {
+  await q(
+    `update items set image_url = (select image_url from items where store_id <> $1 and name ilike $3 and image_url is not null order by name limit 1)
+     where store_id = $1 and name = $2 and image_url is null`,
+    [STORE_A, name, like],
+  );
 }
 const deals = must(
   await call('GET', '/customer/deals?latitude=21.0458&longitude=105.795&radiusKm=2&limit=50'),
@@ -304,12 +329,139 @@ if (n < 5) {
   }
 }
 
+// 3c. Quản lý của quán Rincón (có sẵn từ seed:default)
+const STORE_RINCON = '33333333-3333-3333-3333-333333333301';
+await q(
+  `insert into users (id, email, phone, role, status, password_hash, full_name)
+   values ($1,'demo.quanly@surplusiq.vn','0988300010','STORE_USER','ACTIVE',$2,'Quản lý Rincón Pasteur')
+   on conflict do nothing`,
+  [randomUUID(), hash],
+);
+if ((await q('select 1 from stores where id=$1', [STORE_RINCON])).length) {
+  await member(STORE_RINCON, 'demo.quanly@surplusiq.vn', 'MANAGER');
+}
+
+// 3d. Lịch sử bán 21 ngày của quán A (đã đóng nhận, có đơn đã nhận) làm nền cho Phòng mô phỏng và báo cáo.
+// Mỗi ngày mỗi món một suất; số suất bán lệch nhau theo ngày và món để số liệu không phẳng.
+const [{ past }] = await q(
+  "select count(*)::int past from offers where store_id=$1 and pickup_start < now() - interval '1 day'",
+  [STORE_A],
+);
+if (past < 20) {
+  // Dọn phần lịch sử dở dang của lần chạy trước (nếu có) để nạp lại trọn vẹn
+  await q(
+    "delete from orders where offer_id in (select id from offers where store_id=$1 and pickup_start < now() - interval '1 day')",
+    [STORE_A],
+  );
+  await q("delete from offers where store_id=$1 and pickup_start < now() - interval '1 day'", [
+    STORE_A,
+  ]);
+  const items = await q(
+    "select id, original_price from items where store_id=$1 and status='ACTIVE' order by name",
+    [STORE_A],
+  );
+  const buyers = await q(
+    "select id from users where role='CUSTOMER' and email not like 'kh.%' and status='ACTIVE' order by email limit 6",
+  );
+  if (items.length && buyers.length) {
+    for (let day = 21; day >= 1; day--) {
+      for (let k = 0; k < items.length; k++) {
+        const it = items[k];
+        const total = 8;
+        const sold = ((day * 5 + k * 3) % 7) + 1; // 1..7
+        const price = Math.round((it.original_price * 0.55) / 500) * 500;
+        const offerId = randomUUID();
+        await q(
+          `insert into offers (id, store_id, item_id, kind, total_quantity, remaining_quantity, sold_quantity,
+             original_price, current_price, floor_price, pickup_start, pickup_end, expires_at, status, created_at, updated_at)
+           values ($1,$2,$3,'REGULAR',$4,$5,$6,$7,$8,$9,
+             date_trunc('day', now() - ($10 || ' days')::interval) + interval '17 hours',
+             date_trunc('day', now() - ($10 || ' days')::interval) + interval '21 hours',
+             date_trunc('day', now() - ($10 || ' days')::interval) + interval '21 hours',
+             'CLOSED',
+             date_trunc('day', now() - ($10 || ' days')::interval) + interval '10 hours',
+             date_trunc('day', now() - ($10 || ' days')::interval) + interval '22 hours')`,
+          [
+            offerId,
+            STORE_A,
+            it.id,
+            total,
+            total - sold,
+            sold,
+            it.original_price,
+            price,
+            Math.round((it.original_price * 0.4) / 500) * 500,
+            String(day),
+          ],
+        );
+        // Mỗi đơn tối đa 5 suất (ràng buộc chk_orders_quantity_range) nên tách đơn khi bán nhiều hơn
+        const parts = sold > 5 ? [5, sold - 5] : [sold];
+        for (let n = 0; n < parts.length; n++) {
+          const buyer = buyers[(day + k + n) % buyers.length].id;
+          await q(
+            `insert into orders (id, code, customer_id, store_id, offer_id, quantity, unit_price, discount_amount, total_amount,
+               status, hold_expires_at, paid_at, picked_up_at, created_at, updated_at)
+             values ($1,$2,$3,$4,$5,$6,$7,0,$8,'PICKED_UP',
+               date_trunc('day', now() - ($9 || ' days')::interval) + interval '17 hours 10 minutes',
+               date_trunc('day', now() - ($9 || ' days')::interval) + interval '17 hours 5 minutes',
+               date_trunc('day', now() - ($9 || ' days')::interval) + interval '18 hours',
+               date_trunc('day', now() - ($9 || ' days')::interval) + interval '17 hours',
+               date_trunc('day', now() - ($9 || ' days')::interval) + interval '18 hours')`,
+            [
+              randomUUID(),
+              'SQH' + randomUUID().replace(/-/g, '').slice(0, 9).toUpperCase(),
+              buyer,
+              STORE_A,
+              offerId,
+              parts[n],
+              price,
+              price * parts[n],
+              String(day),
+            ],
+          );
+        }
+      }
+    }
+  }
+}
+
+// 3e. Kịch bản Phòng mô phỏng của quán A (gói PRO): giảm 30% trên dữ liệu bán 21 ngày ở trên
+const scenarios = await call('GET', '/store/rescue-lab/scenarios', { token: owner });
+const scenarioList = Array.isArray(scenarios.body) ? scenarios.body : (scenarios.body?.data ?? []);
+if (scenarios.status < 300 && scenarioList.length === 0) {
+  const day = (d) => new Date(Date.now() - d * 86400_000).toISOString().slice(0, 10);
+  const created = must(
+    await call('POST', '/store/rescue-lab/scenarios', {
+      token: owner,
+      body: {
+        title: 'Giảm 30% cho suất cuối ngày',
+        objective: 'REDUCE_SURPLUS',
+        dateRangeStart: day(21),
+        dateRangeEnd: day(1),
+        discountRatio: 0.3,
+        note: 'Thử hạ giá thêm 30% cho các suất còn dư sau 19h',
+      },
+    }),
+    'tạo kịch bản mô phỏng',
+  );
+  // Tạo kịch bản đã tự chạy mô phỏng trên dữ liệu bán ở trên (trạng thái COMPLETED).
+  if (created.latestVersion?.simulationStatus !== 'COMPLETED')
+    console.warn('Kịch bản mô phỏng chưa hoàn tất:', created.latestVersion?.simulationStatus);
+}
+
+// Làm mới khung giờ nhận của các suất đang mở để luôn nhận được hàng ngay khi thử (chỉ suất sắp hết giờ)
+await q(
+  `update offers set pickup_start = now() - interval '1 hour', pickup_end = now() + interval '9 hours', expires_at = now() + interval '9 hours'
+   where status = 'OPEN' and pickup_end < now() + interval '6 hours'`,
+);
+
 // ---------- 4. Tóm tắt ----------
 const rows = await q(
   `select u.email, u.role, coalesce(m.permission::text,'-') perm, coalesce(s.name,'-') store, coalesce(sub.plan::text,'-') plan,
           (select count(*) from orders o where o.customer_id=u.id)::int orders
    from users u left join store_members m on m.user_id=u.id left join stores s on s.id=m.store_id left join subscriptions sub on sub.store_id=s.id
    where u.email like 'kh.%@surplusiq.vn' or u.email like '%hanoi@surplusiq.vn' or u.email like 'chuthucan.choduyet%'
+      or u.email in ('customer@surplusiq.vn','owner@rincon.vn','demo.quanly@surplusiq.vn')
    order by u.role, u.email`,
 );
 console.table(rows);
