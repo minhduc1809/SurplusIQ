@@ -4211,5 +4211,16 @@
     "perm": "OWNER, MANAGER",
     "plan": "",
     "pub": ""
+  },
+  {
+    "file": "backend/src/modules/customer-profile/customer-profile.controller.ts",
+    "line": 156,
+    "method": "GET",
+    "path": "/customer/account-status",
+    "roles": "CUSTOMER",
+    "chan": "CUSTOMER",
+    "perm": "",
+    "plan": "",
+    "pub": ""
   }
 ]
