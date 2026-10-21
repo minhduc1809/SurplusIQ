@@ -44,12 +44,14 @@ fun OsmMapView(
     zoomLevel: Double = 15.0,
     radiusKm: Double? = null,
     pins: List<MapPin> = emptyList(),
+    userLocation: Pair<Double, Double>? = null,
     isCenterPinMode: Boolean = false,
     onCenterChanged: ((lat: Double, lng: Double) -> Unit)? = null,
     onPinClick: ((pin: MapPin) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
+    var lastCenter by remember { mutableStateOf(centerLatitude to centerLongitude) }
 
     LaunchedEffect(Unit) {
         Configuration.getInstance().userAgentValue = "SurplusIQ-Android"
@@ -131,6 +133,29 @@ fun OsmMapView(
                         }
                     }
                     mapView.overlays.add(marker)
+                }
+
+                // Chấm xanh vị trí hiện tại của người dùng
+                userLocation?.let { (lat, lng) ->
+                    mapView.overlays.add(
+                        Marker(mapView).apply {
+                            position = GeoPoint(lat, lng)
+                            title = "Bạn đang ở đây"
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                            icon = GradientDrawable().apply {
+                                shape = GradientDrawable.OVAL
+                                setColor(AndroidColor.parseColor("#1E88E5"))
+                                setStroke(6, AndroidColor.WHITE)
+                                setSize(44, 44)
+                            }
+                        }
+                    )
+                }
+
+                // Tâm đổi (vd. vừa định vị xong) thì dời bản đồ tới đó, trừ chế độ kéo ghim
+                if (!isCenterPinMode && lastCenter != (centerLatitude to centerLongitude)) {
+                    lastCenter = centerLatitude to centerLongitude
+                    mapView.controller.animateTo(centerGeo)
                 }
 
                 mapView.invalidate()

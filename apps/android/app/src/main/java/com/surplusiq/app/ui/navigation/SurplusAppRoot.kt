@@ -1253,6 +1253,11 @@ fun SurplusAppRoot(
                                 isMapLoading = discoveryState.isMapLoading,
                                 mapErrorMessage = discoveryState.mapErrorMessage,
                                 onLoadMap = { discoveryViewModel.loadMapPins() },
+                                userLocation = placesState.deviceLocation?.let { it.latitude to it.longitude },
+                                isLocating = placesState.isLocating,
+                                locateError = placesState.locateError,
+                                onLocateMe = { placesViewModel.locateMe() },
+                                onLocatePermissionDenied = { placesViewModel.reportLocatePermissionDenied() },
                                 onOpenStore = { storeId ->
                                     storeViewModel.openStore(storeId)
                                     currentDestination = AppDestination.StoreDetail(storeId)

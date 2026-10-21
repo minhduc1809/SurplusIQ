@@ -81,6 +81,11 @@ fun DiscoverHomeScreen(
     isMapLoading: Boolean = false,
     mapErrorMessage: String? = null,
     onLoadMap: () -> Unit = {},
+    userLocation: Pair<Double, Double>? = null,
+    isLocating: Boolean = false,
+    locateError: String? = null,
+    onLocateMe: () -> Unit = {},
+    onLocatePermissionDenied: () -> Unit = {},
     onOpenStore: (storeId: String) -> Unit = {},
     isLoading: Boolean = false,
     errorMessage: String? = null,
@@ -299,6 +304,11 @@ fun DiscoverHomeScreen(
                 errorMessage = mapErrorMessage,
                 onLoad = onLoadMap,
                 onOpenStore = onOpenStore,
+                userLocation = userLocation,
+                isLocating = isLocating,
+                locateError = locateError,
+                onLocateMe = onLocateMe,
+                onLocatePermissionDenied = onLocatePermissionDenied,
                 modifier = Modifier.fillMaxSize()
             )
         } else {

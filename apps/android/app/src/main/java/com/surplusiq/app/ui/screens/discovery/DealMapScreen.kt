@@ -10,7 +10,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Storefront
+import com.surplusiq.app.ui.components.rememberLocationPermissionRequest
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,15 +45,22 @@ fun DealMapScreen(
     errorMessage: String?,
     onLoad: () -> Unit,
     onOpenStore: (storeId: String) -> Unit,
+    userLocation: Pair<Double, Double>? = null,
+    isLocating: Boolean = false,
+    locateError: String? = null,
+    onLocateMe: () -> Unit = {},
+    onLocatePermissionDenied: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val requestLocation = rememberLocationPermissionRequest(onGranted = onLocateMe, onDenied = onLocatePermissionDenied)
     val context = LocalContext.current
     var selectedPin by remember { mutableStateOf<MapPin?>(null) }
 
     val centerLat = location.latitude ?: pins.firstOrNull()?.latitude ?: DefaultMapCenter.LATITUDE
     val centerLng = location.longitude ?: pins.firstOrNull()?.longitude ?: DefaultMapCenter.LONGITUDE
 
-    LaunchedEffect(Unit) { onLoad() }
+    // Tải lại ghim khi vị trí hoặc bán kính đổi (vd. vừa bấm định vị)
+    LaunchedEffect(location.latitude, location.longitude, location.radiusKm) { onLoad() }
 
     Box(modifier.fillMaxSize()) {
         // Bản đồ mở OsmDroid
@@ -61,6 +70,7 @@ fun DealMapScreen(
             zoomLevel = 14.5,
             radiusKm = if (location.hasCoordinates) location.radiusKm else null,
             pins = pins,
+            userLocation = userLocation,
             onPinClick = { pin -> selectedPin = pin },
             modifier = Modifier.fillMaxSize()
         )
@@ -105,6 +115,7 @@ fun DealMapScreen(
                     Modifier.fillMaxWidth().padding(top = 6.dp),
                     color = ForestGreenPrimary
                 )
+                locateError != null -> MapBanner(locateError, actionLabel = null, onAction = {})
                 errorMessage != null -> MapBanner(errorMessage, actionLabel = "Thử lại", onAction = onLoad)
                 pins.isEmpty() -> MapBanner(
                     if (location.hasCoordinates) "Chưa có cửa hàng nào có deal đang mở trong bán kính này."
@@ -112,6 +123,22 @@ fun DealMapScreen(
                     actionLabel = null,
                     onAction = {}
                 )
+            }
+        }
+
+        // Nút định vị vị trí hiện tại (đặt phía trên cụm nút zoom)
+        SmallFloatingActionButton(
+            onClick = requestLocation,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = ForestGreenDark,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 112.dp)
+        ) {
+            if (isLocating) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = ForestGreenPrimary)
+            } else {
+                Icon(Icons.Default.MyLocation, contentDescription = "Định vị vị trí của tôi")
             }
         }
 
