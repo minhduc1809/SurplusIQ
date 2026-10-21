@@ -498,9 +498,27 @@ describe('OrdersService', () => {
     it('phải trả về các đơn đang hoạt động của khách', async () => {
       mockOrderRepo.find.mockResolvedValue([mockOrder]);
 
+      const qb = {
+        leftJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          {
+            offer_id: mockOrder.offerId,
+            store_name: 'Quán A',
+            item_name: 'Phở bò',
+            pickup_start: '2026-10-22T10:00:00.000Z',
+            pickup_end: '2026-10-22T12:00:00.000Z',
+          },
+        ]),
+      };
+      mockOfferRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
       const result = await service.getCustomerActiveOrders(mockCustomerId);
 
       expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ storeName: 'Quán A', itemName: 'Phở bò' });
+      expect(result[0].offer?.pickupEnd).toBe('2026-10-22T12:00:00.000Z');
       expect(mockOrderRepo.find).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
