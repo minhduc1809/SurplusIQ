@@ -201,7 +201,7 @@ fun DealDetailScreen(
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = "${deal.remainingStock} left",
+                        text = "Còn ${deal.remainingStock} suất",
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold

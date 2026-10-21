@@ -145,7 +145,9 @@ data class RadarDeal(
 /** K21: suất gợi ý kèm lý do có căn cứ do máy chủ tính từ lịch sử thật của khách. */
 data class ForYouDeal(
     val deal: Deal,
-    val reasons: List<String>
+    val reasons: List<String>,
+    /** Điểm xếp hạng thật từ máy chủ (khoảng cách, giờ nhận, giảm giá, thói quen...). */
+    val score: Double = 0.0
 )
 
 data class ForYouResult(

@@ -53,7 +53,8 @@ fun DealCard(
     deal: Deal,
     onDealClick: (Deal) -> Unit,
     onFavoriteToggle: (Deal) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    footer: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     // Sắp hết suất hoặc sắp hết giờ nhận: nhãn cam để nhắc khách; còn nhiều: nhãn xanh lá
     val scarce = deal.remainingStock <= 3 || deal.isUrgent
@@ -222,6 +223,7 @@ fun DealCard(
                         Text(vnd(deal.discountPrice), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenDark)
                     }
                 }
+                footer?.let { it() }
             }
         }
     }

@@ -645,7 +645,8 @@ fun SurplusAppRoot(
                 onBackClick = { currentDestination = AppDestination.MainTabs },
                 onRetry = { discoveryViewModel.loadForYou() },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = AppDestination.ForYou) },
-                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) }
+                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) },
+                onCustomize = { currentDestination = AppDestination.DietaryProfile }
             )
         }
 

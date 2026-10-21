@@ -245,7 +245,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
                                     isFavorite = favoriteOverrides[dto.storeId] ?: false,
                                     isUrgent = dto.minutesLeftToPickup <= 30
                                 ),
-                                reasons = dto.forYouReasons
+                                reasons = dto.forYouReasons,
+                                score = dto.forYouScore
                             )
                         },
                         excludedByDietary = body.meta.excludedByDietary,
