@@ -54,6 +54,8 @@ class AuthViewModel @Inject constructor(
 
     private var otpTimerJob: Job? = null
 
+    fun setRememberLogin(remember: Boolean) = authRepository.setRememberLogin(remember)
+
     fun onPhoneChanged(newPhone: String) {
         _uiState.value = _uiState.value.copy(phone = newPhone, errorMessage = null)
     }

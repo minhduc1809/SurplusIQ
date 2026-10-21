@@ -18,6 +18,7 @@ interface AuthRepository {
     suspend fun setTwoFactor(enabled: Boolean, password: String): Result<Boolean>
     suspend fun getSessions(): Result<List<LoginSession>>
     suspend fun revokeSession(sessionId: String): Result<Boolean>
+    fun setRememberLogin(remember: Boolean)
     fun isLoggedIn(): Boolean
     fun getCurrentUserName(): String
 }

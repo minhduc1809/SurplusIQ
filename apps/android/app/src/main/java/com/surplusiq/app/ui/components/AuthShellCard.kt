@@ -1,17 +1,18 @@
 package com.surplusiq.app.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,88 +23,157 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.surplusiq.app.ui.theme.ForestGreenPrimary
-import com.surplusiq.app.ui.theme.ForestGreenDark
-import com.surplusiq.app.ui.theme.SkyBlueContainer
-import com.surplusiq.app.ui.theme.SurfaceWhite
-import com.surplusiq.app.ui.theme.SurfaceSubtle
+import com.surplusiq.app.R
 import com.surplusiq.app.ui.theme.DividerColor
+import com.surplusiq.app.ui.theme.ForestGreenDark
+import com.surplusiq.app.ui.theme.ForestGreenPrimary
+import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SkyBlueLight
+import com.surplusiq.app.ui.theme.SurfaceWhite
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
+import com.surplusiq.app.ui.theme.TextSecondary
 
-/** Nền field đậm hơn SurfaceSubtle (#F7F1EA) để tách bạch rõ với card trắng -
- * trước đây 2 màu quá gần nhau khiến field gần như vô hình trên card. */
-private val FieldFillColor = Color(0xFFF1EBE0)
+private val FieldFillColor = Color(0xFFF8F4F0)
 
 /**
- * Khung dùng chung cho toàn bộ luồng Auth (Đăng nhập/Đăng ký/OTP/Quên mật khẩu):
- * nền pastel coral full-bleed + card trắng bo tròn lớn nổi lên trên, nút quay lại
- * hình tròn góc trên trái. Theo đúng phong cách tham khảo người dùng gửi, đổi
- * sang token màu SurplusIQ (sqCoralWash/sqSurface/sqCoralDeep).
+ * Khung dùng chung cho luồng Auth: nền cam nhạt có dải gradient phía trên (nút "Quay lại" bên trái, logo bên phải),
+ * thẻ trắng bo góc lớn nổi lên từ dưới. [showBrandMark] hiện biểu tượng app và khẩu hiệu ở đầu (màn Đăng nhập).
  */
 @Composable
 fun AuthShellCard(
     modifier: Modifier = Modifier,
     onBackClick: (() -> Unit)? = null,
+    showBrandMark: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Box(modifier = modifier.fillMaxSize().background(SurfaceWhite)) {
-        if (onBackClick != null) {
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier
-                    .padding(top = 48.dp, start = 20.dp)
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceSubtle)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = ForestGreenDark)
-            }
-        }
-
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFFFFE3D0), Color(0xFFFFF3EA), SurfaceWhite)))
+    ) {
         Column(
-            modifier = Modifier
+            Modifier
                 .fillMaxSize()
-                .padding(top = if (onBackClick != null) 108.dp else 72.dp, bottom = 32.dp)
-                .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .imePadding()
         ) {
-            Box(
+            // Thanh trên: Quay lại + logo
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onBackClick != null) {
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.White.copy(alpha = 0.85f))
+                            .clickable(onClick = onBackClick)
+                            .padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
+                        Text("Quay lại", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    }
+                } else {
+                    Spacer(Modifier.width(1.dp))
+                }
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.85f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.logo_surplusiq),
+                        contentDescription = "SurplusIQ",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.height(26.dp)
+                    )
+                }
+            }
+
+            if (showBrandMark) {
+                Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier
+                            .size(76.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Brush.linearGradient(listOf(SkyBlueLight, ForestGreenPrimary))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.logo_surplusiq_icon),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(44.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "ẨM THỰC THÔNG MINH • KHÔNG LÃNG PHÍ",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ForestGreenDark,
+                        letterSpacing = 0.6.sp
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(24.dp))
+            }
+
+            // Thẻ trắng nổi, chiếm hết phần còn lại của màn hình
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(28.dp))
+                    .weight(1f, fill = false)
+                    .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
                     .background(SurfaceWhite)
-                    .padding(24.dp)
-            ) {
-                Column(content = content)
-            }
+                    .padding(horizontal = 24.dp, vertical = 28.dp)
+                    .navigationBarsPadding(),
+                content = content
+            )
         }
     }
 }
 
 @Composable
 fun AuthHeading(title: String, subtitle: String) {
-    Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenDark)
-    Spacer(modifier = Modifier.height(6.dp))
-    Text(text = subtitle, fontSize = 13.sp, color = Color(0xFF536164), lineHeight = 18.sp)
+    Text(text = title, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(text = subtitle, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     Spacer(modifier = Modifier.height(24.dp))
 }
 
 @Composable
-fun AuthFieldLabel(text: String) {
-    Text(text = text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF243033))
+fun AuthFieldLabel(text: String, upper: Boolean = false) {
+    Text(
+        text = if (upper) text.uppercase() else text,
+        fontSize = if (upper) 11.sp else 13.sp,
+        fontWeight = FontWeight.Bold,
+        color = if (upper) TextSecondary else TextPrimary,
+        letterSpacing = if (upper) 0.8.sp else 0.sp
+    )
     Spacer(modifier = Modifier.height(6.dp))
 }
 
-/** Field pill xám nhạt theo đúng phong cách tham khảo - label đậm phía trên, không viền trừ khi focus. */
+/** Ô nhập bo 16dp nền kem; [leadingIcon] hiện biểu tượng đầu dòng, [upperLabel] viết hoa nhãn như bản thiết kế. */
 @Composable
 fun AuthField(
     label: String,
@@ -112,22 +182,28 @@ fun AuthField(
     placeholder: String,
     keyboardType: KeyboardType = KeyboardType.Text,
     visualTransformation: VisualTransformation = VisualTransformation.None,
-    trailingIcon: (@Composable () -> Unit)? = null
+    trailingIcon: (@Composable () -> Unit)? = null,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    upperLabel: Boolean = false
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val borderColor = if (isFocused) ForestGreenPrimary else DividerColor
 
-    AuthFieldLabel(label)
+    AuthFieldLabel(label, upperLabel)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(50.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(54.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(FieldFillColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(14.dp))
+            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (leadingIcon != null) {
+            leadingIcon()
+            Spacer(Modifier.width(10.dp))
+        }
         Box(modifier = Modifier.weight(1f)) {
             BasicTextField(
                 value = value,
@@ -148,46 +224,56 @@ fun AuthField(
     }
 }
 
+/** Nút chính gradient cam, mũi tên bên phải khi [withArrow]. */
 @Composable
-fun AuthPrimaryButton(text: String, isLoading: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        enabled = enabled && !isLoading,
-        modifier = Modifier.fillMaxWidth().height(50.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary, disabledContainerColor = ForestGreenPrimary.copy(alpha = 0.5f))
+fun AuthPrimaryButton(text: String, isLoading: Boolean, enabled: Boolean = true, withArrow: Boolean = false, onClick: () -> Unit) {
+    val active = enabled && !isLoading
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                if (active) Brush.horizontalGradient(listOf(SkyBlueLight, ForestGreenPrimary))
+                else SolidColor(ForestGreenPrimary.copy(alpha = 0.45f))
+            )
+            .clickable(enabled = active, onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
-            CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(20.dp))
+            CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(22.dp))
         } else {
-            Text(text = text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                if (withArrow) {
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+            }
         }
     }
 }
 
-/** Divider "HOẶC" dùng giữa nút hành động chính và nút đăng nhập Google. */
+/** Đường kẻ kèm chữ giữa (vd. "HOẶC TIẾP TỤC VỚI"). */
 @Composable
-fun AuthDividerOr() {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+fun AuthDividerOr(text: String = "HOẶC") {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
         HorizontalDivider(modifier = Modifier.weight(1f), color = DividerColor)
-        Text(text = "HOẶC", fontSize = 11.sp, color = TextMuted, modifier = Modifier.padding(horizontal = 10.dp))
+        Text(text = text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextMuted, letterSpacing = 0.6.sp, modifier = Modifier.padding(horizontal = 12.dp))
         HorizontalDivider(modifier = Modifier.weight(1f), color = DividerColor)
     }
 }
 
-/**
- * Nút đăng nhập Google - viền trắng, bo góc 12dp (giống AuthPrimaryButton, không phải pill).
- * Không có asset logo Google nhiều màu trong project nên dùng badge chữ "G" đơn giản làm stand-in.
- */
+/** Nút Google viền kem, bo 16dp. Project không có logo Google nhiều màu nên dùng chữ "G" làm biểu tượng. */
 @Composable
 fun AuthGoogleButton(text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(50.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .height(54.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(SurfaceWhite)
-            .border(1.5.dp, DividerColor, RoundedCornerShape(12.dp))
+            .border(1.5.dp, DividerColor, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically

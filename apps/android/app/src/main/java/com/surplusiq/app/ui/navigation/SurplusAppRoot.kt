@@ -237,7 +237,13 @@ fun SurplusAppRoot(
     val displayName = profileUiState.userProfile?.fullName?.takeIf { it.isNotBlank() } ?: authState.fullName
     LaunchedEffect(authState.isLoggedIn) { if (authState.isLoggedIn) profileViewModel.loadProfile() }
     var selectedTab by remember { mutableStateOf(NavTab.DISCOVER) }
-    LaunchedEffect(selectedTab, authState.isLoggedIn) { if (selectedTab == NavTab.ME && authState.isLoggedIn) interactionsViewModel.loadImpact() }
+    LaunchedEffect(selectedTab, authState.isLoggedIn) {
+        if (selectedTab == NavTab.ME && authState.isLoggedIn) {
+            interactionsViewModel.loadImpact()
+            rewardsViewModel.load()
+            myOrdersViewModel.loadOrders()
+        }
+    }
     val onboardingPrefs = remember { context.getSharedPreferences("surplusiq_session_prefs", android.content.Context.MODE_PRIVATE) }
     val initialDestination = remember {
         if (!onboardingPrefs.getBoolean("key_onboarding_completed", false)) {
@@ -290,6 +296,7 @@ fun SurplusAppRoot(
                         onPhoneChange = { authViewModel.onPhoneChanged(it) },
                         onPasswordChange = { authViewModel.onPasswordChanged(it) },
                         onLoginClick = { authViewModel.login() },
+                        onRememberLoginChange = { authViewModel.setRememberLogin(it) },
                         onTwoFactorCodeChange = { authViewModel.onTwoFactorCodeChanged(it) },
                         onSubmitTwoFactor = { authViewModel.submitTwoFactor() },
                         onResendTwoFactor = { authViewModel.resendTwoFactor() },
@@ -1320,7 +1327,15 @@ fun SurplusAppRoot(
                         }
 
                         NavTab.ME -> {
+                            val waitingOrders = myOrdersState.activeOrders.filter { it.status == com.surplusiq.app.domain.model.OrderStatus.PAID_WAITING_PICKUP }
                             ProfileScreen(
+                                pointsBalance = if (rewardsState.isLoading) null else rewardsState.pointsBalance,
+                                upcomingOrdersCount = waitingOrders.size,
+                                upcomingPickupWindow = waitingOrders.firstOrNull()?.pickupWindow,
+                                locationLabel = discoveryState.location.label,
+                                radiusKm = discoveryState.location.radiusKm.takeIf { discoveryState.location.hasCoordinates },
+                                unreadNotificationCount = notificationsState.unreadCount,
+                                onOpenNotifications = { currentDestination = AppDestination.Notifications },
                                 userName = displayName,
                                 userPhone = profileUiState.userProfile?.phone?.takeIf { it.isNotBlank() } ?: authState.phone,
                                 avatarUrl = profileUiState.userProfile?.avatarUrl,

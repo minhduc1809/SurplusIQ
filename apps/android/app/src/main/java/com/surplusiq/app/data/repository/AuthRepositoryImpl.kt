@@ -257,6 +257,8 @@ class AuthRepositoryImpl @Inject constructor(
         Result.failure(Exception("Không kết nối được. Kiểm tra mạng rồi thử lại."))
     }
 
+    override fun setRememberLogin(remember: Boolean) = sessionManager.setRememberLogin(remember)
+
     override fun isLoggedIn(): Boolean = sessionManager.isLoggedIn()
 
     override fun getCurrentUserName(): String = sessionManager.getFullName()

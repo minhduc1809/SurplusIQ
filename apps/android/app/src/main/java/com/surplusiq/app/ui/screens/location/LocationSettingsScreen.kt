@@ -8,7 +8,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmarks
-import androidx.compose.material.icons.filled.EditLocationAlt
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PushPin
@@ -31,6 +34,11 @@ import com.surplusiq.app.ui.components.rememberLocationPermissionRequest
 import com.surplusiq.app.ui.screens.profile.ProfileMenuItem
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
 import com.surplusiq.app.ui.theme.InfoOnLight
+import com.surplusiq.app.ui.theme.MintDeep
+import com.surplusiq.app.ui.theme.SkyBlueIce
+import com.surplusiq.app.ui.theme.ForestGreenDark
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
 import com.surplusiq.app.ui.theme.SkyInfoWash
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
@@ -79,8 +87,9 @@ fun LocationSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Vị trí và bán kính", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                title = { Text("Vị trí & Bán kính", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") } },
+                actions = { TextButton(onClick = onBackClick) { Text("Bỏ qua", color = TextSecondary, fontWeight = FontWeight.SemiBold) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
@@ -95,7 +104,9 @@ fun LocationSettingsScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                         .height(52.dp)
                 ) {
-                    Text("Áp dụng vị trí này", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Áp dụng vị trí & Khám phá", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
                 }
             }
         },
@@ -135,7 +146,7 @@ fun LocationSettingsScreen(
                     modifier = Modifier.align(Alignment.TopStart).padding(12.dp)
                 ) {
                     Text(
-                        "Bán kính ${formatRadius(radiusKm)}",
+                        "PHỦ SÓNG: ${formatRadius(radiusKm)}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = InfoOnLight,
@@ -164,7 +175,23 @@ fun LocationSettingsScreen(
                 }
             }
 
-            // Địa chỉ đang dùng
+            // Giới thiệu
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Tìm deal quanh bạn", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "SurplusIQ chỉ dùng vị trí để gợi ý các suất ăn ngon và ưu đãi giải cứu thực phẩm trong phạm vi bạn chọn. Dữ liệu lưu an toàn trên máy.",
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    lineHeight = 19.sp
+                )
+            }
+
+            // Vị trí sẽ dùng
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -172,44 +199,68 @@ fun LocationSettingsScreen(
             ) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.size(40.dp).clip(CircleShape).background(ForestGreenPrimary.copy(alpha = 0.12f)),
+                        Modifier.size(42.dp).clip(CircleShape).background(ForestGreenPrimary.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
-                    ) { Icon(Icons.Default.LocationOn, contentDescription = null, tint = ForestGreenPrimary) }
+                    ) { Icon(Icons.Default.NearMe, contentDescription = null, tint = ForestGreenPrimary) }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Vị trí tìm deal", fontSize = 12.sp, color = TextSecondary)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("VỊ TRÍ SẼ DÙNG", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenDark, letterSpacing = 0.6.sp)
+                            if (hasPoint) {
+                                Spacer(Modifier.width(8.dp))
+                                Row(
+                                    Modifier.clip(RoundedCornerShape(50)).background(SkyBlueIce).padding(horizontal = 8.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = MintDeep, modifier = Modifier.size(11.dp))
+                                    Spacer(Modifier.width(3.dp))
+                                    Text("Đã xác định", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MintDeep)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             state.selected?.address ?: state.location.label ?: "Chưa chọn - đang hiện deal mọi khu vực",
-                            fontSize = 15.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = TextPrimary,
                             maxLines = 3
+                        )
+                    }
+                    if (hasPoint) {
+                        Text(
+                            "Sửa",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ForestGreenDark,
+                            modifier = Modifier.clickable { showManualEntry = true }.padding(start = 8.dp)
                         )
                     }
                 }
             }
 
             // Hai cách chọn vị trí
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                FilledTonalButton(
-                    onClick = requestPermission,
-                    enabled = !state.isLocating,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.weight(1f).height(48.dp)
-                ) {
-                    Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (state.isLocating) "Đang định vị..." else "Vị trí của tôi", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Button(
+                onClick = requestPermission,
+                enabled = !state.isLocating,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                modifier = Modifier.fillMaxWidth().height(54.dp)
+            ) {
+                if (state.isLocating) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                } else {
+                    Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
-                OutlinedButton(
-                    onClick = { showManualEntry = !showManualEntry },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.weight(1f).height(48.dp)
-                ) {
-                    Icon(Icons.Default.EditLocationAlt, contentDescription = null, modifier = Modifier.size(18.dp), tint = ForestGreenPrimary)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Nhập địa chỉ", color = ForestGreenPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                }
+                Spacer(Modifier.width(8.dp))
+                Text(if (state.isLocating) "Đang định vị..." else "Cho phép dùng vị trí hiện tại", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+            OutlinedButton(
+                onClick = { showManualEntry = !showManualEntry },
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) {
+                Text("Nhập địa chỉ khác thủ công", color = TextPrimary, fontWeight = FontWeight.SemiBold)
             }
             if (showManualEntry) {
                 AddressSearchField(

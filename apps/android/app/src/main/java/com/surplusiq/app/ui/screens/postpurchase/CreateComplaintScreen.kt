@@ -311,7 +311,7 @@ fun CreateComplaintScreen(
             ) {
                 // Display attached photos
                 evidenceImages.forEachIndexed { index, url ->
-                    val fullUrl = if (url.startsWith("http") || url.startsWith("content://")) url else "http://10.0.2.2:4000$url"
+                    val fullUrl = if (url.startsWith("http") || url.startsWith("content://")) url else com.surplusiq.app.BuildConfig.API_BASE_URL.trimEnd('/') + url
                     Box(
                         modifier = Modifier
                             .size(90.dp)

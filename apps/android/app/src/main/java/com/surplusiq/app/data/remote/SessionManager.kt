@@ -23,6 +23,7 @@ class SessionManager @Inject constructor(
         private const val KEY_DEVICE_ID = "key_device_id"
         private const val KEY_BASE_URL = "key_base_url"
         private const val KEY_ONBOARDING_COMPLETED = "key_onboarding_completed"
+        private const val KEY_REMEMBER_LOGIN = "key_remember_login"
         val DEFAULT_BASE_URL: String = com.surplusiq.app.BuildConfig.API_BASE_URL
     }
 
@@ -85,6 +86,13 @@ class SessionManager @Inject constructor(
 
     fun setOnboardingCompleted(completed: Boolean = true) {
         prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
+    }
+
+    /** Ghi nhớ đăng nhập (mặc định bật). Tắt thì phiên bị xóa ở lần mở app kế tiếp. */
+    fun isRememberLogin(): Boolean = prefs.getBoolean(KEY_REMEMBER_LOGIN, true)
+
+    fun setRememberLogin(remember: Boolean) {
+        prefs.edit().putBoolean(KEY_REMEMBER_LOGIN, remember).apply()
     }
 
     fun isLoggedIn(): Boolean = !getAccessToken().isNullOrBlank()
