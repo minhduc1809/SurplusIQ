@@ -85,9 +85,17 @@ fun PrivacyDataScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(state.exportMessage, fontSize = 12.sp, color = ForestGreenPrimary)
                         }
-                        if (state.exportDownloadUrl != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(state.exportDownloadUrl, fontSize = 11.sp, color = TextMuted)
+                        if (state.exportJson != null) {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(onClick = {
+                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Dữ liệu cá nhân SurplusIQ")
+                                    putExtra(android.content.Intent.EXTRA_TEXT, state.exportJson)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(send, "Lưu hoặc gửi bản sao dữ liệu"))
+                            }) { Text("Lưu hoặc gửi bản sao dữ liệu") }
                         }
                     }
                 }

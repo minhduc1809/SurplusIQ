@@ -37,7 +37,8 @@ data class ProfileUiState(
     val deleteRequestedAt: String? = null,
     val isAccountDeleteActionLoading: Boolean = false,
     val accountDeleteMessage: String? = null,
-    val exportDownloadUrl: String? = null,
+    /** Bản sao dữ liệu cá nhân (JSON) để khách chia sẻ/lưu. */
+    val exportJson: String? = null,
     val isExportLoading: Boolean = false,
     val exportMessage: String? = null,
     // R1-077: lịch sử thanh toán & hoàn tiền (K46)
@@ -263,8 +264,8 @@ class ProfileViewModel @Inject constructor(
                 onSuccess = { res ->
                     _uiState.value = _uiState.value.copy(
                         isExportLoading = false,
-                        exportDownloadUrl = res.downloadUrl,
-                        exportMessage = "Liên kết tải dữ liệu đã sẵn sàng, có hiệu lực ${res.expiresInHours} giờ."
+                        exportJson = res.data?.let { com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(it) },
+                        exportMessage = "Đã tạo bản sao dữ liệu cá nhân của bạn."
                     )
                 },
                 onFailure = { err ->
