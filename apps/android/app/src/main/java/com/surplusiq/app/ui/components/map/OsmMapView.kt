@@ -46,12 +46,15 @@ fun OsmMapView(
     pins: List<MapPin> = emptyList(),
     userLocation: Pair<Double, Double>? = null,
     isCenterPinMode: Boolean = false,
+    interactive: Boolean = true,
+    showZoomButtons: Boolean = true,
     onCenterChanged: ((lat: Double, lng: Double) -> Unit)? = null,
     onPinClick: ((pin: MapPin) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     var lastCenter by remember { mutableStateOf(centerLatitude to centerLongitude) }
+    var lastZoom by remember { mutableStateOf(zoomLevel) }
 
     LaunchedEffect(Unit) {
         Configuration.getInstance().userAgentValue = "SurplusIQ-Android"
@@ -62,7 +65,8 @@ fun OsmMapView(
             factory = { ctx ->
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
-                    setMultiTouchControls(true)
+                    setMultiTouchControls(interactive)
+                    if (!interactive) setOnTouchListener { _, _ -> true } // chỉ xem: không bắt cử chỉ, cuộn trang vẫn mượt
                     isTilesScaledToDpi = true
                     zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
 
@@ -153,6 +157,10 @@ fun OsmMapView(
                 }
 
                 // Tâm đổi (vd. vừa định vị xong) thì dời bản đồ tới đó, trừ chế độ kéo ghim
+                if (lastZoom != zoomLevel) {
+                    lastZoom = zoomLevel
+                    mapView.controller.setZoom(zoomLevel)
+                }
                 if (!isCenterPinMode && lastCenter != (centerLatitude to centerLongitude)) {
                     lastCenter = centerLatitude to centerLongitude
                     mapView.controller.animateTo(centerGeo)
@@ -177,6 +185,7 @@ fun OsmMapView(
         }
 
         // Nút điều khiển Zoom tiện lợi
+        if (showZoomButtons) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -208,6 +217,7 @@ fun OsmMapView(
                     Icon(imageVector = Icons.Default.Remove, contentDescription = "Thu nhỏ", tint = ForestGreenDark)
                 }
             }
+        }
         }
     }
 }
