@@ -439,6 +439,7 @@ private fun EmailVerifySheet(viewModel: ProfileViewModel, onDismiss: () -> Unit)
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var preview by remember { mutableStateOf<String?>(null) }
+    var info by remember { mutableStateOf<String?>(null) }
     val emailValid = android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -465,6 +466,7 @@ private fun EmailVerifySheet(viewModel: ProfileViewModel, onDismiss: () -> Unit)
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+                info?.let { Text(it, fontSize = 12.sp, color = TextSecondary) }
                 preview?.let { Text("Môi trường thử nghiệm: mã là $it (chưa gửi email thật).", fontSize = 12.sp, color = TextSecondary) }
             }
             error?.let { Text(it, color = CoralRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
@@ -474,7 +476,7 @@ private fun EmailVerifySheet(viewModel: ProfileViewModel, onDismiss: () -> Unit)
                     if (!sent) {
                         viewModel.requestEmailOtp(email) { ok, msg, pv ->
                             busy = false
-                            if (ok) { sent = true; preview = pv } else error = msg
+                            if (ok) { sent = true; preview = pv; info = if (pv == null) "Đã gửi mã OTP tới ${email.trim()}. Kiểm tra hộp thư (cả mục Spam)." else null } else error = msg
                         }
                     } else {
                         viewModel.confirmEmail(email, code) { ok, msg ->

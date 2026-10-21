@@ -90,7 +90,10 @@ fun ChangePasswordScreen(
                 placeholder = "000000",
                 keyboardType = KeyboardType.NumberPassword
             )
-            if (state.changePasswordOtpPreview != null) {
+            if (state.changePasswordOtpPreview == null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Mã đã gửi về email của bạn. Kiểm tra hộp thư (cả mục Spam).", fontSize = 12.sp, color = TextSecondary)
+            } else {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Môi trường thử nghiệm: mã là ${state.changePasswordOtpPreview} (chưa gửi email thật).",

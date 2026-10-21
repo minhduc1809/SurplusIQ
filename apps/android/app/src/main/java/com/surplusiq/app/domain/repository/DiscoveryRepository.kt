@@ -58,7 +58,7 @@ interface DiscoveryRepository {
     ): Result<List<BasketSuggestion>>
 
     /** K10 (R1-021): điểm ghim cửa hàng có deal đang mở quanh vị trí. */
-    suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<List<MapPin>>
+    suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?, minDiscountPercent: Int? = null): Result<List<MapPin>>
 
     /** K14 (R1-027): chi tiết cửa hàng + deal đang mở. */
     suspend fun getStoreDetail(storeId: String): Result<StoreDetail>

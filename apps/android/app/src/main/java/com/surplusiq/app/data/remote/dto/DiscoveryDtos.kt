@@ -150,6 +150,7 @@ data class MapPinDto(
     @SerializedName("storeId") val storeId: String,
     @SerializedName("storeName") val storeName: String,
     @SerializedName("storeAddress") val storeAddress: String? = null,
+    @SerializedName("storeLogoUrl") val storeLogoUrl: String? = null,
     @SerializedName("latitude") val latitude: Double,
     @SerializedName("longitude") val longitude: Double,
     @SerializedName("activeDealsCount") val activeDealsCount: Int = 0,

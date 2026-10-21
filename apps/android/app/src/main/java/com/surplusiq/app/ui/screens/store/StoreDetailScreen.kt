@@ -58,10 +58,12 @@ fun StoreDetailScreen(
     onReport: (storeId: String, reason: String) -> Unit,
     onDealClick: (Deal) -> Unit,
     onConsumeMessage: () -> Unit,
-    onOpenReviews: (storeId: String) -> Unit = {}
+    onOpenReviews: (storeId: String) -> Unit = {},
+    onLoadReviews: (storeId: String, rating: Int?) -> Unit = { _, _ -> }
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTab by remember { mutableIntStateOf(0) }
+    var reviewFilter by remember { mutableStateOf<Int?>(null) }
     var showMenu by remember { mutableStateOf(false) }
     var showReportDialog by remember { mutableStateOf(false) }
     val store = state.store
@@ -125,8 +127,9 @@ fun StoreDetailScreen(
                         containerColor = MaterialTheme.colorScheme.background,
                         contentColor = ForestGreenPrimary
                     ) {
-                        Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Deal đang có (${detail.activeDeals.size})") })
-                        Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Giới thiệu") })
+                        Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Thực đơn (${detail.activeDeals.size})", maxLines = 1) })
+                        Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Đánh giá${if (detail.reviewsCount > 0) " (${detail.reviewsCount})" else ""}", maxLines = 1) })
+                        Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Thông tin", maxLines = 1) })
                     }
                 }
                 if (selectedTab == 0) {
@@ -147,6 +150,37 @@ fun StoreDetailScreen(
                             onFavoriteToggle = { onToggleFavorite(detail.id) },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
+                    }
+                } else if (selectedTab == 1) {
+                    item {
+                        LaunchedEffect(detail.id, reviewFilter) { onLoadReviews(detail.id, reviewFilter) }
+                        val reviewsData = state.storeReviews
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            when {
+                                state.isStoreReviewsLoading && reviewsData == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(color = ForestGreenPrimary)
+                                }
+                                state.storeReviewsError != null && reviewsData == null -> Text(state.storeReviewsError, color = CoralRed, fontSize = 13.sp)
+                                else -> {
+                                    RatingSummaryCard(
+                                        averageRating = reviewsData?.averageRating ?: 0.0,
+                                        totalReviews = reviewsData?.totalReviews ?: 0,
+                                        distribution = reviewsData?.distribution ?: emptyMap()
+                                    )
+                                    RatingFilterChips(selectedRating = reviewFilter, onSelectRating = { reviewFilter = it })
+                                    val reviews = reviewsData?.reviews.orEmpty()
+                                    if (reviews.isEmpty()) {
+                                        Text(
+                                            if (reviewFilter != null) "Chưa có đánh giá ${reviewFilter} sao nào." else "Quán chưa có đánh giá nào.",
+                                            fontSize = 13.sp,
+                                            color = TextSecondary
+                                        )
+                                    } else {
+                                        reviews.forEach { StoreReviewItemCard(review = it) }
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
                     item { StoreAbout(detail) }

@@ -1060,7 +1060,8 @@ fun SurplusAppRoot(
                 onReport = { storeId, reason -> storeViewModel.reportStore(storeId, reason) },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = dest) },
                 onConsumeMessage = { storeViewModel.consumeMessage() },
-                onOpenReviews = { storeId -> currentDestination = AppDestination.StoreReviews(storeId, back = dest) }
+                onOpenReviews = { storeId -> currentDestination = AppDestination.StoreReviews(storeId, back = dest) },
+                onLoadReviews = { storeId, rating -> storeViewModel.loadStoreReviews(storeId, rating) }
             )
         }
 

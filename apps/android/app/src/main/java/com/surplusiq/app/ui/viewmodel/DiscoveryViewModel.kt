@@ -134,7 +134,7 @@ class DiscoveryViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isMapLoading = true, mapErrorMessage = null)
             val location = _uiState.value.location
-            discoveryRepository.getMapPins(location.latitude, location.longitude, location.radiusKm).fold(
+            discoveryRepository.getMapPins(location.latitude, location.longitude, location.radiusKm, _uiState.value.minDiscountPercent).fold(
                 onSuccess = { _uiState.value = _uiState.value.copy(mapPins = it, isMapLoading = false) },
                 onFailure = { _uiState.value = _uiState.value.copy(isMapLoading = false, mapErrorMessage = it.message) }
             )
@@ -193,6 +193,7 @@ class DiscoveryViewModel @Inject constructor(
             sortBy = sortBy
         )
         loadDeals()
+        loadMapPins()
     }
 
     fun resetFilterSort() {
@@ -201,6 +202,7 @@ class DiscoveryViewModel @Inject constructor(
             sortBy = null
         )
         loadDeals()
+        loadMapPins()
     }
 
     fun loadForYou() {

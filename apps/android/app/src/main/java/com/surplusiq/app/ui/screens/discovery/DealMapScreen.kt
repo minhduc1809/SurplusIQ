@@ -5,6 +5,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
@@ -71,6 +78,9 @@ fun DealMapScreen(
     val centerLat = location.latitude ?: pins.firstOrNull()?.latitude ?: DefaultMapCenter.LATITUDE
     val centerLng = location.longitude ?: pins.firstOrNull()?.longitude ?: DefaultMapCenter.LONGITUDE
 
+    // Mở bản đồ là định vị luôn để hiện chấm vị trí của tôi
+    LaunchedEffect(Unit) { if (userLocation == null) requestLocation() }
+
     // Tải lại ghim khi vị trí hoặc bán kính đổi (vd. vừa bấm định vị)
     LaunchedEffect(location.latitude, location.longitude, location.radiusKm) { onLoad() }
 
@@ -84,6 +94,7 @@ fun DealMapScreen(
             pins = shownPins,
             selectedStoreId = selectedPin?.storeId,
             userLocation = userLocation,
+            showZoomButtons = false,
             onPinClick = { pin -> selectedPin = pin },
             modifier = Modifier.fillMaxSize()
         )
@@ -157,46 +168,125 @@ fun DealMapScreen(
             }
         }
 
-        // Nút định vị vị trí hiện tại (đặt phía trên cụm nút zoom)
-        SmallFloatingActionButton(
-            onClick = requestLocation,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = ForestGreenDark,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 112.dp)
+        // Đáy màn hình: nút định vị, rồi thẻ quán đang chọn hoặc danh sách quán gần bạn
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 8.dp),
+            horizontalAlignment = Alignment.End
         ) {
-            if (isLocating) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = ForestGreenPrimary)
-            } else {
-                Icon(Icons.Default.MyLocation, contentDescription = "Định vị vị trí của tôi")
+            SmallFloatingActionButton(
+                onClick = requestLocation,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = ForestGreenDark,
+                modifier = Modifier.padding(end = 16.dp, bottom = 10.dp)
+            ) {
+                if (isLocating) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = ForestGreenPrimary)
+                } else {
+                    Icon(Icons.Default.MyLocation, contentDescription = "Định vị vị trí của tôi")
+                }
             }
-        }
-
-        // Card chi tiết ghim quán khi người dùng chạm vào marker
-        AnimatedVisibility(
-            visible = selectedPin != null,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(16.dp)
-        ) {
-            selectedPin?.let { pin ->
+            val pin = selectedPin
+            if (pin != null) {
                 PinSummaryCard(
                     pin = pin,
                     onDirections = {
-                        NavigationUtil.openMapOrCopyAddress(
-                            context,
-                            pin.storeAddress,
-                            pin.storeName,
-                            pin.latitude,
-                            pin.longitude
-                        )
+                        NavigationUtil.openMapOrCopyAddress(context, pin.storeAddress, pin.storeName, pin.latitude, pin.longitude)
                     },
-                    onOpenStore = { onOpenStore(pin.storeId) }
+                    onOpenStore = { onOpenStore(pin.storeId) },
+                    onClose = { selectedPin = null },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            } else if (shownPins.isNotEmpty()) {
+                NearbyStoresPanel(
+                    pins = shownPins,
+                    onSelect = { selectedPin = it },
+                    onDirections = { p ->
+                        NavigationUtil.openMapOrCopyAddress(context, p.storeAddress, p.storeName, p.latitude, p.longitude)
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
+        }
+    }
+}
+
+/** Danh sách quán trong bán kính, gần nhất trước; mỗi dòng có nút Chỉ đường, chạm dòng để xem quán. */
+@Composable
+private fun NearbyStoresPanel(
+    pins: List<MapPin>,
+    onSelect: (MapPin) -> Unit,
+    onDirections: (MapPin) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val sorted = remember(pins) { pins.sortedBy { it.distanceMeters ?: Double.MAX_VALUE } }
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 10.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column {
+            Row(
+                Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Quán gần bạn (${sorted.size})", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(if (expanded) "Thu gọn" else "Xem hết", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ForestGreenPrimary)
+            }
+            LazyColumn(
+                Modifier.fillMaxWidth().heightIn(max = if (expanded) 380.dp else 170.dp),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 10.dp)
+            ) {
+                items(sorted, key = { it.storeId }) { pin ->
+                    StoreRow(pin, onClick = { onSelect(pin) }, onDirections = { onDirections(pin) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoreRow(pin: MapPin, onClick: () -> Unit, onDirections: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(ForestGreenPrimary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!pin.logoUrl.isNullOrBlank()) {
+                coil.compose.AsyncImage(model = pin.logoUrl, contentDescription = pin.storeName, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Text(pin.storeName.trim().take(1).uppercase().ifEmpty { "?" }, fontWeight = FontWeight.Bold, color = ForestGreenDark)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(pin.storeName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOfNotNull(
+                    "${pin.activeDealsCount} suất",
+                    pin.minPrice?.let { "từ ${String.format("%,d", it)}₫" },
+                    pin.distanceText
+                ).joinToString(" · "),
+                fontSize = 12.sp,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        OutlinedButton(
+            onClick = onDirections,
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            modifier = Modifier.height(36.dp)
+        ) {
+            Icon(Icons.Default.Directions, contentDescription = null, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Chỉ đường", fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -242,12 +332,12 @@ private fun MapBanner(message: String, actionLabel: String?, onAction: () -> Uni
 }
 
 @Composable
-private fun PinSummaryCard(pin: MapPin, onDirections: () -> Unit, onOpenStore: () -> Unit) {
+private fun PinSummaryCard(pin: MapPin, onDirections: () -> Unit, onOpenStore: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -274,6 +364,9 @@ private fun PinSummaryCard(pin: MapPin, onDirections: () -> Unit, onOpenStore: (
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Đóng", tint = TextMuted, modifier = Modifier.size(18.dp))
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -316,7 +409,7 @@ private fun PinSummaryCard(pin: MapPin, onDirections: () -> Unit, onOpenStore: (
                         .weight(1.3f)
                         .height(40.dp)
                 ) {
-                    Text("Xem chi tiết", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Xem thực đơn & đánh giá", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -65,3 +65,30 @@ internal fun pinBubbleDrawable(context: Context, pin: MapPin, selected: Boolean)
 }
 
 private fun ellipsize(text: String, max: Int) = if (text.length <= max) text else text.take(max - 1).trimEnd() + "…"
+
+/** Chấm xanh vị trí người dùng, có nhãn tối phía trên. */
+internal fun userLocationDrawable(context: Context, label: String): Drawable {
+    val d = context.resources.displayMetrics.density
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); textSize = 12f * d; typeface = Typeface.DEFAULT_BOLD }
+    val padX = 10f * d
+    val padY = 5f * d
+    val pillW = textPaint.measureText(label) + padX * 2
+    val pillH = 12f * d + padY * 2
+    val tail = 6f * d
+    val dot = 22f * d
+    val w = pillW + 8f * d
+    val h = pillH + tail + dot + 8f * d
+    val bmp = Bitmap.createBitmap(w.toInt(), h.toInt(), Bitmap.Config.ARGB_8888)
+    val c = Canvas(bmp)
+    val cx = w / 2
+    val pill = RectF(cx - pillW / 2, 2f * d, cx + pillW / 2, 2f * d + pillH)
+    val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1E1E2A.toInt() }
+    c.drawRoundRect(pill, pillH / 2, pillH / 2, bg)
+    c.drawPath(Path().apply { moveTo(cx - tail, pill.bottom - 1f); lineTo(cx, pill.bottom + tail); lineTo(cx + tail, pill.bottom - 1f); close() }, bg)
+    c.drawText(label, pill.left + padX, pill.top + padY + 11f * d, textPaint)
+    val cy = pill.bottom + tail + dot / 2 + 2f * d
+    c.drawCircle(cx, cy, dot / 2 + 5f * d, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x331E88E5 })
+    c.drawCircle(cx, cy, dot / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() })
+    c.drawCircle(cx, cy, dot / 2 - 3f * d, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1E88E5.toInt() })
+    return BitmapDrawable(context.resources, bmp)
+}

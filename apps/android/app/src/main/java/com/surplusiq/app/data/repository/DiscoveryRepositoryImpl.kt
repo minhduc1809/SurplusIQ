@@ -318,8 +318,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<List<MapPin>> =
-        apiCall("Không thể tải bản đồ deal", { discoveryApiService.findMapPins(latitude, longitude, radiusKm) }) { pins ->
+    override suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?, minDiscountPercent: Int?): Result<List<MapPin>> =
+        apiCall("Không thể tải bản đồ deal", { discoveryApiService.findMapPins(latitude, longitude, radiusKm, minDiscountPercent) }) { pins ->
             pins.map {
                 MapPin(
                     storeId = it.storeId,
@@ -331,7 +331,9 @@ class DiscoveryRepositoryImpl @Inject constructor(
                     minPrice = it.minPrice?.toInt(),
                     maxDiscountPercent = it.maxDiscountPercent ?: 0,
                     distanceText = formatDistance(it.distanceMeters),
-                    categories = it.categories.orEmpty()
+                    categories = it.categories.orEmpty(),
+                    distanceMeters = it.distanceMeters,
+                    logoUrl = it.storeLogoUrl
                 )
             }
         }

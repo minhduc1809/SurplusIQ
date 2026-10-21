@@ -204,19 +204,16 @@ fun OsmMapView(
                     mapView.overlays.add(marker)
                 }
 
-                // Chấm xanh vị trí hiện tại của người dùng
+                // Chấm xanh vị trí hiện tại của người dùng, kèm nhãn "Vị trí của tôi"
                 userLocation?.let { (lat, lng) ->
                     mapView.overlays.add(
                         Marker(mapView).apply {
                             position = GeoPoint(lat, lng)
-                            title = "Bạn đang ở đây"
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                            icon = GradientDrawable().apply {
-                                shape = GradientDrawable.OVAL
-                                setColor(AndroidColor.parseColor("#1E88E5"))
-                                setStroke(6, AndroidColor.WHITE)
-                                setSize(44, 44)
-                            }
+                            title = "Vị trí của tôi"
+                            setInfoWindow(null)
+                            val label = userLocationDrawable(mapView.context, "Vị trí của tôi")
+                            icon = label
+                            setAnchor(Marker.ANCHOR_CENTER, 1f - (11f * density) / label.intrinsicHeight)
                         }
                     )
                 }
