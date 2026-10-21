@@ -122,6 +122,20 @@ data class RadarDeal(
     val rankingReasons: List<String>
 )
 
+/** K21: suất gợi ý kèm lý do có căn cứ do máy chủ tính từ lịch sử thật của khách. */
+data class ForYouDeal(
+    val deal: Deal,
+    val reasons: List<String>
+)
+
+data class ForYouResult(
+    val deals: List<ForYouDeal>,
+    /** Số suất bị loại vì chứa chất gây dị ứng hoặc món khách loại trừ. */
+    val excludedByDietary: Int,
+    val personalised: Boolean,
+    val note: String?
+)
+
 /**
  * TrustPass (CM-C03, BR-C03-02): null = "chưa được cung cấp", khác với [] ("khai báo
  * rõ là không có"). Giữ nullable, KHÔNG mặc định null thành danh sách rỗng.

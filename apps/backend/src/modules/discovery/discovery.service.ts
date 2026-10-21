@@ -16,6 +16,9 @@ import { SavedDealEntity } from '../../entities/auth/saved-deal.entity';
 import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
 import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { DietaryProfileEntity } from '../../entities/auth/dietary-profile.entity';
+import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { QueryDealsDto, DealSortBy } from './dto/query-deals.dto';
@@ -1050,6 +1053,122 @@ export class DiscoveryService {
       meta: {
         total: ranked.length,
         locationSource: hasCoords ? 'GPS_OR_SELECTED' : 'NONE',
+      },
+    };
+  }
+
+  /**
+   * Gợi ý dành cho bạn (K21, R1-084, R1-085, R1-093): xếp hạng suất đang mở theo thói quen THẬT của khách
+   * (cửa hàng yêu thích, loại món đã nhận, khung giờ hay nhận, món vừa xem) cộng điểm Radar có sẵn.
+   * Suất chứa chất gây dị ứng hoặc món khách loại trừ bị loại hẳn, không chỉ hạ điểm (an toàn thực phẩm).
+   * Mỗi suất kèm lý do có căn cứ; khách mới chưa có lịch sử vẫn nhận xếp hạng Radar, kèm ghi chú.
+   */
+  async getForYou(userId: string, query: QueryRadarDto) {
+    const limit = query.limit && query.limit > 0 ? query.limit : 20;
+    const radar = await this.getRadarRanking({ ...query, limit: 500 });
+    const m = this.dataSource.manager;
+    const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [favorites, orders, views, dietary] = await Promise.all([
+      m.find(FavoriteStoreEntity, { where: { userId } }),
+      m
+        .createQueryBuilder(OrderEntity, 'o')
+        .innerJoin(OfferEntity, 'of', 'of.id = o.offer_id')
+        .leftJoin(ItemEntity, 'i', 'i.id = of.item_id')
+        .where('o.customer_id = :userId', { userId })
+        .andWhere('o.status IN (:...ok)', { ok: [OrderStatus.PICKED_UP, OrderStatus.PAID] })
+        .andWhere('o.created_at >= :since90', { since90 })
+        .select([
+          'i.category AS category',
+          'of.store_id AS store_id',
+          'of.pickup_start AS pickup_start',
+        ])
+        .getRawMany<{ category: string | null; store_id: string; pickup_start: Date }>(),
+      m
+        .createQueryBuilder(ViewHistoryEntity, 'v')
+        .innerJoin(OfferEntity, 'of', 'of.id = v.offer_id')
+        .leftJoin(ItemEntity, 'i', 'i.id = of.item_id')
+        .where('v.user_id = :userId', { userId })
+        .andWhere('v.viewed_at >= :since30', { since30 })
+        .select(['i.category AS category', 'of.store_id AS store_id'])
+        .getRawMany<{ category: string | null; store_id: string }>(),
+      m.findOne(DietaryProfileEntity, { where: { userId } }),
+    ]);
+
+    const favoriteStores = new Set(favorites.map((f) => f.storeId));
+    const boughtByCategory = new Map<string, number>();
+    const boughtHours: number[] = [];
+    for (const o of orders) {
+      if (o.category) boughtByCategory.set(o.category, (boughtByCategory.get(o.category) ?? 0) + 1);
+      boughtHours.push(new Date(o.pickup_start).getHours());
+    }
+    const viewedStores = new Set(views.map((v) => v.store_id));
+    const viewedCategories = new Set(views.map((v) => v.category).filter((c): c is string => !!c));
+
+    // Dị ứng: lấy từ hồ sơ ăn uống; so khớp không phân biệt hoa thường.
+    const norm = (v: string) => v.trim().toLowerCase();
+    const myAllergens = new Set((dietary?.allergens ?? []).map(norm));
+    const myExcluded = (dietary?.excludedItems ?? []).map(norm).filter(Boolean);
+    const items = radar.data.length
+      ? await m.find(ItemEntity, {
+          where: { id: In(radar.data.map((d) => d.itemId).filter(Boolean)) },
+        })
+      : [];
+    const itemById = new Map(items.map((i) => [i.id, i]));
+
+    let excludedByDietary = 0;
+    const personalised = radar.data
+      .filter((d) => {
+        const item = itemById.get(d.itemId);
+        const hasAllergen = (item?.allergens ?? []).some((a) => myAllergens.has(norm(a)));
+        const isExcluded = myExcluded.some((x) => norm(d.title).includes(x));
+        if (hasAllergen || isExcluded) excludedByDietary += 1;
+        return !hasAllergen && !isExcluded;
+      })
+      .map((d) => {
+        const reasons: string[] = [];
+        let bonus = 0;
+        if (favoriteStores.has(d.storeId)) {
+          bonus += 25;
+          reasons.push('Cửa hàng bạn yêu thích');
+        }
+        const bought = boughtByCategory.get(d.category) ?? 0;
+        if (bought > 0) {
+          bonus += Math.min(20, bought * 7);
+          reasons.push(`Vì bạn đã nhận ${bought} suất ${d.category.toLowerCase()} gần đây`);
+        }
+        const pickupHour = new Date(d.pickupEnd).getHours();
+        if (boughtHours.some((h) => Math.abs(h - pickupHour) <= 2)) {
+          bonus += 10;
+          reasons.push('Khung nhận hợp với giờ bạn hay lấy hàng');
+        }
+        if (viewedStores.has(d.storeId) || viewedCategories.has(d.category)) {
+          bonus += 8;
+          reasons.push('Giống món bạn vừa xem');
+        }
+        if (myAllergens.size > 0 || myExcluded.length > 0)
+          reasons.push('Đã loại món không hợp hồ sơ ăn uống của bạn');
+        return {
+          ...d,
+          forYouScore: Math.round((d.rankingScore + bonus) * 100) / 100,
+          // Lý do cá nhân hóa đứng trước, lý do Radar (khoảng cách, thời gian nhận) theo sau.
+          forYouReasons: [...reasons, ...d.rankingReasons].slice(0, 4),
+        };
+      });
+
+    personalised.sort((a, b) => b.forYouScore - a.forYouScore);
+    const hasHistory = favorites.length + orders.length + views.length > 0;
+    return {
+      data: personalised.slice(0, limit),
+      meta: {
+        total: personalised.length,
+        excludedByDietary,
+        personalised: hasHistory,
+        note: hasHistory
+          ? null
+          : 'Chưa có lịch sử mua hoặc xem nên danh sách xếp theo khoảng cách, thời gian nhận và mức giảm.',
+        locationSource: radar.meta.locationSource,
       },
     };
   }

@@ -200,6 +200,58 @@ class DiscoveryRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getForYou(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<com.surplusiq.app.domain.model.ForYouResult> {
+        return try {
+            val response = discoveryApiService.getForYou(latitude = latitude, longitude = longitude, radiusKm = radiusKm, limit = 30)
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                Result.success(
+                    com.surplusiq.app.domain.model.ForYouResult(
+                        deals = body.data.map { dto ->
+                            com.surplusiq.app.domain.model.ForYouDeal(
+                                deal = Deal(
+                                    id = dto.id,
+                                    storeId = dto.storeId,
+                                    storeName = dto.storeName,
+                                    storeAddress = dto.storeAddress.orEmpty(),
+                                    storeLogoUrl = "",
+                                    coverImageUrl = dto.imageUrl.orEmpty(),
+                                    title = dto.title,
+                                    description = "",
+                                    whatYouCouldGet = dto.title,
+                                    category = parseCategory(dto.category),
+                                    originalPrice = dto.originalPrice.toInt(),
+                                    discountPrice = dto.currentPrice.toInt(),
+                                    discountPercent = dto.discountPercent,
+                                    remainingStock = dto.remainingQuantity,
+                                    initialStock = dto.remainingQuantity,
+                                    pickupWindowText = "Còn ${dto.minutesLeftToPickup} phút để nhận",
+                                    isToday = true,
+                                    distanceText = dto.distanceMeters?.let { m -> if (m < 1000) "${m.toInt()} m" else "%.1f km".format(m / 1000.0) }.orEmpty(),
+                                    // Máy chủ chưa trả điểm đánh giá ở danh sách này; không bịa số.
+                                    rating = 0.0,
+                                    reviewCount = 0,
+                                    allergens = emptyList(),
+                                    dietaryType = DietaryType.NONE,
+                                    isFavorite = favoriteOverrides[dto.storeId] ?: false,
+                                    isUrgent = dto.minutesLeftToPickup <= 30
+                                ),
+                                reasons = dto.forYouReasons
+                            )
+                        },
+                        excludedByDietary = body.meta.excludedByDietary,
+                        personalised = body.meta.personalised,
+                        note = body.meta.note
+                    )
+                )
+            } else {
+                Result.failure(Exception("Không thể tải gợi ý dành cho bạn (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun getDealTrustpass(dealId: String): Result<TrustpassInfo> {
         return try {
             val response = discoveryApiService.getDealTrustpass(dealId)

@@ -36,6 +36,9 @@ interface DiscoveryRepository {
         budgetMax: Double? = null
     ): Result<List<RadarDeal>>
 
+    /** K21: gợi ý dành cho bạn theo thói quen thật, đã loại món không hợp hồ sơ ăn uống. */
+    suspend fun getForYou(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<com.surplusiq.app.domain.model.ForYouResult>
+
     /** TrustPass (CM-C03): hồ sơ minh bạch món của một deal. */
     suspend fun getDealTrustpass(dealId: String): Result<TrustpassInfo>
 

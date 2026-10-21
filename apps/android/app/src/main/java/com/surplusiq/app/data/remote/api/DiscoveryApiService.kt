@@ -39,6 +39,14 @@ interface DiscoveryApiService {
         @Path("id") id: String
     ): Response<DealDetailDto>
 
+    @GET("customer/deals/for-you")
+    suspend fun getForYou(
+        @Query("latitude") latitude: Double? = null,
+        @Query("longitude") longitude: Double? = null,
+        @Query("radiusKm") radiusKm: Double? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ForYouResponseDto>
+
     @GET("customer/deals/radar")
     suspend fun getRadarRanking(
         @Query("latitude") latitude: Double? = null,

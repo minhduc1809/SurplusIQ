@@ -38,6 +38,7 @@ import com.surplusiq.app.ui.screens.checkout.OrderHoldCheckoutScreen
 import com.surplusiq.app.ui.screens.discovery.BrowseScreen
 import com.surplusiq.app.ui.screens.discovery.DealDetailScreen
 import com.surplusiq.app.ui.screens.discovery.DiscoverHomeScreen
+import com.surplusiq.app.ui.screens.discovery.ForYouScreen
 import com.surplusiq.app.ui.screens.discovery.PreferencesScreen
 import com.surplusiq.app.ui.screens.discovery.SearchScreen
 import com.surplusiq.app.ui.screens.favourites.FavouritesScreen
@@ -156,6 +157,8 @@ sealed class AppDestination {
     object Onboarding : AppDestination()
     // K55, K56: bảo mật tài khoản
     object TwoFactor : AppDestination()
+    // K21: Gợi ý dành cho bạn
+    object ForYou : AppDestination()
     object Devices : AppDestination()
 }
 
@@ -512,6 +515,16 @@ fun SurplusAppRoot(
                     authViewModel.resetChangePasswordFlow()
                     currentDestination = AppDestination.MainTabs
                 }
+            )
+        }
+
+        is AppDestination.ForYou -> {
+            ForYouScreen(
+                state = discoveryState,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onRetry = { discoveryViewModel.loadForYou() },
+                onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = AppDestination.ForYou) },
+                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) }
             )
         }
 
@@ -1114,6 +1127,10 @@ fun SurplusAppRoot(
                                     currentDestination = AppDestination.Preferences
                                 },
                                 onSeeAllClick = { selectedTab = NavTab.BROWSE },
+                                onSeeAllForYou = {
+                                    discoveryViewModel.loadForYou()
+                                    currentDestination = AppDestination.ForYou
+                                },
                                 unreadNotificationCount = notificationsState.unreadCount,
                                 onOpenNotifications = { currentDestination = AppDestination.Notifications },
                                 location = discoveryState.location,

@@ -341,3 +341,34 @@ data class PriceHistoryDto(
     @SerializedName("transparencyCommitment") val transparencyCommitment: String? = null
 )
 
+
+// --- Gợi ý dành cho bạn (K21) ---
+data class ForYouItemDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("storeId") val storeId: String,
+    @SerializedName("storeName") val storeName: String,
+    @SerializedName("storeAddress") val storeAddress: String? = null,
+    @SerializedName("title") val title: String,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("imageUrl") val imageUrl: String? = null,
+    @SerializedName("originalPrice") val originalPrice: Double,
+    @SerializedName("currentPrice") val currentPrice: Double,
+    @SerializedName("discountPercent") val discountPercent: Int,
+    @SerializedName("remainingQuantity") val remainingQuantity: Int,
+    @SerializedName("distanceMeters") val distanceMeters: Double? = null,
+    @SerializedName("minutesLeftToPickup") val minutesLeftToPickup: Int,
+    @SerializedName("forYouScore") val forYouScore: Double = 0.0,
+    @SerializedName("forYouReasons") val forYouReasons: List<String> = emptyList()
+)
+
+data class ForYouMetaDto(
+    @SerializedName("total") val total: Int = 0,
+    @SerializedName("excludedByDietary") val excludedByDietary: Int = 0,
+    @SerializedName("personalised") val personalised: Boolean = false,
+    @SerializedName("note") val note: String? = null
+)
+
+data class ForYouResponseDto(
+    @SerializedName("data") val data: List<ForYouItemDto> = emptyList(),
+    @SerializedName("meta") val meta: ForYouMetaDto = ForYouMetaDto()
+)

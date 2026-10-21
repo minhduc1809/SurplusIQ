@@ -67,6 +67,7 @@ fun DiscoverHomeScreen(
     onFavoriteToggle: (Deal) -> Unit,
     onOpenPreferences: () -> Unit,
     onSeeAllClick: () -> Unit,
+    onSeeAllForYou: () -> Unit = onSeeAllClick,
     userName: String = "",
     onOpenProfile: () -> Unit = {},
     unreadNotificationCount: Int = 0,
@@ -350,7 +351,7 @@ fun DiscoverHomeScreen(
                 if (shown.isNotEmpty()) item {
                     SectionHeader(
                         title = "Dành cho bạn",
-                        onSeeAllClick = onSeeAllClick
+                        onSeeAllClick = onSeeAllForYou
                     )
                 }
 

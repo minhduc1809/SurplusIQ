@@ -55,6 +55,20 @@ export class CustomerDealsController {
     return this.discoveryService.findMapPins(query);
   }
 
+  @ApiBearerAuth()
+  @Channel('CUSTOMER')
+  @Roles(UserRole.CUSTOMER)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard)
+  @Get('deals/for-you')
+  @ApiOperation({
+    summary:
+      'Gợi ý dành cho bạn: xếp hạng theo thói quen thật, loại món không hợp hồ sơ ăn uống (K21)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách deal kèm lý do gợi ý' })
+  async getForYou(@CurrentUser() user: RequestUser, @Query() query: QueryRadarDto) {
+    return this.discoveryService.getForYou(user?.userId, query);
+  }
+
   @Public()
   @Get('deals/radar')
   @ApiOperation({

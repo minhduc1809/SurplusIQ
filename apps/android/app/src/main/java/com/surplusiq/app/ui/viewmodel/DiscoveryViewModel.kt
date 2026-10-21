@@ -38,6 +38,10 @@ data class DiscoveryUiState(
     val radarDeals: List<RadarDeal> = emptyList(),
     val isRadarLoading: Boolean = false,
     val radarErrorMessage: String? = null,
+    // K21: Gợi ý dành cho bạn
+    val forYou: com.surplusiq.app.domain.model.ForYouResult? = null,
+    val isForYouLoading: Boolean = false,
+    val forYouErrorMessage: String? = null,
     // TrustPass (CM-C03)
     val trustpass: TrustpassInfo? = null,
     val isTrustpassLoading: Boolean = false,
@@ -195,6 +199,22 @@ class DiscoveryViewModel @Inject constructor(
             sortBy = null
         )
         loadDeals()
+    }
+
+    fun loadForYou() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isForYouLoading = true, forYouErrorMessage = null)
+            val location = _uiState.value.location
+            discoveryRepository.getForYou(location.latitude, location.longitude, location.radiusKm).fold(
+                onSuccess = { _uiState.value = _uiState.value.copy(forYou = it, isForYouLoading = false) },
+                onFailure = {
+                    _uiState.value = _uiState.value.copy(
+                        isForYouLoading = false,
+                        forYouErrorMessage = it.localizedMessage ?: "Không thể tải gợi ý dành cho bạn"
+                    )
+                }
+            )
+        }
     }
 
     fun loadRadarRanking() {
