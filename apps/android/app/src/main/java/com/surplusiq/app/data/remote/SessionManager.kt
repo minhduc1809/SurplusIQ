@@ -23,7 +23,7 @@ class SessionManager @Inject constructor(
         private const val KEY_DEVICE_ID = "key_device_id"
         private const val KEY_BASE_URL = "key_base_url"
         private const val KEY_ONBOARDING_COMPLETED = "key_onboarding_completed"
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:4000/"
+        val DEFAULT_BASE_URL: String = com.surplusiq.app.BuildConfig.API_BASE_URL
     }
 
     init {
