@@ -93,6 +93,8 @@ fun DiscoverHomeScreen(
     onLocateMe: () -> Unit = {},
     onLocatePermissionDenied: () -> Unit = {},
     onOpenStore: (storeId: String) -> Unit = {},
+    // Khung thông tin quán hiện dưới bản đồ khi chọn một quán
+    storePanel: (@Composable (pin: MapPin, onClose: () -> Unit) -> Unit)? = null,
     isLoading: Boolean = false,
     errorMessage: String? = null,
     onRetry: () -> Unit = {},
@@ -124,8 +126,8 @@ fun DiscoverHomeScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Hàng 1: logo + tên màn, chuông, avatar
-        Row(
+        // Hàng 1: logo + tên màn, chuông, avatar (ẩn ở chế độ bản đồ để dành chỗ)
+        if (!isMapView) Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -192,7 +194,7 @@ fun DiscoverHomeScreen(
         }
 
         // K08: đang xem deal ở vị trí ghim tạm
-        if (location.isTemporary) {
+        if (location.isTemporary && !isMapView) {
             AssistChip(
                 onClick = onClearTemporaryLocation,
                 label = { Text("Đang xem ở vị trí khác", fontSize = 12.sp) },
@@ -300,7 +302,8 @@ fun DiscoverHomeScreen(
                 locateError = locateError,
                 onLocateMe = onLocateMe,
                 onLocatePermissionDenied = onLocatePermissionDenied,
-                modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds()
+                storePanel = storePanel,
+                modifier = Modifier.weight(1f).fillMaxWidth()
             )
         } else {
             LoadStateContent(

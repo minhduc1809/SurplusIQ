@@ -88,6 +88,7 @@ import com.surplusiq.app.ui.screens.discovery.SavedDealsScreen
 import com.surplusiq.app.ui.screens.location.LocationSettingsScreen
 import com.surplusiq.app.ui.screens.location.PinLocationScreen
 import com.surplusiq.app.ui.screens.location.SavedPlacesScreen
+import com.surplusiq.app.ui.screens.store.StoreDetailPanel
 import com.surplusiq.app.ui.screens.store.StoreDetailScreen
 import com.surplusiq.app.ui.screens.store.StoreReviewsScreen
 import com.surplusiq.app.ui.viewmodel.DealAlertsViewModel
@@ -1281,6 +1282,17 @@ fun SurplusAppRoot(
                                 onOpenStore = { storeId ->
                                     storeViewModel.openStore(storeId)
                                     currentDestination = AppDestination.StoreDetail(storeId)
+                                },
+                                storePanel = { pin, onClose ->
+                                    StoreDetailPanel(
+                                        state = storeState,
+                                        storeId = pin.storeId,
+                                        onLoad = { storeViewModel.openStore(it) },
+                                        onClose = onClose,
+                                        onToggleFavorite = { storeViewModel.toggleFavorite(it) },
+                                        onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal) },
+                                        onLoadReviews = { id, rating -> storeViewModel.loadStoreReviews(id, rating) }
+                                    )
                                 },
                                 isLoading = discoveryState.isLoading,
                                 errorMessage = discoveryState.errorMessage,
