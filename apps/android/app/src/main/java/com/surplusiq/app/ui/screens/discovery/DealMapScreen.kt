@@ -1,5 +1,6 @@
 package com.surplusiq.app.ui.screens.discovery
 
+import com.surplusiq.app.domain.model.DefaultMapCenter
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -47,8 +48,8 @@ fun DealMapScreen(
     val context = LocalContext.current
     var selectedPin by remember { mutableStateOf<MapPin?>(null) }
 
-    val centerLat = location.latitude ?: pins.firstOrNull()?.latitude ?: 10.7769
-    val centerLng = location.longitude ?: pins.firstOrNull()?.longitude ?: 106.7009
+    val centerLat = location.latitude ?: pins.firstOrNull()?.latitude ?: DefaultMapCenter.LATITUDE
+    val centerLng = location.longitude ?: pins.firstOrNull()?.longitude ?: DefaultMapCenter.LONGITUDE
 
     LaunchedEffect(Unit) { onLoad() }
 

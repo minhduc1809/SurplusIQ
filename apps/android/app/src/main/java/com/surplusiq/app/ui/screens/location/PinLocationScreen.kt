@@ -1,5 +1,6 @@
 package com.surplusiq.app.ui.screens.location
 
+import com.surplusiq.app.domain.model.DefaultMapCenter
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,10 +41,10 @@ fun PinLocationScreen(
     onConsumeMessage: () -> Unit
 ) {
     var centerLat by remember {
-        mutableDoubleStateOf(state.selected?.latitude ?: 10.7769)
+        mutableDoubleStateOf(state.selected?.latitude ?: DefaultMapCenter.LATITUDE)
     }
     var centerLng by remember {
-        mutableDoubleStateOf(state.selected?.longitude ?: 106.7009)
+        mutableDoubleStateOf(state.selected?.longitude ?: DefaultMapCenter.LONGITUDE)
     }
     var radiusKm by remember { mutableDoubleStateOf(state.location.radiusKm) }
     var showSaveDialog by remember { mutableStateOf(false) }
