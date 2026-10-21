@@ -69,6 +69,14 @@ fun OrderDetailScreen(
     // KX04: Gia hạn giờ nhận
     onUpdatePickupSlot: ((orderId: String, newSlotIso: String) -> Unit)? = null,
     onResetActionStates: (() -> Unit)? = null,
+    // KX12, KX05, KX18: theo dõi, đổi suất, tặng suất
+    onOpenTracking: ((ActiveOrder) -> Unit)? = null,
+    onOpenSwap: ((ActiveOrder) -> Unit)? = null,
+    onSendGift: ((orderId: String, recipient: String, message: String) -> Unit)? = null,
+    isGiftBusy: Boolean = false,
+    giftSentCounter: Int = 0,
+    // KX02: biên lai là ảnh chụp tải lên hệ thống, không nhập link tự do
+    onPickProofImage: ((orderId: String, bytes: ByteArray, fileName: String, mimeType: String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -76,6 +84,15 @@ fun OrderDetailScreen(
     var showRevokeDialog by remember { mutableStateOf(false) }
     var showAttachProofDialog by remember { mutableStateOf(false) }
     var showUpdateSlotSheet by remember { mutableStateOf(false) }
+    var showGiftDialog by remember { mutableStateOf(false) }
+    val giftCounterAtStart = remember { giftSentCounter }
+    LaunchedEffect(giftSentCounter) { if (giftSentCounter > giftCounterAtStart) showGiftDialog = false }
+    val proofPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri: android.net.Uri? ->
+        if (uri != null) {
+            val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+            if (bytes != null && bytes.isNotEmpty()) onPickProofImage?.invoke(order.id, bytes, "proof_${System.currentTimeMillis()}.jpg", context.contentResolver.getType(uri) ?: "image/jpeg")
+        }
+    }
     var proofUrlInput by remember { mutableStateOf("") }
     val openCancel = {
         onPrepareCancel(order.id)
@@ -242,6 +259,9 @@ fun OrderDetailScreen(
                     }
 
                     MoreActions(
+                        "Theo dõi đơn, nhắn cửa hàng, báo sự cố" to { onOpenTracking?.invoke(order) },
+                        "Đổi sang suất khác (KX05)" to { onOpenSwap?.invoke(order) },
+                        "Tặng suất cho bạn bè (KX18)" to { showGiftDialog = true },
                         "Xem biên nhận" to { onOpenReceipt(order) },
                         "Hủy đơn (hoàn 100% trước 60p)" to openCancel
                     )
@@ -290,6 +310,9 @@ fun OrderDetailScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    TextButton(onClick = { onOpenTracking?.invoke(order) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Theo dõi đơn", color = ForestGreenPrimary)
+                    }
                     OutlinedButton(
                         onClick = { showAttachProofDialog = true },
                         modifier = Modifier
@@ -361,6 +384,7 @@ fun OrderDetailScreen(
                         }
 
                         MoreActions(
+                            "Theo dõi đơn và nhắn cửa hàng" to { onOpenTracking?.invoke(order) },
                             "Khiếu nại chất lượng (trong 24h)" to { onOpenComplaint?.invoke(order) },
                             "Xem biên nhận" to { onOpenReceipt(order) },
                             "Chỉ đường đến quán" to {
@@ -423,6 +447,13 @@ fun OrderDetailScreen(
             }
         )
     }
+    if (showGiftDialog) {
+        com.surplusiq.app.ui.screens.ordersupport.GiftOrderDialog(
+            isBusy = isGiftBusy,
+            onSend = { recipient, message -> onSendGift?.invoke(order.id, recipient, message) },
+            onDismiss = { showGiftDialog = false }
+        )
+    }
     if (showAttachProofDialog) {
         AlertDialog(
             onDismissRequest = { showAttachProofDialog = false },
@@ -430,17 +461,15 @@ fun OrderDetailScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Nếu bạn đã chuyển khoản nhưng hệ thống ngân hàng chậm gửi webhook, hãy cung cấp link hoặc mã giao dịch ảnh chụp biên lai để nhân viên quán đối soát.",
+                        "Nếu bạn đã chuyển khoản nhưng hệ thống ngân hàng chậm báo, hãy gửi ảnh chụp biên lai. Nhóm hỗ trợ SurplusIQ sẽ đối soát với sao kê và kích hoạt đơn khi thấy tiền về.",
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
-                    OutlinedTextField(
-                        value = proofUrlInput,
-                        onValueChange = { proofUrlInput = it },
-                        placeholder = { Text("Nhập link ảnh hoặc mã giao dịch...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
+                    OutlinedButton(
+                        onClick = { proofPicker.launch("image/*") },
+                        enabled = !ordersState.isAttachingProof && !ordersState.attachProofSuccess,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Chọn ảnh biên lai") }
                     if (ordersState.attachProofError != null) {
                         Text(ordersState.attachProofError ?: "", color = CoralRed, fontSize = 12.sp)
                     }
@@ -450,21 +479,7 @@ fun OrderDetailScreen(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        if (proofUrlInput.isNotBlank()) {
-                            onAttachPaymentProof?.invoke(order.id, proofUrlInput.trim())
-                        }
-                    },
-                    enabled = !ordersState.isAttachingProof && proofUrlInput.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryOrange)
-                ) {
-                    if (ordersState.isAttachingProof) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Xác nhận gửi")
-                    }
-                }
+                if (ordersState.isAttachingProof) CircularProgressIndicator(color = PrimaryOrange, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             },
             dismissButton = {
                 TextButton(onClick = {

@@ -56,6 +56,7 @@ fun ProfileScreen(
     onOpenRefundBankAccount: () -> Unit = {},
     onOpenOnboarding: () -> Unit = {},
     onOpenTwoFactor: () -> Unit = {},
+    onOpenGifts: () -> Unit = {},
     onOpenDevices: () -> Unit = {},
     onOpenOrderLock: () -> Unit = {},
     onOpenComplaints: () -> Unit = {},
@@ -207,7 +208,9 @@ fun ProfileScreen(
             HorizontalDivider(color = divider)
             ProfileMenuItem(Icons.Default.ConfirmationNumber, "Ví ưu đãi", "Mã giảm giá của bạn", onOpenPromotionWallet)
             HorizontalDivider(color = divider)
-            ProfileMenuItem(Icons.Default.Stars, "Điểm thưởng", "Số dư và lịch sử tích điểm", onOpenRewards)
+            ProfileMenuItem(Icons.Default.Stars, "Điểm thưởng", "Số dư, đổi voucher và quy tắc", onOpenRewards)
+            HorizontalDivider()
+            ProfileMenuItem(Icons.Default.CardGiftcard, "Quà tặng", "Suất được tặng và suất bạn đã tặng", onOpenGifts)
         }
 
         // Các chức năng còn lại, thu gọn mặc định

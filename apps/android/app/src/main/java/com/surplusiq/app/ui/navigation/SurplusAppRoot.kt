@@ -39,6 +39,11 @@ import com.surplusiq.app.ui.screens.discovery.BrowseScreen
 import com.surplusiq.app.ui.screens.discovery.DealDetailScreen
 import com.surplusiq.app.ui.screens.discovery.DiscoverHomeScreen
 import com.surplusiq.app.ui.screens.discovery.ForYouScreen
+import com.surplusiq.app.ui.screens.ordersupport.GiftsScreen
+import com.surplusiq.app.ui.screens.ordersupport.OrderChatScreen
+import com.surplusiq.app.ui.screens.ordersupport.OrderTrackingScreen
+import com.surplusiq.app.ui.screens.ordersupport.ReportIncidentScreen
+import com.surplusiq.app.ui.screens.ordersupport.SwapOrderScreen
 import com.surplusiq.app.ui.screens.discovery.PreferencesScreen
 import com.surplusiq.app.ui.screens.discovery.SearchScreen
 import com.surplusiq.app.ui.screens.favourites.FavouritesScreen
@@ -159,6 +164,12 @@ sealed class AppDestination {
     object TwoFactor : AppDestination()
     // K21: Gợi ý dành cho bạn
     object ForYou : AppDestination()
+    // KX03, KX05, KX11, KX12, KX18: hỗ trợ đơn hàng
+    data class OrderTracking(val order: ActiveOrder) : AppDestination()
+    data class OrderChat(val order: ActiveOrder) : AppDestination()
+    data class ReportIncident(val order: ActiveOrder) : AppDestination()
+    data class SwapOrder(val order: ActiveOrder) : AppDestination()
+    object Gifts : AppDestination()
     object Devices : AppDestination()
 }
 
@@ -179,6 +190,7 @@ fun SurplusAppRoot(
     interactionsViewModel: InteractionsViewModel = hiltViewModel(),
     rewardsViewModel: RewardsViewModel = hiltViewModel(),
     securityViewModel: SecurityViewModel = hiltViewModel(),
+    orderSupportViewModel: com.surplusiq.app.ui.viewmodel.OrderSupportViewModel = hiltViewModel(),
     notificationsViewModel: NotificationsViewModel = hiltViewModel(),
     rescuePoolViewModel: RescuePoolViewModel = hiltViewModel(),
     profileViewModel: ProfileViewModel = hiltViewModel(),
@@ -202,6 +214,7 @@ fun SurplusAppRoot(
     val myOrdersState by myOrdersViewModel.uiState.collectAsState()
     val rewardsState by rewardsViewModel.uiState.collectAsState()
     val securityState by securityViewModel.uiState.collectAsState()
+    val supportState by orderSupportViewModel.state.collectAsState()
     val notificationsState by notificationsViewModel.uiState.collectAsState()
     val interactionsState by interactionsViewModel.uiState.collectAsState()
     val profileUiState by profileViewModel.uiState.collectAsState()
@@ -233,6 +246,14 @@ fun SurplusAppRoot(
         }
     }
     var currentDestination by remember { mutableStateOf<AppDestination>(initialDestination) }
+    val giftToastContext = LocalContext.current
+    LaunchedEffect(supportState.message, currentDestination) {
+        val m = supportState.message
+        if (m != null && currentDestination is AppDestination.OrderDetail) {
+            android.widget.Toast.makeText(giftToastContext, m, android.widget.Toast.LENGTH_LONG).show()
+            orderSupportViewModel.consumeMessage()
+        }
+    }
     var authScreenState by remember { mutableStateOf(AuthScreenState.WELCOME) }
     
     // K06: lần đầu vào app (đăng nhập hoặc khách) mà chưa thiết lập vị trí -> màn quyền vị trí & bán kính.
@@ -469,7 +490,80 @@ fun SurplusAppRoot(
                 onRevokeProxyCode = { orderId -> myOrdersViewModel.revokeProxyCode(orderId) },
                 onAttachPaymentProof = { orderId, proofUrl -> myOrdersViewModel.attachPaymentProof(orderId, proofUrl) },
                 onUpdatePickupSlot = { orderId, newSlotIso -> myOrdersViewModel.updatePickupSlot(orderId, newSlotIso) },
-                onResetActionStates = { myOrdersViewModel.resetActionStates() }
+                onResetActionStates = { myOrdersViewModel.resetActionStates() },
+                onOpenTracking = { order ->
+                    orderSupportViewModel.clear()
+                    currentDestination = AppDestination.OrderTracking(order)
+                },
+                onOpenSwap = { order ->
+                    orderSupportViewModel.clear()
+                    currentDestination = AppDestination.SwapOrder(order)
+                },
+                onSendGift = { orderId, recipient, message -> orderSupportViewModel.sendGift(orderId, recipient, message) },
+                isGiftBusy = supportState.isBusy,
+                giftSentCounter = supportState.doneCounter,
+                onPickProofImage = { orderId, bytes, name, mime -> myOrdersViewModel.attachPaymentProofImage(orderId, bytes, name, mime) }
+            )
+        }
+
+        is AppDestination.OrderTracking -> {
+            OrderTrackingScreen(
+                state = supportState,
+                orderId = dest.order.id,
+                onLoad = { orderSupportViewModel.loadTracking(dest.order.id) },
+                onBackClick = { currentDestination = AppDestination.OrderDetail(dest.order) },
+                onOpenChat = { currentDestination = AppDestination.OrderChat(dest.order) },
+                onReportIncident = { currentDestination = AppDestination.ReportIncident(dest.order) },
+                onOpenMap = { name, address ->
+                    com.surplusiq.app.ui.util.NavigationUtil.openMapOrCopyAddress(context = context, storeAddress = address, storeName = name)
+                }
+            )
+        }
+
+        is AppDestination.OrderChat -> {
+            OrderChatScreen(
+                state = supportState,
+                orderId = dest.order.id,
+                onLoad = { orderSupportViewModel.loadChat(dest.order.id) },
+                onSend = { orderSupportViewModel.sendChat(dest.order.id, it) },
+                onBackClick = { currentDestination = AppDestination.OrderTracking(dest.order) },
+                onConsumeMessage = { orderSupportViewModel.consumeMessage() }
+            )
+        }
+
+        is AppDestination.ReportIncident -> {
+            ReportIncidentScreen(
+                state = supportState,
+                orderId = dest.order.id,
+                onLoad = { orderSupportViewModel.loadIncidents(dest.order.id) },
+                onSubmit = { type, note -> orderSupportViewModel.reportIncident(dest.order.id, type, note) },
+                onBackClick = { currentDestination = AppDestination.OrderTracking(dest.order) },
+                onConsumeMessage = { orderSupportViewModel.consumeMessage() }
+            )
+        }
+
+        is AppDestination.SwapOrder -> {
+            SwapOrderScreen(
+                state = supportState,
+                orderId = dest.order.id,
+                onLoad = { orderSupportViewModel.loadSwap(dest.order.id) },
+                onSwap = { orderSupportViewModel.swap(dest.order.id, it) },
+                onBackClick = { currentDestination = AppDestination.OrderDetail(dest.order) },
+                onDone = {
+                    myOrdersViewModel.loadOrders()
+                    currentDestination = AppDestination.MyOrders
+                },
+                onConsumeMessage = { orderSupportViewModel.consumeMessage() }
+            )
+        }
+
+        is AppDestination.Gifts -> {
+            GiftsScreen(
+                state = supportState,
+                onLoad = { orderSupportViewModel.loadGifts() },
+                onRespond = { id, action -> orderSupportViewModel.respondGift(id, action) },
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onConsumeMessage = { orderSupportViewModel.consumeMessage() }
             )
         }
 
@@ -1302,6 +1396,10 @@ fun SurplusAppRoot(
                                 },
                                 onOpenNotificationSettings = {
                                     currentDestination = AppDestination.NotificationSettings
+                                },
+                                onOpenGifts = {
+                                    orderSupportViewModel.clear()
+                                    currentDestination = AppDestination.Gifts
                                 },
                                 onOpenTwoFactor = {
                                     securityViewModel.load()

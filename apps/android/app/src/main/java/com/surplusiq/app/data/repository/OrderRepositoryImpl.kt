@@ -90,11 +90,47 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getActiveOrders(): Result<List<ActiveOrder>> {
-        // OrderResponseDto của server chưa đủ trường để dựng lại Deal gốc, nên
-        // trả về bộ nhớ đệm trong phiên (chỉ gồm đơn thật tạo qua holdOrder trong
-        // phiên này) - không fabricate dữ liệu, chỉ là giới hạn chưa đồng bộ lại
-        // lịch sử cũ khi mở app lại.
-        return Result.success(sessionOrders.toList())
+        // Đồng bộ từ máy chủ để đơn tạo ở phiên trước hoặc nơi khác vẫn hiện; trường không có trong
+        // phản hồi để trống, không bịa. Lỗi mạng thì dùng bộ nhớ đệm phiên.
+        return try {
+            val response = ordersApiService.getActiveOrders()
+            val list = response.body()
+            if (response.isSuccessful && list != null) {
+                list.forEach { dto ->
+                    val status = when (dto.status) {
+                        "PENDING_PAYMENT" -> OrderStatus.PENDING_PAYMENT
+                        "PAID" -> OrderStatus.PAID_WAITING_PICKUP
+                        "PICKED_UP" -> OrderStatus.PICKED_UP
+                        "EXPIRED", "NO_SHOW" -> OrderStatus.EXPIRED
+                        else -> OrderStatus.CANCELLED
+                    }
+                    val known = sessionOrders.find { it.id == dto.id }
+                    val deal = known?.deal ?: Deal(
+                        id = dto.offerId, storeId = dto.storeId, storeName = dto.storeName.orEmpty(),
+                        storeAddress = "", storeLogoUrl = "", coverImageUrl = "",
+                        title = dto.itemName.orEmpty(), description = "", whatYouCouldGet = "",
+                        category = com.surplusiq.app.domain.model.DealCategory.MEALS,
+                        originalPrice = dto.unitPrice.toInt(), discountPrice = dto.unitPrice.toInt(),
+                        discountPercent = 0, remainingStock = 0, initialStock = 0,
+                        pickupWindowText = dto.pickupSlot.orEmpty(), distanceText = "",
+                        rating = 0.0, reviewCount = 0, allergens = emptyList()
+                    )
+                    upsertSessionOrder(
+                        ActiveOrder(
+                            id = dto.id, orderCode = dto.code, deal = deal, quantity = dto.quantity,
+                            unitPrice = dto.unitPrice.toInt(), totalPrice = dto.totalAmount.toInt(),
+                            holdExpiresAtMillis = parseIsoToMillis(dto.holdExpiresAt) ?: 0L,
+                            status = status, qrToken = known?.qrToken.orEmpty(),
+                            fallbackPin = known?.fallbackPin.orEmpty(),
+                            pickupWindow = known?.pickupWindow ?: dto.pickupSlot.orEmpty()
+                        )
+                    )
+                }
+            }
+            Result.success(sessionOrders.toList())
+        } catch (e: Exception) {
+            Result.success(sessionOrders.toList())
+        }
     }
 
     override suspend fun cancelHold(orderId: String, reason: String?): Result<Boolean> {

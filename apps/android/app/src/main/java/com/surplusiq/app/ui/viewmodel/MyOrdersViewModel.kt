@@ -53,7 +53,8 @@ data class MyOrdersUiState(
 @HiltViewModel
 class MyOrdersViewModel @Inject constructor(
     private val orderRepository: OrderRepository,
-    private val discoveryRepository: DiscoveryRepository
+    private val discoveryRepository: DiscoveryRepository,
+    private val mediaRepository: com.surplusiq.app.domain.repository.MediaRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MyOrdersUiState(isLoading = true))
@@ -241,6 +242,17 @@ class MyOrdersViewModel @Inject constructor(
     /**
      * KX02: Đính kèm biên lai chuyển khoản khi ngân hàng chậm webhook
      */
+    /** KX02: tải ảnh biên lai lên hệ thống rồi gắn vào đơn; máy chủ chỉ nhận ảnh đã tải lên qua hệ thống. */
+    fun attachPaymentProofImage(orderId: String, bytes: ByteArray, fileName: String, mimeType: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isAttachingProof = true, attachProofError = null, attachProofSuccess = false)
+            mediaRepository.uploadImageBytes(bytes, fileName, mimeType).fold(
+                onSuccess = { url -> attachPaymentProof(orderId, url) },
+                onFailure = { _uiState.value = _uiState.value.copy(isAttachingProof = false, attachProofError = it.localizedMessage ?: "Không tải được ảnh biên lai") }
+            )
+        }
+    }
+
     fun attachPaymentProof(orderId: String, proofUrl: String, onComplete: (Boolean, String?) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
