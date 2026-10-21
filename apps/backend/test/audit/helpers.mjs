@@ -60,7 +60,22 @@ export async function http(method, path, { token, body, headers } = {}) {
   return { status: res.status, body: json };
 }
 
+let penaltiesReset = false;
+/** Các job mở công khai (BUG-004) hoặc test trước có thể ghi "không đến nhận" → khóa đặt hàng khách (BR-020): dọn trong DB test. */
+export async function resetPenalties() {
+  await q('delete from noshow_records');
+  // BR-054 giới hạn 100 suất mở/ngày/cửa hàng: đóng các suất do test tạo từ lượt chạy trước để không chạm hạn mức.
+  await q(
+    "update offers o set status='CLOSED' from items i where i.id=o.item_id and i.name like 'Món kiểm thử%' and o.status in ('OPEN','DRAFT','SOLD_OUT')",
+  );
+  await q(
+    "update users set status='ACTIVE', delete_requested_at=null, failed_login_count=0, locked_until=null where role='CUSTOMER' and status in ('PENDING_DELETE','LOCKED') and email in ('customer@surplusiq.vn','customer1@surplusiq.test','customer2@surplusiq.test')",
+  );
+  penaltiesReset = true;
+}
+
 export async function loginAs(name) {
+  if (!penaltiesReset) await resetPenalties();
   const a = ACCOUNTS[name];
   const r = await http('POST', a.path, {
     body: { ...a.body, deviceId: `audit-${name}-${randomUUID().slice(0, 6)}` },

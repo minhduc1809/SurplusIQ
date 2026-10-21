@@ -1,10 +1,12 @@
 // Kiểm thử bảo mật và phân quyền theo BRD. Mỗi test ghi mã TC, mã rủi ro/yêu cầu và kết quả mong đợi nghiệp vụ.
 // Chạy: npm --workspace=@surplusiq/backend run test:audit:security  (backend test cổng 4100, DB surplusiq_test)
 import assert from 'node:assert/strict';
-import { before, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import {
   authzDenied,
+  closeDb,
+  q,
   createPaidOrder,
   endpoints,
   fill,
@@ -45,6 +47,8 @@ before(async () => {
   for (const n of ['customerA', 'customerB', 'storeA', 'storeB', 'admin'])
     tokens[n] = await loginAs(n);
 });
+
+after(closeDb);
 
 describe('TC-SEC-AUTHN – chưa đăng nhập phải bị từ chối (BR bảo mật: mọi dữ liệu riêng cần JWT)', () => {
   it('TC-SEC-AUTHN-001 [API-*] không token: mọi endpoint không công khai trả 401/403', async () => {
@@ -285,6 +289,7 @@ describe('TC-SEC-IDOR – truy cập dữ liệu của người khác', () => {
   });
 
   it('TC-SEC-IDOR-006 khách B không đọc được lời tặng của khách A', async () => {
+    await q("delete from order_gifts where created_at > now() - interval '1 day'"); // giới hạn 3 lần/ngày: xóa quà test cũ để không nhiễu
     const g = await http('POST', `/customer/orders/${ctx.order.id}/gift`, {
       token: tokens.customerA,
       body: { recipient: 'customer2@surplusiq.test' },
