@@ -296,6 +296,8 @@ export class DiscoveryService {
         'ST_X(s.location::geometry) AS longitude',
         'COUNT(o.id) AS active_deals_count',
         'MIN(o.current_price) AS min_price',
+        'MAX(o.current_price) AS max_price',
+        'MAX(i.image_url) AS cover_image_url',
         'MAX((1.0 - CAST(o.current_price AS FLOAT) / o.original_price) * 100) AS max_discount_percent',
         'ARRAY_REMOVE(ARRAY_AGG(DISTINCT i.category), NULL) AS categories',
         'MIN(o.pickup_end) AS soonest_pickup_end',
@@ -303,6 +305,21 @@ export class DiscoveryService {
     qb.addSelect(distanceSelectExpr, 'distance_meters');
 
     const rawPins = await qb.getRawMany();
+
+    // Điểm đánh giá lấy từ các đánh giá hiển thị thật của từng quán (cùng nguồn với trang chi tiết quán)
+    const storeIds: string[] = rawPins.map((p) => p.store_id);
+    const ratingRows = storeIds.length
+      ? await this.reviewRepo
+          .createQueryBuilder('r')
+          .where('r.store_id IN (:...storeIds)', { storeIds })
+          .andWhere('r.status = :visible', { visible: ReviewStatus.VISIBLE })
+          .select('r.store_id', 'store_id')
+          .addSelect('ROUND(AVG(r.rating)::numeric, 1)', 'avg_rating')
+          .addSelect('COUNT(r.id)', 'review_count')
+          .groupBy('r.store_id')
+          .getRawMany<{ store_id: string; avg_rating: string; review_count: string }>()
+      : [];
+    const ratingByStore = new Map(ratingRows.map((r) => [r.store_id, r]));
 
     return rawPins.map((p) => ({
       storeId: p.store_id,
@@ -313,6 +330,14 @@ export class DiscoveryService {
       longitude: Number(p.longitude),
       activeDealsCount: Number(p.active_deals_count),
       minPrice: Number(p.min_price),
+      maxPrice: Number(p.max_price),
+      imageUrl: p.cover_image_url ?? null,
+      ratingAvg: ratingByStore.has(p.store_id)
+        ? Number(ratingByStore.get(p.store_id)!.avg_rating)
+        : null,
+      ratingCount: ratingByStore.has(p.store_id)
+        ? Number(ratingByStore.get(p.store_id)!.review_count)
+        : 0,
       maxDiscountPercent: Math.round(Number(p.max_discount_percent || 0)),
       distanceMeters: p.distance_meters !== null ? Number(p.distance_meters) : null,
       categories: (p.categories as string[] | null) ?? [],
