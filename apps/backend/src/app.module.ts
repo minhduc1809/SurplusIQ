@@ -21,6 +21,7 @@ import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { CustomerProfileModule } from './modules/customer-profile/customer-profile.module';
 import { CustomerInteractionsModule } from './modules/customer-interactions/customer-interactions.module';
 import { StoresModule } from './modules/stores/stores.module';
+import { MailModule } from './modules/mail/mail.module';
 import { StoreLegalModule } from './modules/store-legal/store-legal.module';
 import { DecisionsModule } from './modules/decisions/decisions.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
@@ -61,6 +62,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     CustomerInteractionsModule,
     StoresModule,
     StoreLegalModule,
+    MailModule,
     DecisionsModule,
     MarketingModule,
     AiModule,

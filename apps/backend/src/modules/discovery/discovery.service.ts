@@ -273,6 +273,13 @@ export class DiscoveryService {
       qb.andWhere('i.category = :category', { category: normalizeFoodCategory(query.category) });
     }
 
+    if (query.minDiscountPercent !== undefined && query.minDiscountPercent !== null) {
+      qb.andWhere(
+        '((1.0 - CAST(o.current_price AS FLOAT) / o.original_price) * 100) >= :minDiscountPercent',
+        { minDiscountPercent: query.minDiscountPercent },
+      );
+    }
+
     // distance_meters đưa vào cùng select() - addSelect() sau select() sẽ bị
     // TypeORM reset mất cột đã thêm trước đó, đây là lỗi đã vá (xem findNearbyDeals).
     qb.groupBy('s.id')

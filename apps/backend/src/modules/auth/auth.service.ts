@@ -6,7 +6,9 @@ import {
   BadRequestException,
   NotFoundException,
   Logger,
+  Optional,
 } from '@nestjs/common';
+import { MailService } from '../mail/mail.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, IsNull, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -77,6 +79,7 @@ export class AuthService {
     private readonly consentRepo: Repository<ConsentEntity>,
     private readonly jwtService: JwtService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly mail?: MailService,
   ) {}
 
   // =========================================================================
@@ -921,11 +924,17 @@ export class AuthService {
         expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
       }),
     );
-    this.logger.log(`[OTP ${purpose} SIMULATION] Mã ${otp} gửi tới ${target}`);
+    const sent = target.includes('@')
+      ? ((await this.mail?.sendOtp(target, purpose, otp)) ?? false)
+      : false;
+    if (!sent) this.logger.log(`[OTP ${purpose} SIMULATION] Mã ${otp} gửi tới ${target}`);
     return {
       success: true,
-      message: 'Đã gửi mã OTP về email của bạn',
-      otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
+      message: sent
+        ? 'Đã gửi mã OTP về email của bạn'
+        : 'Chưa gửi được email thật, dùng mã thử nghiệm bên dưới',
+      emailSent: sent,
+      otpPreview: !sent && process.env.NODE_ENV !== 'production' ? otp : undefined,
     };
   }
 
@@ -994,12 +1003,16 @@ export class AuthService {
     });
     await this.otpRepo.save(otpEntity);
 
-    this.logger.log(`[RESET PASSWORD OTP SIMULATION] Mã OTP đặt lại mật khẩu: ${otp}`);
+    const emailed = dto.target.includes('@')
+      ? ((await this.mail?.sendOtp(dto.target, OtpPurpose.RESET, otp)) ?? false)
+      : false;
+    if (!emailed)
+      this.logger.log(`[RESET PASSWORD OTP SIMULATION] Mã OTP đặt lại mật khẩu: ${otp}`);
 
     return {
       success: true,
       message: 'Mã OTP đặt lại mật khẩu đã được gửi',
-      otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
+      otpPreview: !emailed && process.env.NODE_ENV !== 'production' ? otp : undefined,
     };
   }
 
