@@ -73,7 +73,7 @@ fun RegisterScreen(
         }
     }
 
-    AuthCard(onBackClick = { if (step > 1) { step--; error = null } else onBackClick() }, showBrandMark = false) {
+    AuthCard(onBackClick = { if (step > 1) { step--; error = null } else onBackClick() }, waveHeader = true) {
         AuthHeading(
             title = "Đăng ký cửa hàng",
             subtitle = when (step) {

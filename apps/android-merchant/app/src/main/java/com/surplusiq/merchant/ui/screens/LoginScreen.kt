@@ -51,7 +51,7 @@ fun LoginScreen(
         }
     }
 
-    AuthCard(onBackClick = null, showBrandMark = true) {
+    AuthCard(onBackClick = null, waveHeader = true) {
         AuthHeading(
             title = "Chào mừng trở lại!",
             subtitle = "Quản lý suất, đơn hàng và hao hụt mỗi ngày cùng SurplusIQ cho cửa hàng."
