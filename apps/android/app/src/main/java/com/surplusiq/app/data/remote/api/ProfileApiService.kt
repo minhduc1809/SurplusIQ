@@ -53,7 +53,7 @@ interface ProfileApiService {
     ): Response<ConsentDto>
 
     @POST("customer/delete-request")
-    suspend fun requestAccountDelete(): Response<AccountDeleteResponse>
+    suspend fun requestAccountDelete(@Body request: RequestDeleteBody): Response<AccountDeleteResponse>
 
     @DELETE("customer/delete-request")
     suspend fun cancelAccountDelete(): Response<AccountDeleteResponse>

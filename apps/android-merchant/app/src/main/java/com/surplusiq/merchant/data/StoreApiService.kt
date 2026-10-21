@@ -387,7 +387,7 @@ interface StoreApiService {
     @POST("store/marketing/promotions")
     suspend fun createPromotion(@Body request: CreatePromotionRequest): Response<PromotionDto>
 
-    @PUT("store/marketing/promotions/{id}")
+    @PATCH("store/marketing/promotions/{id}")
     suspend fun updatePromotion(@Path("id") id: String, @Body request: UpdatePromotionRequest): Response<PromotionDto>
 
     @PATCH("store/marketing/promotions/{id}/status")

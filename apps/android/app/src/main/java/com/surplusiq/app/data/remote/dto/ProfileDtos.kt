@@ -78,6 +78,9 @@ data class RecordConsentRequest(
 )
 
 
+/** Xóa tài khoản phải xác nhận lại bằng mật khẩu hiện tại. */
+data class RequestDeleteBody(@SerializedName("password") val password: String)
+
 data class AccountDeleteResponse(
     @SerializedName("success") val success: Boolean = true,
     @SerializedName("status") val status: String? = null,

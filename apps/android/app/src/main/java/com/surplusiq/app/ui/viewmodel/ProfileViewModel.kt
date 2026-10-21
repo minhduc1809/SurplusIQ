@@ -172,10 +172,10 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun requestAccountDelete() {
+    fun requestAccountDelete(password: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isAccountDeleteActionLoading = true, accountDeleteMessage = null)
-            val result = profileRepository.requestAccountDelete()
+            val result = profileRepository.requestAccountDelete(password)
             result.fold(
                 onSuccess = { res ->
                     _uiState.value = _uiState.value.copy(

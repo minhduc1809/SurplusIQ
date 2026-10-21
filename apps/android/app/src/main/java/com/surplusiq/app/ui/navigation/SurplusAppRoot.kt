@@ -831,7 +831,7 @@ fun SurplusAppRoot(
                 state = profileUiState,
                 onBackClick = { currentDestination = AppDestination.MainTabs },
                 onExportData = { profileViewModel.exportUserData() },
-                onRequestDelete = { profileViewModel.requestAccountDelete() },
+                onRequestDelete = { password -> profileViewModel.requestAccountDelete(password) },
                 onCancelDelete = { profileViewModel.cancelAccountDelete() }
             )
         }

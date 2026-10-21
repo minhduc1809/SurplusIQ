@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.app.data.remote.dto.ConsentDto
@@ -33,11 +34,12 @@ fun PrivacyDataScreen(
     state: ProfileUiState,
     onBackClick: () -> Unit,
     onExportData: () -> Unit,
-    onRequestDelete: () -> Unit,
+    onRequestDelete: (String) -> Unit,
     onCancelDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var deletePassword by remember { mutableStateOf("") }
     val isPendingDelete = state.deleteRequestStatus == "PENDING_DELETE"
 
     Column(
@@ -158,16 +160,31 @@ fun PrivacyDataScreen(
                 onDismissRequest = { showDeleteConfirm = false },
                 title = { Text("Xóa tài khoản?") },
                 text = {
-                    Text(
-                        "Sau khi gửi yêu cầu, tài khoản sẽ có 7 ngày ân hạn để bạn hủy. " +
-                            "Hết thời hạn, dữ liệu cá nhân sẽ bị ẩn danh và không thể hoàn tác (BR-007)."
-                    )
+                    Column {
+                        Text(
+                            "Sau khi gửi yêu cầu, tài khoản sẽ có 7 ngày ân hạn để bạn hủy. " +
+                                "Hết thời hạn, dữ liệu cá nhân sẽ bị ẩn danh và không thể hoàn tác (BR-007)."
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = deletePassword,
+                            onValueChange = { deletePassword = it },
+                            label = { Text("Nhập mật khẩu để xác nhận") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 },
                 confirmButton = {
-                    TextButton(onClick = {
-                        showDeleteConfirm = false
-                        onRequestDelete()
-                    }) { Text("Xác nhận xóa", color = CoralRed) }
+                    TextButton(
+                        enabled = deletePassword.isNotBlank(),
+                        onClick = {
+                            showDeleteConfirm = false
+                            onRequestDelete(deletePassword)
+                            deletePassword = ""
+                        }
+                    ) { Text("Xác nhận xóa", color = CoralRed) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text("Hủy") }

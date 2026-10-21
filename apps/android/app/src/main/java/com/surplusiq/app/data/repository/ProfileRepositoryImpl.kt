@@ -102,11 +102,13 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun requestAccountDelete(): Result<AccountDeleteResponse> {
+    override suspend fun requestAccountDelete(password: String): Result<AccountDeleteResponse> {
         return try {
-            val response = profileApiService.requestAccountDelete()
+            val response = profileApiService.requestAccountDelete(RequestDeleteBody(password))
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)
+            } else if (response.code() == 403) {
+                Result.failure(Exception("Mật khẩu không đúng. Vui lòng thử lại."))
             } else {
                 Result.failure(Exception("Không thể gửi yêu cầu xóa tài khoản (${response.code()})"))
             }
