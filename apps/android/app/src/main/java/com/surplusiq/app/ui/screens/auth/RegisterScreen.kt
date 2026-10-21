@@ -115,7 +115,7 @@ fun RegisterScreen(
 
         AuthGoogleButton(text = "Tiếp tục với Google", onClick = onGoogleRegisterClick)
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Text(text = "Đã có tài khoản? ", color = TextSecondary, fontSize = 13.sp)

@@ -143,6 +143,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
     fun onGoogleSignInFailed(message: String) {
         _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = message)
     }

@@ -170,7 +170,7 @@ fun LoginScreen(
 
         AuthGoogleButton(text = "Tiếp tục với Google", onClick = onGoogleLoginClick)
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Text(text = "Chưa có tài khoản? ", color = TextSecondary, fontSize = 13.sp)

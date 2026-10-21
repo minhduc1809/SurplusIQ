@@ -262,6 +262,8 @@ fun SurplusAppRoot(
         }
     }
     var authScreenState by remember { mutableStateOf(AuthScreenState.WELCOME) }
+    // Đổi giữa các màn đăng nhập/đăng ký thì bỏ thông báo lỗi cũ.
+    LaunchedEffect(authScreenState) { authViewModel.clearError() }
     
     // K06: lần đầu vào app (đăng nhập hoặc khách) mà chưa thiết lập vị trí -> màn quyền vị trí & bán kính.
     LaunchedEffect(authState.isLoggedIn, authState.isGuestMode) {
@@ -312,9 +314,11 @@ fun SurplusAppRoot(
                                 try {
                                     val idToken = GoogleSignInHelper.requestIdToken(context)
                                     authViewModel.loginWithGoogle(idToken)
+                                } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    // Người dùng tự đóng hộp thoại Google: không báo lỗi.
                                 } catch (e: GetCredentialException) {
                                     authViewModel.onGoogleSignInFailed(
-                                        e.localizedMessage ?: "Đăng nhập Google thất bại"
+                                        "Không đăng nhập được bằng Google. Vui lòng thử lại hoặc dùng số điện thoại."
                                     )
                                 }
                             }
@@ -365,9 +369,11 @@ fun SurplusAppRoot(
                                 try {
                                     val idToken = GoogleSignInHelper.requestIdToken(context)
                                     authViewModel.loginWithGoogle(idToken)
+                                } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    // Người dùng tự đóng hộp thoại Google: không báo lỗi.
                                 } catch (e: GetCredentialException) {
                                     authViewModel.onGoogleSignInFailed(
-                                        e.localizedMessage ?: "Đăng nhập Google thất bại"
+                                        "Không đăng nhập được bằng Google. Vui lòng thử lại hoặc dùng số điện thoại."
                                     )
                                 }
                             }
