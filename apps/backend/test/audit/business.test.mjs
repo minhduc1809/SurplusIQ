@@ -9,6 +9,7 @@ import {
   createPaidOrder,
   http,
   loginAs,
+  payOrderDev,
   q,
   resetPenalties,
 } from './helpers.mjs';
@@ -144,6 +145,27 @@ describe(
         body: { totalQuantity: 1 },
       });
       assert.equal(r.status, 400, `giảm tổng còn 1 khi đã giữ 2 trả ${r.status}`);
+    });
+
+    it('TC-BIZ-009 [hủy đơn] cửa hàng hủy đơn ĐÃ THANH TOÁN thì khách được hoàn 100% và vé bị thu hồi', async () => {
+      const { order } = await createPaidOrder(tokens);
+      await payOrderDev(tokens, order.id);
+      const c = await http('POST', `/store/orders/${order.id}/cancel`, {
+        token: tokens.storeA,
+        body: { reason: 'Hết nguyên liệu' },
+      });
+      assert.ok(c.status < 300, `hủy trả ${c.status} ${JSON.stringify(c.body).slice(0, 100)}`);
+      const [r] = await q(
+        "select count(*)::int n, coalesce(sum(amount),0)::int total from payment_transactions where order_id=$1 and kind='ORDER_REFUND'",
+        [order.id],
+      );
+      assert.equal(r.n, 1, 'không có lệnh hoàn tiền cho khách đã thanh toán');
+      assert.equal(r.total, order.totalAmount);
+      const [t] = await q(
+        "select count(*)::int n from pickup_tokens where order_id=$1 and status='UNUSED'",
+        [order.id],
+      );
+      assert.equal(t.n, 0, 'vé nhận hàng vẫn còn hiệu lực');
     });
   },
 );

@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In, IsNull } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
+import { createRefundTransaction } from '../payments/refund-transaction';
 import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
 import {
@@ -397,16 +398,12 @@ export class OrdersService {
         );
 
         // Tạo giao dịch hoàn tiền 100% tự động (R1-043)
-        const refundTx = manager.create(PaymentTransactionEntity, {
-          orderId: order.id,
-          storeId: order.storeId,
-          kind: PaymentKind.ORDER_REFUND,
-          amount: order.totalAmount,
-          method: PaymentMethod.VIETQR,
-          gatewayTxnId: `REFUND-${order.code}-${Date.now()}`,
-          status: PaymentStatus.SUCCEEDED,
-        });
-        await manager.save(refundTx);
+        await createRefundTransaction(
+          manager,
+          order,
+          order.totalAmount,
+          `REFUND-${order.code}-${Date.now()}`,
+        );
       }
 
       // 1. Cập nhật trạng thái đơn
@@ -732,7 +729,31 @@ export class OrdersService {
         throw new BadRequestException(`Không thể hủy đơn hàng đã ở trạng thái ${order.status}.`);
       }
 
+      // Đơn đã hết hạn giữ/nhận đã được hệ thống xử lý, không cho cửa hàng hủy lại.
+      if (order.status !== OrderStatus.PENDING_PAYMENT && order.status !== OrderStatus.PAID) {
+        throw new BadRequestException(`Không thể hủy đơn hàng đã ở trạng thái ${order.status}.`);
+      }
+
       const wasPending = order.status === OrderStatus.PENDING_PAYMENT;
+      // Đơn đã thanh toán mà cửa hàng hủy: thu hồi vé nhận hàng và hoàn 100% cho khách (R2 hủy đơn).
+      if (!wasPending) {
+        await manager.update(
+          PickupTokenEntity,
+          { orderId: order.id, status: PickupTokenStatus.UNUSED },
+          { status: PickupTokenStatus.REVOKED },
+        );
+        await manager.update(
+          ProxyPickupCodeEntity,
+          { orderId: order.id, status: ProxyPickupCodeStatus.UNUSED },
+          { status: ProxyPickupCodeStatus.REVOKED },
+        );
+        await createRefundTransaction(
+          manager,
+          order,
+          order.totalAmount,
+          `REFUND-${order.code}-${Date.now()}`,
+        );
+      }
       order.status = OrderStatus.CANCELLED;
       order.cancelledBy = CancelledBy.STORE;
       order.cancelReason = dto?.reason || 'Cửa hàng hủy đơn (Hoàn tiền 100%)';
@@ -802,6 +823,9 @@ export class OrdersService {
 
     if (order.status === OrderStatus.PICKED_UP) {
       throw new BadRequestException('Đơn hàng này đã được nhận trước đó rồi.');
+    }
+    if (order.status !== OrderStatus.PAID) {
+      throw new BadRequestException(`Chỉ giao được đơn đã thanh toán (hiện tại: ${order.status}).`);
     }
 
     order.status = OrderStatus.PICKED_UP;
