@@ -11,7 +11,7 @@ import { UserEntity } from './auth/user.entity';
 describe('TypeORM Entities Specification & Integrity', () => {
   it('should export all 67 domain entities in ALL_ENTITIES', () => {
     expect(ALL_ENTITIES).toBeDefined();
-    expect(ALL_ENTITIES.length).toBe(73);
+    expect(ALL_ENTITIES.length).toBe(76);
   });
 
   it('should register all entities in TypeORM metadata storage', () => {

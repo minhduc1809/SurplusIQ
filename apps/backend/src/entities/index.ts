@@ -1,3 +1,4 @@
+import { PickupIncidentEntity, OrderMessageEntity, OrderGiftEntity } from './order-support';
 import {
   UserEntity,
   CustomerProfileEntity,
@@ -117,6 +118,11 @@ export * from './rescue-bridge';
 export * from './rescue-lab';
 
 export const ALL_ENTITIES = [
+  // Hỗ trợ đơn hàng: sự cố khi nhận, trò chuyện, tặng suất
+  PickupIncidentEntity,
+  OrderMessageEntity,
+  OrderGiftEntity,
+
   // Auth & Identity (13)
   UserEntity,
   CustomerProfileEntity,

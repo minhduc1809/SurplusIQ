@@ -309,6 +309,13 @@ export class JobsService {
 
           if (!lockedOrder) return;
 
+          // Khách đang chờ cửa hàng xử lý sự cố do cửa hàng gây ra (đóng cửa, món chưa sẵn sàng) thì không tính không đến nhận (KX03).
+          const [protectedByIncident] = await manager.query(
+            `SELECT 1 FROM pickup_incidents WHERE order_id = $1 AND type IN ('STORE_CLOSED', 'NOT_READY') AND status IN ('OPEN', 'ACKNOWLEDGED') LIMIT 1`,
+            [lockedOrder.id],
+          );
+          if (protectedByIncident) return;
+
           lockedOrder.status = OrderStatus.PICKUP_EXPIRED;
           await manager.save(lockedOrder);
 

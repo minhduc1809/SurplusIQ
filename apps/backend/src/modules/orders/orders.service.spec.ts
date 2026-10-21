@@ -58,6 +58,8 @@ describe('OrdersService', () => {
     promotionId: null,
     discountAmount: 0,
     platformSubsidy: 0,
+    swappedFromOfferId: null,
+    swappedAt: null,
     totalAmount: 40000,
     status: OrderStatus.PENDING_PAYMENT,
     holdExpiresAt: new Date(Date.now() + 10 * 60 * 1000),

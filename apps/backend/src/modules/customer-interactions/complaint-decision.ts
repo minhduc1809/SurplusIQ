@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
-import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
-import { decryptField, encryptField, last4 } from '../../common/crypto/field-crypto';
+import { createRefundTransaction } from '../payments/refund-transaction';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import {
@@ -69,31 +68,12 @@ export async function decideComplaint(
     complaint.rejectReason = null;
     complaint.autoAccepted = false;
     if (refundAmount > 0) {
-      refundTransaction = manager.create(PaymentTransactionEntity, {
-        orderId: order.id,
-        storeId: order.storeId,
-        kind: PaymentKind.ORDER_REFUND,
-        amount: refundAmount,
-        method: PaymentMethod.SIMULATED,
-        status: PaymentStatus.SUCCEEDED,
-        payoutStatus: 'PENDING',
-        gatewayTxnId: `${refundPrefix}_${complaint.id}`,
-      });
-      const bank = (
-        await manager.findOne(CustomerProfileEntity, { where: { userId: order.customerId } })
-      )?.refundBankAccount;
-      if (bank) {
-        const enc = bank.accountNumberEnc ?? encryptField(bank.accountNumber ?? '');
-        refundTransaction.refundDestination = {
-          bankBin: bank.bankBin,
-          bankName: bank.bankName,
-          accountHolder: bank.accountHolder,
-          accountLast4: last4(bank.accountNumber ?? decryptField(enc)),
-          accountNumberEnc: enc,
-          snapshotAt: new Date().toISOString(),
-        };
-      }
-      await manager.save(refundTransaction);
+      refundTransaction = await createRefundTransaction(
+        manager,
+        order,
+        refundAmount,
+        `${refundPrefix}_${complaint.id}`,
+      );
     }
     if (
       alreadyRefunded + refundAmount >= order.totalAmount &&
