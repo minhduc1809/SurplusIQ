@@ -188,6 +188,7 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
                         )
                     }
                 }
+                item { CoreActionsCard(onNavigate) }
                 item {
                     // Số đơn đã nhận và tổng đơn đã nằm ở thẻ chỉ số bên dưới nên ở đây chỉ nêu việc chưa có chỗ nào khác.
                     HeroGaugeCard(
@@ -289,5 +290,43 @@ private fun ExpiringOffersCard(lots: List<RescueLot>, onOpenAll: () -> Unit) {
                 Text(style.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = style.fg, modifier = Modifier.clip(RoundedCornerShape(50)).background(style.bg).padding(horizontal = 10.dp, vertical = 4.dp))
             }
         }
+    }
+}
+
+/** Ba việc cốt lõi của chủ quán: quét QR giao món, đăng suất bán, chiến lược giá. */
+@Composable
+private fun CoreActionsCard(onNavigate: (String) -> Unit) {
+    SqCard {
+        SectionTitle("Việc chính hôm nay")
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CoreActionTile("Quét QR giao món", "Đối chiếu mã khách đưa", Icons.Default.QrCodeScanner, SqCoral, Modifier.weight(1f)) { onNavigate("verify") }
+            CoreActionTile("Đăng suất bán", "Giảm giá món còn dư", Icons.Default.LocalOffer, SqCoralDeep, Modifier.weight(1f)) { onNavigate("offer-new") }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SqSurfaceSoft).clickable { onNavigate("price-proposals") }.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.TrendingDown, contentDescription = null, tint = SqMintDeep, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Giá và chiến lược giảm giá", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SqInk)
+                Text("Đề xuất hạ giá theo giờ, duyệt hoặc từ chối", fontSize = 12.sp, color = SqInkSoft)
+            }
+            Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = SqInkMuted)
+        }
+    }
+}
+
+@Composable
+private fun CoreActionTile(title: String, hint: String, icon: ImageVector, tint: androidx.compose.ui.graphics.Color, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).background(SqCoralWash).clickable(onClick = onClick).padding(14.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(8.dp))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
+        Text(hint, fontSize = 11.sp, color = SqInkSoft)
     }
 }

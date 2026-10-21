@@ -60,6 +60,13 @@ fun SqBottomBar(
             }
         }
         if (center != null) {
+            Text(
+                center.label,
+                fontSize = 11.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = accent,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp)
+            )
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
