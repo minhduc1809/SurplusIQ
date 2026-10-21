@@ -287,10 +287,10 @@ describe('DecisionsService Unit Tests (R2-036..R2-048, R2-040, R2-099, R2-112..1
 
     it('sinh thẻ đề xuất chỉ khi món bán dưới 50% (từ 10 suất) và không tạo trùng (R2-114)', async () => {
       offerRepo.find.mockResolvedValue([
-        { itemId: 'item-a', totalQuantity: 10, soldQuantity: 2 },
-        { itemId: 'item-a', totalQuantity: 6, soldQuantity: 1 },
-        { itemId: 'item-b', totalQuantity: 10, soldQuantity: 9 },
-        { itemId: 'item-c', totalQuantity: 4, soldQuantity: 0 },
+        { itemId: 'item-a', totalQuantity: 10, remainingQuantity: 8 },
+        { itemId: 'item-a', totalQuantity: 6, remainingQuantity: 5 },
+        { itemId: 'item-b', totalQuantity: 10, remainingQuantity: 1 },
+        { itemId: 'item-c', totalQuantity: 4, remainingQuantity: 4 },
       ]);
       itemRepo.find.mockResolvedValue([{ id: 'item-a', name: 'Bánh mì' }]);
 
