@@ -52,7 +52,9 @@ data class MapPin(
     val activeDealsCount: Int,
     val minPrice: Int?,
     val maxDiscountPercent: Int,
-    val distanceText: String?
+    val distanceText: String?,
+    /** Loại món của các suất đang mở (để lọc theo loại trên bản đồ). */
+    val categories: List<String> = emptyList()
 )
 
 /** Chi tiết cửa hàng (K14, R1-027); cũng dùng cho danh sách cửa hàng yêu thích (K18). */

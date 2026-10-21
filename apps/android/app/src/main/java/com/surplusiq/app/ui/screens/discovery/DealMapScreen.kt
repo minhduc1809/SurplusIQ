@@ -5,6 +5,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,6 +57,12 @@ fun DealMapScreen(
     val requestLocation = rememberLocationPermissionRequest(onGranted = onLocateMe, onDenied = onLocatePermissionDenied)
     val context = LocalContext.current
     var selectedPin by remember { mutableStateOf<MapPin?>(null) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    // Lọc theo loại món ngay trên danh sách ghim đã tải; danh sách loại lấy từ chính các suất đang mở
+    val categories = remember(pins) { pins.flatMap { it.categories }.distinct().sorted() }
+    val shownPins = remember(pins, selectedCategory) {
+        selectedCategory?.let { c -> pins.filter { c in it.categories } } ?: pins
+    }
 
     val centerLat = location.latitude ?: pins.firstOrNull()?.latitude ?: DefaultMapCenter.LATITUDE
     val centerLng = location.longitude ?: pins.firstOrNull()?.longitude ?: DefaultMapCenter.LONGITUDE
@@ -69,7 +77,8 @@ fun DealMapScreen(
             centerLongitude = centerLng,
             zoomLevel = 14.5,
             radiusKm = if (location.hasCoordinates) location.radiusKm else null,
-            pins = pins,
+            pins = shownPins,
+            selectedStoreId = selectedPin?.storeId,
             userLocation = userLocation,
             onPinClick = { pin -> selectedPin = pin },
             modifier = Modifier.fillMaxSize()
@@ -117,12 +126,37 @@ fun DealMapScreen(
                 )
                 locateError != null -> MapBanner(locateError, actionLabel = null, onAction = {})
                 errorMessage != null -> MapBanner(errorMessage, actionLabel = "Thử lại", onAction = onLoad)
+                shownPins.isEmpty() && selectedCategory != null -> MapBanner(
+                    "Không có cửa hàng nào bán loại \"$selectedCategory\" trong khu vực này.",
+                    actionLabel = null,
+                    onAction = {}
+                )
                 pins.isEmpty() -> MapBanner(
                     if (location.hasCoordinates) "Chưa có cửa hàng nào có deal đang mở trong bán kính này."
                     else "Chưa có cửa hàng nào có deal đang mở.",
                     actionLabel = null,
                     onAction = {}
                 )
+            }
+        }
+
+        // Chip lọc theo loại món
+        if (categories.isNotEmpty()) {
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (selectedPin != null) 210.dp else 16.dp, start = 12.dp, end = 12.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(selected = selectedCategory == null, onClick = { selectedCategory = null }, label = { Text("Tất cả") })
+                categories.forEach { c ->
+                    FilterChip(
+                        selected = selectedCategory == c,
+                        onClick = { selectedCategory = if (selectedCategory == c) null else c },
+                        label = { Text(c) }
+                    )
+                }
             }
         }
 

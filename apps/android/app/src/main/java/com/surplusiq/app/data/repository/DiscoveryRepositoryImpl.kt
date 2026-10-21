@@ -328,7 +328,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
                     activeDealsCount = it.activeDealsCount,
                     minPrice = it.minPrice?.toInt(),
                     maxDiscountPercent = it.maxDiscountPercent ?: 0,
-                    distanceText = formatDistance(it.distanceMeters)
+                    distanceText = formatDistance(it.distanceMeters),
+                    categories = it.categories.orEmpty()
                 )
             }
         }

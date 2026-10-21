@@ -49,6 +49,9 @@ private val MapTileSource = XYTileSource(
     "© OpenStreetMap contributors, OSM France"
 )
 
+/** Mức zoom từ đây trở lên thì ghim quán hiện dạng bong bóng có tên và giá. */
+private const val BUBBLE_MIN_ZOOM = 15.0
+
 /**
  * OpenStreetMap Compose Component sử dụng OsmDroid Native (Chi phí 0đ, không cần API Key Google Maps).
  * Hỗ trợ hiển thị ghim deal, vòng tròn bán kính và chế độ kéo ghim tâm vị trí.
@@ -66,11 +69,14 @@ fun OsmMapView(
     showZoomButtons: Boolean = true,
     onCenterChanged: ((lat: Double, lng: Double) -> Unit)? = null,
     onPinClick: ((pin: MapPin) -> Unit)? = null,
+    selectedStoreId: String? = null,
     modifier: Modifier = Modifier
 ) {
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     var lastCenter by remember { mutableStateOf(centerLatitude to centerLongitude) }
     var lastZoom by remember { mutableStateOf(zoomLevel) }
+    // Phóng đủ gần thì hiện bong bóng tên quán trên đầu ghim; xa hơn chỉ hiện chấm để bản đồ không rối
+    var showBubbles by remember { mutableStateOf(zoomLevel >= BUBBLE_MIN_ZOOM) }
 
     LaunchedEffect(Unit) {
         Configuration.getInstance().userAgentValue = "SurplusIQ-Android"
@@ -89,6 +95,15 @@ fun OsmMapView(
                     val startPoint = GeoPoint(centerLatitude, centerLongitude)
                     controller.setZoom(zoomLevel)
                     controller.setCenter(startPoint)
+
+                    addMapListener(object : MapListener {
+                        override fun onScroll(event: ScrollEvent?) = false
+                        override fun onZoom(event: ZoomEvent?): Boolean {
+                            val near = zoomLevelDouble >= BUBBLE_MIN_ZOOM
+                            if (near != showBubbles) showBubbles = near
+                            return false
+                        }
+                    })
 
                     if (isCenterPinMode && onCenterChanged != null) {
                         addMapListener(object : MapListener {
@@ -131,10 +146,15 @@ fun OsmMapView(
                     val marker = Marker(mapView).apply {
                         position = GeoPoint(pin.latitude, pin.longitude)
                         title = pin.storeName
-                        snippet = "${pin.activeDealsCount} suất cứu đang mở"
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        setInfoWindow(null) // thông tin đã nằm ngay trong bong bóng, thẻ chi tiết hiện ở dưới màn hình
 
-                        // Custom drawable badge marker
+                        if (showBubbles) {
+                            val bubble = pinBubbleDrawable(mapView.context, pin, pin.storeId == selectedStoreId)
+                            icon = bubble
+                            val density = mapView.context.resources.displayMetrics.density
+                            setAnchor(Marker.ANCHOR_CENTER, 1f - (13f * density) / bubble.intrinsicHeight)
+                        } else {
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                         val markerDrawable = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
                             setColor(
@@ -145,10 +165,10 @@ fun OsmMapView(
                             setSize(64, 64)
                         }
                         icon = markerDrawable
+                        }
 
-                        setOnMarkerClickListener { m, _ ->
+                        setOnMarkerClickListener { _, _ ->
                             onPinClick?.invoke(pin)
-                            m.showInfoWindow()
                             true
                         }
                     }

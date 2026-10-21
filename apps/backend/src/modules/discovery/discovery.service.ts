@@ -289,6 +289,8 @@ export class DiscoveryService {
         'COUNT(o.id) AS active_deals_count',
         'MIN(o.current_price) AS min_price',
         'MAX((1.0 - CAST(o.current_price AS FLOAT) / o.original_price) * 100) AS max_discount_percent',
+        'ARRAY_REMOVE(ARRAY_AGG(DISTINCT i.category), NULL) AS categories',
+        'MIN(o.pickup_end) AS soonest_pickup_end',
       ]);
     qb.addSelect(distanceSelectExpr, 'distance_meters');
 
@@ -305,6 +307,8 @@ export class DiscoveryService {
       minPrice: Number(p.min_price),
       maxDiscountPercent: Math.round(Number(p.max_discount_percent || 0)),
       distanceMeters: p.distance_meters !== null ? Number(p.distance_meters) : null,
+      categories: (p.categories as string[] | null) ?? [],
+      soonestPickupEnd: p.soonest_pickup_end,
     }));
   }
 
