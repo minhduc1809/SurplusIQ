@@ -174,6 +174,29 @@ data class RewardBalanceInfo(
     val pointsBalance: Int
 )
 
+data class RewardCatalogItem(
+    val id: String,
+    val name: String,
+    val points: Int,
+    val valueVnd: Int,
+    val minOrderVnd: Int,
+    val validDays: Int,
+    val canRedeem: Boolean,
+    val shortfall: Int
+)
+
+data class RewardCatalog(
+    val pointsBalance: Int,
+    val dailyLimit: Int,
+    val redeemedToday: Int,
+    val items: List<RewardCatalogItem>
+)
+
+data class RewardRuleSection(val title: String, val body: String)
+
+/** Kết quả đổi điểm: số dư mới và voucher đã vào ví. */
+data class RedeemResult(val pointsBalance: Int, val voucherName: String?, val voucherExpiresAt: String?)
+
 data class RewardHistoryEntry(
     val id: String,
     val entryType: String,

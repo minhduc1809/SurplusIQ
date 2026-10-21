@@ -29,6 +29,7 @@ import {
   ComparePeriodsDto,
 } from './dto/store-operations.dto';
 import { ReconciliationEngine, type ReconciliationOrderStatus } from '@surplusiq/core';
+import { orderGrossAmount } from '../orders/order-amounts';
 
 /** Dịch mốc thời gian sang giờ Việt Nam (UTC+7, không có giờ mùa hè); đọc bằng getUTC*. */
 const toVietnamTime = (d: Date | string) => new Date(new Date(d).getTime() + 7 * 3_600_000);
@@ -181,14 +182,14 @@ export class StoresService {
     for (const ord of ordersToday) {
       if (ord.status === OrderStatus.PICKED_UP) {
         completedOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
         rescuedItemsCount += ord.quantity;
       } else if (ord.status === OrderStatus.PAID) {
         paidOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
       } else if (ord.status === OrderStatus.PICKUP_EXPIRED) {
         noShowOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
       } else if (ord.status === OrderStatus.CANCELLED) {
         cancelledOrders++;
       }
@@ -302,11 +303,11 @@ export class StoresService {
     for (const ord of orders) {
       if (ord.status === OrderStatus.PICKED_UP) {
         completedOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
         rescuedItemsCount += ord.quantity;
       } else if (ord.status === OrderStatus.PICKUP_EXPIRED) {
         noShowOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
       } else if (ord.status === OrderStatus.CANCELLED) {
         cancelledOrders++;
       }

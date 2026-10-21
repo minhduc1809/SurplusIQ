@@ -224,6 +224,8 @@ describe('JobsService (All 12 Background Jobs)', () => {
               .mockResolvedValueOnce(mockOffer),
           }),
           save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
+          decrement: jest.fn(),
+          update: jest.fn(),
         };
         return cb(mockManager);
       });

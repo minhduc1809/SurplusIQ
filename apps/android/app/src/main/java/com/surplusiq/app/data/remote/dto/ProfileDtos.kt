@@ -132,7 +132,9 @@ data class PromotionWalletItemDto(
 
 data class PromotionDto(
     @SerializedName("id") val id: String,
-    @SerializedName("storeId") val storeId: String,
+    /** Rỗng với voucher do SurplusIQ tài trợ (đổi điểm), dùng được ở mọi cửa hàng. */
+    @SerializedName("storeId") val storeId: String? = null,
+    @SerializedName("fundedBy") val fundedBy: String? = null,
     @SerializedName("name") val name: String,
     @SerializedName("type") val type: String,
     @SerializedName("value") val value: Int,

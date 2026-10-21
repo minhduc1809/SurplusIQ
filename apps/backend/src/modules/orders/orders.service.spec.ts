@@ -7,6 +7,7 @@ import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/ord
 import { OfferEntity, OfferStatus, OfferKind } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
 import { PromotionEntity } from '../../entities/marketing/promotion.entity';
+import { PromotionWalletEntity } from '../../entities/marketing/promotion-wallet.entity';
 import {
   ProxyPickupCodeEntity,
   ProxyPickupCodeStatus,
@@ -56,6 +57,7 @@ describe('OrdersService', () => {
     unitPrice: 20000,
     promotionId: null,
     discountAmount: 0,
+    platformSubsidy: 0,
     totalAmount: 40000,
     status: OrderStatus.PENDING_PAYMENT,
     holdExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
@@ -313,6 +315,51 @@ describe('OrdersService', () => {
       it('từ chối khi khách không thuộc nhóm của ưu đãi', async () => {
         mockTransactionManager.exists.mockResolvedValue(false);
         await expect(hold(promo({ target: 'FAVORITES' }))).rejects.toThrow('không dành cho');
+      });
+
+      describe('voucher nền tảng tài trợ (đổi điểm)', () => {
+        const voucher = promo({
+          storeId: null,
+          fundedBy: 'PLATFORM',
+          type: 'FIXED',
+          value: 10000,
+          maxUses: 1,
+        });
+        const holdWithWallet = (wallet: object | null) => {
+          mockOrderLockRepo.findOne.mockResolvedValue(null);
+          mockTransactionManager.createQueryBuilder.mockReturnValue(
+            createMockQueryBuilder({ ...mockOffer, remainingQuantity: 5 }),
+          );
+          mockTransactionManager.findOne.mockImplementation(async (cls: any) => {
+            if (cls === PromotionEntity) return voucher;
+            if (cls === PromotionWalletEntity) return wallet;
+            return { status: 'ACTIVE' };
+          });
+          mockTransactionManager.create.mockImplementation((_c: any, dto: any) => ({
+            ...dto,
+            id: 'o1',
+          }));
+          mockTransactionManager.save.mockImplementation(async (e: any) => e);
+          mockTransactionManager.update = jest.fn();
+          return service.holdOrder(mockCustomerId, { ...validDto, promotionId: 'promo-1' });
+        };
+
+        it('từ chối khi voucher không có trong ví của khách hoặc đã dùng', async () => {
+          await expect(holdWithWallet(null)).rejects.toThrow('không có trong ví');
+          await expect(holdWithWallet({ usedAt: new Date() })).rejects.toThrow('đã được dùng');
+        });
+
+        it('giảm đủ giá trị voucher bất kể giá sàn, ghi phần nền tảng bù và đánh dấu ví đã dùng', async () => {
+          const result = await holdWithWallet({ usedAt: null });
+          expect(result.discountAmount).toBe(10000);
+          expect(result.platformSubsidy).toBe(10000);
+          expect(result.totalAmount).toBe(30000);
+          expect(mockTransactionManager.update).toHaveBeenCalledWith(
+            PromotionWalletEntity,
+            expect.objectContaining({ customerId: mockCustomerId, promotionId: 'promo-1' }),
+            expect.objectContaining({ orderId: 'o1' }),
+          );
+        });
       });
 
       it('cho dùng khi khách thuộc nhóm của ưu đãi', async () => {

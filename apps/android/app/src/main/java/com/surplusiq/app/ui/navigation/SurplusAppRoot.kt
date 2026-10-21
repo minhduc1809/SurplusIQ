@@ -552,7 +552,10 @@ fun SurplusAppRoot(
             RewardsScreen(
                 state = rewardsState,
                 onBackClick = { currentDestination = AppDestination.MainTabs },
-                onRetry = { rewardsViewModel.load() }
+                onRetry = { rewardsViewModel.load() },
+                onOpenRedeem = { rewardsViewModel.loadCatalog() },
+                onOpenRules = { rewardsViewModel.loadRules() },
+                onRedeem = { rewardsViewModel.redeem(it) }
             )
         }
 

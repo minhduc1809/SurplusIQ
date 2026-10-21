@@ -56,6 +56,7 @@ import { RescuePoolService } from '../rescue-pool/rescue-pool.service';
 import { RescueBridgeService } from '../rescue-bridge/rescue-bridge.service';
 import { MarketingService } from '../marketing/marketing.service';
 import { JOBS_CONSTANTS } from './jobs.constants';
+import { orderGrossAmount, releasePromotionUse } from '../orders/order-amounts';
 import {
   ReconciliationEngine,
   ForecastingEngine,
@@ -235,9 +236,7 @@ export class JobsService {
           }
           await manager.save(offer);
         }
-        if (lockedOrder.promotionId) {
-          await manager.decrement(PromotionEntity, { id: lockedOrder.promotionId }, 'usedCount', 1);
-        }
+        await releasePromotionUse(manager, lockedOrder.id, lockedOrder.promotionId);
 
         await this.auditLogService.log({
           storeId: lockedOrder.storeId,
@@ -589,7 +588,7 @@ export class JobsService {
 
       const coreOrders = weekOrders.map((o) => ({
         orderId: o.id,
-        amount: o.totalAmount,
+        amount: orderGrossAmount(o),
         status: o.status as any,
         completedAt: o.updatedAt || new Date(),
         storeFault: false,
@@ -626,8 +625,8 @@ export class JobsService {
           statementId: saved.id,
           orderId: o.id,
           type: 'ORDER',
-          amount: o.totalAmount,
-          commission: Math.round(o.totalAmount * 0.1),
+          amount: orderGrossAmount(o),
+          commission: Math.round(orderGrossAmount(o) * 0.1),
         });
         await this.statementLineRepo.save(line);
       }

@@ -52,7 +52,7 @@ fun promotionIneligibleReason(
     return when {
         item.usedAt != null -> "Đã sử dụng ngày ${formatDate(item.usedAt)}"
         promo.status != "ACTIVE" -> "Ưu đãi đã tạm dừng hoặc kết thúc"
-        storeId != null && promo.storeId != storeId -> "Chỉ áp dụng tại cửa hàng khác"
+        storeId != null && promo.fundedBy != "PLATFORM" && promo.storeId != storeId -> "Chỉ áp dụng tại cửa hàng khác"
         (parseIsoMillis(promo.startAt) ?: 0L) > nowMillis -> "Chưa đến thời gian áp dụng"
         (parseIsoMillis(promo.endAt) ?: Long.MAX_VALUE) < nowMillis -> "Đã hết hạn"
         promo.maxUses != null && promo.maxUses > 0 && promo.usedCount >= promo.maxUses -> "Đã hết lượt sử dụng"

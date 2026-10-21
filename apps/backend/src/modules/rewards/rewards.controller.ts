@@ -34,6 +34,20 @@ export class RewardsController {
     return this.rewardsService.getHistory(user?.userId);
   }
 
+  @Get('catalog')
+  @ApiOperation({ summary: 'Danh mục đổi điểm kèm số dư và điều kiện (CM-C04, KC13)' })
+  async getCatalog(@CurrentUser() user: RequestUser) {
+    return this.rewardsService.getCatalog(user?.userId);
+  }
+
+  @Get('rules')
+  @ApiOperation({
+    summary: 'Quy tắc chương trình điểm: quy đổi, hạn dùng, giới hạn, hoàn tác (CM-C04, KC14)',
+  })
+  getRules() {
+    return this.rewardsService.getRules();
+  }
+
   @Post('redeem')
   @ApiOperation({ summary: 'Đổi điểm thưởng lấy ưu đãi (CM-C04, BR-C04-04)' })
   @ApiResponse({ status: 200, description: 'Đổi điểm thành công, trả về số dư mới' })

@@ -5,6 +5,7 @@ export enum RewardEntryType {
   REDEEM = 'REDEEM',
   ADJUST = 'ADJUST',
   REVERSAL = 'REVERSAL',
+  EXPIRE = 'EXPIRE',
 }
 
 /**

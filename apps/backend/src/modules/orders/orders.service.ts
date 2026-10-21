@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager, In } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, IsNull } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
@@ -25,6 +25,8 @@ import {
   PromotionTarget,
   PromotionType,
 } from '../../entities/marketing/promotion.entity';
+import { PromotionWalletEntity } from '../../entities/marketing/promotion-wallet.entity';
+import { releasePromotionUse } from './order-amounts';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QrTokenEngine } from '@surplusiq/core';
 import { CreateOrderDto, CancelOrderDto, QueryOrdersDto } from './dto';
@@ -150,6 +152,7 @@ export class OrdersService {
       const subtotal = unitPrice * dto.quantity;
       let discountAmount = 0;
       let appliedPromotionId: string | null = null;
+      let platformSubsidy = 0;
 
       if (dto.promotionId) {
         const promo = await manager.findOne(PromotionEntity, {
@@ -160,7 +163,18 @@ export class OrdersService {
           throw new BadRequestException('Mã ưu đãi không tồn tại trên hệ thống.');
         }
 
-        if (promo.storeId !== offer.storeId) {
+        // Voucher đổi điểm do nền tảng tài trợ: chỉ chủ ví dùng được, ở mọi cửa hàng, mỗi mã một lần.
+        const platformFunded = promo.fundedBy === 'PLATFORM';
+        if (platformFunded) {
+          const wallet = await manager.findOne(PromotionWalletEntity, {
+            where: { customerId, promotionId: promo.id },
+          });
+          if (!wallet || wallet.usedAt) {
+            throw new BadRequestException(
+              'Voucher này không có trong ví của bạn hoặc đã được dùng.',
+            );
+          }
+        } else if (promo.storeId !== offer.storeId) {
           throw new BadRequestException('Mã ưu đãi này không thuộc cửa hàng đã chọn.');
         }
 
@@ -190,7 +204,7 @@ export class OrdersService {
         }
 
         // Ưu đãi chỉ dành cho đúng nhóm khách đã chọn
-        if (promo.target !== PromotionTarget.ALL) {
+        if (!platformFunded && promo.target !== PromotionTarget.ALL) {
           const eligible =
             promo.target === PromotionTarget.FAVORITES
               ? await manager.exists(FavoriteStoreEntity, {
@@ -211,11 +225,17 @@ export class OrdersService {
           discountAmount = Math.min(promo.value, subtotal);
         }
 
-        // Ưu đãi không đưa giá xuống dưới giá sàn của suất (BR-019)
-        discountAmount = Math.min(
-          discountAmount,
-          Math.max(0, subtotal - offer.floorPrice * dto.quantity),
-        );
+        // Ưu đãi của cửa hàng không đưa giá xuống dưới giá sàn (BR-019); voucher nền tảng do nền tảng bù
+        // nên cửa hàng vẫn nhận đủ giá trị đơn, chỉ không để khách trả âm.
+        if (platformFunded) {
+          discountAmount = Math.min(discountAmount, subtotal);
+          platformSubsidy = discountAmount;
+        } else {
+          discountAmount = Math.min(
+            discountAmount,
+            Math.max(0, subtotal - offer.floorPrice * dto.quantity),
+          );
+        }
 
         // Tăng số lượt sử dụng của promotion
         promo.usedCount += 1;
@@ -243,6 +263,7 @@ export class OrdersService {
         unitPrice,
         promotionId: appliedPromotionId,
         discountAmount,
+        platformSubsidy,
         totalAmount,
         status: OrderStatus.PENDING_PAYMENT,
         holdExpiresAt,
@@ -251,6 +272,14 @@ export class OrdersService {
       });
 
       const savedOrder = await manager.save(order);
+      if (appliedPromotionId) {
+        // Mã nằm trong ví thì đánh dấu đã dùng; hủy hoặc hết hạn giữ sẽ trả lại (releasePromotionUse).
+        await manager.update(
+          PromotionWalletEntity,
+          { customerId, promotionId: appliedPromotionId, usedAt: IsNull() },
+          { usedAt: new Date(), orderId: savedOrder.id },
+        );
+      }
 
       // 7. Ghi nhật ký kiểm toán
       await this.auditLogService.log({
@@ -454,9 +483,7 @@ export class OrdersService {
    */
   /** Hủy hoặc hết hạn giữ suất thì trả lại lượt dùng ưu đãi (BR-019). */
   private async releasePromotion(manager: EntityManager, order: OrderEntity) {
-    if (order.promotionId) {
-      await manager.decrement(PromotionEntity, { id: order.promotionId }, 'usedCount', 1);
-    }
+    await releasePromotionUse(manager, order.id, order.promotionId);
   }
 
   async getOrderById(
