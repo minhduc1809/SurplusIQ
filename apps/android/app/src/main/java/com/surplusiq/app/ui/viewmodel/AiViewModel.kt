@@ -24,7 +24,7 @@ data class AiUiState(
     val messages: List<ChatMessage> = listOf(
         ChatMessage(
             sender = "ai",
-            text = "Xin chào! Tôi là Trợ lý Cứu Món SaveBite AI. Bạn có thể hỏi tôi bất kỳ điều gì, ví dụ: 'Tìm bánh ngọt dưới 35k gần Quận 1 sau 19h' hoặc hỏi về thành phần dị ứng món ăn!"
+            text = "Xin chào! Tôi là Trợ lý Cứu Món. Mình có thể giúp bạn tìm suất cứu món quanh đây, so sánh giá, xem giờ nhận hàng và kiểm tra thành phần dị ứng của món ăn."
         )
     ),
     val isChatLoading: Boolean = false,
@@ -103,7 +103,7 @@ class AiViewModel @Inject constructor(
             messages = listOf(
                 ChatMessage(
                     sender = "ai",
-                    text = "Xin chào! Tôi là Trợ lý Cứu Món SaveBite AI. Bạn có thể hỏi tôi bất kỳ điều gì, ví dụ: 'Tìm bánh ngọt dưới 35k gần Quận 1 sau 19h' hoặc hỏi về thành phần dị ứng món ăn!"
+                    text = "Xin chào! Tôi là Trợ lý Cứu Món. Mình có thể giúp bạn tìm suất cứu món quanh đây, so sánh giá, xem giờ nhận hàng và kiểm tra thành phần dị ứng của món ăn."
                 )
             )
         )
