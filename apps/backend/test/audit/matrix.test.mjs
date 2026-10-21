@@ -201,3 +201,64 @@ describe('TC-5XX – không endpoint nào trả lỗi máy chủ 5xx với dữ 
     assert.deepEqual(bad, [], `${bad.length} lỗi 5xx:\n  ${bad.join('\n  ')}`);
   });
 });
+
+describe('TC-SEC-SETTINGS-ROLE – BUG-002: cấu hình cửa hàng theo vai trò', () => {
+  it('TC-SEC-SETTINGS-005 không token 401; khách hàng 403', async () => {
+    assert.equal((await http('GET', '/store/settings')).status, 401);
+    assert.equal((await http('PUT', '/store/settings', { body: {} })).status, 401);
+    assert.equal((await http('GET', '/store/settings', { token: tokens.customerA })).status, 403);
+    assert.equal(
+      (await http('PUT', '/store/settings', { token: tokens.customerA, body: {} })).status,
+      403,
+    );
+  });
+  it('TC-SEC-SETTINGS-006 COUNTER và MANAGER xem được, sửa bị 403; COUNTER không thấy trường nhạy cảm', async () => {
+    for (const role of ['counter', 'manager']) {
+      assert.equal((await http('GET', '/store/settings', { token: tokens[role] })).status, 200);
+      const put = await http('PUT', '/store/settings', {
+        token: tokens[role],
+        body: { maxQtyPerOrder: 2 },
+      });
+      assert.equal(put.status, 403, `${role} sửa cấu hình trả ${put.status}`);
+    }
+    const c = await http('GET', '/store/settings', { token: tokens.counter });
+    assert.equal(c.body.floorRatio, undefined, 'COUNTER không được thấy tỉ lệ giá sàn');
+    assert.equal(c.body.costPriceRatio, undefined);
+  });
+  it('TC-SEC-SETTINGS-007 OWNER sửa được và lưu vào DB; x-store-id cửa hàng khác bị 403, cấu hình B không đổi', async () => {
+    const [own] = await q(
+      "select s.store_id, st.max_qty_per_order from store_members s left join store_settings st on st.store_id=s.store_id join users u on u.id=s.user_id where u.email='owner@rincon.vn'",
+    );
+    const [other] = await q(
+      'select store_id, max_qty_per_order from store_settings where store_id <> $1 limit 1',
+      [own.store_id],
+    );
+    const before = own.max_qty_per_order ?? 5;
+    const next = before === 3 ? 4 : 3;
+    const ok = await http('PUT', '/store/settings', {
+      token: tokens.storeA,
+      body: { maxQtyPerOrder: next },
+    });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body)?.slice(0, 120));
+    const [saved] = await q('select max_qty_per_order from store_settings where store_id=$1', [
+      own.store_id,
+    ]);
+    assert.equal(saved.max_qty_per_order, next);
+    await http('PUT', '/store/settings', {
+      token: tokens.storeA,
+      body: { maxQtyPerOrder: before },
+    });
+    if (other) {
+      const bad = await http('PUT', '/store/settings', {
+        token: tokens.storeA,
+        headers: { 'x-store-id': other.store_id },
+        body: { maxQtyPerOrder: 1 },
+      });
+      assert.equal(bad.status, 403);
+      const [after] = await q('select max_qty_per_order from store_settings where store_id=$1', [
+        other.store_id,
+      ]);
+      assert.equal(after.max_qty_per_order, other.max_qty_per_order);
+    }
+  });
+});

@@ -42,6 +42,26 @@ describe('TC-ACCT – tài khoản khách', () => {
       201,
       `đăng nhập khi đang chờ xóa trả ${l.status} ${JSON.stringify(l.body)?.slice(0, 90)} nên không thể hủy yêu cầu xóa`,
     );
+    assert.equal(l.body.accountStatus, 'PENDING_DELETE');
+    assert.ok(l.body.deleteScheduledAt, 'phải trả ngày xóa dự kiến');
+    const token = l.body.accessToken;
+    // Phiên bị giới hạn: API khác bị 403 ACCOUNT_PENDING_DELETE, trạng thái và hủy xóa vẫn dùng được.
+    const other = await http('GET', '/customer/profile', { token });
+    assert.equal(other.status, 403);
+    assert.equal(other.body?.code ?? other.body?.message?.code, 'ACCOUNT_PENDING_DELETE');
+    const order = await http('POST', '/customer/orders', { token, body: {} });
+    assert.equal(order.status, 403, 'không được đặt đơn khi chờ xóa');
+    const st = await http('GET', '/customer/account-status', { token });
+    assert.equal(st.status, 200);
+    assert.equal(st.body.status, 'PENDING_DELETE');
+    const c1 = await http('DELETE', '/customer/delete-request', { token });
+    assert.equal(c1.status, 200);
+    const c2 = await http('DELETE', '/customer/delete-request', { token });
+    assert.ok(c2.status < 500, 'hủy lần hai không được lỗi 5xx');
+    const full = await http('GET', '/customer/profile', { token });
+    assert.equal(full.status, 200, 'sau khi hủy xóa, phiên dùng đầy đủ lại');
+    const [u] = await q("select status from users where email='customer4@surplusiq.test'");
+    assert.equal(u.status, 'ACTIVE');
   });
 
   it('TC-ACCT-003 [R1-012] POST /customer/consents với body rỗng trả 400 (không phải 500)', async () => {

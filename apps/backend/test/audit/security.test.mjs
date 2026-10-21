@@ -27,6 +27,7 @@ const PUBLIC_OK = (e) =>
   e.path.startsWith('/seed') ||
   e.path.startsWith('/realtime') ||
   e.path === '/platform-settings' ||
+  /^\/customer\/deals\/:id\/price-history$/.test(e.path) || // Q-08: công khai cho suất đang hiển thị
   e.path.startsWith('/rescue-bridge/respond/') ||
   e.path === '/store/staff/accept-invite';
 
@@ -118,17 +119,18 @@ describe('TC-SEC-SETTINGS – RISK-07: cấu hình cửa hàng', () => {
     );
   });
   it('TC-SEC-SETTINGS-004 BR gói Pro: header x-is-pro do client gửi không được bật chế độ giá AUTO', async () => {
-    const p = await http('GET', '/store/profile', { token: tokens.storeA });
     const sub = await http('GET', '/store/subscription/current', { token: tokens.storeA });
     const plan = sub.body?.plan ?? sub.body?.subscription?.plan;
     if (plan === 'PRO' || plan === 'TRIAL') return; // cửa hàng đã Pro: không có ý nghĩa
-    const r = await http('PUT', '/store/settings?storeId=' + p.body.store.id, {
+    const r = await http('PUT', '/store/settings', {
+      token: tokens.storeA,
       headers: { 'x-is-pro': 'true' },
       body: { pricingMode: 'AUTO' },
     });
     const after = await http('GET', '/store/profile', { token: tokens.storeA });
     if (after.body.settings.pricingMode === 'AUTO')
-      await http('PUT', '/store/settings?storeId=' + p.body.store.id, {
+      await http('PUT', '/store/settings', {
+        token: tokens.storeA,
         body: { pricingMode: 'MANUAL' },
       });
     assert.notEqual(
@@ -309,3 +311,17 @@ async function createPaidOrderPendingOnly() {
   const ctx = await createPaidOrder(tokens);
   return ctx;
 }
+
+describe('TC-SEC-PRICE – Q-08: lịch sử giá công khai cho suất đang hiển thị', () => {
+  it('TC-SEC-PRICE-001 khách chưa đăng nhập xem được suất mở; id lạ 404; gọi dồn dập 429', async () => {
+    const [o] = await q(
+      "select o.id from offers o join stores s on s.id=o.store_id where o.status='OPEN' and s.status='ACTIVE' limit 1",
+    );
+    if (o) assert.equal((await http('GET', `/customer/deals/${o.id}/price-history`)).status, 200);
+    assert.equal((await http('GET', `/customer/deals/${randomUUID()}/price-history`)).status, 404);
+    const codes = [];
+    for (let i = 0; i < 35; i++)
+      codes.push((await http('GET', `/customer/deals/${randomUUID()}/price-history`)).status);
+    assert.ok(codes.includes(429), 'phải có giới hạn tần suất (429)');
+  });
+});
