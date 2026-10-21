@@ -71,6 +71,48 @@ async function login(path, creds) {
 
 const ctx = {};
 
+async function createOffer(
+  price,
+  qty = 3,
+  pickupEnd = new Date(Date.now() + 3 * 3600_000).toISOString(),
+) {
+  const items = await http('GET', '/store/items?limit=1', { token: ctx.store });
+  const item = items.body.data[0];
+  const r = await http('POST', '/store/offers', {
+    token: ctx.store,
+    headers: { 'Idempotency-Key': randomUUID() },
+    body: {
+      itemId: item.id,
+      totalQuantity: qty,
+      originalPrice: item.originalPrice,
+      currentPrice: price,
+      pickupStart: new Date(Date.now() - 5 * 60_000).toISOString(),
+      pickupEnd,
+    },
+  });
+  expectOk(r);
+  return r.body;
+}
+
+async function holdAndPay(token, offerId) {
+  const o = await http('POST', '/customer/orders', {
+    token,
+    headers: { 'Idempotency-Key': randomUUID() },
+    body: { offerId, quantity: 1 },
+  });
+  expectOk(o);
+  const pay = await http('POST', `/customer/orders/${o.body.id}/payments`, { token, body: {} });
+  expectOk(pay);
+  expectOk(
+    await http(
+      'POST',
+      `/dev/payments/${pay.body.transactionId || pay.body.id || pay.body.transactionCode}/confirm`,
+      { body: {} },
+    ),
+  );
+  return o.body;
+}
+
 console.log('Đăng nhập & phân quyền');
 await step('khách đăng nhập', async () => {
   ctx.cust = await login('/auth/customer/login', ACCOUNTS.customer);
@@ -232,6 +274,101 @@ await step('tặng suất cho SĐT không hợp lệ bị từ chối', async ()
   const r = await http('POST', `/customer/orders/${ctx.order.id}/gift`, {
     token: ctx.cust,
     body: { recipient: 'abc' },
+  });
+  assert.ok(r.status >= 400 && r.status < 500, `HTTP ${r.status}`);
+});
+
+console.log('Bảo mật tài khoản (khách)');
+await step('trạng thái 2FA và danh sách thiết bị đăng nhập', async () => {
+  expectOk(await http('GET', '/me/2fa', { token: ctx.cust }));
+  const s = await http('GET', '/me/sessions', { token: ctx.cust });
+  expectOk(s);
+  assert.ok(JSON.stringify(s.body).length > 2);
+});
+await step('bật/tắt 2FA sai mật khẩu bị từ chối', async () => {
+  const r = await http('POST', '/me/2fa/toggle', {
+    token: ctx.cust,
+    body: { enabled: true, password: 'sai-mat-khau' },
+  });
+  assert.ok(r.status >= 400 && r.status < 500, `HTTP ${r.status}`);
+});
+
+console.log('Đổi suất & tặng suất');
+await step('đổi suất: suất đắt hơn bị từ chối, suất rẻ hơn được chấp nhận', async () => {
+  const items = await http('GET', '/store/items?limit=1', { token: ctx.store });
+  const item = items.body.data[0];
+  const o = await holdAndPay(ctx.cust, ctx.offer.id);
+  ctx.swapOrder = o;
+  const dear = await createOffer(
+    Math.min(item.originalPrice, ctx.offer.currentPrice + 5000),
+    3,
+    ctx.offer.pickupEnd,
+  );
+  ctx.dearOffer = dear;
+  const bad = await http('POST', `/customer/orders/${o.id}/swap`, {
+    token: ctx.cust,
+    body: { newOfferId: dear.id },
+  });
+  assert.ok(
+    bad.status >= 400 && bad.status < 500,
+    `suất đắt hơn không bị chặn: HTTP ${bad.status}`,
+  );
+  const cheap = await createOffer(
+    Math.max(500, ctx.offer.currentPrice - 2000),
+    3,
+    ctx.offer.pickupEnd,
+  );
+  ctx.cheapOffer = cheap;
+  const opts = await http('GET', `/customer/orders/${o.id}/swap-options`, { token: ctx.cust });
+  expectOk(opts);
+  assert.ok(
+    opts.body.options.some((x) => x.offerId === cheap.id || x.id === cheap.id),
+    'suất rẻ hơn không có trong lựa chọn',
+  );
+  expectOk(
+    await http('POST', `/customer/orders/${o.id}/swap`, {
+      token: ctx.cust,
+      body: { newOfferId: cheap.id },
+    }),
+  );
+  const after = await http('GET', `/customer/orders/${o.id}`, { token: ctx.cust });
+  assert.equal(after.body.offerId, cheap.id);
+  const again = await http('POST', `/customer/orders/${o.id}/swap`, {
+    token: ctx.cust,
+    body: { newOfferId: ctx.offer.id },
+  });
+  assert.ok(again.status >= 400 && again.status < 500, 'đổi suất lần 2 không bị chặn');
+});
+await step('tặng suất: người nhận chấp nhận thì đơn chuyển sang họ', async () => {
+  ctx.recipient = await login('/auth/customer/login', {
+    identifier: 'demo.kh01@surplusiq.vn',
+    password: '123456',
+  });
+  const o = await holdAndPay(ctx.cust, ctx.offer.id);
+  ctx.giftOrder = o;
+  const g = await http('POST', `/customer/orders/${o.id}/gift`, {
+    token: ctx.cust,
+    body: { recipient: 'demo.kh01@surplusiq.vn', message: 'Tặng bạn' },
+  });
+  expectOk(g);
+  const inbox = await http('GET', '/customer/gifts', { token: ctx.recipient });
+  expectOk(inbox);
+  assert.ok(
+    inbox.body.incoming.some((x) => x.id === g.body.id),
+    'người nhận không thấy lời tặng',
+  );
+  expectOk(await http('POST', `/customer/gifts/${g.body.id}/accept`, { token: ctx.recipient }));
+  const mine = await http('GET', `/customer/orders/${o.id}`, { token: ctx.recipient });
+  expectOk(mine);
+  const old = await http('GET', `/customer/orders/${o.id}`, { token: ctx.cust });
+  assert.equal(old.status, 404, 'người tặng vẫn thấy đơn đã tặng');
+});
+await step('tặng cho chính mình bị từ chối', async () => {
+  const o = await holdAndPay(ctx.cust, ctx.offer.id);
+  ctx.selfGiftOrder = o;
+  const r = await http('POST', `/customer/orders/${o.id}/gift`, {
+    token: ctx.cust,
+    body: { recipient: ACCOUNTS.customer.identifier },
   });
   assert.ok(r.status >= 400 && r.status < 500, `HTTP ${r.status}`);
 });

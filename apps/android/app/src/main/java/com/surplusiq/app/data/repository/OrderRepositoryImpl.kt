@@ -96,7 +96,7 @@ class OrderRepositoryImpl @Inject constructor(
             val response = ordersApiService.getActiveOrders()
             val list = response.body()
             if (response.isSuccessful && list != null) {
-                list.forEach { dto ->
+                list.asReversed().forEach { dto ->
                     val status = when (dto.status) {
                         "PENDING_PAYMENT" -> OrderStatus.PENDING_PAYMENT
                         "PAID" -> OrderStatus.PAID_WAITING_PICKUP
