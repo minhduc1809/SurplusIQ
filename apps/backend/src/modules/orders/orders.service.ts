@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In, IsNull } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
 import {
   ProxyPickupCodeEntity,
@@ -112,6 +113,7 @@ export class OrdersService {
     }
 
     // 3. Mở Database Transaction với khóa bi quan FOR UPDATE (pessimistic_write) chống bán vượt tồn kho
+    const pickupSlot = dto.pickupSlot ? new Date(dto.pickupSlot) : null;
     const work = async (manager: EntityManager): Promise<OrderEntity> => {
       const offer = await manager
         .createQueryBuilder(OfferEntity, 'offer')
@@ -133,6 +135,30 @@ export class OrdersService {
       });
       if (!store || store.status !== StoreStatus.ACTIVE) {
         throw new BadRequestException('Cửa hàng hiện không nhận đơn mới.');
+      }
+
+      const nowAt = new Date();
+      if (nowAt > new Date(offer.pickupEnd)) {
+        throw new BadRequestException('Suất bán đã quá khung giờ nhận hàng.');
+      }
+      if (
+        pickupSlot &&
+        (pickupSlot < new Date(offer.pickupStart) || pickupSlot > new Date(offer.pickupEnd))
+      ) {
+        throw new BadRequestException(
+          'Giờ hẹn nhận phải nằm trong khung giờ nhận hàng của quán (R1-049).',
+        );
+      }
+      // Hạn mức mỗi đơn theo cấu hình cửa hàng (R2-007), không vượt trần hệ thống BR-019.
+      const storeSettings = await manager.findOne(StoreSettingsEntity, {
+        where: { storeId: offer.storeId },
+      });
+      const maxQty = Math.min(
+        ORDERS_CONSTANTS.MAX_QUANTITY_PER_ORDER,
+        storeSettings?.maxQtyPerOrder ?? ORDERS_CONSTANTS.MAX_QUANTITY_PER_ORDER,
+      );
+      if (dto.quantity > maxQty) {
+        throw new BadRequestException(`Cửa hàng chỉ cho đặt tối đa ${maxQty} suất mỗi đơn.`);
       }
 
       if (offer.remainingQuantity < dto.quantity) {
@@ -253,7 +279,6 @@ export class OrdersService {
       );
 
       const code = this.generateOrderCode();
-      const pickupSlot = dto.pickupSlot ? new Date(dto.pickupSlot) : null;
 
       const order = manager.create(OrderEntity, {
         code,
@@ -395,7 +420,7 @@ export class OrdersService {
       // 2. Hoàn trả tồn kho suất bán
       if (offer) {
         offer.remainingQuantity += order.quantity;
-        if (offer.status === OfferStatus.SOLD_OUT) {
+        if (offer.status === OfferStatus.SOLD_OUT && new Date(offer.pickupEnd) > new Date()) {
           offer.status = OfferStatus.OPEN;
         }
         await manager.save(offer);
@@ -467,7 +492,7 @@ export class OrdersService {
 
         if (offer) {
           offer.remainingQuantity += lockedOrder.quantity;
-          if (offer.status === OfferStatus.SOLD_OUT) {
+          if (offer.status === OfferStatus.SOLD_OUT && new Date(offer.pickupEnd) > new Date()) {
             offer.status = OfferStatus.OPEN;
           }
           await manager.save(offer);
@@ -725,7 +750,7 @@ export class OrdersService {
 
         if (offer) {
           offer.remainingQuantity += order.quantity;
-          if (offer.status === OfferStatus.SOLD_OUT) {
+          if (offer.status === OfferStatus.SOLD_OUT && new Date(offer.pickupEnd) > new Date()) {
             offer.status = OfferStatus.OPEN;
           }
           await manager.save(offer);

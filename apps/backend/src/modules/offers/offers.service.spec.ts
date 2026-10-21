@@ -96,6 +96,8 @@ describe('OffersService', () => {
     getManyAndCount: jest.fn().mockResolvedValue(countResult),
   });
 
+  // mockManager khai báo sau mockOfferRepo; tham chiếu muộn để dùng chung một manager giả.
+  const mockManagerRef = () => mockManager;
   const mockOfferRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
@@ -103,6 +105,9 @@ describe('OffersService', () => {
     save: jest.fn(),
     count: jest.fn(),
     createQueryBuilder: jest.fn(),
+    manager: {
+      transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(mockManagerRef())),
+    },
   };
 
   const mockOfferEventRepo = {
@@ -353,8 +358,8 @@ describe('OffersService', () => {
 
   describe('updateOffer (R2-030)', () => {
     it('phải cập nhật số lượng và giá mới nếu hợp lệ', async () => {
-      mockOfferRepo.findOne.mockResolvedValue({ ...mockOffer, soldQuantity: 2 });
-      mockOfferRepo.save.mockImplementation(async (e: OfferEntity) => e);
+      mockManager.findOne.mockResolvedValue({ ...mockOffer, soldQuantity: 2 });
+      mockManager.save.mockImplementation(async (e: OfferEntity) => e);
       mockOfferEventRepo.create.mockReturnValue({});
       mockOfferEventRepo.save.mockResolvedValue({});
 
@@ -376,7 +381,11 @@ describe('OffersService', () => {
     });
 
     it('phải ném lỗi BadRequestException nếu tổng số lượng nhỏ hơn số lượng đã bán (R2-030, BR1)', async () => {
-      mockOfferRepo.findOne.mockResolvedValue({ ...mockOffer, soldQuantity: 8 });
+      mockManager.findOne.mockResolvedValue({
+        ...mockOffer,
+        totalQuantity: 10,
+        remainingQuantity: 2,
+      });
 
       const updateDto: UpdateOfferDto = { totalQuantity: 5 }; // 5 < 8
       await expect(service.updateOffer(mockStoreId, mockOfferId, updateDto)).rejects.toThrow(
@@ -385,7 +394,7 @@ describe('OffersService', () => {
     });
 
     it('phải ném lỗi BadRequestException nếu đã đổi giá quá 3 lần cho phép', async () => {
-      mockOfferRepo.findOne.mockResolvedValue({ ...mockOffer, priceChangeCount: 3 });
+      mockManager.findOne.mockResolvedValue({ ...mockOffer, priceChangeCount: 3 });
 
       const updateDto: UpdateOfferDto = { currentPrice: 24000 };
       await expect(service.updateOffer(mockStoreId, mockOfferId, updateDto)).rejects.toThrow(
@@ -396,13 +405,13 @@ describe('OffersService', () => {
 
   describe('adjustStock (R2-031)', () => {
     it('phải điều chỉnh tăng/giảm tồn kho hợp lệ và ghi nhận lý do bắt buộc', async () => {
-      mockOfferRepo.findOne.mockResolvedValue({
+      mockManager.findOne.mockResolvedValue({
         ...mockOffer,
         remainingQuantity: 5,
         totalQuantity: 10,
         soldQuantity: 3,
       });
-      mockOfferRepo.save.mockImplementation(async (e: OfferEntity) => e);
+      mockManager.save.mockImplementation(async (e: OfferEntity) => e);
       mockOfferEventRepo.create.mockReturnValue({});
       mockOfferEventRepo.save.mockResolvedValue({});
 
@@ -426,7 +435,7 @@ describe('OffersService', () => {
     });
 
     it('phải ném lỗi BadRequestException nếu giảm làm tồn kho bị âm (R2-031, BR1)', async () => {
-      mockOfferRepo.findOne.mockResolvedValue({
+      mockManager.findOne.mockResolvedValue({
         ...mockOffer,
         remainingQuantity: 2,
         totalQuantity: 10,

@@ -8,9 +8,9 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from '../../entities/orders/payment-transaction.entity';
-import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
+import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
-import { OfferEntity } from '../../entities/catalog/offer.entity';
+import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QrTokenEngine, BackupPinEngine } from '@surplusiq/core';
 import { CreatePaymentDto, PaymentWebhookDto, ConfirmPaymentDto } from './dto';
@@ -213,7 +213,9 @@ export class PaymentsService {
     }
 
     // 3. Thực hiện Transaction khóa bi quan (pessimistic_write) trên OrderEntity
-    return this.dataSource.transaction(async (manager) => {
+    // Sai số tiền: ghi nhận đối soát thủ công TRONG transaction rồi mới báo lỗi SAU khi commit (tránh rollback mất dấu vết).
+    let mismatch: { expected: number; received: number } | null = null;
+    const result = await this.dataSource.transaction(async (manager) => {
       const lockedOrder = await manager
         .createQueryBuilder(OrderEntity, 'order')
         .setLock('pessimistic_write')
@@ -265,15 +267,15 @@ export class PaymentsService {
           },
         });
 
-        throw new BadRequestException(
-          `Số tiền thanh toán [${dto.amount}] không khớp chính xác đơn giá chốt [${lockedOrder.totalAmount}] (BR-016). Đã đưa vào đối soát thủ công.`,
-        );
+        mismatch = { expected: lockedOrder.totalAmount, received: dto.amount };
+        return undefined as unknown as PaymentConfirmationResult;
       }
 
       const now = new Date();
-      const isHoldExpired =
-        lockedOrder.status === OrderStatus.HOLD_EXPIRED ||
-        new Date(lockedOrder.holdExpiresAt) < now;
+      // Đơn không còn chờ thanh toán (đã PAID, đã hủy, đã nhận...) cũng không được nhận thêm tiền: hoàn 100% thay vì
+      // làm sống lại đơn hoặc cấp thêm vé nhận hàng (BR-015).
+      const notAwaitingPayment = lockedOrder.status !== OrderStatus.PENDING_PAYMENT;
+      const isHoldExpired = notAwaitingPayment || new Date(lockedOrder.holdExpiresAt) < now;
 
       // 5. TRƯỜNG HỢP THANH TOÁN ĐẾN MUỘN (R1-047, BR-015, TEST-ORDER-04)
       if (isHoldExpired) {
@@ -281,9 +283,27 @@ export class PaymentsService {
           `[LATE_PAYMENT] Đơn ${lockedOrder.code} đã hết hạn giữ suất (${lockedOrder.holdExpiresAt.toISOString()}). Tự động kích hoạt hoàn tiền 100% (R1-047).`,
         );
 
-        // Đơn giữ nguyên trạng thái HOLD_EXPIRED (R1-047 BR 3)
-        lockedOrder.status = OrderStatus.HOLD_EXPIRED;
-        await manager.save(lockedOrder);
+        // Đơn quá hạn giữ nhưng job chưa kịp nhả: chuyển HOLD_EXPIRED và trả tồn kho tại đây, vì job chỉ quét
+        // đơn PENDING_PAYMENT (R1-047 BR 3). Đơn ở trạng thái khác giữ nguyên trạng thái.
+        if (lockedOrder.status === OrderStatus.PENDING_PAYMENT) {
+          lockedOrder.status = OrderStatus.HOLD_EXPIRED;
+          lockedOrder.cancelledBy = CancelledBy.SYSTEM;
+          lockedOrder.cancelReason = 'Hết hạn giữ suất 10 phút (BR-017)';
+          lockedOrder.cancelledAt = new Date();
+          await manager.save(lockedOrder);
+          const heldOffer = await manager
+            .createQueryBuilder(OfferEntity, 'offer')
+            .setLock('pessimistic_write')
+            .where('offer.id = :id', { id: lockedOrder.offerId })
+            .getOne();
+          if (heldOffer) {
+            heldOffer.remainingQuantity += lockedOrder.quantity;
+            if (heldOffer.status === OfferStatus.SOLD_OUT && new Date(heldOffer.pickupEnd) > now) {
+              heldOffer.status = OfferStatus.OPEN;
+            }
+            await manager.save(heldOffer);
+          }
+        }
 
         // Đánh dấu giao dịch thu tiền thành công
         txn.status = PaymentStatus.SUCCEEDED;
@@ -332,7 +352,7 @@ export class PaymentsService {
           latePaymentRefunded: true,
           orderId: lockedOrder.id,
           orderCode: lockedOrder.code,
-          orderStatus: OrderStatus.HOLD_EXPIRED,
+          orderStatus: lockedOrder.status,
           transactionId: txn.id,
           gatewayTxnId: txn.gatewayTxnId,
           amount: txn.amount,
@@ -414,6 +434,13 @@ export class PaymentsService {
         message: 'Thanh toán thành công! Mã QR nhận hàng đã được kích hoạt.',
       };
     });
+    if (mismatch !== null) {
+      const m: { expected: number; received: number } = mismatch;
+      throw new BadRequestException(
+        `Số tiền thanh toán [${m.received}] không khớp chính xác đơn giá chốt [${m.expected}] (BR-016). Đã đưa vào đối soát thủ công.`,
+      );
+    }
+    return result;
   }
 
   /**

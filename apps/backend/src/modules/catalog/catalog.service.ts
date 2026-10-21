@@ -140,7 +140,7 @@ export class CatalogService {
     const statsRaw = await this.offerRepo
       .createQueryBuilder('offer')
       .select('COUNT(offer.id)', 'totalOffers')
-      .addSelect('COALESCE(SUM(offer.soldQuantity), 0)', 'totalSold')
+      .addSelect('COALESCE(SUM(offer.totalQuantity - offer.remainingQuantity), 0)', 'totalSold')
       .where('offer.itemId = :itemId', { itemId })
       .andWhere('offer.storeId = :storeId', { storeId })
       .getRawOne();

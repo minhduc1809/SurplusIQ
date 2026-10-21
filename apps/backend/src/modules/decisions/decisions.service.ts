@@ -573,7 +573,8 @@ export class DecisionsService {
       if (!o.itemId) continue;
       const cur = byItem.get(o.itemId) ?? { offered: 0, sold: 0 };
       cur.offered += o.totalQuantity;
-      cur.sold += o.soldQuantity;
+      // soldQuantity không được cập nhật khi có đơn; số đã giữ/bán = tổng - còn lại.
+      cur.sold += o.totalQuantity - o.remainingQuantity;
       byItem.set(o.itemId, cur);
     }
 
