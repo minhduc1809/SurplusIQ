@@ -872,6 +872,21 @@ export class AuthService {
       throw new BadRequestException('Mật khẩu hiện tại không chính xác');
     }
 
+    // Khách hàng đã có email thì phải nhập mã OTP gửi về email trước khi đổi mật khẩu
+    if (user.role === UserRole.CUSTOMER && user.email) {
+      if (!dto.otpCode) {
+        throw new BadRequestException({
+          code: AUTH_ERRORS.OTP_INVALID,
+          message: 'Vui lòng nhập mã OTP đã gửi về email của bạn để đổi mật khẩu.',
+        });
+      }
+      await this.verifyOtp({
+        target: user.email,
+        code: dto.otpCode,
+        purpose: OtpPurpose.CHANGE_PASSWORD,
+      });
+    }
+
     user.passwordHash = CryptoUtil.hashPassword(dto.newPassword);
     await this.userRepo.save(user);
 
@@ -883,6 +898,75 @@ export class AuthService {
       message:
         'Đổi mật khẩu thành công. Các phiên đăng nhập trên thiết bị khác đã được thu hồi (BR-003)',
     };
+  }
+
+  /** Tạo và "gửi" OTP tới [target] (giới hạn 3 lần/giờ); môi trường dev trả kèm mã để thử. */
+  private async issueOtp(target: string, purpose: OtpPurpose) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recent = await this.otpRepo.count({
+      where: { target, purpose, createdAt: MoreThan(oneHourAgo) },
+    });
+    if (recent >= AUTH_CONSTANTS.OTP_RESEND_MAX_HOURS) {
+      throw new BadRequestException({
+        code: AUTH_ERRORS.OTP_RATE_LIMITED,
+        message: 'Bạn đã yêu cầu mã quá 3 lần trong 1 giờ. Vui lòng thử lại sau.',
+      });
+    }
+    const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
+    await this.otpRepo.save(
+      this.otpRepo.create({
+        target,
+        purpose,
+        codeHash: CryptoUtil.sha256(otp),
+        expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
+      }),
+    );
+    this.logger.log(`[OTP ${purpose} SIMULATION] Mã ${otp} gửi tới ${target}`);
+    return {
+      success: true,
+      message: 'Đã gửi mã OTP về email của bạn',
+      otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
+    };
+  }
+
+  /** Gửi OTP đổi mật khẩu về email đang gắn với tài khoản khách hàng. */
+  async requestPasswordChangeOtp(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+    if (!user.email) {
+      throw new BadRequestException(
+        'Tài khoản chưa có email. Hãy thêm email ở mục Chỉnh sửa hồ sơ trước khi đổi mật khẩu.',
+      );
+    }
+    return this.issueOtp(user.email, OtpPurpose.CHANGE_PASSWORD);
+  }
+
+  /** Gửi OTP xác minh email mới trước khi gắn vào tài khoản. */
+  async requestEmailOtp(userId: string, email: string) {
+    const normalized = email.trim().toLowerCase();
+    const taken = await this.userRepo.findOne({ where: { email: normalized } });
+    if (taken && taken.id !== userId) {
+      throw new ConflictException({
+        code: AUTH_ERRORS.USER_EXISTS,
+        message: 'Email này đã được dùng cho một tài khoản khác.',
+      });
+    }
+    return this.issueOtp(normalized, OtpPurpose.CHANGE_ID);
+  }
+
+  /** Xác minh OTP rồi gắn email vào tài khoản. */
+  async confirmEmail(userId: string, email: string, code: string) {
+    const normalized = email.trim().toLowerCase();
+    await this.verifyOtp({ target: normalized, code, purpose: OtpPurpose.CHANGE_ID });
+    const taken = await this.userRepo.findOne({ where: { email: normalized } });
+    if (taken && taken.id !== userId) {
+      throw new ConflictException({
+        code: AUTH_ERRORS.USER_EXISTS,
+        message: 'Email này đã được dùng cho một tài khoản khác.',
+      });
+    }
+    await this.userRepo.update({ id: userId }, { email: normalized });
+    return { success: true, message: 'Đã cập nhật email', email: normalized };
   }
 
   /**

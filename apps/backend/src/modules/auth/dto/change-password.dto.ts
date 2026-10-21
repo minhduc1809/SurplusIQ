@@ -1,6 +1,6 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { IsStrongPassword } from './password-rule';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ChangePasswordDto {
   @ApiProperty({ example: 'OldPass123@' })
@@ -13,4 +13,12 @@ export class ChangePasswordDto {
   @IsString()
   @IsStrongPassword()
   newPassword: string;
+
+  @ApiPropertyOptional({
+    example: '123456',
+    description: 'Mã OTP gửi về email, bắt buộc với khách hàng đã có email',
+  })
+  @IsOptional()
+  @IsString()
+  otpCode?: string;
 }

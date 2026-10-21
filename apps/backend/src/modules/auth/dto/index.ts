@@ -10,3 +10,4 @@ export * from './reset-password.dto';
 export * from './refresh-token.dto';
 export * from './enable-2fa.dto';
 export * from './google-login.dto';
+export * from './email-otp.dto';

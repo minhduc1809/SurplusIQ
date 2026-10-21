@@ -7,3 +7,5 @@ export * from './store-closure.entity';
 export * from './customer-segment.entity';
 export * from './customer-note.entity';
 export * from './audit-log.entity';
+export * from './store-legal-profile.entity';
+export * from './store-contract.entity';
