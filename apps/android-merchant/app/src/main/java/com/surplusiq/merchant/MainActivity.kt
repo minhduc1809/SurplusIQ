@@ -300,6 +300,7 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
             composable("rescue-timeline") { RescueTimelineScreen(repository, onBack = back) }
             composable("store-menu") { StoreMenuScreen(onNavigate = ::nav, onBack = back) }
             composable("store-profile") { StoreProfileScreen(repository, onBack = back) }
+            composable("store-legal") { StoreLegalScreen(repository, isOwner = session.getPermission() == "OWNER", onBack = back) }
             composable("store-settings") { OperationalSettingsScreen(repository, onBack = back) }
             composable("store-pause") { StorePauseScreen(repository, onOpenSchedule = { open("store-schedule") }, onBack = back) }
             composable("store-schedule") { StoreScheduleScreen(repository, onBack = back) }

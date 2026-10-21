@@ -1,7 +1,14 @@
 package com.surplusiq.merchant.ui.screens
 
 import android.content.Intent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +31,46 @@ import com.surplusiq.merchant.ui.theme.*
 import kotlinx.coroutines.launch
 
 private val LINE_TYPE = mapOf("SALE" to "Doanh thu đơn", "REFUND" to "Hoàn tiền", "COMMISSION" to "Hoa hồng", "SUBSCRIPTION" to "Phí thuê bao")
+
+/** Thẻ nền cam gradient: số tiền thực nhận nổi bật, kèm kỳ đối soát và trạng thái. */
+@Composable
+private fun PayoutHero(title: String, chip: String, period: String, amount: Long, footnote: String?) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFFFFA866), Color(0xFFFF8A3D), Color(0xFFF2762B))))
+    ) {
+        Canvas(Modifier.matchParentSize()) {
+            for (i in 0..3) {
+                val y = size.height * (0.15f + 0.22f * i)
+                val wave = Path().apply {
+                    moveTo(-20f, y + size.height * 0.1f)
+                    cubicTo(size.width * 0.25f, y - size.height * 0.25f, size.width * 0.55f, y + size.height * 0.3f, size.width + 20f, y - size.height * 0.1f)
+                }
+                drawPath(wave, Color.White.copy(alpha = 0.14f - 0.025f * i), style = Stroke(width = 10f + 8f * i))
+            }
+        }
+        Column(Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(chip, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.25f)).padding(horizontal = 10.dp, vertical = 4.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(currency(amount), color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
+            Text(period, color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+            footnote?.let { Text(it, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp)) }
+        }
+    }
+}
+
+private fun breakdownOf(net: Long, commission: Long, refunds: Long, subscription: Long) = listOf(
+    BreakdownPart("Thực nhận", net.coerceAtLeast(0), Color(0xFF2E9E6B)),
+    BreakdownPart("Hoa hồng", commission, Color(0xFFFF8A3D)),
+    BreakdownPart("Hoàn tiền khiếu nại", refunds, Color(0xFFE5534B)),
+    BreakdownPart("Phí thuê bao", subscription, Color(0xFF8D8DA8))
+)
 
 /**
  * S51 - Đối soát tuần hiện tại (tính trực tiếp, chưa chốt) và S52 - danh sách sao kê đã chốt.
@@ -52,24 +99,34 @@ fun ReconciliationScreen(repository: StoreRepository, onOpen: (String) -> Unit, 
             error != null -> ErrorState(error!!) { reloadKey++ }
             c == null -> FullScreenLoading()
             else -> {
+                PayoutHero(
+                    title = "Thực nhận dự kiến tuần này",
+                    chip = "Kỳ chưa chốt",
+                    period = "${shortDate(c.periodStart)} – ${shortDate(c.periodEnd)}",
+                    amount = c.netPayout,
+                    footnote = c.explanation
+                )
+                Spacer(Modifier.height(14.dp))
+                c.orderSummary?.let {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MetricCard("Đơn đã nhận", "${it.pickedUpCount}", SqMint, Modifier.weight(1f))
+                        MetricCard("Khách không đến", "${it.noShowCount}", SqCoral, Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
                 SqCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Tuần hiện tại", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.weight(1f))
-                        Text("Kỳ chưa chốt", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SqButter)
+                    SectionTitle("Doanh thu tuần này đi đâu?")
+                    Text("Tiền thu ${currency(c.grossSales)}", fontSize = 12.sp, color = SqInkSoft, modifier = Modifier.padding(bottom = 10.dp))
+                    StackedBreakdownBar(breakdownOf(c.netPayout, c.commissionAmount, c.refundsDeduction, c.subscriptionFee))
+                }
+                val closed = history.sortedBy { it.weekStart }.takeLast(8)
+                if (closed.size >= 2) {
+                    Spacer(Modifier.height(14.dp))
+                    SqCard {
+                        SectionTitle("Thực nhận ${closed.size} tuần gần nhất")
+                        Spacer(Modifier.height(10.dp))
+                        WeeklyBars(closed.map { shortDate(it.weekStart) }, closed.map { it.netPayable }, SqMintDeep)
                     }
-                    Text("${shortDate(c.periodStart)} – ${shortDate(c.periodEnd)}", fontSize = 12.sp, color = SqInkSoft)
-                    Spacer(Modifier.height(8.dp))
-                    c.orderSummary?.let {
-                        InfoRow("Đơn đã nhận", "${it.pickedUpCount} · ${currency(it.pickedUpAmount)}")
-                        InfoRow("Khách không đến", "${it.noShowCount} · ${currency(it.noShowAmount)}")
-                    }
-                    InfoRow("Tiền thu", currency(c.grossSales))
-                    InfoRow("Hoa hồng (${(c.commissionRate * 100).toInt()}%)", "-${currency(c.commissionAmount)}", SqCoralDeep)
-                    InfoRow("Hoàn tiền khiếu nại", "-${currency(c.refundsDeduction)}", SqCoralDeep)
-                    InfoRow("Phí thuê bao", "-${currency(c.subscriptionFee)}", SqCoralDeep)
-                    HorizontalDivider(color = SqLine, modifier = Modifier.padding(vertical = 6.dp))
-                    InfoRow("Thực nhận dự kiến", currency(c.netPayout), SqMintDeep)
-                    c.explanation?.let { Text(it, fontSize = 11.sp, color = SqInkMuted, modifier = Modifier.padding(top = 4.dp)) }
                 }
                 Spacer(Modifier.height(16.dp))
                 SectionTitle("Sao kê đã chốt")
@@ -121,18 +178,23 @@ fun StatementDetailScreen(repository: StoreRepository, statementId: String, onBa
             d == null -> FullScreenLoading()
             else -> {
                 val s = d.statement
+                PayoutHero(
+                    title = "Thực nhận",
+                    chip = if (s.status == "LOCKED") "Đã chốt" else "Bản nháp",
+                    period = "${shortDate(s.weekStart)} – ${shortDate(s.weekEnd)}",
+                    amount = s.netPayable,
+                    footnote = if (s.status == "LOCKED") "Sao kê đã chốt, không sửa được." else null
+                )
+                Spacer(Modifier.height(14.dp))
                 SqCard {
-                    Text("${shortDate(s.weekStart)} – ${shortDate(s.weekEnd)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
-                    Text(if (s.status == "LOCKED") "Đã chốt, không sửa được" else "Bản nháp", fontSize = 12.sp, color = SqInkSoft)
-                    Spacer(Modifier.height(8.dp))
-                    InfoRow("Tổng thu", currency(s.gross))
-                    InfoRow("Hoa hồng", "-${currency(s.commission)}", SqCoralDeep)
-                    InfoRow("Hoàn tiền", "-${currency(s.refunds)}", SqCoralDeep)
-                    InfoRow("Phí thuê bao", "-${currency(s.subscriptionFee)}", SqCoralDeep)
-                    if (s.adjustments != 0L) InfoRow("Điều chỉnh", currency(s.adjustments))
-                    HorizontalDivider(color = SqLine, modifier = Modifier.padding(vertical = 6.dp))
-                    InfoRow("Thực nhận", currency(s.netPayable), SqMintDeep)
-                    s.checksum?.let { Text("Checksum: ${it.take(16)}…", fontSize = 10.sp, color = SqInkMuted) }
+                    SectionTitle("Cơ cấu doanh thu")
+                    Text("Tổng thu ${currency(s.gross)}", fontSize = 12.sp, color = SqInkSoft, modifier = Modifier.padding(bottom = 10.dp))
+                    StackedBreakdownBar(breakdownOf(s.netPayable, s.commission, s.refunds, s.subscriptionFee))
+                    if (s.adjustments != 0L) {
+                        HorizontalDivider(color = SqLine, modifier = Modifier.padding(vertical = 8.dp))
+                        InfoRow("Điều chỉnh", currency(s.adjustments))
+                    }
+                    s.checksum?.let { Text("Mã đối chiếu: ${it.take(16)}…", fontSize = 10.sp, color = SqInkMuted, modifier = Modifier.padding(top = 8.dp)) }
                 }
                 Spacer(Modifier.height(12.dp))
                 InlineError(csvError)

@@ -27,6 +27,7 @@ import com.surplusiq.merchant.ui.theme.*
 private val GROUPS = listOf(
     "Hồ sơ và vận hành" to listOf(
         Triple("store-profile", "Hồ sơ cửa hàng", "Tên, địa chỉ, SĐT, giờ mở cửa"),
+        Triple("store-legal", "Hồ sơ kinh doanh và hợp đồng", "Thông tin pháp lý, hợp đồng hợp tác đã ký"),
         Triple("store-settings", "Cài đặt vận hành & quy tắc", "Khung giờ nhận, giá sàn, suất tối đa mỗi đơn"),
         Triple("store-pause", "Tạm ngưng / mở lại", "Dừng nhận đơn trong hôm nay"),
         Triple("store-schedule", "Lịch cửa hàng", "Ngày nghỉ và giờ đặc biệt"),
@@ -58,7 +59,7 @@ private val GROUPS = listOf(
         Triple("reviews", "Đánh giá của khách", "Xem và phản hồi công khai"),
     ),
     "Cứu hàng tồn" to listOf(
-        Triple("rescue-timeline", "Lô cần xử lý", "Lô sắp hết hạn, xếp theo mức nguy cơ"),
+        Triple("rescue-timeline", "Suất sắp hết hạn", "Suất cứu món sắp đóng nhận, xếp theo nguy cơ tồn"),
         Triple("rescue-pool", "Mua chung theo đợt", "Gom nhu cầu của nhiều khách theo từng đợt"),
         Triple("rescue-bridge", "Bàn giao suất dư", "Bàn giao suất còn lại cho đơn vị tiếp nhận"),
         Triple("rescue-lab", "Phòng mô phỏng", "Mô phỏng mức giảm, so sánh kịch bản (Chuyên nghiệp)"),
