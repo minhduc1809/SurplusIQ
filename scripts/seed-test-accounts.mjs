@@ -1,7 +1,7 @@
 // Nạp bộ tài khoản kiểm thử có dữ liệu đầy đủ cho app khách hàng và app cửa hàng (DB dev, khu Cầu Giấy - Hà Nội).
 // Chạy: node scripts/seed-test-accounts.mjs   (cần Postgres + backend dev chạy; đã chạy `npm run seed:hanoi`)
 // Tạo dữ liệu qua đúng API nghiệp vụ (đặt đơn, thanh toán, quét nhận hàng, đánh giá, khiếu nại), không ghi tắt trạng thái đơn.
-// Chạy lại nhiều lần an toàn: chỉ tạo phần còn thiếu. Mật khẩu mọi tài khoản: 123456.
+// Chạy lại nhiều lần an toàn: chỉ tạo phần còn thiếu. Mật khẩu mọi tài khoản: Surplus@1.
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 
@@ -19,7 +19,7 @@ if (
   console.error('Từ chối chạy: chỉ dùng cho DB dev trên máy local.');
   process.exit(1);
 }
-const PASSWORD = '123456';
+const PASSWORD = 'Surplus@1';
 
 const db = new Client({
   host: process.env.DB_HOST || 'localhost',

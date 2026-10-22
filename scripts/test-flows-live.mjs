@@ -12,11 +12,11 @@ assert.ok(
 assert.notEqual(process.env.NODE_ENV, 'production', 'Không chạy trên production');
 
 const ACCOUNTS = {
-  customer: { identifier: 'customer@surplusiq.vn', password: '123456' },
-  store: { email: 'owner@rincon.vn', password: '123456' },
+  customer: { identifier: 'customer@surplusiq.vn', password: 'Surplus@1' },
+  store: { email: 'owner@rincon.vn', password: 'Surplus@1' },
   admin: {
     email: 'admin@surplusiq.vn',
-    password: process.env.ADMIN_PASSWORD || 'Admin@SurplusIQ2026',
+    password: process.env.ADMIN_PASSWORD || 'Surplus@1',
   },
 };
 
@@ -342,7 +342,7 @@ await step('đổi suất: suất đắt hơn bị từ chối, suất rẻ hơn
 await step('tặng suất: người nhận chấp nhận thì đơn chuyển sang họ', async () => {
   ctx.recipient = await login('/auth/customer/login', {
     identifier: 'demo.kh01@surplusiq.vn',
-    password: '123456',
+    password: 'Surplus@1',
   });
   const o = await holdAndPay(ctx.cust, ctx.offer.id);
   ctx.giftOrder = o;

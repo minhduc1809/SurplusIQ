@@ -59,7 +59,7 @@ await step('sai mật khẩu hiện lỗi, không vào được', async () => {
   assert.match(page.url(), /login/);
 });
 await step('đăng nhập đúng quay về trang đã định', async () => {
-  await page.fill('input[type=password]', '123456');
+  await page.fill('input[type=password]', 'Surplus@1');
   await page.click('button[type=submit]');
   await page.waitForURL(/merchant-v2\/sales\/orders/, { timeout: 15000 });
 });
@@ -68,7 +68,7 @@ await step('không cho chuyển hướng ra ngoài qua tham số redirect', asyn
   const p = await ctx.newPage();
   await p.goto(`${WEB}/merchant-v2/login?redirect=//evil.example`);
   await p.fill('input[type=email]', 'owner@rincon.vn');
-  await p.fill('input[type=password]', '123456');
+  await p.fill('input[type=password]', 'Surplus@1');
   await p.click('button[type=submit]');
   await p.waitForURL(/merchant-v2\/today/, { timeout: 15000 });
   await ctx.close();

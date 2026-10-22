@@ -3,7 +3,7 @@
 // 1. Phở Bò Cụ Chiêu (chuthucan.hanoi@surplusiq.vn) - Hoạt động 75 ngày (~2.5 tháng), gói PRO, 1.250+ suất cứu, 10 tuần đối soát, khiếu nại, đánh giá, AI cards.
 // 2. Bún Chả Sinh Từ (chuthucan2.hanoi@surplusiq.vn) - Hoạt động 60 ngày (~2 tháng), gói PRO, 650+ suất cứu, 8 tuần đối soát, khách quen LOYAL.
 // 3. Bánh Mì Chảo Cột Điện (chuthucan3.hanoi@surplusiq.vn) - Hoạt động 45 ngày (~1.5 tháng), gói PRO, 400+ suất cứu, chuyên combo & túi bất ngờ.
-// Mật khẩu tất cả tài khoản: 123456
+// Mật khẩu tất cả tài khoản: Surplus@1
 
 import { createRequire } from 'node:module';
 import { randomUUID, createHash } from 'node:crypto';
@@ -22,7 +22,7 @@ if (
   process.exit(1);
 }
 
-const PASSWORD = '123456';
+const PASSWORD = 'Surplus@1';
 const db = new Client({
   host: process.env.DB_HOST || 'localhost',
   port: +process.env.POSTGRES_PORT || 5432,
