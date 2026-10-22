@@ -191,7 +191,8 @@ class AiViewModel @Inject constructor(
                         ChatMessage(
                             sender = "ai",
                             text = res.reply,
-                            recommendedDeals = res.recommendedDeals
+                            recommendedDeals = res.recommendedDeals,
+                            action = res.suggestedAction
                         )
                     )
                     _uiState.value = _uiState.value.copy(

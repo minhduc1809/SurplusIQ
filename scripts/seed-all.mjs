@@ -3,7 +3,7 @@
 //        node scripts/seed-all.mjs           (chỉ bổ sung phần còn thiếu, không xóa gì)
 // Thứ tự: seed:default (quản trị, quán Rincón, cấu hình nền tảng) -> seed:hanoi (50 quán Cầu Giấy)
 //         -> seed-test-accounts (tài khoản kiểm thử, đơn, đánh giá, lịch sử bán và kịch bản Phòng mô phỏng).
-// Mật khẩu mọi tài khoản: 123456. Chỉ chạy trên DB local; từ chối nếu là production.
+// Mật khẩu mọi tài khoản: Surplus@1. Chỉ chạy trên DB local; từ chối nếu là production.
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -81,5 +81,9 @@ if (!ready) {
 run(
   'Tài khoản kiểm thử, đơn hàng, lịch sử bán, Phòng mô phỏng',
   'node scripts/seed-test-accounts.mjs',
+);
+run(
+  'Tài khoản chủ quán kỳ cựu (1-2.5 tháng, lưu lượng cứu món cao, đối soát, khiếu nại, AI cards)',
+  'node scripts/seed-veteran-stores.mjs',
 );
 console.log('\nHoàn tất. Đăng nhập lại trên app (phiên cũ đã mất nếu dùng --reset).');

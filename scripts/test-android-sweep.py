@@ -99,7 +99,7 @@ def login_merchant():
         return False
     # ô nhập có nhãn "Email"/"Mật khẩu": chạm vào ô cạnh nhãn
     ok = focus("Email", "owner@rincon.vn")
-    ok = focus("Mật khẩu", "123456") and ok
+    ok = focus("Mật khẩu", "Surplus@1") and ok
     for n in nodes(dump()):
         if n["text"] == "Đăng nhập" and n["click"]:
             tap(n["b"])
@@ -118,7 +118,7 @@ def login_customer():
     ns = nodes(dump())
     if not any(n["text"] == "Chào mừng trở lại!" for n in ns):
         return True
-    for label, value in (("0901234567 hoặc email", "customer@surplusiq.vn"), ("Nhập mật khẩu", "123456")):
+    for label, value in (("0901234567 hoặc email", "customer@surplusiq.vn"), ("Nhập mật khẩu", "Surplus@1")):
         for n in nodes(dump()):
             if n["text"] == label:
                 tap(n["b"])

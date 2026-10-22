@@ -56,7 +56,7 @@ export class SeedService implements OnModuleInit {
           adminId,
           adminEmail,
           adminPasswordHash: existingAdmin?.passwordHash || CryptoUtil.hashPassword(adminPassword),
-          demoPasswordHash: CryptoUtil.hashPassword('123456'),
+          demoPasswordHash: CryptoUtil.hashPassword('Surplus@1'),
         });
         for (const user of plan.users) {
           const matches = await manager.find(UserEntity, {

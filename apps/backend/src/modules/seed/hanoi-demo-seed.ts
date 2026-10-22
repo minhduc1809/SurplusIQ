@@ -17,6 +17,12 @@ import {
   TrustpassInformationSource,
   TrustpassVerificationStatus,
   TrustpassReviewStatus,
+  StoreMemberEntity,
+  StorePermission,
+  StoreMemberStatus,
+  SubscriptionEntity,
+  SubscriptionPlan,
+  SubscriptionStatus,
 } from '../../entities';
 import { CryptoUtil } from '../auth/crypto.util';
 
@@ -1545,6 +1551,9 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
   storesCount: number;
   itemsCount: number;
   offersCount: number;
+  storesUpdated?: number;
+  itemsUpdated?: number;
+  offersUpdated?: number;
 }> {
   const logger = new Logger('HanoiDemoSeed');
   logger.log(
@@ -1556,32 +1565,106 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
   await queryRunner.startTransaction();
 
   try {
-    // 1. Đảm bảo có User chủ quán demo cho Hà Nội
-    const hanoiOwnerId = 'a1000000-0000-4000-8000-000000000000';
-    const existingOwner = await queryRunner.manager.findOne(UserEntity, {
-      where: { id: hanoiOwnerId },
-    });
-    if (!existingOwner) {
-      const ownerUser = queryRunner.manager.create(UserEntity, {
-        id: hanoiOwnerId,
+    // 1. Đảm bảo có User chủ quán demo cho Hà Nội & phân quyền store_members
+    const demoStoreAccounts = [
+      {
+        userId: 'a1000000-0000-4000-8000-000000000000',
+        storeId: 'a1000000-0000-4000-8000-000000000001',
         email: 'chuthucan.hanoi@surplusiq.vn',
         phone: '0988123000',
-        role: UserRole.STORE_USER,
-        status: UserStatus.ACTIVE,
-        passwordHash: CryptoUtil.hashPassword('123456'),
+        name: 'Chủ Quán Phở Cụ Chiêu & Cụm Hà Nội',
+      },
+      {
+        userId: 'a1000000-0000-4000-8000-000000000021',
+        storeId: 'a1000000-0000-4000-8000-000000000002',
+        email: 'buncha.sinhtu@surplusiq.vn',
+        phone: '0988123002',
+        name: 'Chủ Quán Bún Chả Sinh Từ',
+      },
+      {
+        userId: 'a1000000-0000-4000-8000-000000000025',
+        storeId: 'a1000000-0000-4000-8000-000000000005',
+        email: 'che.changhi@surplusiq.vn',
+        phone: '0988123005',
+        name: 'Chủ Tiệm Chè Chang Hi',
+      },
+      {
+        userId: 'a1000000-0000-4000-8000-000000000032',
+        storeId: 'a1000000-0000-4000-8000-000000000012',
+        email: 'banhmi.danto@surplusiq.vn',
+        phone: '0988123012',
+        name: 'Chủ Quán Bánh Mì Dân Tổ',
+      },
+      {
+        userId: 'a1000000-0000-4000-8000-000000000033',
+        storeId: 'a1000000-0000-4000-8000-000000000013',
+        email: 'xoixeo.comay@surplusiq.vn',
+        phone: '0988123013',
+        name: 'Chủ Quán Xôi Xéo Cô Mây',
+      },
+    ];
+
+    const hanoiOwnerId = demoStoreAccounts[0].userId;
+
+    for (const acc of demoStoreAccounts) {
+      const existingUser = await queryRunner.manager.findOne(UserEntity, {
+        where: { id: acc.userId },
       });
-      await queryRunner.manager.save(UserEntity, ownerUser);
+      if (!existingUser) {
+        const ownerUser = queryRunner.manager.create(UserEntity, {
+          id: acc.userId,
+          email: acc.email,
+          phone: acc.phone,
+          role: UserRole.STORE_USER,
+          status: UserStatus.ACTIVE,
+          passwordHash: CryptoUtil.hashPassword('Surplus@1'),
+        });
+        await queryRunner.manager.save(UserEntity, ownerUser);
+      } else {
+        existingUser.status = UserStatus.ACTIVE;
+        existingUser.role = UserRole.STORE_USER;
+        existingUser.passwordHash = CryptoUtil.hashPassword('Surplus@1');
+        await queryRunner.manager.save(UserEntity, existingUser);
+      }
+
+      // Đảm bảo có StoreMemberEntity liên kết tài khoản với cửa hàng để login app merchant/web store lấy được storeId
+      const existingMember = await queryRunner.manager.findOne(StoreMemberEntity, {
+        where: { userId: acc.userId },
+      });
+      if (!existingMember) {
+        const member = queryRunner.manager.create(StoreMemberEntity, {
+          storeId: acc.storeId,
+          userId: acc.userId,
+          permission: StorePermission.OWNER,
+          status: StoreMemberStatus.ACTIVE,
+          lastActiveAt: new Date(),
+        });
+        await queryRunner.manager.save(StoreMemberEntity, member);
+      } else {
+        existingMember.storeId = acc.storeId;
+        existingMember.permission = StorePermission.OWNER;
+        existingMember.status = StoreMemberStatus.ACTIVE;
+        await queryRunner.manager.save(StoreMemberEntity, existingMember);
+      }
     }
 
     const now = new Date();
-    // Khung giờ nhận hàng hôm nay: từ hiện tại đến tối mai để đảm bảo luôn active
-    const pickupStart = new Date(now.getTime() - 2 * 3600 * 1000);
-    const pickupEnd = new Date(now.getTime() + 24 * 3600 * 1000);
-    const expiresAt = new Date(now.getTime() + 24 * 3600 * 1000);
+    // Khung giờ nhận hàng: từ sáng (07:00) đến tối muộn (23:30) để hiển thị tự nhiên, hợp lý cho quán ăn
+    const pickupStart = new Date(now);
+    pickupStart.setHours(7, 0, 0, 0);
+
+    const pickupEnd = new Date(now);
+    pickupEnd.setDate(pickupEnd.getDate() + 1);
+    pickupEnd.setHours(23, 30, 0, 0);
+
+    const expiresAt = new Date(pickupEnd);
 
     let storesInserted = 0;
+    let storesUpdated = 0;
     let itemsInserted = 0;
+    let itemsUpdated = 0;
     let offersInserted = 0;
+    let offersUpdated = 0;
 
     for (const storeDef of HANOI_50_STORES) {
       // 2. Insert or update StoreEntity
@@ -1617,6 +1700,32 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
           ],
         );
         storesInserted++;
+      } else {
+        await queryRunner.query(
+          `UPDATE "stores" SET
+            "status" = $1,
+            "location" = ST_SetSRID(ST_MakePoint($2, $3), 4326),
+            "name" = $4,
+            "address" = $5,
+            "phone" = $6,
+            "logo_url" = $7,
+            "rating_avg" = $8,
+            "rating_count" = $9
+          WHERE "id" = $10`,
+          [
+            StoreStatus.ACTIVE,
+            storeDef.lng,
+            storeDef.lat,
+            storeDef.name,
+            storeDef.address,
+            storeDef.phone,
+            storeDef.logoUrl,
+            storeDef.ratingAvg,
+            storeDef.ratingCount,
+            storeDef.id,
+          ],
+        );
+        storesUpdated++;
       }
 
       // Store Settings
@@ -1633,6 +1742,29 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
           taskReminders: { closingChecklist: true },
         });
         await queryRunner.manager.save(StoreSettingsEntity, settings);
+      }
+
+      // Kích hoạt gói PRO (Subscription) cho quán để mở toàn bộ tính năng và quota
+      const existingSub = await queryRunner.manager.findOne(SubscriptionEntity, {
+        where: { storeId: storeDef.id },
+      });
+      if (!existingSub) {
+        const sub = queryRunner.manager.create(SubscriptionEntity, {
+          storeId: storeDef.id,
+          plan: SubscriptionPlan.PRO,
+          periodStart: now,
+          periodEnd: new Date(now.getTime() + 365 * 24 * 3600 * 1000),
+          status: SubscriptionStatus.ACTIVE,
+          cancelAtPeriodEnd: false,
+          downgradeAtPeriodEnd: false,
+          trialUsed: true,
+        });
+        await queryRunner.manager.save(SubscriptionEntity, sub);
+      } else {
+        existingSub.status = SubscriptionStatus.ACTIVE;
+        existingSub.plan = SubscriptionPlan.PRO;
+        existingSub.periodEnd = new Date(now.getTime() + 365 * 24 * 3600 * 1000);
+        await queryRunner.manager.save(SubscriptionEntity, existingSub);
       }
 
       // 3. Insert or update ItemEntity
@@ -1666,6 +1798,15 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
         });
         await queryRunner.manager.save(ItemEntity, item);
         itemsInserted++;
+      } else {
+        existingItem.status = ItemStatus.ACTIVE;
+        existingItem.name = storeDef.item.name;
+        existingItem.category = storeDef.item.category;
+        existingItem.originalPrice = storeDef.item.originalPrice;
+        existingItem.imageUrl = storeDef.item.imageUrl;
+        existingItem.description = storeDef.item.description;
+        await queryRunner.manager.save(ItemEntity, existingItem);
+        itemsUpdated++;
       }
 
       // 4. Insert or update OfferEntity (Suất Cứu Món)
@@ -1693,18 +1834,34 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
         });
         await queryRunner.manager.save(OfferEntity, offer);
         offersInserted++;
+      } else {
+        existingOffer.status = OfferStatus.OPEN;
+        existingOffer.pickupStart = pickupStart;
+        existingOffer.pickupEnd = pickupEnd;
+        existingOffer.expiresAt = expiresAt;
+        existingOffer.totalQuantity = storeDef.item.totalQty;
+        existingOffer.remainingQuantity = storeDef.item.remainingQty;
+        existingOffer.soldQuantity = storeDef.item.totalQty - storeDef.item.remainingQty;
+        existingOffer.originalPrice = storeDef.item.originalPrice;
+        existingOffer.currentPrice = storeDef.item.currentPrice;
+        existingOffer.floorPrice = storeDef.item.floorPrice;
+        await queryRunner.manager.save(OfferEntity, existingOffer);
+        offersUpdated++;
       }
     }
 
     await queryRunner.commitTransaction();
     logger.log(
-      `✅ [HanoiDemoSeed] Hoàn tất nạp seed: ${HANOI_50_STORES.length} cửa hàng tại Hà Nội (mới thêm: ${storesInserted} quán, ${itemsInserted} món, ${offersInserted} suất cứu món).`,
+      `✅ [HanoiDemoSeed] Hoàn tất nạp seed: ${HANOI_50_STORES.length} cửa hàng tại Hà Nội (mới thêm: ${storesInserted} quán, ${itemsInserted} món, ${offersInserted} suất | làm mới hạn dùng: ${storesUpdated} quán, ${itemsUpdated} món, ${offersUpdated} suất cứu món).`,
     );
 
     return {
       storesCount: HANOI_50_STORES.length,
       itemsCount: HANOI_50_STORES.length,
       offersCount: HANOI_50_STORES.length,
+      storesUpdated,
+      itemsUpdated,
+      offersUpdated,
     };
   } catch (err) {
     await queryRunner.rollbackTransaction();

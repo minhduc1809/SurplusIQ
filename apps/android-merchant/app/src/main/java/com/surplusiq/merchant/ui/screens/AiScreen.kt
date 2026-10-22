@@ -42,7 +42,12 @@ import com.surplusiq.merchant.ui.components.*
 import com.surplusiq.merchant.ui.theme.*
 import kotlinx.coroutines.launch
 
-private data class ChatLine(val fromUser: Boolean, val text: String, val logId: String? = null)
+private data class ChatLine(
+    val fromUser: Boolean,
+    val text: String,
+    val logId: String? = null,
+    val action: AiSuggestedActionDto? = null
+)
 
 private val AI_FEATURES = mapOf(
     "STORE_AI_CHAT" to "Hỏi đáp", "AI_WEEKLY_SUMMARY" to "Tóm tắt tuần", "AI_DESCRIBE_ITEM" to "Mô tả món",
@@ -66,7 +71,14 @@ private val AI_FOLLOW_UPS = listOf("Vì sao vậy?", "Nên làm gì tiếp theo?
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AiScreen(repository: StoreRepository, isOwner: Boolean, onOpenQuotas: () -> Unit, onUpgrade: () -> Unit, onBack: () -> Unit) {
+fun AiScreen(
+    repository: StoreRepository,
+    isOwner: Boolean,
+    onOpenQuotas: () -> Unit,
+    onUpgrade: () -> Unit,
+    onNavigate: ((String) -> Unit)? = null,
+    onBack: () -> Unit
+) {
     var tab by remember { mutableStateOf("chat") }
     var menu by remember { mutableStateOf(false) }
     val chat = remember { mutableStateListOf<ChatLine>() }
@@ -104,7 +116,7 @@ fun AiScreen(repository: StoreRepository, isOwner: Boolean, onOpenQuotas: () -> 
             }
             IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Tuỳ chọn", tint = SqInk) }
         }
-        ChatTab(repository, chat, conversationId, { conversationId = it }, onOpenQuotas)
+        ChatTab(repository, chat, conversationId, { conversationId = it }, onOpenQuotas, onNavigate)
     }
     if (menu) ModalBottomSheet(onDismissRequest = { menu = false }, containerColor = Color.White) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
@@ -131,7 +143,14 @@ private fun AiMenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatTab(repository: StoreRepository, chat: MutableList<ChatLine>, conversationId: String?, setConversation: (String?) -> Unit, onOpenQuotas: () -> Unit) {
+private fun ChatTab(
+    repository: StoreRepository,
+    chat: MutableList<ChatLine>,
+    conversationId: String?,
+    setConversation: (String?) -> Unit,
+    onOpenQuotas: () -> Unit,
+    onNavigate: ((String) -> Unit)? = null
+) {
     var input by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -148,7 +167,7 @@ private fun ChatTab(repository: StoreRepository, chat: MutableList<ChatLine>, co
         input = ""; error = null; busy = true; chat.add(ChatLine(true, q))
         scope.launch {
             repository.aiChat(q, conversationId).fold(
-                onSuccess = { setConversation(it.conversationId); chat.add(ChatLine(false, it.reply, it.logId)) },
+                onSuccess = { setConversation(it.conversationId); chat.add(ChatLine(false, it.reply, it.logId, it.suggestedAction)) },
                 onFailure = { error = it.message }
             )
             busy = false
@@ -196,6 +215,21 @@ private fun ChatTab(repository: StoreRepository, chat: MutableList<ChatLine>, co
                                     m.text, fontSize = 14.sp, color = SqInk,
                                     modifier = Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)).background(SqCoralWash).border(1.dp, SqCoral.copy(alpha = 0.35f), RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)).padding(horizontal = 14.dp, vertical = 10.dp)
                                 )
+                                if (m.action != null && onNavigate != null) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(SqCoral)
+                                            .clickable { onNavigate(m.action.route) }
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(m.action.label, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
                                 val logId = m.logId
                                 if (logId != null) Row(Modifier.padding(top = 2.dp)) {
                                     if (logId in rated) Text("Cảm ơn phản hồi của bạn", fontSize = 11.sp, color = SqInkMuted, modifier = Modifier.padding(8.dp))
