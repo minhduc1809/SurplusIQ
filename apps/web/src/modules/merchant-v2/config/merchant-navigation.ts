@@ -124,7 +124,6 @@ export const MERCHANT_V2_NAVIGATION: MerchantNavGroup[] = [
         title: 'Dự báo & giá Pro',
         href: MERCHANT_V2_ROUTES.forecast,
         icon: 'Sparkles',
-        comingSoon: true,
       },
       {
         key: 'marketing',
@@ -139,7 +138,7 @@ export const MERCHANT_V2_NAVIGATION: MerchantNavGroup[] = [
         icon: 'UserCircle',
       },
       { key: 'staff', title: 'Nhân viên', href: MERCHANT_V2_ROUTES.staff, icon: 'UserCog' },
-      { key: 'ai', title: 'Trợ lý AI', href: MERCHANT_V2_ROUTES.ai, icon: 'Bot', comingSoon: true },
+      { key: 'ai', title: 'Trợ lý AI', href: MERCHANT_V2_ROUTES.ai, icon: 'Bot' },
     ],
   },
   {
