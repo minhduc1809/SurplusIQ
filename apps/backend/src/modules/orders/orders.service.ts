@@ -620,14 +620,36 @@ export class OrdersService {
    * Danh sách đơn đang hoạt động / chờ nhận hàng của khách (R1-055)
    */
   async getCustomerActiveOrders(customerId: string) {
+    return this.listCustomerOrdersEnriched(customerId, [
+      OrderStatus.PENDING_PAYMENT,
+      OrderStatus.PAID,
+    ]);
+  }
+
+  /** Lịch sử đơn đã kết thúc (đã nhận, hết hạn, hủy, hoàn tiền), mới nhất trước, tối đa 50 đơn. */
+  async getCustomerOrderHistory(customerId: string) {
+    return this.listCustomerOrdersEnriched(
+      customerId,
+      [
+        OrderStatus.PICKED_UP,
+        OrderStatus.HOLD_EXPIRED,
+        OrderStatus.PICKUP_EXPIRED,
+        OrderStatus.CANCELLED,
+        OrderStatus.REFUNDED,
+      ],
+      50,
+    );
+  }
+
+  private async listCustomerOrdersEnriched(
+    customerId: string,
+    statuses: OrderStatus[],
+    take?: number,
+  ) {
     const orders = await this.orderRepo.find({
-      where: {
-        customerId,
-        status: In([OrderStatus.PENDING_PAYMENT, OrderStatus.PAID]),
-      },
-      order: {
-        createdAt: 'DESC',
-      },
+      where: { customerId, status: In(statuses) },
+      order: { createdAt: 'DESC' },
+      take,
     });
     if (orders.length === 0) return [];
 
@@ -642,6 +664,7 @@ export class OrdersService {
         's.name AS store_name',
         's.address AS store_address',
         's.logo_url AS store_logo_url',
+        's.phone AS store_phone',
         'i.name AS item_name',
         'i.image_url AS image_url',
         'o.pickup_start AS pickup_start',
@@ -657,6 +680,7 @@ export class OrdersService {
         storeName: r?.store_name ?? null,
         storeAddress: r?.store_address ?? null,
         storeLogoUrl: r?.store_logo_url ?? null,
+        storePhone: r?.store_phone ?? null,
         itemName: r?.item_name ?? null,
         imageUrl: r?.image_url ?? null,
         offer: r ? { pickupStart: r.pickup_start, pickupEnd: r.pickup_end } : null,

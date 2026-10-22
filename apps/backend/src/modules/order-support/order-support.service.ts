@@ -512,9 +512,11 @@ export class OrderSupportService implements OnModuleInit {
     } catch {
       open = false;
     }
+    const store = await this.storeRepo.findOne({ where: { id: order.storeId } });
     return {
       orderId: order.id,
       orderCode: order.code,
+      storeName: store?.name ?? null,
       isOpen: open,
       messages: rows.map((m) => this.presentMessage(m, viewer)),
     };

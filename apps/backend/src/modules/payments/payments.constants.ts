@@ -1,9 +1,21 @@
 export const PAYMENTS_CONSTANTS = {
+  // Tài khoản thụ hưởng lấy từ .env (VIETQR_*), đọc lúc dùng để luôn khớp cấu hình hiện tại; giá trị sau || chỉ là mặc định cho dev.
   VIETQR: {
-    BANK_BIN: '970422', // MBBank
-    BANK_NAME: 'Ngân hàng TMCP Quân Đội (MBBank)',
-    ACCOUNT_NO: '1900888999',
-    ACCOUNT_NAME: 'SURPLUSIQ ESCROW',
+    get BANK_BIN() {
+      return process.env.VIETQR_BANK_ID || '970422';
+    },
+    get BANK_NAME() {
+      return process.env.VIETQR_BANK_NAME || 'MB Bank';
+    },
+    get ACCOUNT_NO() {
+      return process.env.VIETQR_ACCOUNT_NO || '1900888999';
+    },
+    get ACCOUNT_NAME() {
+      return process.env.VIETQR_ACCOUNT_NAME || 'SURPLUSIQ ESCROW';
+    },
+    get TEMPLATE() {
+      return process.env.VIETQR_TEMPLATE || 'compact2';
+    },
     SYNTAX_PREFIX: 'SUQ',
   },
   /**
