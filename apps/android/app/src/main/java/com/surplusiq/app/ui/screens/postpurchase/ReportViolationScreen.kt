@@ -30,7 +30,7 @@ import com.surplusiq.app.ui.theme.TextSecondary
 /** Đối tượng có thể báo cáo; type khớp ViolationTargetType backend (STORE, DEAL, REVIEW). */
 data class ReportTarget(val type: String, val id: String, val label: String)
 
-private val targetTypes = listOf("STORE" to "Cửa hàng", "DEAL" to "Deal", "REVIEW" to "Đánh giá")
+private val targetTypes = listOf("STORE" to "Cửa hàng", "DEAL" to "Suất", "REVIEW" to "Đánh giá")
 private val reportReasons = listOf(
     "Mô tả sai sự thật",
     "Nội dung xúc phạm",

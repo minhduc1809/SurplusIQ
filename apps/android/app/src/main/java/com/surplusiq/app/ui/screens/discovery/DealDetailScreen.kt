@@ -62,10 +62,22 @@ fun DealDetailScreen(
     isPriceHistoryLoading: Boolean = false,
     priceHistoryError: String? = null,
     onLoadPriceHistory: (() -> Unit)? = null,
+    // Tim cửa hàng yêu thích: trạng thái do máy chủ quyết định, không tự đổi cục bộ
+    isFavorite: Boolean = deal.isFavorite,
+    onToggleFavorite: () -> Unit = {},
+    favoriteMessage: String? = null,
+    onFavoriteMessageShown: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var isFavorite by remember { mutableStateOf(deal.isFavorite) }
     var showFavoriteToast by remember { mutableStateOf(false) }
+    var toastText by remember { mutableStateOf("Đã thêm cửa hàng vào danh sách yêu thích") }
+    LaunchedEffect(favoriteMessage) {
+        if (favoriteMessage != null) {
+            toastText = favoriteMessage
+            showFavoriteToast = true
+            onFavoriteMessageShown()
+        }
+    }
     var showTrustpass by remember { mutableStateOf(false) }
     var showAiTips by remember { mutableStateOf(false) }
     var showPriceHistorySheet by remember { mutableStateOf(false) }
@@ -93,7 +105,6 @@ fun DealDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 90.dp)
         ) {
             // Hero Image Header
             Box(
@@ -112,7 +123,8 @@ fun DealDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 20.dp),
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -125,7 +137,7 @@ fun DealDetailScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = "Quay lại",
                             tint = Color.White
                         )
                     }
@@ -141,7 +153,7 @@ fun DealDetailScreen(
                                         "Cùng giải cứu suất ăn '${deal.title}' tại ${deal.storeName} với giá chỉ ${String.format("%,d", deal.discountPrice)} ₫ (giảm ${deal.discountPercent}%) trên SurplusIQ!"
                                     )
                                 }
-                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Chia sẻ deal cứu hộ"))
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Chia sẻ suất cứu hộ"))
                             },
                             modifier = Modifier
                                 .size(40.dp)
@@ -165,7 +177,7 @@ fun DealDetailScreen(
                             ) {
                                 Icon(
                                     imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                                    contentDescription = if (isSaved) "Bỏ lưu deal" else "Lưu deal",
+                                    contentDescription = if (isSaved) "Bỏ lưu suất" else "Lưu suất",
                                     tint = Color.White
                                 )
                             }
@@ -173,10 +185,11 @@ fun DealDetailScreen(
 
                         IconButton(
                             onClick = {
-                                isFavorite = !isFavorite
-                                if (isFavorite) {
+                                if (!isFavorite) {
+                                    toastText = "Đã thêm cửa hàng vào danh sách yêu thích"
                                     showFavoriteToast = true
                                 }
+                                onToggleFavorite()
                             },
                             modifier = Modifier
                                 .size(40.dp)
@@ -223,9 +236,12 @@ fun DealDetailScreen(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
+                            .background(ForestGreenContainer),
+                        contentAlignment = Alignment.Center
                     ) {
+                        Icon(Icons.Default.Storefront, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(20.dp))
                         AsyncImage(
-                            model = deal.storeLogoUrl,
+                            model = deal.storeLogoUrl.ifBlank { null },
                             contentDescription = deal.storeName,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
@@ -361,7 +377,7 @@ fun DealDetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = deal.pickupWindowText,
+                                text = deal.pickupWindowText.ifBlank { "Khung giờ nhận do cửa hàng quy định" },
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -404,7 +420,7 @@ fun DealDetailScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.LocationOn,
-                        contentDescription = "Address",
+                        contentDescription = "Địa chỉ",
                         tint = ForestGreenPrimary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -424,7 +440,7 @@ fun DealDetailScreen(
                     }
                     Icon(
                         imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Detail",
+                        contentDescription = "Chi tiết",
                         tint = TextMuted
                     )
                 }
@@ -471,13 +487,15 @@ fun DealDetailScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Thành phần, dị ứng & TrustPass",
+                            text = "Thành phần, dị ứng & hồ sơ minh bạch",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = TextPrimary
                         )
                         Text(
-                            text = deal.allergens.joinToString(", ").ifEmpty { "Chưa có thông tin dị ứng" },
+                            text = (trustpass?.allergens?.takeIf { it.isNotEmpty() } ?: deal.allergens)
+                                .joinToString(", ")
+                                .ifEmpty { if (trustpass != null) "Cửa hàng chưa khai báo chất gây dị ứng" else "Bấm để xem thành phần và dị ứng" },
                             fontSize = 12.sp,
                             color = TextSecondary
                         )
@@ -500,7 +518,7 @@ fun DealDetailScreen(
                         Column(modifier = Modifier.padding(14.dp)) {
                             when {
                                 isTrustpassLoading -> {
-                                    Text("Đang tải hồ sơ TrustPass...", fontSize = 13.sp, color = TextSecondary)
+                                    Text("Đang tải hồ sơ minh bạch...", fontSize = 13.sp, color = TextSecondary)
                                 }
                                 trustpassErrorMessage != null -> {
                                     Text(trustpassErrorMessage, fontSize = 13.sp, color = CoralRed)
@@ -515,20 +533,28 @@ fun DealDetailScreen(
                                     TrustpassField("Bảo quản", trustpass.storageInstructions)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = trustpass.pickupWindowNote,
+                                        text = trustpass.pickupWindowNote.replace(Regex("\\s*\\(BR-[A-Za-z0-9-]+\\)"), ""),
                                         fontSize = 11.sp,
                                         color = TextMuted
                                     )
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Text(
-                                        text = "Nguồn thông tin: ${trustpass.informationSource} • Trạng thái: ${trustpass.verificationStatus}",
+                                        text = "Nguồn thông tin: " + when (trustpass.informationSource) {
+                                            "STORE" -> "Cửa hàng khai báo"
+                                            "PLATFORM_VERIFIED" -> "Nền tảng xác minh"
+                                            else -> trustpass.informationSource
+                                        } + " • " + when (trustpass.verificationStatus) {
+                                            "VERIFIED" -> "Đã xác minh"
+                                            "DECLARED" -> "Chưa xác minh độc lập"
+                                            else -> trustpass.verificationStatus
+                                        },
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = ForestGreenDark
                                     )
                                 }
                                 else -> {
-                                    Text("Chưa có dữ liệu TrustPass.", fontSize = 13.sp, color = TextSecondary)
+                                    Text("Chưa có dữ liệu minh bạch.", fontSize = 13.sp, color = TextSecondary)
                                 }
                             }
                         }
@@ -571,13 +597,13 @@ fun DealDetailScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Mẹo bảo quản & Công thức từ AI",
+                                text = "Mẹo hâm nóng & bảo quản",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
                             )
                             Text(
-                                text = "Gợi ý cách hâm nóng & tận dụng tối đa từ SaveBite AI",
+                                text = "Theo hướng dẫn của cửa hàng và loại món",
                                 fontSize = 12.sp,
                                 color = TextSecondary
                             )
@@ -606,7 +632,7 @@ fun DealDetailScreen(
                                 color = Color(0xFF513F9E)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
-                            val storageGuide = when (deal.category) {
+                            val storageGuide = trustpass?.storageInstructions?.takeIf { it.isNotBlank() } ?: when (deal.category) {
                                 DealCategory.BREAD, DealCategory.SWEET -> "• Làm nóng: Xịt một chút nước lên vỏ bánh rồi nướng ở 180°C trong 3-4 phút để vỏ giòn rụm như mới ra lò.\n• Bảo quản: Để ngăn đông nếu không dùng hết trong 24h, khi ăn chỉ cần rã đông ở nhiệt độ phòng."
                                 DealCategory.RICE, DealCategory.NOODLE, DealCategory.FASTFOOD, DealCategory.SNACK -> "• Hâm nóng: Sử dụng chảo với một chút dầu/nước, hoặc đậy kín trong lò vi sóng để món ăn không bị khô.\n• Bảo quản: Giữ ở ngăn mát tủ lạnh (dưới 5°C) và dùng tốt nhất trong vòng 24 giờ."
                                 DealCategory.PRODUCE, DealCategory.HEALTHY -> "• Sơ chế: Rửa sạch và để ráo nước trước khi cho vào hộp kín trong ngăn mát.\n• Ý tưởng chế biến: Có thể nấu canh soup thanh nhiệt, làm salad trộn sốt mè rang hoặc làm sinh tố trái cây."
@@ -693,62 +719,61 @@ fun DealDetailScreen(
                 }
 
             }
-        }
-
-        // Sticky Bottom "Reserve" Button Bar
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(horizontal = 20.dp, vertical = 14.dp)
-        ) {
-            if (deal.remainingStock <= 0) {
-                Button(
-                    onClick = { onToggleBackInStock?.invoke() },
-                    enabled = !isTogglingBackInStock,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isBackInStockSubscribed) ForestGreenPrimary else PrimaryOrange
-                    )
-                ) {
-                    Icon(
-                        imageVector = if (isBackInStockSubscribed) Icons.Default.Check else Icons.Default.NotificationsActive,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isBackInStockSubscribed) "✓ Đang nhận báo khi có hàng lại" else "🔔 Báo tôi khi có hàng lại (Hết hàng)",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            } else {
-                Button(
-                    onClick = { onReserveClick(deal) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ForestGreenPrimary
-                    )
-                ) {
-                    Text(
-                        text = "Đặt giữ suất",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+            // Nút đặt giữ suất nằm cuối trang, cuộn cùng nội dung; chừa chỗ thanh điều hướng
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
+            ) {
+                if (deal.remainingStock <= 0) {
+                    Button(
+                        onClick = { onToggleBackInStock?.invoke() },
+                        enabled = !isTogglingBackInStock,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(26.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isBackInStockSubscribed) ForestGreenPrimary else PrimaryOrange
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (isBackInStockSubscribed) Icons.Default.Check else Icons.Default.NotificationsActive,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isBackInStockSubscribed) "✓ Đang nhận báo khi có hàng lại" else "🔔 Báo tôi khi có hàng lại (Hết hàng)",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = { onReserveClick(deal) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(26.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ForestGreenPrimary
+                        )
+                    ) {
+                        Text(
+                            text = "Đặt giữ suất",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
+            Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars).height(8.dp))
         }
+
         // Toast Notification Overlay: "Great! This store was added to your list of favourites" (Image 2 Screen 1)
         AnimatedVisibility(
             visible = showFavoriteToast,
@@ -761,7 +786,7 @@ fun DealDetailScreen(
             SqCard(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -777,7 +802,7 @@ fun DealDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Đã thêm cửa hàng vào danh sách yêu thích",
+                        text = toastText,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
@@ -927,7 +952,7 @@ fun DealDetailScreen(
                                     if (!point.note.isNullOrBlank()) {
                                         Text(point.note, fontSize = 12.sp, color = TextSecondary)
                                     }
-                                    Text(point.timestamp, fontSize = 11.sp, color = TextMuted)
+                                    Text(formatPricePointTime(point.timestamp), fontSize = 11.sp, color = TextMuted)
                                     if (idx < timeline.size - 1) {
                                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                                     }
@@ -980,3 +1005,10 @@ private fun TrustpassAllergensField(allergens: List<String>?) {
         }
     }
 }
+
+
+/** Đổi mốc thời gian ISO của máy chủ thành "21/10/2026 20:25"; chuỗi không phải ISO giữ nguyên. */
+private fun formatPricePointTime(raw: String): String = try {
+    java.time.OffsetDateTime.parse(raw).atZoneSameInstant(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+} catch (_: Exception) { raw }

@@ -59,7 +59,7 @@ fun OtpVerificationScreen(
 
         AuthHeading(
             title = "Nhập mã OTP!",
-            subtitle = "Mã 6 chữ số đã được gửi tới số điện thoại ${state.phone}"
+            subtitle = "Mã 6 chữ số đã được gửi tới email ${state.email}"
         )
 
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {

@@ -94,14 +94,18 @@ class OrderRepositoryImpl @Inject constructor(
         // phản hồi để trống, không bịa. Lỗi mạng thì dùng bộ nhớ đệm phiên.
         return try {
             val response = ordersApiService.getActiveOrders()
-            val list = response.body()
+            // Lịch sử là phần phụ: lỗi thì vẫn hiện đơn đang mở.
+            val history = runCatching { ordersApiService.getOrderHistory().body() }.getOrNull().orEmpty()
+            val list = response.body()?.let { it + history }
             if (response.isSuccessful && list != null) {
                 list.asReversed().forEach { dto ->
                     val status = when (dto.status) {
                         "PENDING_PAYMENT" -> OrderStatus.PENDING_PAYMENT
                         "PAID" -> OrderStatus.PAID_WAITING_PICKUP
                         "PICKED_UP" -> OrderStatus.PICKED_UP
-                        "EXPIRED", "NO_SHOW" -> OrderStatus.EXPIRED
+                        "HOLD_EXPIRED" -> OrderStatus.HOLD_EXPIRED
+                        "PICKUP_EXPIRED", "EXPIRED", "NO_SHOW" -> OrderStatus.PICKUP_EXPIRED
+                        "REFUNDED" -> OrderStatus.REFUNDED
                         else -> OrderStatus.CANCELLED
                     }
                     val known = sessionOrders.find { it.id == dto.id }
@@ -122,7 +126,9 @@ class OrderRepositoryImpl @Inject constructor(
                             holdExpiresAtMillis = parseIsoToMillis(dto.holdExpiresAt) ?: 0L,
                             status = status, qrToken = known?.qrToken.orEmpty(),
                             fallbackPin = known?.fallbackPin.orEmpty(),
-                            pickupWindow = known?.pickupWindow ?: dto.pickupSlot ?: pickupWindowOf(dto.offer?.pickupStart, dto.offer?.pickupEnd)
+                            pickupWindow = known?.pickupWindow ?: dto.pickupSlot ?: pickupWindowOf(dto.offer?.pickupStart, dto.offer?.pickupEnd),
+                            storePhone = dto.storePhone ?: known?.storePhone,
+                            pickupEndMillis = parseIsoToMillis(dto.offer?.pickupEnd) ?: known?.pickupEndMillis ?: 0L
                         )
                     )
                 }

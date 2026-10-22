@@ -61,9 +61,9 @@ data class ChatMessage(
 private data class AiTopic(val title: String, val icon: ImageVector, val questions: List<String>)
 
 private val AiTopics = listOf(
-    AiTopic("Tìm deal", Icons.Default.Search, listOf(
+    AiTopic("Tìm suất", Icons.Default.Search, listOf(
         "Tìm món rẻ dưới 35k gần tôi",
-        "Hôm nay quán nào gần tôi đang có deal?",
+        "Hôm nay quán nào gần tôi đang có suất?",
         "Món nào còn nhiều suất nhất?"
     )),
     AiTopic("Bữa ăn", Icons.Default.Restaurant, listOf(
@@ -178,7 +178,7 @@ fun SaveBiteAiSheet(
                         OutlinedTextField(
                             value = queryText,
                             onValueChange = { queryText = it },
-                            placeholder = { Text("Hỏi deal, dinh dưỡng, dị ứng...", fontSize = 13.sp) },
+                            placeholder = { Text("Hỏi suất, dinh dưỡng, dị ứng...", fontSize = 13.sp) },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(24.dp),
                             maxLines = 3,

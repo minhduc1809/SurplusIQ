@@ -19,6 +19,9 @@ interface OrdersApiService {
         @Query("status") status: String? = null
     ): Response<List<OrderResponseDto>>
 
+    @GET("customer/orders/history")
+    suspend fun getOrderHistory(): Response<List<OrderResponseDto>>
+
     @GET("customer/orders/active")
     suspend fun getActiveOrders(): Response<List<OrderResponseDto>>
 

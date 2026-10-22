@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import com.surplusiq.app.domain.model.DealCategory
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.NotificationsNone
@@ -52,7 +54,7 @@ fun DealAlertsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Cảnh báo deal", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                title = { Text("Cảnh báo suất", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
@@ -71,7 +73,7 @@ fun DealAlertsScreen(
             isEmpty = state.alerts.isEmpty(),
             emptyIcon = Icons.Default.NotificationsNone,
             emptyTitle = "Chưa có cảnh báo nào",
-            emptyMessage = "Tạo cảnh báo theo danh mục, cửa hàng, giá hoặc mức giảm để không bỏ lỡ deal phù hợp.",
+            emptyMessage = "Tạo cảnh báo theo danh mục, cửa hàng, giá hoặc mức giảm để không bỏ lỡ suất phù hợp.",
             onRetry = onRetry,
             modifier = Modifier.padding(padding)
         ) {
@@ -95,7 +97,7 @@ private fun DealAlertCard(alert: DealAlert, onClick: () -> Unit, onToggle: (Bool
     SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

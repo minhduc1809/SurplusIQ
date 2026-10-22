@@ -67,8 +67,8 @@ fun FavouritesScreen(
             TopAppBar(
                 title = { Text("Cửa hàng yêu thích", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 actions = {
-                    IconButton(onClick = onOpenSavedDeals) { Icon(Icons.Default.Bookmarks, contentDescription = "Deal đã lưu và đã xem") }
-                    IconButton(onClick = onOpenDealAlerts) { Icon(Icons.Default.NotificationsActive, contentDescription = "Cảnh báo deal") }
+                    IconButton(onClick = onOpenSavedDeals) { Icon(Icons.Default.Bookmarks, contentDescription = "Suất đã lưu và đã xem") }
+                    IconButton(onClick = onOpenDealAlerts) { Icon(Icons.Default.NotificationsActive, contentDescription = "Cảnh báo suất") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
@@ -119,7 +119,7 @@ private fun FavoriteStoreRow(store: StoreDetail, onClick: () -> Unit, onUnfavori
     SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {

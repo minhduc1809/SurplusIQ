@@ -33,6 +33,7 @@ data class OrderResponseDto(
     @SerializedName("itemName") val itemName: String? = null,
     @SerializedName("storeAddress") val storeAddress: String? = null,
     @SerializedName("storeLogoUrl") val storeLogoUrl: String? = null,
+    @SerializedName("storePhone") val storePhone: String? = null,
     @SerializedName("imageUrl") val imageUrl: String? = null,
     @SerializedName("quantity") val quantity: Int,
     @SerializedName("unitPrice") val unitPrice: Double,

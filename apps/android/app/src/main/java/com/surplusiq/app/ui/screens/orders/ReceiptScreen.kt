@@ -64,7 +64,7 @@ fun ReceiptScreen(
         Toast.makeText(context, if (ok) "Đã lưu biên nhận PDF" else "Không lưu được tệp PDF", Toast.LENGTH_SHORT).show()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), horizontalAlignment = Alignment.CenterHorizontally) {
         BackTopBar("Biên nhận", onBackClick)
         when {
             isLoading -> LoadingState()
@@ -72,7 +72,7 @@ fun ReceiptScreen(
             receipt != null -> {
                 val rows = receiptRows(receipt)
                 Column(
-                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
+                    modifier = Modifier.widthIn(max = 640.dp).fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)
                 ) {
                     SectionCard {
                         Text(receipt.storeName, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)

@@ -53,7 +53,7 @@ fun ImpactScreen(
             title = { Text("Thành tích sống xanh", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                 }
             }
         )
@@ -81,7 +81,7 @@ fun ImpactScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(

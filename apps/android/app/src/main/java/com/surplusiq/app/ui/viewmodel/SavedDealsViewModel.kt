@@ -63,7 +63,7 @@ class SavedDealsViewModel @Inject constructor(
         viewModelScope.launch {
             discoveryRepository.setDealSaved(dealId, saved).fold(
                 onSuccess = {
-                    _uiState.update { it.copy(message = if (saved) "Đã lưu deal để xem sau." else "Đã bỏ lưu deal.") }
+                    _uiState.update { it.copy(message = if (saved) "Đã lưu suất để xem sau." else "Đã bỏ lưu suất.") }
                     loadSaved()
                 },
                 onFailure = { e -> _uiState.update { it.copy(message = e.message) } }

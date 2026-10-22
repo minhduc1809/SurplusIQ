@@ -141,7 +141,7 @@ fun EditProfileScreen(
                 if (selectedImageUri != null) {
                     AsyncImage(
                         model = selectedImageUri,
-                        contentDescription = "Avatar Preview",
+                        contentDescription = "Xem trước ảnh đại diện",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
@@ -332,7 +332,7 @@ fun EditProfileScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Bán kính tìm deal mặc định",
+                                    text = "Bán kính tìm suất mặc định",
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp,
                                     color = TextPrimary

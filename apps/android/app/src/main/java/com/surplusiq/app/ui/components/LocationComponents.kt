@@ -51,7 +51,7 @@ fun AddressSearchField(
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            placeholder = { Text("Nhập địa chỉ, tên đường, phường...") },
+            placeholder = { Text("Nhập địa chỉ...") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted) },
             trailingIcon = {
                 if (isSearching) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = ForestGreenPrimary)
@@ -71,7 +71,7 @@ fun AddressSearchField(
             SqCard(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
             ) {
                 suggestions.forEachIndexed { index, suggestion ->
@@ -99,7 +99,7 @@ fun RadiusSlider(
     radiusKm: Double,
     onRadiusChange: (Double) -> Unit,
     modifier: Modifier = Modifier,
-    label: String = "Bán kính tìm deal"
+    label: String = "Bán kính tìm suất"
 ) {
     val min = LocationSettings.MIN_RADIUS_KM
     val max = LocationSettings.MAX_RADIUS_KM

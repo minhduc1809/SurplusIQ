@@ -48,6 +48,23 @@ class PlacesViewModel @Inject constructor(
 
     fun isLocationConfigured(): Boolean = locationRepository.isLocationConfigured()
 
+    /**
+     * Tài khoản đã có địa điểm lưu trên máy chủ (vd. "Công ty") thì dùng địa điểm đầu tiên làm vị trí ban đầu,
+     * không bắt chọn lại. Trả false khi chưa có địa điểm nào (tài khoản mới) để hiện màn chọn vị trí.
+     */
+    suspend fun restoreFromSavedPlaces(): Boolean {
+        val place = locationRepository.getSavedPlaces().getOrNull()?.firstOrNull() ?: return false
+        locationRepository.applyLocation(
+            LocationSettings(
+                latitude = place.latitude,
+                longitude = place.longitude,
+                radiusKm = place.radiusKm ?: LocationSettings.DEFAULT_RADIUS_KM,
+                label = place.label
+            )
+        )
+        return true
+    }
+
     /** Mở màn chọn vị trí: bắt đầu từ vị trí đang dùng (nếu có). */
     fun startSelection() {
         val current = _uiState.value.location

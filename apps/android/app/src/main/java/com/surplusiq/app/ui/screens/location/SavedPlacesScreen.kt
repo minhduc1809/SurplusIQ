@@ -107,7 +107,7 @@ fun SavedPlacesScreen(
             isEmpty = state.savedPlaces.isEmpty(),
             emptyIcon = Icons.Default.WhereToVote,
             emptyTitle = "Chưa có địa điểm nào",
-            emptyMessage = "Lưu nhà, nơi làm việc để chuyển nhanh khu vực tìm deal.",
+            emptyMessage = "Lưu nhà, nơi làm việc để chuyển nhanh khu vực tìm suất.",
             onRetry = onRetry,
             modifier = Modifier.padding(padding)
         ) {
@@ -163,7 +163,7 @@ private fun SavedPlaceCard(place: SavedPlace, defaultRadiusKm: Double, onClick: 
     SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

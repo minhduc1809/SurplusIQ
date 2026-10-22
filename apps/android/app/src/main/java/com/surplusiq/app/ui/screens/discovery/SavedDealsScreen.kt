@@ -67,7 +67,7 @@ fun SavedDealsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (selectionMode) "Đã chọn ${selectedIds.size}/${CompareDeal.MAX_ITEMS}" else "Deal đã lưu và đã xem",
+                        if (selectionMode) "Đã chọn ${selectedIds.size}/${CompareDeal.MAX_ITEMS}" else "Suất đã lưu và đã xem",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -111,7 +111,7 @@ fun SavedDealsScreen(
             }
             if (selectionMode) {
                 Text(
-                    "Chọn ${CompareDeal.MIN_ITEMS}-${CompareDeal.MAX_ITEMS} deal để so sánh.",
+                    "Chọn ${CompareDeal.MIN_ITEMS}-${CompareDeal.MAX_ITEMS} suất để so sánh.",
                     fontSize = 12.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -124,8 +124,8 @@ fun SavedDealsScreen(
                 errorMessage = if (isSavedTab) state.savedError else state.historyError,
                 isEmpty = items.isEmpty(),
                 emptyIcon = if (isSavedTab) Icons.Default.BookmarkBorder else Icons.Default.History,
-                emptyTitle = if (isSavedTab) "Chưa lưu deal nào" else "Chưa xem deal nào",
-                emptyMessage = if (isSavedTab) "Nhấn biểu tượng lưu ở chi tiết deal để xem lại sau." else "Các deal bạn mở gần đây (tối đa 20) sẽ hiện ở đây.",
+                emptyTitle = if (isSavedTab) "Chưa lưu suất nào" else "Chưa xem suất nào",
+                emptyMessage = if (isSavedTab) "Nhấn biểu tượng lưu ở chi tiết suất để xem lại sau." else "Các suất bạn mở gần đây (tối đa 20) sẽ hiện ở đây.",
                 onRetry = if (isSavedTab) onLoadSaved else onLoadHistory
             ) {
                 LazyColumn(
@@ -171,7 +171,7 @@ private fun CompactDealRow(
     SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {

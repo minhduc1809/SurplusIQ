@@ -29,6 +29,9 @@ interface DiscoveryRepository {
 
     suspend fun toggleFavorite(dealId: String, storeId: String, currentStatus: Boolean): Result<Boolean>
 
+    /** Mã các cửa hàng yêu thích của tài khoản (nguồn sự thật để hiện trái tim đúng ở mọi màn). */
+    suspend fun getFavoriteStoreIds(): Result<Set<String>>
+
     /** Rescue Radar (CM-C05): xếp hạng deal theo khả năng nhận kịp, không chỉ khoảng cách. */
     suspend fun getRadarRanking(
         latitude: Double? = null,

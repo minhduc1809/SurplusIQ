@@ -47,7 +47,7 @@ fun RegisterScreen(
     AuthShellCard(modifier = modifier, onBackClick = onBackToLogin, waveHeader = true) {
         AuthHeading(
             title = "Tạo tài khoản mới",
-            subtitle = "Cùng SurplusIQ săn deal món ngon và chung tay giảm lãng phí thực phẩm"
+            subtitle = "Cùng SurplusIQ săn suất món ngon và chung tay giảm lãng phí thực phẩm"
         )
 
         AuthField(label = "Họ và tên", value = state.fullName, onValueChange = onFullNameChange, placeholder = "Nhập họ và tên")
@@ -61,7 +61,7 @@ fun RegisterScreen(
         )
         Spacer(modifier = Modifier.height(14.dp))
         AuthField(
-            label = "Email (không bắt buộc)",
+            label = "Email nhận mã OTP",
             value = state.email,
             onValueChange = onEmailChange,
             placeholder = "Nhập email của bạn",

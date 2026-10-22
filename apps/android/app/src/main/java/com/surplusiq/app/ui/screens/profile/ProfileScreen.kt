@@ -231,9 +231,9 @@ fun ProfileScreen(
             FeatureRow(Icons.AutoMirrored.Filled.ReceiptLong, ForestGreenDark, SkyBlueContainer, "Đơn hàng của tôi", "Lịch sử cứu món & trạng thái nhận", onOpenMyOrders,
                 badge = if (upcomingOrdersCount > 0) "$upcomingOrdersCount chờ nhận" else null)
             HorizontalDivider(color = divider)
-            FeatureRow(Icons.Default.ShoppingBasket, MintDeep, SkyBlueIce, "Giỏ cứu tự động (AI Basket)", "Gợi ý tổ hợp suất theo ngân sách", onOpenRescueBasket)
+            FeatureRow(Icons.Default.ShoppingBasket, MintDeep, SkyBlueIce, "Giỏ cứu tự động", "Gợi ý tổ hợp suất theo ngân sách", onOpenRescueBasket)
             HorizontalDivider(color = divider)
-            FeatureRow(Icons.Default.Groups, InfoOnLight, SkyInfoWash, "Mua chung theo đợt (Rescue Pool)", "Gom đơn giá sốc cùng cộng đồng", onOpenRescuePool)
+            FeatureRow(Icons.Default.Groups, InfoOnLight, SkyInfoWash, "Mua chung theo đợt", "Gom đơn giá sốc cùng cộng đồng", onOpenRescuePool)
             HorizontalDivider(color = divider)
             FeatureRow(Icons.Default.ListAlt, LilacAccent, LilacWash, "Nhu cầu của tôi", "Theo dõi tiến độ đợt gom & đăng ký", onOpenMyRescueDemands)
         }
@@ -256,7 +256,7 @@ fun ProfileScreen(
                 badge = radiusKm?.let { formatRadiusShort(it) }
             )
             HorizontalDivider(color = divider)
-            FeatureRow(Icons.Default.NotificationsActive, ForestGreenDark, SkyBlueContainer, "Cảnh báo deal & thông báo", "Báo giờ vàng, deal mới và nhắc nhận hàng", onOpenNotificationSettings)
+            FeatureRow(Icons.Default.NotificationsActive, ForestGreenDark, SkyBlueContainer, "Cảnh báo suất & thông báo", "Báo giờ vàng, suất mới và nhắc nhận hàng", onOpenNotificationSettings)
             HorizontalDivider(color = divider)
             FeatureRow(Icons.AutoMirrored.Filled.HelpOutline, MintDeep, SkyBlueIce, "Trung tâm trợ giúp", "Câu hỏi thường gặp & bảo vệ người dùng", onOpenHelpCenter)
         }
@@ -272,8 +272,8 @@ fun ProfileScreen(
             }
             if (showMore) {
                 listOf(
-                    Triple(Icons.Default.Bookmarks, "Deal đã lưu & đã xem", onOpenSavedDeals),
-                    Triple(Icons.Default.NotificationsActive, "Cảnh báo deal", onOpenDealAlerts),
+                    Triple(Icons.Default.Bookmarks, "Suất đã lưu & đã xem", onOpenSavedDeals),
+                    Triple(Icons.Default.NotificationsActive, "Cảnh báo suất", onOpenDealAlerts),
                     Triple(Icons.Default.RestaurantMenu, "Hồ sơ ăn uống & dị ứng", onOpenDietaryProfile),
                     Triple(Icons.Default.AccountBalanceWallet, "Thanh toán & hoàn tiền", onOpenTransactions),
                     Triple(Icons.Default.AccountBalance, "Tài khoản nhận hoàn tiền VietQR", onOpenRefundBankAccount),

@@ -35,6 +35,13 @@ data class DiscoveryUiState(
     val sortBy: String? = null,
     val errorMessage: String? = null,
     // Rescue Radar (CM-C05)
+    /** Cửa hàng yêu thích theo máy chủ; chỉ tin được khi [favoriteIdsLoaded] là true. */
+    /** Kết quả tìm kiếm trên toàn bộ suất quanh vị trí (null khi ô tìm kiếm trống). */
+    val searchResults: List<Deal>? = null,
+    val isSearching: Boolean = false,
+    val favoriteStoreIds: Set<String> = emptySet(),
+    val favoriteIdsLoaded: Boolean = false,
+    val favoriteMessage: String? = null,
     val radarDeals: List<RadarDeal> = emptyList(),
     val radarSettings: com.surplusiq.app.domain.model.RadarSettings = com.surplusiq.app.domain.model.RadarSettings(),
     val isRadarLoading: Boolean = false,
@@ -91,6 +98,8 @@ class DiscoveryViewModel @Inject constructor(
                 if (_uiState.value.mapPins.isNotEmpty() || _uiState.value.mapErrorMessage != null) loadMapPins()
             }
         }
+
+        loadFavoriteIds()
 
         // Kết nối WebSocket thời gian thực (deal.stock_updated, deal.flash_rescue, order.hold_reserved)
         realtimeWebSocketClient.connect()
@@ -236,8 +245,10 @@ class DiscoveryViewModel @Inject constructor(
                 com.surplusiq.app.domain.model.RadarWindow.ANY -> null to null
                 com.surplusiq.app.domain.model.RadarWindow.NEXT_2H -> now.toInstant().toString() to now.plusHours(2).toInstant().toString()
                 com.surplusiq.app.domain.model.RadarWindow.EVENING -> {
-                    val start = now.withHour(17).withMinute(0).withSecond(0).withNano(0)
-                    start.toInstant().toString() to start.withHour(21).toInstant().toString()
+                    val eveningStart = now.withHour(17).withMinute(0).withSecond(0).withNano(0)
+                    val start = if (now.isAfter(eveningStart)) now else eveningStart
+                    val end = eveningStart.withHour(21)
+                    start.toInstant().toString() to end.toInstant().toString()
                 }
             }
             // Dị ứng lấy từ hồ sơ ăn uống ngay trước khi gọi, để lần tải đầu tiên cũng đã loại món không an toàn.
@@ -260,7 +271,7 @@ class DiscoveryViewModel @Inject constructor(
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isRadarLoading = false,
-                        radarErrorMessage = error.localizedMessage ?: "Không thể tải Rescue Radar"
+                        radarErrorMessage = error.localizedMessage ?: "Không thể tải Radar cứu món"
                     )
                 }
             )
@@ -278,7 +289,7 @@ class DiscoveryViewModel @Inject constructor(
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isTrustpassLoading = false,
-                        trustpassErrorMessage = error.localizedMessage ?: "Không thể tải hồ sơ TrustPass"
+                        trustpassErrorMessage = error.localizedMessage ?: "Không thể tải hồ sơ minh bạch"
                     )
                 }
             )
@@ -300,23 +311,81 @@ class DiscoveryViewModel @Inject constructor(
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isBasketLoading = false,
-                        basketErrorMessage = error.localizedMessage ?: "Không thể gợi ý giỏ Rescue Basket"
+                        basketErrorMessage = error.localizedMessage ?: "Không thể gợi ý giỏ giỏ cứu món"
                     )
                 }
             )
         }
     }
 
-    fun toggleFavorite(deal: Deal) {
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    /** Tìm trên máy chủ (không dấu, gần đúng) sau khi người dùng ngừng gõ một chút. */
+    fun searchDeals(query: String) {
+        searchJob?.cancel()
+        val q = query.trim()
+        if (q.length < 2) {
+            _uiState.value = _uiState.value.copy(searchResults = null, isSearching = false)
+            return
+        }
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(350)
+            _uiState.value = _uiState.value.copy(isSearching = true)
+            val loc = _uiState.value.location
+            discoveryRepository.getNearbyDeals(
+                latitude = loc.latitude,
+                longitude = loc.longitude,
+                radiusKm = loc.radiusKm,
+                searchQuery = q
+            ).fold(
+                onSuccess = { found -> _uiState.value = _uiState.value.copy(searchResults = found, isSearching = false) },
+                onFailure = { _uiState.value = _uiState.value.copy(searchResults = null, isSearching = false) }
+            )
+        }
+    }
+
+    fun loadFavoriteIds() {
         viewModelScope.launch {
-            val result = discoveryRepository.toggleFavorite(deal.id, deal.storeId, deal.isFavorite)
-            result.onSuccess { newFav ->
-                val updatedList = _uiState.value.deals.map {
-                    if (it.storeId == deal.storeId) it.copy(isFavorite = newFav) else it
-                }
-                _uiState.value = _uiState.value.copy(deals = updatedList)
+            discoveryRepository.getFavoriteStoreIds().onSuccess { ids ->
+                _uiState.value = _uiState.value.copy(
+                    favoriteStoreIds = ids,
+                    favoriteIdsLoaded = true,
+                    deals = _uiState.value.deals.map { it.copy(isFavorite = it.storeId in ids) }
+                )
             }
         }
+    }
+
+    fun consumeFavoriteMessage() {
+        _uiState.value = _uiState.value.copy(favoriteMessage = null)
+    }
+
+    /** Thích hoặc bỏ thích cửa hàng của [deal]: hiện ngay, lỗi thì hoàn lại và báo. */
+    fun toggleFavorite(deal: Deal) {
+        val state = _uiState.value
+        val current = if (state.favoriteIdsLoaded) deal.storeId in state.favoriteStoreIds else deal.isFavorite
+        applyFavorite(deal, current)
+    }
+
+    private fun applyFavorite(deal: Deal, currentStatus: Boolean) {
+        val target = !currentStatus
+        setFavoriteLocally(deal.storeId, target)
+        viewModelScope.launch {
+            discoveryRepository.toggleFavorite(deal.id, deal.storeId, currentStatus).onFailure { error ->
+                setFavoriteLocally(deal.storeId, currentStatus)
+                _uiState.value = _uiState.value.copy(
+                    favoriteMessage = error.localizedMessage ?: "Không cập nhật được cửa hàng yêu thích. Vui lòng thử lại."
+                )
+            }
+        }
+    }
+
+    private fun setFavoriteLocally(storeId: String, favorite: Boolean) {
+        val s = _uiState.value
+        _uiState.value = s.copy(
+            favoriteStoreIds = if (favorite) s.favoriteStoreIds + storeId else s.favoriteStoreIds - storeId,
+            deals = s.deals.map { if (it.storeId == storeId) it.copy(isFavorite = favorite) else it }
+        )
     }
 
     // --- Rescue Basket KC03 & KC04 ---

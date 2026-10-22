@@ -99,10 +99,10 @@ fun RescueBasketScreen(
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = LilacAccent, modifier = Modifier.size(11.dp))
                             Spacer(Modifier.width(3.dp))
-                            Text("AI Smart", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = LilacAccent)
+                            Text("Gợi ý thông minh", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = LilacAccent)
                         }
                     }
-                    Text("Rescue Basket • SurplusIQ", fontSize = 11.sp, color = TextSecondary)
+                    Text("Giỏ cứu món • SurplusIQ", fontSize = 11.sp, color = TextSecondary)
                 }
                 Spacer(Modifier.size(40.dp))
             }

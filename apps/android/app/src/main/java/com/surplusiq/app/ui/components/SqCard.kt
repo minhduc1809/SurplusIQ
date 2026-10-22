@@ -24,7 +24,7 @@ fun SqCard(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(16.dp),
     colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation: CardElevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+    elevation: CardElevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     border: BorderStroke? = BorderStroke(1.dp, DividerColor),
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -38,7 +38,7 @@ fun SqCard(
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(16.dp),
     colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation: CardElevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+    elevation: CardElevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     border: BorderStroke? = BorderStroke(1.dp, DividerColor),
     content: @Composable ColumnScope.() -> Unit,
 ) {

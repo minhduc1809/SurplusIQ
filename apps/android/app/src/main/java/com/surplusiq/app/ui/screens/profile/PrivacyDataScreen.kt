@@ -52,7 +52,7 @@ fun PrivacyDataScreen(
             title = { Text("Quyền riêng tư & dữ liệu", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                 }
             }
         )

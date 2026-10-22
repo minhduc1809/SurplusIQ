@@ -63,7 +63,7 @@ fun RescuePoolDetailScreen(
 
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TopAppBar(
-            title = { Text(pool?.title ?: "Rescue Pool", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+            title = { Text(pool?.title ?: "Mua chung theo đợt", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
             navigationIcon = {
                 IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") }
             }

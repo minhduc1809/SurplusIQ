@@ -118,7 +118,7 @@ fun CreateComplaintScreen(
                 IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
+                        contentDescription = "Quay lại"
                     )
                 }
             },
@@ -333,7 +333,7 @@ fun CreateComplaintScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Remove",
+                                contentDescription = "Xóa ảnh",
                                 tint = Color.White,
                                 modifier = Modifier.size(14.dp)
                             )
@@ -364,7 +364,7 @@ fun CreateComplaintScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
                                     imageVector = Icons.Default.AddPhotoAlternate,
-                                    contentDescription = "Add Photo",
+                                    contentDescription = "Thêm ảnh",
                                     tint = ForestGreenPrimary,
                                     modifier = Modifier.size(24.dp)
                                 )

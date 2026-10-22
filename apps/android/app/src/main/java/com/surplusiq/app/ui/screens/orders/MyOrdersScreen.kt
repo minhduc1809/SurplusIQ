@@ -24,6 +24,13 @@ import androidx.compose.ui.unit.sp
 import com.surplusiq.app.domain.model.ActiveOrder
 import com.surplusiq.app.domain.model.OrderStatus
 import com.surplusiq.app.ui.theme.AmberAccent
+import com.surplusiq.app.ui.theme.AmberLight
+import com.surplusiq.app.ui.theme.CoralRedLight
+import com.surplusiq.app.ui.theme.InfoOnLight
+import com.surplusiq.app.ui.theme.MintDeep
+import com.surplusiq.app.ui.theme.SkyBlueIce
+import com.surplusiq.app.ui.theme.SkyInfoWash
+import com.surplusiq.app.ui.theme.WarningOnLight
 import com.surplusiq.app.ui.theme.CoralRed
 import com.surplusiq.app.ui.theme.ForestGreenDark
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
@@ -46,19 +53,21 @@ fun MyOrdersScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(MaterialTheme.colorScheme.background),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         TopAppBar(
             title = { Text("Đơn hàng của tôi", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                 }
             }
         )
 
         // Tab Selector
         TabRow(
+            modifier = Modifier.widthIn(max = 640.dp),
             selectedTabIndex = state.selectedTab,
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = ForestGreenPrimary
@@ -117,8 +126,7 @@ fun MyOrdersScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
+                modifier = Modifier.widthIn(max = 640.dp).fillMaxSize().navigationBarsPadding()
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -149,7 +157,7 @@ fun OrderCardItem(
             .clickable { onCardClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header: Store Name & Status Badge
@@ -184,7 +192,7 @@ fun OrderCardItem(
 
             if (order.pickupWindow.isNotBlank()) {
                 Text(
-                    text = "Khung giờ nhận: ${order.pickupWindow}",
+                    text = "Khung giờ nhận: ${formatPickupWindowText(order.pickupWindow)}",
                     fontSize = 12.sp,
                     color = TextSecondary
                 )
@@ -236,7 +244,7 @@ fun OrderCardItem(
                         }
                     }
                     else -> {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "Detail", tint = TextSecondary)
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Xem chi tiết", tint = TextSecondary)
                     }
                 }
             }
@@ -247,11 +255,13 @@ fun OrderCardItem(
 @Composable
 fun OrderStatusBadge(status: OrderStatus) {
     val (text, bgColor, textColor) = when (status) {
-        OrderStatus.PENDING_PAYMENT -> Triple("Chờ thanh toán (10p)", AmberAccent.copy(alpha = 0.2f), AmberAccent)
-        OrderStatus.PAID_WAITING_PICKUP -> Triple("Sẵn sàng nhận hàng", ForestGreenPrimary.copy(alpha = 0.15f), ForestGreenPrimary)
-        OrderStatus.PICKED_UP -> Triple("Đã nhận hàng", Color.Gray.copy(alpha = 0.15f), Color.DarkGray)
-        OrderStatus.EXPIRED -> Triple("Đã hết hạn", CoralRed.copy(alpha = 0.15f), CoralRed)
-        OrderStatus.CANCELLED -> Triple("Đã hủy đơn", CoralRed.copy(alpha = 0.15f), CoralRed)
+        OrderStatus.PENDING_PAYMENT -> Triple("Chờ thanh toán", AmberLight, WarningOnLight)
+        OrderStatus.PAID_WAITING_PICKUP -> Triple("Đã thanh toán", ForestGreenPrimary.copy(alpha = 0.15f), ForestGreenDark)
+        OrderStatus.PICKED_UP -> Triple("Đã nhận hàng", com.surplusiq.app.ui.theme.LilacWash, Color(0xFF5B4BB7))
+        OrderStatus.HOLD_EXPIRED -> Triple("Hết hạn giữ suất", Color.Gray.copy(alpha = 0.15f), Color.DarkGray)
+        OrderStatus.PICKUP_EXPIRED -> Triple("Quá hạn nhận hàng", CoralRedLight, CoralRed)
+        OrderStatus.CANCELLED -> Triple("Đã hủy", CoralRedLight, CoralRed)
+        OrderStatus.REFUNDED -> Triple("Đã hoàn tiền", com.surplusiq.app.ui.theme.LilacWash, Color(0xFF5B4BB7))
     }
 
     Box(
@@ -262,3 +272,9 @@ fun OrderStatusBadge(status: OrderStatus) {
         Text(text = text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
     }
 }
+
+/** Đổi giờ hẹn ISO của máy chủ thành "19:30 22/10"; khung giờ đã là chữ ("Hôm nay 17:00 - 21:00") thì giữ nguyên. */
+internal fun formatPickupWindowText(raw: String): String = runCatching {
+    java.time.OffsetDateTime.parse(raw).atZoneSameInstant(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"))
+}.getOrDefault(raw)

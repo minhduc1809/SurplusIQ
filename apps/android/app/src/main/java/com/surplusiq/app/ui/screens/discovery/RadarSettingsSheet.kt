@@ -36,7 +36,7 @@ fun RadarSettingsSheet(
             modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Thiết lập Radar", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Thiết lập Radar cứu món", fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
             Column {
                 Text("Điểm xuất phát", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
@@ -73,7 +73,7 @@ fun RadarSettingsSheet(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Ưu tiên deal nhận kịp", fontSize = 14.sp)
+                    Text("Ưu tiên suất nhận kịp", fontSize = 14.sp)
                     Text("Ẩn suất còn dưới 15 phút và ưu tiên thời gian còn lại", fontSize = 11.sp, color = TextSecondary)
                 }
                 Switch(checked = inTime, onCheckedChange = { inTime = it })
@@ -84,6 +84,9 @@ fun RadarSettingsSheet(
                 colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             ) { Text("Áp dụng") }
+            TextButton(onClick = { onApply(RadarSettings()) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Đặt lại về mặc định", color = TextSecondary)
+            }
         }
     }
 }

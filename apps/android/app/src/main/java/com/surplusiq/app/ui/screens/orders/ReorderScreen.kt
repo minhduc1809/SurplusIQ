@@ -45,9 +45,9 @@ fun ReorderScreen(
     onQuickOrder: (Deal) -> Unit,
     onBrowseDeals: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), horizontalAlignment = Alignment.CenterHorizontally) {
         BackTopBar("Đặt lại món đã mua", onBackClick)
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Column(modifier = Modifier.widthIn(max = 640.dp).fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
             SectionCard {
                 Text("Đơn cũ ${oldOrder.orderCode}", fontSize = 12.sp, color = TextMuted)
                 Text(oldOrder.deal.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -69,7 +69,7 @@ fun ReorderScreen(
                         subtitle = "Cửa hàng chưa mở suất món này hôm nay hoặc đã bán hết.",
                         action = {
                             OutlinedButton(onClick = onBrowseDeals, shape = RoundedCornerShape(22.dp)) {
-                                Text("Xem deal khác")
+                                Text("Xem suất khác")
                             }
                         }
                     )

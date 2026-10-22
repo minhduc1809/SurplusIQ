@@ -134,7 +134,7 @@ fun NotificationSettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Bạn có toàn quyền tùy chỉnh các loại thông báo nhận trên thiết bị này. Thông báo đơn hàng quan trọng giúp bạn không bỏ lỡ mã QR nhận món.",
+                                text = "Chọn loại thông báo bạn muốn nhận.",
                                 fontSize = 12.sp,
                                 color = TextSecondary,
                                 lineHeight = 16.sp
@@ -165,8 +165,8 @@ fun NotificationSettingsScreen(
 
                         NotificationToggleItem(
                             icon = Icons.Default.NotificationsActive,
-                            title = "Cảnh báo Deal & Khuyến mãi",
-                            subtitle = "Thông báo khi quán yêu thích hoặc cửa hàng lân cận đăng deal mới, tặng voucher.",
+                            title = "Cảnh báo Suất & Khuyến mãi",
+                            subtitle = "Thông báo khi quán yêu thích hoặc cửa hàng lân cận đăng suất mới, tặng voucher.",
                             checked = promoPush,
                             onCheckedChange = { promoPush = it }
                         )

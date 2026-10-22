@@ -45,15 +45,12 @@ data class CustomerLoginRequest(
 data class VerifyOtpRequest(
     @SerializedName("target") val target: String,
     @SerializedName("code") val code: String,
-    @SerializedName("purpose") val purpose: String = "VERIFY",
-    @SerializedName("phone") val phone: String = target,
-    @SerializedName("otp") val otp: String = code
+    @SerializedName("purpose") val purpose: String = "VERIFY"
 )
 
 data class ResendOtpRequest(
     @SerializedName("target") val target: String,
-    @SerializedName("purpose") val purpose: String = "VERIFY",
-    @SerializedName("phone") val phone: String = target
+    @SerializedName("purpose") val purpose: String = "VERIFY"
 )
 
 data class GoogleLoginRequest(

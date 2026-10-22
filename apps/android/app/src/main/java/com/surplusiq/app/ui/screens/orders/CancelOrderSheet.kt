@@ -1,6 +1,14 @@
 package com.surplusiq.app.ui.screens.orders
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import com.surplusiq.app.ui.theme.DividerColor
+import com.surplusiq.app.ui.theme.LilacWash
+import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SurfaceSubtle
 import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,48 +60,43 @@ fun CancelOrderSheet(
 
     Column(
         modifier = Modifier
+            .widthIn(max = 640.dp)
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp)
     ) {
-        Text(if (isPaid) "Hủy đơn hàng" else "Hủy giữ suất", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Spacer(modifier = Modifier.height(12.dp))
+        Text(if (isPaid) "Hủy đơn hàng" else "Hủy giữ suất", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+        Text(order.deal.title.substringAfter("• ") + " · " + order.deal.storeName.substringBefore(" - "), fontSize = 13.sp, color = TextSecondary, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
 
-        SqCard(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SurfaceSubtle).padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                LabelValueRow("Mã đơn", order.orderCode)
-                LabelValueRow("Món", "${order.deal.title} x${order.quantity}")
-                LabelValueRow("Cửa hàng", order.deal.storeName)
-                LabelValueRow(
-                    "Số tiền hoàn",
-                    if (isPaid) formatVnd(order.totalPrice) else "Chưa thanh toán",
-                    valueColor = ForestGreenPrimary,
-                    bold = isPaid
-                )
+            Column {
+                Text("Mã đơn", fontSize = 11.sp, color = TextMuted)
+                Text(order.orderCode, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("Số tiền hoàn", fontSize = 11.sp, color = TextMuted)
+                Text(if (isPaid) formatVnd(order.totalPrice) else "Chưa thanh toán", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenPrimary)
             }
         }
-        if (isPaid) {
-            Text(
-                "Hoàn 100% về tài khoản đã thanh toán khi hủy đúng hạn.",
-                fontSize = 12.sp,
-                color = TextMuted,
-                modifier = Modifier.padding(top = 6.dp)
-            )
-        }
 
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Schedule, contentDescription = null, tint = if (isPastDeadline) CoralRed else ForestGreenPrimary, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (isPastDeadline) CoralRedLight else LilacWash).padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Schedule, contentDescription = null, tint = if (isPastDeadline) CoralRed else Color(0xFF6A5BC2), modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = when {
                     state.isCancelDeadlineLoading -> "Đang kiểm tra hạn hủy…"
-                    deadline == null -> "Không xác định được hạn hủy, hệ thống sẽ kiểm tra khi bạn xác nhận."
-                    isPastDeadline && isPaid -> "Đã quá hạn hủy (${formatDateTimeMillis(deadline)}), tức 60 phút trước giờ nhận. Nếu gặp sự cố, hãy gửi khiếu nại."
+                    deadline == null -> "Hệ thống sẽ kiểm tra hạn hủy khi bạn xác nhận."
+                    isPastDeadline && isPaid -> "Đã quá hạn hủy (${formatDateTimeMillis(deadline)}). Nếu gặp sự cố, hãy gửi khiếu nại."
                     isPastDeadline -> "Thời gian giữ suất đã hết, đơn sẽ tự hủy."
                     else -> "Hủy được đến ${formatTimeMillis(deadline)} (${formatDateTimeMillis(deadline)})"
                 },
@@ -103,43 +106,43 @@ fun CancelOrderSheet(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Lý do hủy", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+        Spacer(modifier = Modifier.height(18.dp))
+        Text("Lý do hủy", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(modifier = Modifier.height(8.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             cancelReasons.forEach { item ->
-                FilterChip(
-                    selected = selectedReason == item,
-                    onClick = { selectedReason = item },
-                    label = { Text(item, fontSize = 13.sp) },
-                    enabled = !isPastDeadline
-                )
+                val selected = selectedReason == item
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .background(if (selected) SkyBlueContainer else SurfaceSubtle)
+                        .border(if (selected) 1.5.dp else 1.dp, if (selected) ForestGreenPrimary else DividerColor, RoundedCornerShape(14.dp))
+                        .clickable(enabled = !isPastDeadline) { selectedReason = item }.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = selected, onClick = null, enabled = !isPastDeadline, colors = RadioButtonDefaults.colors(selectedColor = ForestGreenPrimary))
+                    Spacer(Modifier.width(10.dp))
+                    Text(item, fontSize = 14.sp, color = TextPrimary, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                }
             }
         }
         if (selectedReason == OTHER_REASON) {
-            OutlinedTextField(
+            TextField(
                 value = otherText,
                 onValueChange = { if (it.length <= 200) otherText = it },
-                label = { Text("Lý do khác (tối thiểu 5 ký tự)") },
+                placeholder = { Text("Nhập lý do (tối thiểu 5 ký tự)") },
                 supportingText = { Text("${otherText.length}/200") },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                shape = RoundedCornerShape(10.dp),
-                maxLines = 3
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(14.dp)),
+                maxLines = 3,
+                colors = TextFieldDefaults.colors(focusedContainerColor = SurfaceSubtle, unfocusedContainerColor = SurfaceSubtle, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Surface(color = CoralRedLight, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.WarningAmber, contentDescription = null, tint = CoralRed, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Không thể hoàn tác. Suất sẽ được nhả lại cho người khác, mã QR và mã nhận hộ bị vô hiệu.",
-                    fontSize = 12.sp,
-                    color = CoralRed
-                )
-            }
-        }
+        Text(
+            "Không thể hoàn tác. Suất được trả lại, mã QR và mã nhận hộ bị vô hiệu." + if (isPaid) " Hủy đúng hạn được hoàn 100%." else "",
+            fontSize = 12.sp,
+            color = TextSecondary,
+            modifier = Modifier.padding(top = 14.dp)
+        )
 
         state.cancelError?.let {
             Text(it, fontSize = 13.sp, color = CoralRed, modifier = Modifier.padding(top = 10.dp))
@@ -147,20 +150,23 @@ fun CancelOrderSheet(
 
         Spacer(modifier = Modifier.height(16.dp))
         Button(
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+        ) { Text("Giữ đơn", fontWeight = FontWeight.Bold, color = Color.White) }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
             onClick = { reason?.let(onConfirm) },
             enabled = canSubmit,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(25.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = CoralRed)
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(16.dp)
         ) {
             if (state.isCancelling) {
-                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                CircularProgressIndicator(color = TextPrimary, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
             } else {
-                Text("Xác nhận hủy", fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Xác nhận hủy", fontWeight = FontWeight.Bold, color = if (canSubmit) TextPrimary else TextMuted)
             }
-        }
-        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text("Giữ đơn", color = TextSecondary, fontWeight = FontWeight.SemiBold)
         }
     }
 }

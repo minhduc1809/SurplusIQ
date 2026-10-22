@@ -198,7 +198,7 @@ fun DietaryProfileScreen(
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    "Dữ liệu dị ứng được dùng để tự động đối chiếu với thành phần TrustPass của deal. Khi phát hiện món có thể gây dị ứng, hệ thống sẽ cảnh báo nổi bật trước khi bạn đặt mua.",
+                                    "Dùng để cảnh báo khi suất chứa chất bạn dị ứng.",
                                     fontSize = 13.sp,
                                     lineHeight = 18.sp,
                                     color = TextSecondary
