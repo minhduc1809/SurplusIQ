@@ -24,10 +24,10 @@ export const MERCHANT_V2_ROUTES = {
   rescueBridge: '/merchant-v2/rescue/bridge',
   rescueLab: '/merchant-v2/rescue/lab',
   reports: '/merchant-v2/growth/reports',
+  finance: '/merchant-v2/growth/finance',
   forecast: '/merchant-v2/growth/forecast',
   marketing: '/merchant-v2/growth/marketing',
   customers: '/merchant-v2/growth/customers',
-  staff: '/merchant-v2/growth/staff',
   ai: '/merchant-v2/growth/ai',
   settings: '/merchant-v2/settings',
 } as const;
@@ -120,6 +120,12 @@ export const MERCHANT_V2_NAVIGATION: MerchantNavGroup[] = [
         icon: 'BarChart2',
       },
       {
+        key: 'finance',
+        title: 'Tài chính',
+        href: MERCHANT_V2_ROUTES.finance,
+        icon: 'BarChart2',
+      },
+      {
         key: 'forecast',
         title: 'Dự báo & giá Pro',
         href: MERCHANT_V2_ROUTES.forecast,
@@ -137,7 +143,6 @@ export const MERCHANT_V2_NAVIGATION: MerchantNavGroup[] = [
         href: MERCHANT_V2_ROUTES.customers,
         icon: 'UserCircle',
       },
-      { key: 'staff', title: 'Nhân viên', href: MERCHANT_V2_ROUTES.staff, icon: 'UserCog' },
       { key: 'ai', title: 'Trợ lý AI', href: MERCHANT_V2_ROUTES.ai, icon: 'Bot' },
     ],
   },

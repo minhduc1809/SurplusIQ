@@ -8,10 +8,10 @@ import { OffersPage } from './pages/Offers';
 import { OrdersPage } from './pages/Orders';
 import { PickupVerifyPage } from './pages/PickupVerify';
 import { V2Embed } from './pages/V2Embed';
+import { FinanceV2Page } from './modules/merchant-v2/pages/growth/FinanceV2Page';
 import { ReportsV2Page } from './modules/merchant-v2/pages/growth/ReportsV2Page';
 import { MarketingV2Page } from './modules/merchant-v2/pages/growth/MarketingV2Page';
 import { CustomersV2Page } from './modules/merchant-v2/pages/growth/CustomersV2Page';
-import { StaffV2Page } from './modules/merchant-v2/pages/growth/StaffV2Page';
 import { SettingsV2Page } from './modules/merchant-v2/pages/settings/SettingsV2Page';
 import { ForecastV2Page } from './modules/merchant-v2/pages/growth/ForecastV2Page';
 import { AiV2Page } from './modules/merchant-v2/pages/growth/AiV2Page';
@@ -46,6 +46,14 @@ export default function App() {
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/verify" element={<PickupVerifyPage />} />
             <Route
+              path="/finance"
+              element={
+                <V2Embed>
+                  <FinanceV2Page />
+                </V2Embed>
+              }
+            />
+            <Route
               path="/reports"
               element={
                 <V2Embed>
@@ -74,14 +82,6 @@ export default function App() {
               element={
                 <V2Embed>
                   <CustomersV2Page />
-                </V2Embed>
-              }
-            />
-            <Route
-              path="/staff"
-              element={
-                <V2Embed>
-                  <StaffV2Page />
                 </V2Embed>
               }
             />

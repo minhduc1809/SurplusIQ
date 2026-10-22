@@ -12,12 +12,12 @@ import { MerchantThemeProvider } from './theme/MerchantThemeProvider';
 import { TodayV2Page } from './pages/today/TodayV2Page';
 import { OffersV2Page } from './pages/sales/OffersV2Page';
 import { OrdersV2Page } from './pages/orders/OrdersV2Page';
+import { FinanceV2Page } from './pages/growth/FinanceV2Page';
 import { ReportsV2Page } from './pages/growth/ReportsV2Page';
 import { MarketingV2Page } from './pages/growth/MarketingV2Page';
 import { CustomersV2Page } from './pages/growth/CustomersV2Page';
 import { ForecastV2Page } from './pages/growth/ForecastV2Page';
 import { AiV2Page } from './pages/growth/AiV2Page';
-import { StaffV2Page } from './pages/growth/StaffV2Page';
 import { SettingsV2Page } from './pages/settings/SettingsV2Page';
 import { LoginV2Page, safeRedirect } from './pages/auth/LoginV2Page';
 import { ComingSoonV2Page } from './pages/ComingSoonV2Page';
@@ -44,9 +44,9 @@ const PAGES: Record<string, (nav: Navigate) => ReactNode> = {
   [R.rescueBridge]: () => <RescueBridgePage />,
   [R.rescueLab]: () => <RescueLabPage />,
   [R.reports]: () => <ReportsV2Page />,
+  [R.finance]: () => <FinanceV2Page />,
   [R.marketing]: () => <MarketingV2Page />,
   [R.customers]: () => <CustomersV2Page />,
-  [R.staff]: () => <StaffV2Page />,
   [R.forecast]: () => <ForecastV2Page />,
   [R.ai]: () => <AiV2Page />,
   [R.settings]: () => <SettingsV2Page />,
