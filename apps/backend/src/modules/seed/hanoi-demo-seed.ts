@@ -1617,13 +1617,13 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
           phone: acc.phone,
           role: UserRole.STORE_USER,
           status: UserStatus.ACTIVE,
-          passwordHash: CryptoUtil.hashPassword('123456'),
+          passwordHash: CryptoUtil.hashPassword('Surplus@1'),
         });
         await queryRunner.manager.save(UserEntity, ownerUser);
       } else {
         existingUser.status = UserStatus.ACTIVE;
         existingUser.role = UserRole.STORE_USER;
-        existingUser.passwordHash = CryptoUtil.hashPassword('123456');
+        existingUser.passwordHash = CryptoUtil.hashPassword('Surplus@1');
         await queryRunner.manager.save(UserEntity, existingUser);
       }
 

@@ -27,8 +27,8 @@ def call(method, path, body=None, token=None):
 
 def seed_paid_order():
     """Tạo suất + đơn đã thanh toán thật qua API để app có đơn cần thao tác."""
-    store = call("POST", "/auth/store/login", {"email": "owner@rincon.vn", "password": "123456", "deviceId": "smoke-s"})["accessToken"]
-    cust = call("POST", "/auth/customer/login", {"identifier": "customer@surplusiq.vn", "password": "123456", "deviceId": "smoke-c"})["accessToken"]
+    store = call("POST", "/auth/store/login", {"email": "owner@rincon.vn", "password": "Surplus@1", "deviceId": "smoke-s"})["accessToken"]
+    cust = call("POST", "/auth/customer/login", {"identifier": "customer@surplusiq.vn", "password": "Surplus@1", "deviceId": "smoke-c"})["accessToken"]
     item = call("GET", "/store/items?limit=1", token=store)["data"][0]
     now = int(time.time())
     iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(t))
