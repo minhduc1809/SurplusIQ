@@ -18,6 +18,7 @@
     "migration:revert": "npm --workspace=@surplusiq/backend run migration:revert",
     "seed": "npx ts-node apps/backend/src/seed-hanoi-runner.ts",
     "seed:hanoi": "npx ts-node apps/backend/src/seed-hanoi-runner.ts",
+    "seed:test-accounts": "node scripts/seed-test-accounts.mjs",
     "seed:default": "npx ts-node apps/backend/src/seed-runner.ts",
     "dev:backend": "npm --workspace=@surplusiq/backend run start:dev",
     "dev:web": "npm --workspace=@surplusiq/web run dev",
@@ -33,7 +34,9 @@
     "test:backend": "npm --workspace=@surplusiq/backend run test",
     "test:web": "npm --workspace=@surplusiq/web run test",
     "snapshot:export": "node scripts/export-admin-snapshot.mjs",
-    "test:admin:live": "node scripts/test-admin-crud-live.mjs"
+    "test:admin:live": "node scripts/test-admin-crud-live.mjs",
+    "test:flows:live": "node scripts/test-flows-live.mjs",
+    "test:web:e2e": "node scripts/test-merchant-web-e2e.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -47,6 +50,7 @@
     "globals": "^17.13.0",
     "jest": "^30.5.2",
     "lint-staged": "^16.4.0",
+    "playwright-core": "^1.64.1",
     "prettier": "^3.9.10",
     "ts-jest": "^29.4.14",
     "typescript": "^5.4.5",

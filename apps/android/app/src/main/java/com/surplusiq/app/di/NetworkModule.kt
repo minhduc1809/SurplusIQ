@@ -121,6 +121,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideOrderSupportApiService(retrofit: Retrofit): OrderSupportApiService =
+        retrofit.create(OrderSupportApiService::class.java)
+
+    @Provides
+    @Singleton
     fun provideUploadApiService(retrofit: Retrofit): UploadApiService =
         retrofit.create(UploadApiService::class.java)
 }

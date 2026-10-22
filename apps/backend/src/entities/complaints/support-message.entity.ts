@@ -16,6 +16,9 @@ export class SupportMessageEntity {
   @Column({ type: 'text' })
   message: string;
 
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb", name: 'attachment_urls' })
+  attachmentUrls: string[];
+
   @Column({ type: 'boolean', default: false, name: 'is_internal' })
   isInternal: boolean;
 

@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.checkout
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -199,7 +200,7 @@ private fun OrderSetupSection(
     val discount = selectedPromo?.let { promotionDiscount(it, subtotal) } ?: 0
     val totalAmount = subtotal - discount
 
-    Card(
+    SqCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth()
@@ -328,7 +329,7 @@ private fun PaymentSection(
     val formattedTime = "%02d:%02d".format(minutes, seconds)
 
     // Banner giữ suất (R1-040, BR-017)
-    Card(
+    SqCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (remainingSeconds < 120) CoralRed.copy(alpha = 0.1f) else ForestGreenPrimary.copy(alpha = 0.1f)
@@ -371,7 +372,7 @@ private fun PaymentSection(
 
 @Composable
 private fun PaymentCreatingCard() {
-    Card(
+    SqCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth()
@@ -389,7 +390,7 @@ private fun PaymentCreatingCard() {
 
 @Composable
 private fun PaymentFailedCard(message: String, onRetry: () -> Unit) {
-    Card(
+    SqCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth()
@@ -411,7 +412,7 @@ private fun PaymentFailedCard(message: String, onRetry: () -> Unit) {
 private fun VietQrCard(info: PaymentInfo, isChecking: Boolean, onRecheck: () -> Unit) {
     val clipboard = LocalClipboardManager.current
 
-    Card(
+    SqCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth()

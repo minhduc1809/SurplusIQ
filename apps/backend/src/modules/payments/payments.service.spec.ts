@@ -384,4 +384,37 @@ describe('PaymentsService', () => {
       );
     });
   });
+  describe('biên lai chuyển khoản (KX02)', () => {
+    const base = { id: 'o1', code: 'SQ1', storeId: 's1', paymentProofUrl: '/uploads/img_1_a.jpg' };
+
+    it('từ chối xác nhận khi đơn không chờ thanh toán hoặc chưa có biên lai', async () => {
+      orderRepo.findOne.mockResolvedValue({ ...base, status: OrderStatus.PAID } as any);
+      await expect(service.confirmPaymentProof('o1', 'admin-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      orderRepo.findOne.mockResolvedValue({
+        ...base,
+        status: OrderStatus.PENDING_PAYMENT,
+        paymentProofUrl: null,
+      } as any);
+      await expect(service.confirmPaymentProof('o1', 'admin-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('từ chối biên lai: xóa biên lai để khách gửi lại và ghi nhật ký kèm lý do', async () => {
+      const order = {
+        ...base,
+        status: OrderStatus.PENDING_PAYMENT,
+        paymentProofUploadedAt: new Date(),
+      };
+      orderRepo.findOne.mockResolvedValue(order as any);
+      orderRepo.save.mockResolvedValue(order as any);
+      await service.rejectPaymentProof('o1', 'admin-1', 'Không thấy tiền về');
+      expect(order.paymentProofUrl).toBeNull();
+      expect(auditLogService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYMENT_PROOF_REJECTED', actorId: 'admin-1' }),
+      );
+    });
+  });
 });

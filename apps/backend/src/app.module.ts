@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 import { OffersModule } from './modules/offers/offers.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -20,6 +21,9 @@ import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { CustomerProfileModule } from './modules/customer-profile/customer-profile.module';
 import { CustomerInteractionsModule } from './modules/customer-interactions/customer-interactions.module';
 import { StoresModule } from './modules/stores/stores.module';
+import { MailModule } from './modules/mail/mail.module';
+import { MediaModule } from './modules/media/media.module';
+import { StoreLegalModule } from './modules/store-legal/store-legal.module';
 import { DecisionsModule } from './modules/decisions/decisions.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { AiModule } from './modules/ai/ai.module';
@@ -31,6 +35,7 @@ import { RescueTimelineModule } from './modules/rescue-timeline/rescue-timeline.
 import { RescuePoolModule } from './modules/rescue-pool/rescue-pool.module';
 import { RescueBridgeModule } from './modules/rescue-bridge/rescue-bridge.module';
 import { RescueLabModule } from './modules/rescue-lab/rescue-lab.module';
+import { OrderSupportModule } from './modules/order-support/order-support.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 
@@ -47,6 +52,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     SubscriptionsModule,
     AuditModule,
     CatalogModule,
+    UploadsModule,
     OffersModule,
     OrdersModule,
     PaymentsModule,
@@ -56,6 +62,9 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     CustomerProfileModule,
     CustomerInteractionsModule,
     StoresModule,
+    StoreLegalModule,
+    MailModule,
+    MediaModule,
     DecisionsModule,
     MarketingModule,
     AiModule,
@@ -67,6 +76,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     RescuePoolModule,
     RescueBridgeModule,
     RescueLabModule,
+    OrderSupportModule,
     UploadModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -82,6 +92,15 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
         synchronize: false, // Turn off auto-sync, enforce migrations per DoD TASK-M0-03
         migrations: [__dirname + '/migrations/*-*{.ts,.js}'],
         migrationsRun: config.get<string>('DB_MIGRATIONS_RUN') === 'true',
+        // Trước đây DB_POOL_MAX trong .env không được áp dụng (pool mặc định 10) và không có timeout nên
+        // giao dịch kẹt giữ khóa làm treo cả API (BUG-001). Đặt kích thước pool và các timeout phía server.
+        extra: {
+          max: Number(config.get('DB_POOL_MAX', 20)),
+          min: Number(config.get('DB_POOL_MIN', 2)),
+          connectionTimeoutMillis: 10000,
+          options:
+            '-c lock_timeout=10000 -c idle_in_transaction_session_timeout=30000 -c statement_timeout=30000',
+        },
       }),
     }),
     TypeOrmModule.forFeature([LegacyStoreEntity, DecisionEntity, ...ALL_ENTITIES]),

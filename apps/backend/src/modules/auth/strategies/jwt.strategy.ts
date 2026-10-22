@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { AUTH_CONSTANTS } from '../auth.constants';
+import { getJwtSecret } from '../../../common/config/jwt-secret';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity, UserStatus } from '../../../entities';
@@ -21,7 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: AUTH_CONSTANTS.JWT_SECRET,
+      secretOrKey: getJwtSecret(),
     });
   }
 
@@ -30,7 +30,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
     }
     const user = await this.users.findOne({ where: { id: payload.sub } });
-    if (!user || user.status !== UserStatus.ACTIVE || user.role !== payload.role) {
+    const pendingDelete = user?.status === UserStatus.PENDING_DELETE && user.role === 'CUSTOMER';
+    if (
+      !user ||
+      (user.status !== UserStatus.ACTIVE && !pendingDelete) ||
+      user.role !== payload.role
+    ) {
       throw new UnauthorizedException(
         'Tài khoản không còn hoạt động hoặc quyền truy cập đã thay đổi',
       );
@@ -42,6 +47,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       phone: user.phone,
       storeId: payload.storeId,
       deviceId: payload.deviceId,
+      accountStatus: user.status,
     };
   }
 }

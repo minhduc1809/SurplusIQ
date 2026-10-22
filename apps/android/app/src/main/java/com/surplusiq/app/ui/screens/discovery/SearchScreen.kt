@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.discovery
 
 import android.content.Context
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +42,7 @@ import kotlinx.coroutines.launch
 private const val PREFS_NAME = "surplusiq_search_prefs"
 private const val KEY_RECENT_SEARCHES = "recent_queries"
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     allDeals: List<Deal>,
@@ -274,11 +275,12 @@ fun SearchScreen(
         }
 
         // AI Mode Toggle Banner
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             FilterChip(
                 selected = !isAiMode,
@@ -339,7 +341,7 @@ fun SearchScreen(
                     // Thẻ AI Explanation nếu có
                     if (aiExplanation != null) {
                         item {
-                            Card(
+                            SqCard(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = LilacWash),
                                 modifier = Modifier.fillMaxWidth()
@@ -551,7 +553,7 @@ fun SearchScreen(
                     item {
                         Spacer(modifier = Modifier.height(24.dp))
                         // Gợi ý tính năng AI
-                        Card(
+                        SqCard(
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = LilacWash.copy(alpha = 0.7f)),
                             modifier = Modifier

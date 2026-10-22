@@ -266,6 +266,30 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
     });
   });
 
+  describe('getFinanceSummary', () => {
+    it('tính doanh thu gộp, hoa hồng, hoàn tiền, thực nhận, tiền chờ nhận và chuỗi theo ngày', async () => {
+      const created = new Date('2026-10-10T03:00:00.000Z');
+      orderRepo.find.mockResolvedValue([
+        { id: 'o1', totalAmount: 100000, status: OrderStatus.PICKED_UP, createdAt: created },
+        { id: 'o2', totalAmount: 50000, status: OrderStatus.PAID, createdAt: created },
+        { id: 'o3', totalAmount: 20000, status: OrderStatus.CANCELLED, createdAt: created },
+      ]);
+      complaintRepo.find.mockResolvedValue([{ refundAmount: 10000 }]);
+
+      const r = await service.getFinanceSummary('store-1', {
+        startDate: '2026-10-01',
+        endDate: '2026-10-14',
+      });
+
+      expect(r.summary.grossSales).toBe(100000);
+      expect(r.summary.commissionAmount).toBe(10000);
+      expect(r.summary.refundsDeduction).toBe(10000);
+      expect(r.summary.netPayout).toBe(80000);
+      expect(r.summary.pendingPaidAmount).toBe(50000);
+      expect(r.daily).toEqual([{ date: '2026-10-10', grossSales: 100000, orders: 3 }]);
+    });
+  });
+
   describe('statements & export (R2-067, R2-103..105)', () => {
     it('lấy danh sách và chi tiết sao kê kèm xuất PDF/CSV', async () => {
       statementRepo.find.mockResolvedValue([
@@ -376,6 +400,8 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
       expect(customers[0].customerId).toBe('cust-1');
       expect(customers[0].totalSpend).toBe(150000);
       expect(customers[0].internalNote).toBe('Khách VIP thân thiết');
+      expect(customers[0].customerName).toBe('T***');
+      expect(customers[0].noShowCount).toBe(0);
 
       customerNoteRepo.findOne.mockResolvedValue(null);
       const saved = await service.saveCustomerNote('store-1', 'cust-1', {
@@ -456,6 +482,8 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
       const res = await service.getHourlyDistribution('store-1');
       expect(res.distribution).toHaveLength(24);
       expect(res.distribution.some((h) => h.totalQuantity > 0)).toBe(true);
+      // 18:30 UTC = 01:30 giờ Việt Nam
+      expect(res.distribution[1].orderCount).toBeGreaterThan(0);
     });
 
     it('đánh giá hiệu quả chiến lược định giá động (R2-071)', async () => {
@@ -529,9 +557,18 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
 
     it('lấy số lượng khách hàng theo dõi/yêu thích (R2-086)', async () => {
       favoriteStoreRepo.count.mockResolvedValueOnce(42);
+      favoriteStoreRepo.find = jest
+        .fn()
+        .mockResolvedValue([
+          { createdAt: new Date() },
+          { createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
+        ]);
 
       const res = await service.getFavoritesCount('store-1');
       expect(res.favoriteCount).toBe(42);
+      expect(res.newPerWeek).toHaveLength(8);
+      expect(res.newPerWeek[7]).toBe(1);
+      expect(res.newPerWeek[6]).toBe(1);
     });
   });
 });

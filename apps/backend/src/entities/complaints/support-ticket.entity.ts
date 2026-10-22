@@ -26,6 +26,9 @@ export class SupportTicketEntity {
   @Column({ type: 'varchar', length: 150 })
   subject: string;
 
+  @Column({ type: 'varchar', length: 20, default: 'OTHER' })
+  category: string;
+
   @Column({
     type: 'enum',
     enum: TicketStatus,

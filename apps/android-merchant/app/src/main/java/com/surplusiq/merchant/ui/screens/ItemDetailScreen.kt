@@ -1,6 +1,7 @@
 package com.surplusiq.merchant.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -71,7 +72,7 @@ fun ItemDetailScreen(repository: StoreRepository, itemId: String, onNavigate: (S
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StatusBadge(it.status)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(it.category, fontSize = 13.sp, color = SqInkSoft)
+                    Text(categoryLabel(it.category), fontSize = 13.sp, color = SqInkSoft)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -84,6 +85,15 @@ fun ItemDetailScreen(repository: StoreRepository, itemId: String, onNavigate: (S
                 }
                 if (offersTotal > offers.size) {
                     Text("Số đã bỏ tính trên $HISTORY_LIMIT suất gần nhất.", fontSize = 11.sp, color = SqInkMuted, modifier = Modifier.padding(top = 6.dp))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                SqCard(Modifier.clickable { onNavigate("trustpass/$itemId") }) {
+                    SectionTitle("Hồ sơ minh bạch ")
+                    Text(
+                        if (it.trustpassVersion > 0) "Phiên bản ${it.trustpassVersion} · nguồn: cửa hàng tự khai báo" else "Chưa công bố. Chạm để khai báo thành phần, dị ứng, hạn dùng.",
+                        fontSize = 12.sp, color = SqInkSoft
+                    )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -110,7 +120,7 @@ fun ItemDetailScreen(repository: StoreRepository, itemId: String, onNavigate: (S
 
                 InlineError(actionError)
                 if (it.status == "ACTIVE") {
-                    PrimaryButton("Tạo suất từ món này") { onNavigate("offer-new?itemId=$itemId") }
+                    PrimaryButton("Đăng suất bán hôm nay") { onNavigate("offer-new?itemId=$itemId") }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 OutlinedButton(

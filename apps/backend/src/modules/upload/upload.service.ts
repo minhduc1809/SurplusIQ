@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { detectImageType } from '../uploads/cloudinary.service';
 
 export interface UploadedMulterFile {
   fieldname: string;
@@ -51,8 +52,12 @@ export class UploadService {
       throw new BadRequestException('Kích thước ảnh vượt quá dung lượng tối đa 5MB.');
     }
 
-    const ext =
-      path.extname(file.originalname) || (file.mimetype === 'image/png' ? '.png' : '.jpg');
+    // Loại tệp lấy từ chữ ký đầu tệp; đuôi tệp theo loại thật để không thể tải lên .html giả làm ảnh.
+    const realType = detectImageType(file.buffer);
+    if (!realType) {
+      throw new BadRequestException('Nội dung tệp không phải ảnh JPG, PNG hoặc WEBP hợp lệ.');
+    }
+    const ext = realType === 'image/png' ? '.png' : realType === 'image/webp' ? '.webp' : '.jpg';
     const safeFilename = `img_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext.toLowerCase()}`;
     const destinationPath = path.join(this.uploadDir, safeFilename);
 
@@ -65,7 +70,7 @@ export class UploadService {
       url: fullUrl,
       filename: safeFilename,
       size: file.size,
-      mimetype: file.mimetype,
+      mimetype: realType,
     };
   }
 }

@@ -4,6 +4,7 @@ import com.google.gson.annotations.SerializedName
 
 data class CustomerRegisterRequest(
     @SerializedName("phone") val phone: String,
+    @SerializedName("email") val email: String? = null,
     @SerializedName("password") val password: String,
     @SerializedName("fullName") val fullName: String,
     @SerializedName("deviceId") val deviceId: String
@@ -21,14 +22,24 @@ data class ResetPasswordRequest(
 
 data class ChangePasswordRequest(
     @SerializedName("currentPassword") val currentPassword: String,
-    @SerializedName("newPassword") val newPassword: String
+    @SerializedName("newPassword") val newPassword: String,
+    @SerializedName("otpCode") val otpCode: String? = null
+)
+
+data class EmailOtpRequest(@SerializedName("email") val email: String)
+
+data class EmailConfirmRequest(
+    @SerializedName("email") val email: String,
+    @SerializedName("code") val code: String
 )
 
 data class CustomerLoginRequest(
     @SerializedName("identifier") val identifier: String,
     @SerializedName("phone") val phone: String = identifier,
     @SerializedName("password") val password: String,
-    @SerializedName("deviceId") val deviceId: String
+    @SerializedName("deviceId") val deviceId: String,
+    @SerializedName("otpCode") val otpCode: String? = null,
+    @SerializedName("deviceName") val deviceName: String? = android.os.Build.MODEL
 )
 
 data class VerifyOtpRequest(

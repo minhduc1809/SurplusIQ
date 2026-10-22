@@ -2,12 +2,18 @@ package com.surplusiq.app.ui.screens.auth
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.app.ui.components.AuthDividerOr
@@ -27,6 +33,7 @@ fun RegisterScreen(
     state: AuthUiState,
     onFullNameChange: (String) -> Unit,
     onPhoneChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit = {},
     onPasswordChange: (String) -> Unit,
     onRegisterClick: () -> Unit,
     onBackToLogin: () -> Unit,
@@ -35,39 +42,68 @@ fun RegisterScreen(
 ) {
     // BR-005: đồng ý điều khoản phải là lựa chọn chủ động, không mặc định bật.
     var termsAccepted by remember { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }
 
-    AuthShellCard(modifier = modifier, onBackClick = onBackToLogin) {
-        AuthHeading(title = "Tạo tài khoản mới", subtitle = "Tham gia SurplusIQ để tìm deal gần bạn mỗi ngày.")
+    AuthShellCard(modifier = modifier, onBackClick = onBackToLogin, waveHeader = true) {
+        AuthHeading(
+            title = "Tạo tài khoản mới",
+            subtitle = "Cùng SurplusIQ săn deal món ngon và chung tay giảm lãng phí thực phẩm"
+        )
 
-        AuthField(label = "Họ và tên", value = state.fullName, onValueChange = onFullNameChange, placeholder = "Nguyễn Văn A")
+        AuthField(label = "Họ và tên", value = state.fullName, onValueChange = onFullNameChange, placeholder = "Nhập họ và tên")
         Spacer(modifier = Modifier.height(14.dp))
         AuthField(
             label = "Số điện thoại",
             value = state.phone,
             onValueChange = onPhoneChange,
-            placeholder = "0901234567",
+            placeholder = "Nhập số điện thoại",
             keyboardType = KeyboardType.Phone
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        AuthField(
+            label = "Email (không bắt buộc)",
+            value = state.email,
+            onValueChange = onEmailChange,
+            placeholder = "Nhập email của bạn",
+            keyboardType = KeyboardType.Email
         )
         Spacer(modifier = Modifier.height(14.dp))
         AuthField(
             label = "Mật khẩu",
             value = state.password,
             onValueChange = onPasswordChange,
-            placeholder = "Từ 8 ký tự, gồm chữ và số",
+            placeholder = "Tối thiểu 8 ký tự, gồm chữ và số",
             keyboardType = KeyboardType.Password,
-            visualTransformation = PasswordVisualTransformation()
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { passwordVisible = !passwordVisible }, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = if (passwordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu",
+                        tint = TextMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        Row(modifier = Modifier.fillMaxWidth().clickable { termsAccepted = !termsAccepted }) {
-            Checkbox(checked = termsAccepted, onCheckedChange = { termsAccepted = it })
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { termsAccepted = !termsAccepted },
+            verticalAlignment = Alignment.Top
+        ) {
+            Checkbox(
+                checked = termsAccepted,
+                onCheckedChange = { termsAccepted = it },
+                colors = CheckboxDefaults.colors(checkedColor = ForestGreenDark)
+            )
             Text(
-                text = "Tôi đồng ý với Điều khoản sử dụng và Chính sách quyền riêng tư của SurplusIQ",
+                text = "Tôi đồng ý với Điều khoản dịch vụ & Chính sách bảo mật của SurplusIQ.",
                 fontSize = 12.sp,
                 color = TextSecondary,
-                lineHeight = 16.sp,
-                modifier = Modifier.padding(top = 14.dp, end = 4.dp)
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 12.dp, end = 4.dp)
             )
         }
 
@@ -75,7 +111,7 @@ fun RegisterScreen(
             AuthErrorBanner(state.errorMessage)
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         AuthPrimaryButton(
             text = "Đăng ký",
@@ -84,11 +120,11 @@ fun RegisterScreen(
             onClick = onRegisterClick
         )
 
-        AuthDividerOr()
+        AuthDividerOr("HOẶC ĐĂNG KÝ BẰNG")
 
-        AuthGoogleButton(text = "Đăng ký với Google", onClick = onGoogleRegisterClick)
+        AuthGoogleButton(text = "Tiếp tục với Google", onClick = onGoogleRegisterClick)
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Text(text = "Đã có tài khoản? ", color = TextSecondary, fontSize = 13.sp)
@@ -101,14 +137,5 @@ fun RegisterScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Text(
-            text = "Là chủ cửa hàng? Vui lòng đăng ký và quản lý suất cứu món trên website dành cho cửa hàng.",
-            fontSize = 11.sp,
-            color = TextMuted,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }

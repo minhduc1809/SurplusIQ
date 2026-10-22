@@ -8,12 +8,15 @@ import { ComplaintAttachmentEntity } from '../../entities/complaints/complaint-a
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { ViolationReportEntity } from '../../entities/complaints/violation-report.entity';
 import { SupportTicketEntity, TicketStatus } from '../../entities/complaints/support-ticket.entity';
+import { CloudinaryService } from '../uploads/cloudinary.service';
 import { SupportMessageEntity } from '../../entities/complaints/support-message.entity';
 import { ViolationTargetType } from './dto/interaction-extras.dto';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
+import { encryptField } from '../../common/crypto/field-crypto';
 import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
 import { RewardsService } from '../rewards/rewards.service';
 
@@ -31,6 +34,11 @@ describe('CustomerInteractionsService', () => {
   let storeRepo: any;
   let transactionManager: any;
   let paymentTxnRepo: any;
+  let customerProfileRepo: any;
+
+  beforeAll(() => {
+    process.env.DATA_ENCRYPTION_KEY = 'test-key';
+  });
 
   beforeEach(async () => {
     complaintRepo = {
@@ -96,8 +104,19 @@ describe('CustomerInteractionsService', () => {
     storeRepo = {
       findOne: jest.fn(),
     };
+    customerProfileRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        userId: 'cus-1',
+        refundBankAccount: {
+          bankName: 'MB Bank',
+          accountHolder: 'NGUYEN VAN A',
+          accountNumberEnc: encryptField('0388123456'),
+        },
+      }),
+    };
     paymentTxnRepo = {
       find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockImplementation((d) => ({ id: 'pt-1', ...d })),
       save: jest.fn().mockImplementation((d) => Promise.resolve({ id: 'pt-1', ...d })),
     };
@@ -105,6 +124,7 @@ describe('CustomerInteractionsService', () => {
       [ComplaintEntity, complaintRepo],
       [OrderEntity, orderRepo],
       [PaymentTransactionEntity, paymentTxnRepo],
+      [CustomerProfileEntity, customerProfileRepo],
     ]);
     transactionManager = {
       findOne: jest.fn(async (entity, options) => {
@@ -125,6 +145,13 @@ describe('CustomerInteractionsService', () => {
         { provide: getRepositoryToken(ComplaintAttachmentEntity), useValue: attachmentRepo },
         { provide: getRepositoryToken(ReviewEntity), useValue: reviewRepo },
         { provide: getRepositoryToken(ViolationReportEntity), useValue: violationReportRepo },
+        {
+          provide: CloudinaryService,
+          useValue: {
+            isOwnImageUrl: (u: string) =>
+              u.startsWith('https://res.cloudinary.com/demo/image/upload/'),
+          },
+        },
         { provide: getRepositoryToken(SupportTicketEntity), useValue: supportTicketRepo },
         { provide: getRepositoryToken(SupportMessageEntity), useValue: supportMessageRepo },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
@@ -333,6 +360,44 @@ describe('CustomerInteractionsService', () => {
       expect(supportMessageRepo.create).toHaveBeenCalled();
     });
 
+    it('đánh dấu yêu cầu có phản hồi mới khi tin gần nhất là của bộ phận hỗ trợ', async () => {
+      supportTicketRepo.find.mockResolvedValue([
+        { id: 't-1', userId: 'user-1', createdAt: new Date() },
+        { id: 't-2', userId: 'user-1', createdAt: new Date() },
+      ]);
+      supportMessageRepo.find.mockResolvedValue([
+        { ticketId: 't-1', senderId: 'user-1', createdAt: new Date('2026-10-01') },
+        { ticketId: 't-1', senderId: 'admin-1', createdAt: new Date('2026-10-02') },
+        { ticketId: 't-2', senderId: 'user-1', createdAt: new Date('2026-10-02') },
+      ]);
+
+      const list = await service.getCustomerSupportTickets('user-1');
+      expect(list.find((t) => t.id === 't-1')?.hasNewReply).toBe(true);
+      expect(list.find((t) => t.id === 't-2')?.hasNewReply).toBe(false);
+    });
+
+    it('chỉ nhận ảnh đính kèm do hệ thống lưu, tối đa theo DTO (R2-106)', async () => {
+      supportTicketRepo.count.mockResolvedValue(0);
+      await expect(
+        service.createSupportTicket('user-1', {
+          subject: 'Lỗi thanh toán',
+          message: 'Tôi bị trừ tiền hai lần',
+          attachmentUrls: ['https://evil.example.com/a.png'],
+        }),
+      ).rejects.toThrow('Ảnh đính kèm không hợp lệ');
+
+      await service.createSupportTicket('user-1', {
+        subject: 'Lỗi thanh toán',
+        message: 'Tôi bị trừ tiền hai lần',
+        attachmentUrls: ['https://res.cloudinary.com/demo/image/upload/v1/a.png'],
+      });
+      expect(supportMessageRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachmentUrls: ['https://res.cloudinary.com/demo/image/upload/v1/a.png'],
+        }),
+      );
+    });
+
     it('gửi thêm tin nhắn trong ticket đang mở', async () => {
       supportTicketRepo.findOne.mockResolvedValue({
         id: 'tick-1',
@@ -373,8 +438,21 @@ describe('CustomerInteractionsService', () => {
         });
         attachmentRepo.find.mockResolvedValue([{ id: 'att-1', photoUrl: 'https://img.com/1.jpg' }]);
         orderRepo.findOne.mockResolvedValue({ id: 'ord-1' });
+        paymentTxnRepo.findOne.mockResolvedValue({
+          refundDestination: {
+            bankName: 'MB Bank',
+            accountHolder: 'NGUYEN VAN A',
+            accountLast4: '3456',
+            accountNumberEnc: 'secret',
+          },
+        });
 
         const detail = await service.getStoreComplaintDetail('store-1', 'comp-1');
+        expect(detail.refundDestination).toEqual({
+          bankName: 'MB Bank',
+          accountHolder: 'NGUYEN VAN A',
+          accountLast4: '3456',
+        });
         expect(detail.complaint.id).toBe('comp-1');
         expect(detail.attachments).toHaveLength(1);
         expect(detail.order.id).toBe('ord-1');
@@ -409,6 +487,14 @@ describe('CustomerInteractionsService', () => {
         });
 
         expect(res.success).toBe(true);
+        expect(paymentTxnRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            refundDestination: expect.objectContaining({
+              accountLast4: '3456',
+              bankName: 'MB Bank',
+            }),
+          }),
+        );
         expect(complaintRepo.save).toHaveBeenCalled();
         expect(transactionManager.findOne).toHaveBeenCalledWith(
           ComplaintEntity,
@@ -545,6 +631,46 @@ describe('CustomerInteractionsService', () => {
       expect(badges.impact.totalOrders).toBe(6);
       expect(badges.badges.length).toBeGreaterThan(0);
       expect(badges.badges[0].isUnlocked).toBe(true);
+    });
+
+    it('huy hiệu mở khóa đúng điều kiện: Dũng Sĩ Tiết Kiệm cần cả 10 suất và 200.000đ', async () => {
+      jest.spyOn(service, 'getCustomerImpact').mockResolvedValueOnce({
+        totalOrders: 12,
+        totalFoodSavedKg: 3.6,
+        totalSavingsVnd: 150000,
+      });
+      const res = await service.getCustomerImpactBadges('user-1');
+      const silver = res.badges.find((b) => b.id === 'SILVER_CHAMPION');
+      expect(silver).toMatchObject({ isUnlocked: false, progress: 75 });
+      expect(res.nextBadge).toMatchObject({ id: 'SILVER_CHAMPION' });
+    });
+
+    it('huy hiệu mở bằng kg thì tiến độ là 100, khách mới chưa có huy hiệu nào', async () => {
+      jest.spyOn(service, 'getCustomerImpact').mockResolvedValueOnce({
+        totalOrders: 3,
+        totalFoodSavedKg: 2.2,
+        totalSavingsVnd: 90000,
+      });
+      const res = await service.getCustomerImpactBadges('user-1');
+      expect(res.badges.find((b) => b.id === 'GREEN_PIONEER')).toMatchObject({
+        isUnlocked: true,
+        progress: 100,
+      });
+
+      jest
+        .spyOn(service, 'getCustomerImpact')
+        .mockResolvedValueOnce({ totalOrders: 0, totalFoodSavedKg: 0, totalSavingsVnd: 0 });
+      const fresh = await service.getCustomerImpactBadges('user-1');
+      expect(fresh.unlockedCount).toBe(0);
+      expect(fresh.currentBadgeTitle).toBeNull();
+    });
+
+    it('thẻ chia sẻ không chứa mã khách', async () => {
+      jest
+        .spyOn(service, 'getCustomerImpact')
+        .mockResolvedValueOnce({ totalOrders: 1, totalFoodSavedKg: 0.3, totalSavingsVnd: 20000 });
+      const res = await service.getCustomerImpactBadges('user-uuid-123');
+      expect(JSON.stringify(res.shareCard)).not.toContain('user-uuid-123');
     });
 
     it('lấy danh sách câu hỏi thường gặp FAQ (R1-072)', async () => {

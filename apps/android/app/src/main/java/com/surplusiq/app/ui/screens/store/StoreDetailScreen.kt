@@ -58,10 +58,12 @@ fun StoreDetailScreen(
     onReport: (storeId: String, reason: String) -> Unit,
     onDealClick: (Deal) -> Unit,
     onConsumeMessage: () -> Unit,
-    onOpenReviews: (storeId: String) -> Unit = {}
+    onOpenReviews: (storeId: String) -> Unit = {},
+    onLoadReviews: (storeId: String, rating: Int?) -> Unit = { _, _ -> }
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTab by remember { mutableIntStateOf(0) }
+    var reviewFilter by remember { mutableStateOf<Int?>(null) }
     var showMenu by remember { mutableStateOf(false) }
     var showReportDialog by remember { mutableStateOf(false) }
     val store = state.store
@@ -118,39 +120,19 @@ fun StoreDetailScreen(
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                item { StoreHeader(detail, onOpenReviews = onOpenReviews) }
-                item {
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        containerColor = MaterialTheme.colorScheme.background,
-                        contentColor = ForestGreenPrimary
-                    ) {
-                        Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Deal đang có (${detail.activeDeals.size})") })
-                        Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Giới thiệu") })
-                    }
-                }
-                if (selectedTab == 0) {
-                    if (detail.activeDeals.isEmpty()) {
-                        item {
-                            StateMessage(
-                                icon = Icons.Default.Storefront,
-                                title = "Chưa có suất đang mở",
-                                message = "Yêu thích cửa hàng để quay lại nhanh khi quán mở bán suất mới.",
-                                modifier = Modifier.height(260.dp)
-                            )
-                        }
-                    }
-                    items(detail.activeDeals, key = { it.id }) { deal ->
-                        DealCard(
-                            deal = deal.copy(isFavorite = isFavorite),
-                            onDealClick = onDealClick,
-                            onFavoriteToggle = { onToggleFavorite(detail.id) },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-                } else {
-                    item { StoreAbout(detail) }
-                }
+                storeBodyItems(
+                    state = state,
+                    detail = detail,
+                    isFavorite = isFavorite,
+                    selectedTab = selectedTab,
+                    onTabChange = { selectedTab = it },
+                    reviewFilter = reviewFilter,
+                    onReviewFilter = { reviewFilter = it },
+                    onToggleFavorite = onToggleFavorite,
+                    onDealClick = onDealClick,
+                    onLoadReviews = onLoadReviews,
+                    onOpenReviews = onOpenReviews
+                )
             }
         }
     }
@@ -177,6 +159,139 @@ fun StoreDetailScreen(
             },
             dismissButton = { TextButton(onClick = { showReportDialog = false }) { Text("Hủy") } }
         )
+    }
+}
+
+/** Thân trang quán: đầu trang, ba tab (Thực đơn, Đánh giá, Thông tin). Dùng cho trang quán đầy đủ và khung quán trên bản đồ. */
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun androidx.compose.foundation.lazy.LazyListScope.storeBodyItems(
+    state: StoreUiState,
+    detail: StoreDetail,
+    isFavorite: Boolean,
+    selectedTab: Int,
+    onTabChange: (Int) -> Unit,
+    reviewFilter: Int?,
+    onReviewFilter: (Int?) -> Unit,
+    onToggleFavorite: (storeId: String) -> Unit,
+    onDealClick: (Deal) -> Unit,
+    onLoadReviews: (storeId: String, rating: Int?) -> Unit,
+    onOpenReviews: (storeId: String) -> Unit
+) {
+    item { StoreHeader(detail, onOpenReviews = onOpenReviews) }
+    item {
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = ForestGreenPrimary
+        ) {
+            Tab(selected = selectedTab == 0, onClick = { onTabChange(0) }, text = { Text("Thực đơn (${detail.activeDeals.size})", maxLines = 1) })
+            Tab(selected = selectedTab == 1, onClick = { onTabChange(1) }, text = { Text("Đánh giá${if (detail.reviewsCount > 0) " (${detail.reviewsCount})" else ""}", maxLines = 1) })
+            Tab(selected = selectedTab == 2, onClick = { onTabChange(2) }, text = { Text("Thông tin", maxLines = 1) })
+        }
+    }
+    if (selectedTab == 0) {
+        if (detail.activeDeals.isEmpty()) {
+            item {
+                StateMessage(
+                    icon = Icons.Default.Storefront,
+                    title = "Chưa có suất đang mở",
+                    message = "Yêu thích cửa hàng để quay lại nhanh khi quán mở bán suất mới.",
+                    modifier = Modifier.height(260.dp)
+                )
+            }
+        }
+        items(detail.activeDeals, key = { it.id }) { deal ->
+            DealCard(
+                deal = deal.copy(isFavorite = isFavorite),
+                onDealClick = onDealClick,
+                onFavoriteToggle = { onToggleFavorite(detail.id) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+    } else if (selectedTab == 1) {
+        item {
+            LaunchedEffect(detail.id, reviewFilter) { onLoadReviews(detail.id, reviewFilter) }
+            val reviewsData = state.storeReviews
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                when {
+                    state.isStoreReviewsLoading && reviewsData == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = ForestGreenPrimary)
+                    }
+                    state.storeReviewsError != null && reviewsData == null -> Text(state.storeReviewsError, color = CoralRed, fontSize = 13.sp)
+                    else -> {
+                        RatingSummaryCard(
+                            averageRating = reviewsData?.averageRating ?: 0.0,
+                            totalReviews = reviewsData?.totalReviews ?: 0,
+                            distribution = reviewsData?.distribution ?: emptyMap()
+                        )
+                        RatingFilterChips(selectedRating = reviewFilter, onSelectRating = { onReviewFilter(it) })
+                        val reviews = reviewsData?.reviews.orEmpty()
+                        if (reviews.isEmpty()) {
+                            Text(
+                                if (reviewFilter != null) "Chưa có đánh giá ${reviewFilter} sao nào." else "Quán chưa có đánh giá nào.",
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
+                        } else {
+                            reviews.forEach { StoreReviewItemCard(review = it) }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        item { StoreAbout(detail) }
+    }
+
+}
+
+/**
+ * Khung quán nhúng dưới bản đồ: tự tải chi tiết quán theo [storeId] rồi hiện thông tin, thực đơn, đánh giá.
+ * [onClose] quay lại danh sách quán.
+ */
+@Composable
+fun StoreDetailPanel(
+    state: StoreUiState,
+    storeId: String,
+    onLoad: (storeId: String) -> Unit,
+    onClose: () -> Unit,
+    onToggleFavorite: (storeId: String) -> Unit,
+    onDealClick: (Deal) -> Unit,
+    onLoadReviews: (storeId: String, rating: Int?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var selectedTab by remember(storeId) { mutableIntStateOf(0) }
+    var reviewFilter by remember(storeId) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(storeId) { onLoad(storeId) }
+    val detail = state.store?.takeIf { it.id == storeId }
+
+    Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onClose) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Danh sách quán", fontWeight = FontWeight.SemiBold)
+            }
+        }
+        when {
+            detail != null -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                storeBodyItems(
+                    state = state,
+                    detail = detail,
+                    isFavorite = detail.id in state.favoriteStoreIds,
+                    selectedTab = selectedTab,
+                    onTabChange = { selectedTab = it },
+                    reviewFilter = reviewFilter,
+                    onReviewFilter = { reviewFilter = it },
+                    onToggleFavorite = onToggleFavorite,
+                    onDealClick = onDealClick,
+                    onLoadReviews = onLoadReviews,
+                    onOpenReviews = {}
+                )
+            }
+            state.storeError != null -> Text(state.storeError, color = CoralRed, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+            else -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreenPrimary) }
+        }
     }
 }
 

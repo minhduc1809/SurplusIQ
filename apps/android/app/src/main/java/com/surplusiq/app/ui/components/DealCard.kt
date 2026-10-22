@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -31,35 +34,42 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.ui.theme.CoralRed
+import com.surplusiq.app.ui.theme.ForestGreenDark
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
+import com.surplusiq.app.ui.theme.MintDeep
+import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SkyBlueIce
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
+import java.text.NumberFormat
+import java.util.Locale
 
+private fun vnd(value: Int): String = NumberFormat.getInstance(Locale("vi", "VN")).format(value) + "đ"
+
+/** Thẻ suất cứu món: ảnh kèm nhãn còn/giảm giá, tên quán + đánh giá, khung giờ nhận, khoảng cách, tiết kiệm và giá. */
 @Composable
 fun DealCard(
     deal: Deal,
     onDealClick: (Deal) -> Unit,
     onFavoriteToggle: (Deal) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    footer: (@Composable ColumnScope.() -> Unit)? = null
 ) {
-    Card(
+    // Sắp hết suất hoặc sắp hết giờ nhận: nhãn cam để nhắc khách; còn nhiều: nhãn xanh lá
+    val scarce = deal.remainingStock <= 3 || deal.isUrgent
+    val saving = (deal.originalPrice - deal.discountPrice).coerceAtLeast(0)
+
+    SqCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onDealClick(deal) },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column {
-            // Image Banner with Badges
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-            ) {
+            Box(Modifier.fillMaxWidth().height(190.dp)) {
                 AsyncImage(
                     model = deal.coverImageUrl,
                     contentDescription = deal.title,
@@ -67,23 +77,39 @@ fun DealCard(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Remaining stock pill
-                Box(
-                    modifier = Modifier
-                        .padding(start = 12.dp, top = 12.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.Black.copy(alpha = 0.75f))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                Row(
+                    Modifier.padding(start = 12.dp, top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Còn ${deal.remainingStock}",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (scarce) ForestGreenPrimary else MintDeep)
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (scarce) Icons.Default.LocalFireDepartment else Icons.Default.Eco,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Còn ${deal.remainingStock} suất", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    if (deal.discountPercent > 0) {
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.Black.copy(alpha = 0.65f))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text("-${deal.discountPercent}%", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
 
-                // Heart favorite button
                 IconButton(
                     onClick = { onFavoriteToggle(deal) },
                     modifier = Modifier
@@ -91,7 +117,7 @@ fun DealCard(
                         .padding(8.dp)
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.35f))
+                        .background(Color.Black.copy(alpha = 0.30f))
                 ) {
                     Icon(
                         imageVector = if (deal.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -101,142 +127,103 @@ fun DealCard(
                     )
                 }
 
-                // Store avatar in bottom-left
+                // Ảnh đại diện quán; chưa có logo thì hiện chữ cái đầu của tên quán
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(start = 12.dp, bottom = 10.dp)
-                        .size(42.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .border(2.dp, Color.White, CircleShape)
+                        .background(SkyBlueContainer)
+                        .border(2.dp, Color.White, CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
-                    AsyncImage(
-                        model = deal.storeLogoUrl,
-                        contentDescription = deal.storeName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (deal.storeLogoUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = deal.storeLogoUrl,
+                            contentDescription = deal.storeName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Text(
+                            deal.storeName.trim().take(1).uppercase().ifEmpty { "?" },
+                            color = ForestGreenDark,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
-            // Card Content
-            Column(modifier = Modifier.padding(14.dp)) {
-                // Store Name
-                Text(
-                    text = deal.storeName,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f)) {
+                        Text(deal.storeName, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(2.dp))
+                        Text(deal.title, fontSize = 13.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (deal.reviewCount > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Star, contentDescription = "Đánh giá", tint = Color(0xFFF5A524), modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("%.1f".format(deal.rating), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text(" (${deal.reviewCount})", fontSize = 11.sp, color = TextMuted)
+                        }
+                    }
+                }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(Modifier.height(10.dp))
 
-                // Deal Title
-                Text(
-                    text = deal.title,
-                    fontSize = 13.sp,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Highlighted Collection Time Box (matching red frame from screenshot)
-                Box(
+                // Khung giờ nhận hàng + hình thức nhận
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(
-                            width = 1.dp,
-                            color = CoralRed.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Schedule,
-                            contentDescription = "Collection Time",
-                            tint = CoralRed,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = deal.pickupWindowText,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Rating, Distance & Price Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SkyBlueContainer)
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Rating & Distance
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (deal.reviewCount > 0) Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(ForestGreenPrimary.copy(alpha = 0.1f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "Rating",
-                                tint = ForestGreenPrimary,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "%.1f".format(deal.rating),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = ForestGreenPrimary
-                            )
+                    Icon(Icons.Default.Schedule, contentDescription = null, tint = ForestGreenDark, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Khung giờ lấy: ${deal.pickupWindowText}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("TỰ ĐẾN LẤY", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenDark, letterSpacing = 0.4.sp)
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = MintDeep, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(deal.distanceText, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
                         }
-
-                        Text(
-                            text = deal.distanceText,
-                            fontSize = 12.sp,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        if (saving > 0) {
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                Modifier.clip(RoundedCornerShape(8.dp)).background(SkyBlueIce).padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Tiết kiệm ${vnd(saving)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MintDeep)
+                            }
+                        }
                     }
-
-                    // Price Section
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "${String.format("%,d", deal.originalPrice)} ₫",
-                            fontSize = 12.sp,
-                            textDecoration = TextDecoration.LineThrough,
-                            color = TextMuted
-                        )
-                        Text(
-                            text = "${String.format("%,d", deal.discountPrice)} ₫",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = TextPrimary
-                        )
+                        Text(vnd(deal.originalPrice), fontSize = 12.sp, textDecoration = TextDecoration.LineThrough, color = TextMuted)
+                        Text(vnd(deal.discountPrice), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenDark)
                     }
                 }
+                footer?.let { it() }
             }
         }
     }

@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   ConflictException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { DataSource } from 'typeorm';
@@ -80,6 +81,7 @@ describe('AuthService', () => {
   let mockTrustedDeviceRepo: {
     findOne: jest.Mock;
     save: jest.Mock;
+    delete: jest.Mock;
   };
   let mockConsentRepo: {
     create: jest.Mock;
@@ -147,6 +149,7 @@ describe('AuthService', () => {
     mockTrustedDeviceRepo = {
       findOne: jest.fn(),
       save: jest.fn((entity) => Promise.resolve(entity)),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     mockConsentRepo = {
@@ -422,6 +425,7 @@ describe('AuthService', () => {
 
       if ('twoFactorRequired' in result) {
         expect(result.twoFactorRequired).toBe(true);
+        expect(result.target).toBe('090***67');
       } else {
         throw new Error('Expected 2FA challenge response');
       }
@@ -630,6 +634,145 @@ describe('AuthService', () => {
       await expect(
         service.logout('00000000-0000-0000-0000-000000000001', 'default-device'),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+  describe('2FA và phiên đăng nhập của khách (R1-013, R1-014)', () => {
+    const user = {
+      id: 'user-cust',
+      role: UserRole.CUSTOMER,
+      status: UserStatus.ACTIVE,
+      phone: '0901234567',
+      failedLoginCount: 0,
+      twoFactorEnabled: true,
+      passwordHash: CryptoUtil.hashPassword('CorrectPass@'),
+    };
+
+    it('đăng nhập khách hoàn tất được khi nhập đúng mã 2FA, không bị khóa ngoài', async () => {
+      mockUserRepo.findOne.mockResolvedValue(user);
+      mockTrustedDeviceRepo.findOne.mockResolvedValue(null);
+      mockOtpRepo.findOne.mockResolvedValue({
+        codeHash: CryptoUtil.sha256('123456'),
+        expiresAt: new Date(Date.now() + 60000),
+        wrongCount: 0,
+        usedAt: null,
+      });
+
+      const result = await service.loginCustomer({
+        identifier: '0901234567',
+        password: 'CorrectPass@',
+        deviceId: 'new-device',
+        otpCode: '123456',
+      });
+      expect('accessToken' in result).toBe(true);
+      expect(mockOtpRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ target: '0901234567' }) }),
+      );
+    });
+
+    it('mã 2FA sai thì không cấp token', async () => {
+      mockUserRepo.findOne.mockResolvedValue(user);
+      mockTrustedDeviceRepo.findOne.mockResolvedValue(null);
+      mockOtpRepo.findOne.mockResolvedValue({
+        codeHash: CryptoUtil.sha256('123456'),
+        expiresAt: new Date(Date.now() + 60000),
+        wrongCount: 0,
+        usedAt: null,
+      });
+      await expect(
+        service.loginCustomer({
+          identifier: '0901234567',
+          password: 'CorrectPass@',
+          deviceId: 'new-device',
+          otpCode: '000000',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockRefreshTokenRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('bật hoặc tắt 2FA phải nhập đúng mật khẩu hiện tại', async () => {
+      mockUserRepo.findOne.mockResolvedValue(user);
+      await expect(service.toggle2fa('user-cust', { enabled: false })).rejects.toThrow(
+        UnauthorizedException,
+      );
+      await expect(
+        service.toggle2fa('user-cust', { enabled: false, password: 'Sai@12345' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockUserRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('bật 2FA hủy mọi thiết bị tin cậy cũ và chỉ tin thiết bị đang dùng', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ ...user, twoFactorEnabled: false });
+      await service.toggle2fa('user-cust', { enabled: true, password: 'CorrectPass@' }, 'dev-now');
+      expect(mockTrustedDeviceRepo.delete).toHaveBeenCalledWith({ userId: 'user-cust' });
+      expect(mockTrustedDeviceRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-cust', deviceId: 'dev-now' }),
+      );
+    });
+
+    it('đăng nhập lại trên cùng thiết bị thu hồi phiên cũ để mỗi thiết bị chỉ có một phiên', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ ...user, twoFactorEnabled: false });
+      await service.loginCustomer({
+        identifier: '0901234567',
+        password: 'CorrectPass@',
+        deviceId: 'same-device',
+      });
+      expect(mockRefreshTokenRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-cust', deviceId: 'same-device' }),
+        expect.objectContaining({ revokedAt: expect.any(Date) }),
+      );
+    });
+
+    it('trạng thái 2FA chỉ trả nơi nhận mã đã che bớt', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ ...user, email: 'khach.hang@gmail.com' });
+      const status = await service.get2faStatus('user-cust');
+      expect(status).toMatchObject({ twoFactorEnabled: true, target: 'k***@gmail.com' });
+    });
+
+    it('danh sách phiên không lộ tokenHash, bỏ phiên đã thu hồi và đánh dấu phiên hiện tại', async () => {
+      mockRefreshTokenRepo.find.mockResolvedValue([
+        {
+          id: 's1',
+          deviceId: 'a',
+          deviceName: 'Pixel',
+          ip: '1.1.1.1',
+          tokenHash: 'SECRET',
+          lastUsedAt: new Date(),
+          expiresAt: new Date(),
+        },
+        {
+          id: 's2',
+          deviceId: 'b',
+          deviceName: 'iPhone',
+          ip: '2.2.2.2',
+          tokenHash: 'SECRET',
+          lastUsedAt: new Date(),
+          expiresAt: new Date(),
+        },
+      ]);
+      const sessions = await service.getSessions('user-cust', 'a');
+      expect(JSON.stringify(sessions)).not.toContain('SECRET');
+      expect(sessions.map((s) => s.isCurrent)).toEqual([true, false]);
+      expect(mockRefreshTokenRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ userId: 'user-cust', revokedAt: expect.anything() }),
+        }),
+      );
+    });
+
+    it('thu hồi phiên cũng xóa tin cậy 2FA của thiết bị đó; phiên không tồn tại báo NotFound', async () => {
+      mockRefreshTokenRepo.findOne.mockResolvedValueOnce({
+        id: 's2',
+        userId: 'user-cust',
+        deviceId: 'b',
+        revokedAt: null,
+      });
+      await service.revokeSession('user-cust', 's2');
+      expect(mockTrustedDeviceRepo.delete).toHaveBeenCalledWith({
+        userId: 'user-cust',
+        deviceId: 'b',
+      });
+      mockRefreshTokenRepo.findOne.mockResolvedValueOnce(null);
+      await expect(service.revokeSession('user-cust', 'zzz')).rejects.toThrow(NotFoundException);
     });
   });
 });

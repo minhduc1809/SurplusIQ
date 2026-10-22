@@ -126,6 +126,13 @@ export class CatalogController {
     return this.catalogService.updateItem(storeId, id, dto, user?.userId);
   }
 
+  @Get(':id/trustpass-history')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Lịch sử thay đổi hồ sơ minh bạch TrustPass của món (CM-B05)' })
+  async getTrustpassHistory(@CurrentStore() storeId: string, @Param('id') id: string) {
+    return this.catalogService.getTrustpassHistory(storeId, id);
+  }
+
   @Patch(':id/trustpass')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({

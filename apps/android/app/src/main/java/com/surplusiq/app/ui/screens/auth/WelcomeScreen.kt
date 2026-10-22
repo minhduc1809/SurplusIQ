@@ -47,7 +47,7 @@ fun WelcomeScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "Welcome to SurplusIQ",
+            text = "Chào mừng đến với SurplusIQ",
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
             color = ForestGreenDark,

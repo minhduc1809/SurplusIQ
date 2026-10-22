@@ -20,6 +20,7 @@ import {
 } from '../../entities/stores/store-member.entity';
 import { QuotaService } from './quota.service';
 import { SettingsService } from '../settings/settings.service';
+import { PRO_PRICE_VND } from './plan-catalog.constants';
 
 @Injectable()
 export class SubscriptionsService {
@@ -147,7 +148,7 @@ export class SubscriptionsService {
       storeId,
       periodStart: now,
       periodEnd,
-      amount: 300000,
+      amount: PRO_PRICE_VND,
       paymentTxnId: `sub_pay_${storeId}_${randomUUID()}`,
       status: InvoiceStatus.PAID,
     });
@@ -194,7 +195,7 @@ export class SubscriptionsService {
       storeId,
       periodStart: invoiceStart,
       periodEnd: newEnd,
-      amount: 300000,
+      amount: PRO_PRICE_VND,
       paymentTxnId: `sub_renew_${storeId}_${randomUUID()}`,
       status: InvoiceStatus.PAID,
     });

@@ -1,5 +1,20 @@
 package com.surplusiq.merchant.ui.screens
 
+import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.Icons
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,12 +28,12 @@ import androidx.compose.ui.unit.sp
 import com.surplusiq.merchant.data.ItemDto
 import com.surplusiq.merchant.data.ItemRequest
 import com.surplusiq.merchant.data.StoreRepository
+import com.surplusiq.merchant.data.uploadImageUri
 import com.surplusiq.merchant.ui.components.*
 import com.surplusiq.merchant.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** Khớp ITEM_CATEGORIES / COMMON_ALLERGENS trong catalog.constants.ts. */
-internal val ITEM_CATEGORIES = listOf("Bánh mì", "Bánh ngọt", "Bánh kem", "Đồ uống", "Món mặn", "Khác")
 internal val COMMON_ALLERGENS = listOf(
     "Gluten", "Trứng", "Sữa (Lactose)", "Đậu phộng (Lạc)", "Đậu nành", "Hạt cây (Hạnh nhân, Óc chó, Điều)",
     "Giáp xác (Tôm, Cua)", "Cá", "Mè (Vừng)", "Cần tây", "Mù tạt", "Sulfite", "Đậu lupin", "Động vật thân mềm",
@@ -53,6 +68,17 @@ fun ItemFormScreen(repository: StoreRepository, itemId: String?, onSaved: (Strin
     var attempt by remember { mutableIntStateOf(0) }
 
     var imageUrl by remember { mutableStateOf("") }
+    var uploading by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val uploadScope = rememberCoroutineScope()
+    val pickImage = rememberImagePicker { uri ->
+        uploading = true; uploadError = null
+        uploadScope.launch {
+            repository.uploadImageUri(context, uri).fold(onSuccess = { imageUrl = it }, onFailure = { uploadError = it.message })
+            uploading = false
+        }
+    }
     var name by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
@@ -109,75 +135,93 @@ fun ItemFormScreen(repository: StoreRepository, itemId: String?, onSaved: (Strin
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
-        ScreenHeader(if (itemId == null) "Thêm món" else "Sửa món", onBack)
-        Spacer(modifier = Modifier.height(12.dp))
+    Column(modifier = Modifier.fillMaxSize().background(SqCanvas)) {
+        Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp)) { ScreenHeader(if (itemId == null) "Thêm món" else "Sửa món", onBack) }
 
         when {
-            isLoading -> FullScreenLoading()
-            loadError != null -> ErrorState(loadError!!) { attempt++ }
+            isLoading -> Box(Modifier.padding(20.dp)) { FullScreenLoading() }
+            loadError != null -> Box(Modifier.padding(20.dp)) { ErrorState(loadError!!) { attempt++ } }
             else -> {
-                SqCard {
-                    SectionTitle("Ảnh món")
-                    Spacer(modifier = Modifier.height(10.dp))
-                    RemoteImage(imageUrl.trim().ifEmpty { null }, modifier = Modifier.fillMaxWidth().height(160.dp), corner = 14.dp)
-                    Spacer(modifier = Modifier.height(10.dp))
-                    // shortcut: backend chưa có endpoint tải ảnh (và chưa có AI đọc ảnh/kiểm tra ảnh) nên chỉ nhận URL; thêm khi có API storage.
-                    SqField("URL ảnh", imageUrl, placeholder = "https://…", keyboardType = KeyboardType.Uri,
-                        hint = "Dán đường dẫn ảnh đã tải lên. Ứng dụng chưa hỗ trợ chụp/tải ảnh trực tiếp.") { imageUrl = it }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
+                    SqCard {
+                        SectionTitle("Ảnh món")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        if (imageUrl.isBlank()) {
+                            PhotoPlaceholderButton("Thêm ảnh món", pickImage, Modifier.fillMaxWidth().height(168.dp), hint = "JPEG, PNG hoặc WebP, tự thu nhỏ trước khi tải", loading = uploading)
+                        } else {
+                            Box(Modifier.fillMaxWidth().height(168.dp)) {
+                                RemoteImage(imageUrl, modifier = Modifier.fillMaxSize(), corner = 16.dp)
+                                IconButton(
+                                    onClick = { imageUrl = "" },
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(34.dp).clip(CircleShape).background(Color.White)
+                                ) { Icon(Icons.Default.Close, contentDescription = "Bỏ ảnh", tint = SqInk, modifier = Modifier.size(18.dp)) }
+                                Row(
+                                    Modifier.align(Alignment.BottomEnd).padding(10.dp).clip(RoundedCornerShape(50)).background(Color.White)
+                                        .clickable(enabled = !uploading, onClick = pickImage).padding(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = SqCoral, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(if (uploading) "Đang tải…" else "Đổi ảnh", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SqCoralDeep)
+                                }
+                            }
+                        }
+                        InlineError(uploadError)
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                SqCard {
-                    SectionTitle("Thông tin chính")
-                    Spacer(modifier = Modifier.height(10.dp))
-                    SqField("Tên món", name, hint = "2–80 ký tự, không trùng món đang dùng") { name = it.take(80) }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Loại món", fontSize = 12.sp, color = SqInkSoft)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        (ITEM_CATEGORIES + listOf(category).filter { it.isNotBlank() && it !in ITEM_CATEGORIES }).forEach { c ->
-                            SqChip(c, category == c) { category = c }
+                    SqCard {
+                        SectionTitle("Thông tin chính")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        SqField("Tên món", name, placeholder = "Ví dụ: Croissant bơ Pháp", hint = "2 đến 80 ký tự, không trùng món đang dùng") { name = it.take(80) }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Loại món", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SqInkSoft)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FOOD_CATEGORIES.forEach { (code, label) ->
+                                SqChip(label, category.equals(code, ignoreCase = true)) { category = code }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SqField("Giá gốc", price, modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number, suffix = "đ",
+                                hint = "Bội số của 500đ") { price = it.filter(Char::isDigit).take(7) }
+                            SqField("Hạn dùng chuẩn", shelfLife, modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number, suffix = "giờ",
+                                hint = "Từ 1 đến 168 giờ") { shelfLife = it.filter(Char::isDigit).take(3) }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SqField("Trọng lượng", weight, modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number, suffix = "g",
+                                hint = "Không bắt buộc, 10–5.000g") { weight = it.filter(Char::isDigit).take(4) }
+                            SqField("Giá vốn", cost, modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number, suffix = "đ",
+                                hint = "Không bắt buộc, ≤ giá gốc") { cost = it.filter(Char::isDigit).take(7) }
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row {
-                        SqField("Giá gốc (đ)", price, modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number,
-                            hint = "Bội số 500đ") { price = it.filter(Char::isDigit).take(7) }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        SqField("Hạn dùng chuẩn (giờ)", shelfLife, modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number,
-                            hint = "1–168 giờ") { shelfLife = it.filter(Char::isDigit).take(3) }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row {
-                        SqField("Trọng lượng (g)", weight, modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number,
-                            hint = "Tùy chọn, 10–5.000g") { weight = it.filter(Char::isDigit).take(4) }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        SqField("Giá vốn (đ)", cost, modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number,
-                            hint = "Tùy chọn, ≤ giá gốc") { cost = it.filter(Char::isDigit).take(7) }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                SqCard {
-                    SectionTitle("Thành phần và dị ứng")
-                    Spacer(modifier = Modifier.height(10.dp))
-                    SqField("Thành phần", ingredients, singleLine = false, placeholder = "Bột mì, bơ, trứng…") { ingredients = it.take(1000) }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Chất gây dị ứng", fontSize = 12.sp, color = SqInkSoft)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        (COMMON_ALLERGENS + allergens.filter { it !in COMMON_ALLERGENS }).forEach { a ->
-                            SqChip(a, a in allergens) { if (a in allergens) allergens.remove(a) else allergens.add(a) }
+                    SqCard {
+                        SectionTitle("Thành phần và dị ứng")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        SqField("Thành phần", ingredients, singleLine = false, placeholder = "Bột mì, bơ, trứng…") { ingredients = it.take(1000) }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Chất gây dị ứng", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SqInkSoft)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            (COMMON_ALLERGENS + allergens.filter { it !in COMMON_ALLERGENS }).forEach { a ->
+                                SqChip(a, a in allergens) { if (a in allergens) allergens.remove(a) else allergens.add(a) }
+                            }
                         }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        SqField("Mô tả", description, singleLine = false, placeholder = "Mô tả ngắn cho khách") { description = it.take(1000) }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    SqField("Mô tả", description, singleLine = false, placeholder = "Mô tả ngắn cho khách") { description = it.take(1000) }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                InlineError(formError)
-                Spacer(modifier = Modifier.height(12.dp))
-                PrimaryButton(if (itemId == null) "Tạo món" else "Lưu thay đổi", loading = saving, onClick = ::save)
+                // Nút lưu luôn nằm cố định phía dưới, không phải cuộn hết form mới thấy.
+                Column(Modifier.fillMaxWidth().shadow(10.dp).background(Color.White).padding(horizontal = 20.dp, vertical = 12.dp)) {
+                    InlineError(formError)
+                    PrimaryButton(if (itemId == null) "Tạo món" else "Lưu thay đổi", loading = saving, onClick = ::save)
+                }
             }
         }
     }

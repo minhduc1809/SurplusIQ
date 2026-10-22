@@ -208,7 +208,7 @@ function LotRow({ lot, onOpen }: { lot: LotView; onOpen: () => void }) {
   return (
     <button onClick={onOpen} style={rowButton}>
       <QualityAwareBadge lot={lot} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: '1 1 160px', minWidth: 0 }}>
         <div className="sq-body-medium" style={{ color: 'var(--sq-ink)' }}>
           {lotName(lot)}
         </div>
@@ -608,6 +608,7 @@ const listCard: CSSProperties = {
 
 const rowButton: CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap', // màn hẹp: khối số lượng xuống dòng thay vì ép mô tả thành cột vài chục px
   alignItems: 'center',
   gap: 16,
   width: '100%',

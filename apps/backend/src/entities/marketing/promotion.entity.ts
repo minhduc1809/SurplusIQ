@@ -31,9 +31,13 @@ export class PromotionEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  /** Rỗng với ưu đãi do nền tảng tài trợ (voucher đổi điểm), dùng được ở mọi cửa hàng. */
   @Index()
-  @Column('uuid', { name: 'store_id' })
-  storeId: string;
+  @Column('uuid', { name: 'store_id', nullable: true })
+  storeId: string | null;
+
+  @Column({ type: 'varchar', length: 10, name: 'funded_by', default: 'STORE' })
+  fundedBy: 'STORE' | 'PLATFORM';
 
   @Column({ type: 'varchar', length: 150 })
   name: string;

@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.discovery
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -84,6 +85,7 @@ fun SavedDealsScreen(
             )
         },
         bottomBar = {
+            Box(Modifier.background(MaterialTheme.colorScheme.surface).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
             if (selectionMode) {
                 Button(
                     onClick = { onCompare(selectedIds.toList()) },
@@ -97,6 +99,7 @@ fun SavedDealsScreen(
                     Text("So sánh (${selectedIds.size})", fontWeight = FontWeight.Bold)
                 }
             }
+        }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
@@ -165,7 +168,7 @@ private fun CompactDealRow(
     onClick: () -> Unit
 ) {
     val deal = item.deal
-    Card(
+    SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),

@@ -90,11 +90,47 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getActiveOrders(): Result<List<ActiveOrder>> {
-        // OrderResponseDto của server chưa đủ trường để dựng lại Deal gốc, nên
-        // trả về bộ nhớ đệm trong phiên (chỉ gồm đơn thật tạo qua holdOrder trong
-        // phiên này) - không fabricate dữ liệu, chỉ là giới hạn chưa đồng bộ lại
-        // lịch sử cũ khi mở app lại.
-        return Result.success(sessionOrders.toList())
+        // Đồng bộ từ máy chủ để đơn tạo ở phiên trước hoặc nơi khác vẫn hiện; trường không có trong
+        // phản hồi để trống, không bịa. Lỗi mạng thì dùng bộ nhớ đệm phiên.
+        return try {
+            val response = ordersApiService.getActiveOrders()
+            val list = response.body()
+            if (response.isSuccessful && list != null) {
+                list.asReversed().forEach { dto ->
+                    val status = when (dto.status) {
+                        "PENDING_PAYMENT" -> OrderStatus.PENDING_PAYMENT
+                        "PAID" -> OrderStatus.PAID_WAITING_PICKUP
+                        "PICKED_UP" -> OrderStatus.PICKED_UP
+                        "EXPIRED", "NO_SHOW" -> OrderStatus.EXPIRED
+                        else -> OrderStatus.CANCELLED
+                    }
+                    val known = sessionOrders.find { it.id == dto.id }
+                    val deal = known?.deal ?: Deal(
+                        id = dto.offerId, storeId = dto.storeId, storeName = dto.storeName.orEmpty(),
+                        storeAddress = dto.storeAddress.orEmpty(), storeLogoUrl = dto.storeLogoUrl.orEmpty(), coverImageUrl = dto.imageUrl.orEmpty(),
+                        title = dto.itemName.orEmpty(), description = "", whatYouCouldGet = "",
+                        category = com.surplusiq.app.domain.model.DealCategory.OTHER,
+                        originalPrice = dto.unitPrice.toInt(), discountPrice = dto.unitPrice.toInt(),
+                        discountPercent = 0, remainingStock = 0, initialStock = 0,
+                        pickupWindowText = dto.pickupSlot ?: pickupWindowOf(dto.offer?.pickupStart, dto.offer?.pickupEnd), distanceText = "",
+                        rating = 0.0, reviewCount = 0, allergens = emptyList()
+                    )
+                    upsertSessionOrder(
+                        ActiveOrder(
+                            id = dto.id, orderCode = dto.code, deal = deal, quantity = dto.quantity,
+                            unitPrice = dto.unitPrice.toInt(), totalPrice = dto.totalAmount.toInt(),
+                            holdExpiresAtMillis = parseIsoToMillis(dto.holdExpiresAt) ?: 0L,
+                            status = status, qrToken = known?.qrToken.orEmpty(),
+                            fallbackPin = known?.fallbackPin.orEmpty(),
+                            pickupWindow = known?.pickupWindow ?: dto.pickupSlot ?: pickupWindowOf(dto.offer?.pickupStart, dto.offer?.pickupEnd)
+                        )
+                    )
+                }
+            }
+            Result.success(sessionOrders.toList())
+        } catch (e: Exception) {
+            Result.success(sessionOrders.toList())
+        }
     }
 
     override suspend fun cancelHold(orderId: String, reason: String?): Result<Boolean> {
@@ -343,5 +379,22 @@ class OrderRepositoryImpl @Inject constructor(
 
     private fun networkError(e: Exception): Exception {
         return Exception("Không kết nối được. Kiểm tra mạng rồi thử lại.", e)
+    }
+
+    /** "Hôm nay 19:00 - 21:30" từ mốc giờ ISO của suất; rỗng nếu thiếu dữ liệu. */
+    private fun pickupWindowOf(start: String?, end: String?): String {
+        fun at(iso: String?) = runCatching {
+            java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault())
+        }.getOrNull()
+        val s = at(start) ?: return ""
+        val e = at(end)
+        val today = java.time.LocalDate.now()
+        val day = when (s.toLocalDate()) {
+            today -> "Hôm nay"
+            today.plusDays(1) -> "Ngày mai"
+            else -> "%02d/%02d".format(s.dayOfMonth, s.monthValue)
+        }
+        val from = s.toLocalTime().toString().take(5)
+        return if (e != null) "$day $from - ${e.toLocalTime().toString().take(5)}" else "$day từ $from"
     }
 }

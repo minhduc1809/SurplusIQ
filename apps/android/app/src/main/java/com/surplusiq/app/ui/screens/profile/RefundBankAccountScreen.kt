@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.profile
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -115,7 +116,7 @@ fun RefundBankAccountScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // Card hướng dẫn VietQR
-                        Card(
+                        SqCard(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                             shape = RoundedCornerShape(12.dp)
                         ) {

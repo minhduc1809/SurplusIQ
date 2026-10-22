@@ -4,7 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Not } from 'typeorm';
+import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
+import {
+  PaymentKind,
+  PaymentTransactionEntity,
+} from '../../entities/orders/payment-transaction.entity';
+import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
+import { decryptField } from '../../common/crypto/field-crypto';
 import { UserRole } from '../../entities/auth/user.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import {
@@ -276,6 +283,119 @@ export class AdminOperationsService {
 
   private record(value: object): Record<string, unknown> {
     return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+  }
+
+  /** Biên lai khách gửi đang chờ đối chiếu với sao kê ngân hàng (KX02). */
+  async listPaymentProofs() {
+    const orders = await this.dataSource.manager.find(OrderEntity, {
+      where: { status: OrderStatus.PENDING_PAYMENT, paymentProofUrl: Not(IsNull()) },
+      order: { paymentProofUploadedAt: 'ASC' },
+    });
+    return orders.map((o) => ({
+      orderId: o.id,
+      orderCode: o.code,
+      storeId: o.storeId,
+      amount: o.totalAmount,
+      transferMessage: `SUQ${o.code}`,
+      proofUrl: o.paymentProofUrl,
+      uploadedAt: o.paymentProofUploadedAt,
+      holdExpiresAt: o.holdExpiresAt,
+    }));
+  }
+
+  /**
+   * Lệnh hoàn tiền chờ chuyển khoản. Quản trị nền tảng là bên duy nhất thấy số tài khoản đầy đủ.
+   * Lệnh tạo khi khách chưa có tài khoản nhận thì lấy tài khoản hiện tại của khách nếu đã bổ sung.
+   */
+  async listRefundPayouts() {
+    const m = this.dataSource.manager;
+    const txns = await m.find(PaymentTransactionEntity, {
+      where: { kind: PaymentKind.ORDER_REFUND, payoutStatus: 'PENDING' },
+      order: { createdAt: 'ASC' },
+    });
+    const orderIds = txns.map((t) => t.orderId).filter((id): id is string => !!id);
+    const orders = orderIds.length
+      ? await m.find(OrderEntity, { where: { id: In(orderIds) } })
+      : [];
+    const byId = new Map(orders.map((o) => [o.id, o]));
+    return Promise.all(
+      txns.map(async (t) => {
+        const order = byId.get(t.orderId ?? '');
+        let dest: {
+          bankBin?: string;
+          bankName: string;
+          accountHolder: string;
+          accountNumber: string;
+        } | null = null;
+        if (t.refundDestination) {
+          dest = {
+            bankBin: t.refundDestination.bankBin,
+            bankName: t.refundDestination.bankName,
+            accountHolder: t.refundDestination.accountHolder,
+            accountNumber: decryptField(t.refundDestination.accountNumberEnc),
+          };
+        } else if (order) {
+          const acc = (
+            await m.findOne(CustomerProfileEntity, { where: { userId: order.customerId } })
+          )?.refundBankAccount;
+          if (acc) {
+            dest = {
+              bankBin: acc.bankBin,
+              bankName: acc.bankName,
+              accountHolder: acc.accountHolder,
+              accountNumber: acc.accountNumberEnc
+                ? decryptField(acc.accountNumberEnc)
+                : (acc.accountNumber ?? ''),
+            };
+          }
+        }
+        return {
+          id: t.id,
+          orderCode: order?.code ?? null,
+          amount: t.amount,
+          createdAt: t.createdAt,
+          destination: dest,
+        };
+      }),
+    );
+  }
+
+  /** Ghi nhận đã chuyển khoản hoàn tiền kèm mã giao dịch ngân hàng. */
+  async markRefundPaid(id: string, actorId: string, reference: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const txn = await manager.findOne(PaymentTransactionEntity, {
+        where: { id, kind: PaymentKind.ORDER_REFUND },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!txn) throw new NotFoundException('Không tìm thấy lệnh hoàn tiền.');
+      if (txn.payoutStatus !== 'PENDING') {
+        throw new ConflictException('Lệnh hoàn tiền này không ở trạng thái chờ chi trả.');
+      }
+      txn.payoutStatus = 'PAID';
+      txn.payoutReference = reference.trim();
+      txn.paidOutAt = new Date();
+      txn.paidOutBy = actorId;
+      await manager.save(txn);
+      await this.audit(
+        manager,
+        actorId,
+        'REFUND_PAID_OUT',
+        'PAYMENT_TRANSACTION',
+        txn.id,
+        txn.storeId,
+        null,
+        {
+          amount: txn.amount,
+          reference: txn.payoutReference,
+        },
+      );
+      return {
+        id: txn.id,
+        payoutStatus: txn.payoutStatus,
+        payoutReference: txn.payoutReference,
+        paidOutAt: txn.paidOutAt,
+      };
+    });
   }
 
   private async audit(

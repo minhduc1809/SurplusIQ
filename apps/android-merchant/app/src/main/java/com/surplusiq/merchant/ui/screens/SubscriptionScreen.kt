@@ -6,37 +6,39 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.surplusiq.merchant.data.PlanCatalogDto
 import com.surplusiq.merchant.data.StoreRepository
 import com.surplusiq.merchant.data.SubscriptionDto
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
 import com.surplusiq.merchant.ui.components.*
 import com.surplusiq.merchant.ui.theme.*
 import kotlinx.coroutines.launch
 
-// shortcut: backend không có API danh mục gói - giá 300.000đ hardcode trong subscriptions.service.ts,
-// hoa hồng từ platform setting commission.rate, hạn mức từ quota.constants.ts. Đổi sang API khi backend có.
+/** Giá dự phòng khi chưa tải được danh mục gói; giá thật lấy từ GET store/subscription/catalog. */
 internal const val PRO_PRICE_VND = 300_000L
-private val PLAN_ROWS = listOf(
-    Triple("Giá tháng", "Miễn phí", currency(PRO_PRICE_VND)),
-    Triple("Hoa hồng / đơn", "10%", "10%"),
-    Triple("Định giá tự động", "—", "Có"),
-    Triple("Suất mở / ngày", "20", "100"),
-    Triple("AI phân tích ảnh / tháng", "20", "300"),
-    Triple("Hỏi đáp AI / tháng", "10", "300"),
-    Triple("AI soạn nội dung / tháng", "10", "200"),
-    Triple("Xuất báo cáo / tháng", "3", "30"),
-    Triple("Nhân viên", "1", "5"),
+
+private val QUOTA_LABELS = mapOf(
+    "daily_offers" to "Suất mở bán mỗi ngày", "csv_import_lines" to "Dòng nhập CSV mỗi lần", "active_promotions" to "Ưu đãi chạy cùng lúc",
+    "campaigns_per_month" to "Chiến dịch thông báo / tháng", "export_orders" to "Xuất đơn hàng / tháng", "export_reports" to "Xuất báo cáo / tháng",
+    "ai_chat_query" to "Hỏi đáp AI / tháng", "ai_content_gen" to "AI soạn nội dung / tháng", "ai_image_scan" to "AI phân tích ảnh / tháng", "active_staff" to "Nhân viên"
 )
 
-internal val PLAN_LABELS = mapOf("BASIC" to "Cơ bản", "TRIAL" to "Dùng thử Pro", "PRO" to "Pro")
+internal val PLAN_LABELS = mapOf("BASIC" to "Cơ bản", "TRIAL" to "Dùng thử Chuyên nghiệp", "PRO" to "Chuyên nghiệp")
 
 /** S16 - Gói dịch vụ (GET store/subscription/current, POST upgrade/downgrade). */
 @Composable
 fun SubscriptionScreen(repository: StoreRepository, onNavigate: (String) -> Unit, onBack: () -> Unit) {
     var sub by remember { mutableStateOf<SubscriptionDto?>(null) }
+    var catalog by remember { mutableStateOf<PlanCatalogDto?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var acting by remember { mutableStateOf(false) }
@@ -49,8 +51,11 @@ fun SubscriptionScreen(repository: StoreRepository, onNavigate: (String) -> Unit
         error = null
         scope.launch {
             val result = repository.getSubscription()
+            val cat = repository.getPlanCatalog()
             isLoading = false
+            cat.onSuccess { catalog = it }
             result.fold(onSuccess = { sub = it }, onFailure = { error = it.message })
+            cat.exceptionOrNull()?.let { if (error == null) error = it.message }
         }
     }
 
@@ -90,28 +95,14 @@ fun SubscriptionScreen(repository: StoreRepository, onNavigate: (String) -> Unit
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                SqCard {
-                    Row {
-                        Text("", modifier = Modifier.weight(1.4f))
-                        Text("Cơ bản", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SqInk)
-                        Text("Pro", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SqCoralDeep)
-                    }
-                    HorizontalDivider(color = SqLine, modifier = Modifier.padding(vertical = 8.dp))
-                    PLAN_ROWS.forEach { (label, basic, pro) ->
-                        Row(modifier = Modifier.padding(vertical = 4.dp)) {
-                            Text(label, modifier = Modifier.weight(1.4f), fontSize = 12.sp, color = SqInkSoft)
-                            Text(basic, modifier = Modifier.weight(1f), fontSize = 13.sp, color = SqInk)
-                            Text(pro, modifier = Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SqInk)
-                        }
-                    }
-                }
+                catalog?.let { c -> PlanComparison(c, current = s.plan) }
                 Spacer(modifier = Modifier.height(12.dp))
                 InlineError(actionError)
 
                 if (s.plan != "PRO") {
-                    PrimaryButton("Nâng cấp lên Pro", loading = acting) { confirm = "upgrade" }
+                    PrimaryButton("Nâng cấp lên Chuyên nghiệp", loading = acting) { confirm = "upgrade" }
                 } else {
-                    PrimaryButton("Gia hạn gói Pro") { onNavigate("subscription-renew") }
+                    PrimaryButton("Gia hạn gói Chuyên nghiệp") { onNavigate("subscription-renew") }
                 }
                 if (s.plan != "BASIC" && !s.downgradeAtPeriodEnd) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -133,13 +124,13 @@ fun SubscriptionScreen(repository: StoreRepository, onNavigate: (String) -> Unit
         AlertDialog(
             onDismissRequest = { confirm = null },
             containerColor = SqSurface,
-            title = { Text(if (kind == "upgrade") "Nâng cấp lên Pro?" else "Hạ về gói Cơ bản?", fontWeight = FontWeight.Bold) },
+            title = { Text(if (kind == "upgrade") "Nâng cấp lên Chuyên nghiệp?" else "Hạ về gói Cơ bản?", fontWeight = FontWeight.Bold) },
             text = {
                 Text(
                     when {
-                        kind == "upgrade" -> "Phí ${currency(PRO_PRICE_VND)} cho 30 ngày, tính từ hôm nay."
+                        kind == "upgrade" -> "Phí ${currency(catalog?.proPriceVnd ?: PRO_PRICE_VND)} cho ${catalog?.periodDays ?: 30} ngày, tính từ hôm nay."
                         s?.isTrial == true -> "Dùng thử kết thúc ngay. Định giá tự động sẽ tắt và nhân viên vượt hạn mức bị khóa."
-                        else -> "Bạn vẫn dùng Pro đến ${shortDate(s?.periodEnd)}, sau đó chuyển về Cơ bản."
+                        else -> "Bạn vẫn dùng Chuyên nghiệp đến ${shortDate(s?.periodEnd)}, sau đó chuyển về Cơ bản."
                     },
                     fontSize = 13.sp, color = SqInkSoft
                 )
@@ -147,5 +138,54 @@ fun SubscriptionScreen(repository: StoreRepository, onNavigate: (String) -> Unit
             confirmButton = { TextButton(onClick = { confirm = null; act(kind) }) { Text("Xác nhận", color = SqCoralDeep) } },
             dismissButton = { TextButton(onClick = { confirm = null }) { Text("Hủy", color = SqInkSoft) } }
         )
+    }
+}
+
+@Composable
+private fun PlanComparison(c: PlanCatalogDto, current: String) {
+    val rate = c.commissionRate?.let { r -> (r * 100).let { if (it % 1.0 == 0.0) "${it.toInt()}%" else "$it%" } } ?: "—"
+    SqCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.weight(1.4f))
+            PlanHeader("Cơ bản", current == "BASIC", SqInk, Modifier.weight(1f))
+            PlanHeader("Chuyên nghiệp", current != "BASIC", SqCoralDeep, Modifier.weight(1f))
+        }
+        HorizontalDivider(color = SqLine, modifier = Modifier.padding(vertical = 8.dp))
+        PlanSection("Chi phí")
+        PlanRow("Giá gói", "Miễn phí", "${currency(c.proPriceVnd)} / ${c.periodDays} ngày")
+        PlanRow("Hoa hồng mỗi đơn", rate, rate)
+        PlanSection("Hạn mức sử dụng")
+        c.quotas.forEach { q -> PlanRow(QUOTA_LABELS[q.key] ?: q.name, "${q.basic}", "${q.pro}") }
+        PlanRow("Xem lịch sử báo cáo", "${c.reportHistoryDays.basic} ngày", "${c.reportHistoryDays.pro} ngày")
+        PlanSection("Chỉ có ở Chuyên nghiệp")
+        c.proFeatures.forEach { f ->
+            Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(f.name, Modifier.weight(1.4f), fontSize = 12.sp, color = SqInkSoft)
+                Icon(Icons.Default.Lock, contentDescription = "Không có ở gói Cơ bản", tint = SqInkMuted, modifier = Modifier.weight(1f).size(16.dp))
+                Icon(Icons.Default.CheckCircle, contentDescription = "Có ở gói Chuyên nghiệp", tint = SqMintDeep, modifier = Modifier.weight(1f).size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanHeader(label: String, active: Boolean, color: Color, modifier: Modifier) {
+    Column(modifier) {
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = color)
+        if (active) Text("Đang dùng", fontSize = 10.sp, color = SqMintDeep, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun PlanSection(title: String) {
+    Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SqInkMuted, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+}
+
+@Composable
+private fun PlanRow(label: String, basic: String, pro: String) {
+    Row(Modifier.padding(vertical = 4.dp)) {
+        Text(label, Modifier.weight(1.4f), fontSize = 12.sp, color = SqInkSoft)
+        Text(basic, Modifier.weight(1f), fontSize = 13.sp, color = SqInk)
+        Text(pro, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SqInk)
     }
 }

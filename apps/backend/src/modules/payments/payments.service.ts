@@ -1,4 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { getJwtSecret } from '../../common/config/jwt-secret';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import {
@@ -7,9 +16,9 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from '../../entities/orders/payment-transaction.entity';
-import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
+import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
-import { OfferEntity } from '../../entities/catalog/offer.entity';
+import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QrTokenEngine, BackupPinEngine } from '@surplusiq/core';
 import { CreatePaymentDto, PaymentWebhookDto, ConfirmPaymentDto } from './dto';
@@ -51,7 +60,7 @@ export interface PaymentConfirmationResult {
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
-  private readonly jwtSecret = process.env.JWT_SECRET || 'surplusiq_super_secret_jwt_key_2026';
+  private readonly jwtSecret = getJwtSecret();
 
   constructor(
     @InjectRepository(PaymentTransactionEntity)
@@ -64,6 +73,7 @@ export class PaymentsService {
     private readonly offerRepo: Repository<OfferEntity>,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -212,7 +222,9 @@ export class PaymentsService {
     }
 
     // 3. Thực hiện Transaction khóa bi quan (pessimistic_write) trên OrderEntity
-    return this.dataSource.transaction(async (manager) => {
+    // Sai số tiền: ghi nhận đối soát thủ công TRONG transaction rồi mới báo lỗi SAU khi commit (tránh rollback mất dấu vết).
+    let mismatch: { expected: number; received: number } | null = null;
+    const result = await this.dataSource.transaction(async (manager) => {
       const lockedOrder = await manager
         .createQueryBuilder(OrderEntity, 'order')
         .setLock('pessimistic_write')
@@ -264,15 +276,15 @@ export class PaymentsService {
           },
         });
 
-        throw new BadRequestException(
-          `Số tiền thanh toán [${dto.amount}] không khớp chính xác đơn giá chốt [${lockedOrder.totalAmount}] (BR-016). Đã đưa vào đối soát thủ công.`,
-        );
+        mismatch = { expected: lockedOrder.totalAmount, received: dto.amount };
+        return undefined as unknown as PaymentConfirmationResult;
       }
 
       const now = new Date();
-      const isHoldExpired =
-        lockedOrder.status === OrderStatus.HOLD_EXPIRED ||
-        new Date(lockedOrder.holdExpiresAt) < now;
+      // Đơn không còn chờ thanh toán (đã PAID, đã hủy, đã nhận...) cũng không được nhận thêm tiền: hoàn 100% thay vì
+      // làm sống lại đơn hoặc cấp thêm vé nhận hàng (BR-015).
+      const notAwaitingPayment = lockedOrder.status !== OrderStatus.PENDING_PAYMENT;
+      const isHoldExpired = notAwaitingPayment || new Date(lockedOrder.holdExpiresAt) < now;
 
       // 5. TRƯỜNG HỢP THANH TOÁN ĐẾN MUỘN (R1-047, BR-015, TEST-ORDER-04)
       if (isHoldExpired) {
@@ -280,9 +292,27 @@ export class PaymentsService {
           `[LATE_PAYMENT] Đơn ${lockedOrder.code} đã hết hạn giữ suất (${lockedOrder.holdExpiresAt.toISOString()}). Tự động kích hoạt hoàn tiền 100% (R1-047).`,
         );
 
-        // Đơn giữ nguyên trạng thái HOLD_EXPIRED (R1-047 BR 3)
-        lockedOrder.status = OrderStatus.HOLD_EXPIRED;
-        await manager.save(lockedOrder);
+        // Đơn quá hạn giữ nhưng job chưa kịp nhả: chuyển HOLD_EXPIRED và trả tồn kho tại đây, vì job chỉ quét
+        // đơn PENDING_PAYMENT (R1-047 BR 3). Đơn ở trạng thái khác giữ nguyên trạng thái.
+        if (lockedOrder.status === OrderStatus.PENDING_PAYMENT) {
+          lockedOrder.status = OrderStatus.HOLD_EXPIRED;
+          lockedOrder.cancelledBy = CancelledBy.SYSTEM;
+          lockedOrder.cancelReason = 'Hết hạn giữ suất 10 phút (BR-017)';
+          lockedOrder.cancelledAt = new Date();
+          await manager.save(lockedOrder);
+          const heldOffer = await manager
+            .createQueryBuilder(OfferEntity, 'offer')
+            .setLock('pessimistic_write')
+            .where('offer.id = :id', { id: lockedOrder.offerId })
+            .getOne();
+          if (heldOffer) {
+            heldOffer.remainingQuantity += lockedOrder.quantity;
+            if (heldOffer.status === OfferStatus.SOLD_OUT && new Date(heldOffer.pickupEnd) > now) {
+              heldOffer.status = OfferStatus.OPEN;
+            }
+            await manager.save(heldOffer);
+          }
+        }
 
         // Đánh dấu giao dịch thu tiền thành công
         txn.status = PaymentStatus.SUCCEEDED;
@@ -331,7 +361,7 @@ export class PaymentsService {
           latePaymentRefunded: true,
           orderId: lockedOrder.id,
           orderCode: lockedOrder.code,
-          orderStatus: OrderStatus.HOLD_EXPIRED,
+          orderStatus: lockedOrder.status,
           transactionId: txn.id,
           gatewayTxnId: txn.gatewayTxnId,
           amount: txn.amount,
@@ -413,6 +443,109 @@ export class PaymentsService {
         message: 'Thanh toán thành công! Mã QR nhận hàng đã được kích hoạt.',
       };
     });
+    if (mismatch !== null) {
+      const m: { expected: number; received: number } = mismatch;
+      throw new BadRequestException(
+        `Số tiền thanh toán [${m.received}] không khớp chính xác đơn giá chốt [${m.expected}] (BR-016). Đã đưa vào đối soát thủ công.`,
+      );
+    }
+    await this.notifyPaymentResult(result);
+    return result;
+  }
+
+  /** Báo cho khách và cửa hàng sau khi thanh toán được ghi nhận (hoặc hoàn tiền do đến muộn). */
+  private async notifyPaymentResult(result: PaymentConfirmationResult) {
+    if (!this.notifications || result.idempotent || !result.orderId) return;
+    const order = await this.orderRepo.findOne({ where: { id: result.orderId } });
+    if (!order) return;
+    if (result.latePaymentRefunded) {
+      await this.notifications.notifyQuietly({
+        userId: order.customerId,
+        type: NotificationType.ORDER,
+        title: 'Đã hoàn tiền thanh toán muộn',
+        body: `Đơn ${order.code} đã hết hạn giữ suất nên tiền được hoàn 100%.`,
+        data: { orderId: order.id, kind: 'PAYMENT_LATE_REFUNDED' },
+      });
+    } else if (result.orderStatus === OrderStatus.PAID) {
+      await this.notifications.notifyQuietly({
+        userId: order.customerId,
+        type: NotificationType.ORDER,
+        title: 'Thanh toán thành công',
+        body: `Đơn ${order.code} đã thanh toán. Mở vé nhận hàng để đến lấy đúng khung giờ.`,
+        data: { orderId: order.id, kind: 'PAYMENT_CONFIRMED' },
+      });
+      await this.notifications.notifyQuietly({
+        storeId: order.storeId,
+        type: NotificationType.ORDER,
+        title: 'Đơn mới đã thanh toán',
+        body: `Đơn ${order.code} (${order.quantity} suất) đã thanh toán. Hãy chuẩn bị hàng.`,
+        data: { orderId: order.id, kind: 'ORDER_PAID' },
+      });
+    }
+  }
+
+  /**
+   * Quản trị nền tảng xác nhận đã nhận tiền theo biên lai khi webhook ngân hàng chưa về (KX02).
+   * Dùng lại luồng webhook nên giữ nguyên kiểm tra số tiền, hạn giữ suất, hoàn tiền trễ và sinh vé nhận hàng;
+   * không trả vé QR hay mã dự phòng cho người gọi.
+   */
+  async confirmPaymentProof(orderId: string, actorId: string) {
+    const order = await this.orderRepo.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+    if (order.status !== OrderStatus.PENDING_PAYMENT || !order.paymentProofUrl) {
+      throw new BadRequestException('Chỉ xác nhận được đơn đang chờ thanh toán và đã có biên lai.');
+    }
+    const txn = await this.paymentTxnRepo.findOne({
+      where: { orderId, kind: PaymentKind.ORDER_PAYMENT, status: PaymentStatus.PENDING_CONFIRM },
+      order: { createdAt: 'DESC' },
+    });
+    if (!txn) throw new BadRequestException('Đơn chưa có giao dịch thanh toán đang chờ xác nhận.');
+
+    const result = await this.processPaymentWebhook({
+      gatewayTxnId: txn.gatewayTxnId,
+      amount: txn.amount,
+      orderId: order.id,
+      orderCode: order.code,
+      transferMessage: `SUQ${order.code}`,
+    });
+    await this.auditLogService.log({
+      storeId: order.storeId,
+      actorId,
+      actorRole: 'ADMIN',
+      action: 'PAYMENT_PROOF_CONFIRMED',
+      targetType: 'ORDER',
+      targetId: order.id,
+      newValue: { proofUrl: order.paymentProofUrl, orderStatus: result.orderStatus },
+    });
+    return {
+      orderId: order.id,
+      orderCode: order.code,
+      orderStatus: result.orderStatus,
+      latePaymentRefunded: Boolean(result.latePaymentRefunded),
+    };
+  }
+
+  /** Quản trị nền tảng từ chối biên lai (không thấy tiền về): xóa biên lai để khách gửi lại, ghi nhật ký kèm lý do. */
+  async rejectPaymentProof(orderId: string, actorId: string, reason: string) {
+    const order = await this.orderRepo.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+    if (order.status !== OrderStatus.PENDING_PAYMENT || !order.paymentProofUrl) {
+      throw new BadRequestException('Đơn không có biên lai đang chờ xem xét.');
+    }
+    const proofUrl = order.paymentProofUrl;
+    order.paymentProofUrl = null;
+    order.paymentProofUploadedAt = null;
+    await this.orderRepo.save(order);
+    await this.auditLogService.log({
+      storeId: order.storeId,
+      actorId,
+      actorRole: 'ADMIN',
+      action: 'PAYMENT_PROOF_REJECTED',
+      targetType: 'ORDER',
+      targetId: order.id,
+      newValue: { proofUrl, reason },
+    });
+    return { orderId: order.id, orderCode: order.code, reason };
   }
 
   /**

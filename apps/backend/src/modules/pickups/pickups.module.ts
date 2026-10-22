@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PickupsService } from './pickups.service';
 import { StorePickupsController } from './store-pickups.controller';
@@ -14,6 +15,7 @@ import { RewardsModule } from '../rewards/rewards.module';
 
 @Module({
   imports: [
+    NotificationsModule,
     TypeOrmModule.forFeature([
       OrderEntity,
       PickupTokenEntity,

@@ -159,7 +159,7 @@ describe('CatalogService', () => {
       await service.getItems(mockStoreId, { category: 'Bánh ngọt' });
 
       expect(qb.andWhere).toHaveBeenCalledWith('item.category = :category', {
-        category: 'Bánh ngọt',
+        category: 'SWEET',
       });
     });
   });
@@ -281,6 +281,22 @@ describe('CatalogService', () => {
       await expect(service.updateItem(mockStoreId, mockItemId, updateDto)).rejects.toThrow(
         ConflictException,
       );
+    });
+  });
+
+  describe('updateTrustpass (CM-B05)', () => {
+    it('chặn công bố khi hạn dùng không sau thời điểm chuẩn bị', async () => {
+      mockItemRepo.findOne.mockResolvedValue({
+        ...mockItemEntity,
+        preparedAt: null,
+        expiryAt: null,
+      });
+      await expect(
+        service.updateTrustpass(mockStoreId, mockItemId, {
+          preparedAt: '2026-10-20T10:00:00Z',
+          expiryAt: '2026-10-20T08:00:00Z',
+        }),
+      ).rejects.toThrow('Hạn dùng phải sau');
     });
   });
 

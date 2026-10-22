@@ -141,7 +141,7 @@ export const ADMIN_NAVIGATION: AdminNavSection[] = [
       {
         key: 'overview',
 
-        title: 'Dashboard Overview',
+        title: 'Tổng quan',
 
         description: 'Thống kê toàn sàn, chỉ số vận hành và ESG Impact',
 

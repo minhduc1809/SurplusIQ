@@ -150,12 +150,19 @@ data class MapPinDto(
     @SerializedName("storeId") val storeId: String,
     @SerializedName("storeName") val storeName: String,
     @SerializedName("storeAddress") val storeAddress: String? = null,
+    @SerializedName("storeLogoUrl") val storeLogoUrl: String? = null,
     @SerializedName("latitude") val latitude: Double,
     @SerializedName("longitude") val longitude: Double,
     @SerializedName("activeDealsCount") val activeDealsCount: Int = 0,
     @SerializedName("minPrice") val minPrice: Double? = null,
+    @SerializedName("maxPrice") val maxPrice: Double? = null,
+    @SerializedName("imageUrl") val imageUrl: String? = null,
+    @SerializedName("ratingAvg") val ratingAvg: Double? = null,
+    @SerializedName("ratingCount") val ratingCount: Int? = null,
+    @SerializedName("soonestPickupEnd") val soonestPickupEnd: String? = null,
     @SerializedName("maxDiscountPercent") val maxDiscountPercent: Int? = null,
-    @SerializedName("distanceMeters") val distanceMeters: Double? = null
+    @SerializedName("distanceMeters") val distanceMeters: Double? = null,
+    @SerializedName("categories") val categories: List<String>? = null
 )
 
 // --- Chi tiết cửa hàng (R1-027) + store trong chi tiết/so sánh deal ---
@@ -341,3 +348,34 @@ data class PriceHistoryDto(
     @SerializedName("transparencyCommitment") val transparencyCommitment: String? = null
 )
 
+
+// --- Gợi ý dành cho bạn (K21) ---
+data class ForYouItemDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("storeId") val storeId: String,
+    @SerializedName("storeName") val storeName: String,
+    @SerializedName("storeAddress") val storeAddress: String? = null,
+    @SerializedName("title") val title: String,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("imageUrl") val imageUrl: String? = null,
+    @SerializedName("originalPrice") val originalPrice: Double,
+    @SerializedName("currentPrice") val currentPrice: Double,
+    @SerializedName("discountPercent") val discountPercent: Int,
+    @SerializedName("remainingQuantity") val remainingQuantity: Int,
+    @SerializedName("distanceMeters") val distanceMeters: Double? = null,
+    @SerializedName("minutesLeftToPickup") val minutesLeftToPickup: Int,
+    @SerializedName("forYouScore") val forYouScore: Double = 0.0,
+    @SerializedName("forYouReasons") val forYouReasons: List<String> = emptyList()
+)
+
+data class ForYouMetaDto(
+    @SerializedName("total") val total: Int = 0,
+    @SerializedName("excludedByDietary") val excludedByDietary: Int = 0,
+    @SerializedName("personalised") val personalised: Boolean = false,
+    @SerializedName("note") val note: String? = null
+)
+
+data class ForYouResponseDto(
+    @SerializedName("data") val data: List<ForYouItemDto> = emptyList(),
+    @SerializedName("meta") val meta: ForYouMetaDto = ForYouMetaDto()
+)

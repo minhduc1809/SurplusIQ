@@ -23,7 +23,8 @@ class SessionManager @Inject constructor(
         private const val KEY_DEVICE_ID = "key_device_id"
         private const val KEY_BASE_URL = "key_base_url"
         private const val KEY_ONBOARDING_COMPLETED = "key_onboarding_completed"
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:4000/"
+        private const val KEY_REMEMBER_LOGIN = "key_remember_login"
+        val DEFAULT_BASE_URL: String = com.surplusiq.app.BuildConfig.API_BASE_URL
     }
 
     init {
@@ -49,10 +50,10 @@ class SessionManager @Inject constructor(
 
     fun getUserId(): String? {
         val uid = prefs.getString(KEY_USER_ID, null) ?: return null
+        // Id sai định dạng thì coi như chưa đăng nhập, không bịa id thay thế.
         if (!uid.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))) {
-            val validUuid = "22222222-2222-2222-2222-222222222222"
-            prefs.edit().putString(KEY_USER_ID, validUuid).apply()
-            return validUuid
+            prefs.edit().remove(KEY_USER_ID).apply()
+            return null
         }
         return uid
     }
@@ -85,6 +86,13 @@ class SessionManager @Inject constructor(
 
     fun setOnboardingCompleted(completed: Boolean = true) {
         prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
+    }
+
+    /** Ghi nhớ đăng nhập (mặc định bật). Tắt thì phiên bị xóa ở lần mở app kế tiếp. */
+    fun isRememberLogin(): Boolean = prefs.getBoolean(KEY_REMEMBER_LOGIN, true)
+
+    fun setRememberLogin(remember: Boolean) {
+        prefs.edit().putBoolean(KEY_REMEMBER_LOGIN, remember).apply()
     }
 
     fun isLoggedIn(): Boolean = !getAccessToken().isNullOrBlank()

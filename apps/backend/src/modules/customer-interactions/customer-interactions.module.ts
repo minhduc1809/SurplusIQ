@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomerInteractionsService } from './customer-interactions.service';
 import { CustomerInteractionsController } from './customer-interactions.controller';
@@ -16,10 +17,13 @@ import { SupportMessageEntity } from '../../entities/complaints/support-message.
 import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { RewardsModule } from '../rewards/rewards.module';
+import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
   imports: [
+    NotificationsModule,
     RewardsModule,
+    UploadsModule,
     TypeOrmModule.forFeature([
       ComplaintEntity,
       ComplaintAttachmentEntity,

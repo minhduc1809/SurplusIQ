@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.orders
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +70,14 @@ fun OrderDetailScreen(
     // KX04: Gia hạn giờ nhận
     onUpdatePickupSlot: ((orderId: String, newSlotIso: String) -> Unit)? = null,
     onResetActionStates: (() -> Unit)? = null,
+    // KX12, KX05, KX18: theo dõi, đổi suất, tặng suất
+    onOpenTracking: ((ActiveOrder) -> Unit)? = null,
+    onOpenSwap: ((ActiveOrder) -> Unit)? = null,
+    onSendGift: ((orderId: String, recipient: String, message: String) -> Unit)? = null,
+    isGiftBusy: Boolean = false,
+    giftSentCounter: Int = 0,
+    // KX02: biên lai là ảnh chụp tải lên hệ thống, không nhập link tự do
+    onPickProofImage: ((orderId: String, bytes: ByteArray, fileName: String, mimeType: String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -76,6 +85,15 @@ fun OrderDetailScreen(
     var showRevokeDialog by remember { mutableStateOf(false) }
     var showAttachProofDialog by remember { mutableStateOf(false) }
     var showUpdateSlotSheet by remember { mutableStateOf(false) }
+    var showGiftDialog by remember { mutableStateOf(false) }
+    val giftCounterAtStart = remember { giftSentCounter }
+    LaunchedEffect(giftSentCounter) { if (giftSentCounter > giftCounterAtStart) showGiftDialog = false }
+    val proofPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri: android.net.Uri? ->
+        if (uri != null) {
+            val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+            if (bytes != null && bytes.isNotEmpty()) onPickProofImage?.invoke(order.id, bytes, "proof_${System.currentTimeMillis()}.jpg", context.contentResolver.getType(uri) ?: "image/jpeg")
+        }
+    }
     var proofUrlInput by remember { mutableStateOf("") }
     val openCancel = {
         onPrepareCancel(order.id)
@@ -117,7 +135,7 @@ fun OrderDetailScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // Order Code & Status Header Card
-            Card(
+            SqCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -141,7 +159,7 @@ fun OrderDetailScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Store Info Card
-            Card(
+            SqCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -169,7 +187,7 @@ fun OrderDetailScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Invoice Breakdown Card
-            Card(
+            SqCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -215,7 +233,7 @@ fun OrderDetailScreen(
                         Icon(Icons.Default.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(12.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Giá đã được khóa cố định theo điều khoản BR-016.",
+                            text = "Giá đã được khóa cố định từ lúc bạn đặt giữ suất.",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -242,6 +260,9 @@ fun OrderDetailScreen(
                     }
 
                     MoreActions(
+                        "Theo dõi đơn, nhắn cửa hàng, báo sự cố" to { onOpenTracking?.invoke(order) },
+                        "Đổi sang suất khác" to { onOpenSwap?.invoke(order) },
+                        "Tặng suất cho bạn bè" to { showGiftDialog = true },
                         "Xem biên nhận" to { onOpenReceipt(order) },
                         "Hủy đơn (hoàn 100% trước 60p)" to openCancel
                     )
@@ -290,6 +311,9 @@ fun OrderDetailScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    TextButton(onClick = { onOpenTracking?.invoke(order) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Theo dõi đơn", color = ForestGreenPrimary)
+                    }
                     OutlinedButton(
                         onClick = { showAttachProofDialog = true },
                         modifier = Modifier
@@ -301,7 +325,7 @@ fun OrderDetailScreen(
                         Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Đính kèm biên lai chuyển khoản (KX02)",
+                            text = "Đính kèm biên lai chuyển khoản",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -319,7 +343,7 @@ fun OrderDetailScreen(
                         Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Xin gia hạn giờ nhận hàng (KX04)",
+                            text = "Xin gia hạn giờ nhận hàng",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -361,6 +385,7 @@ fun OrderDetailScreen(
                         }
 
                         MoreActions(
+                            "Theo dõi đơn và nhắn cửa hàng" to { onOpenTracking?.invoke(order) },
                             "Khiếu nại chất lượng (trong 24h)" to { onOpenComplaint?.invoke(order) },
                             "Xem biên nhận" to { onOpenReceipt(order) },
                             "Chỉ đường đến quán" to {
@@ -423,6 +448,13 @@ fun OrderDetailScreen(
             }
         )
     }
+    if (showGiftDialog) {
+        com.surplusiq.app.ui.screens.ordersupport.GiftOrderDialog(
+            isBusy = isGiftBusy,
+            onSend = { recipient, message -> onSendGift?.invoke(order.id, recipient, message) },
+            onDismiss = { showGiftDialog = false }
+        )
+    }
     if (showAttachProofDialog) {
         AlertDialog(
             onDismissRequest = { showAttachProofDialog = false },
@@ -430,17 +462,15 @@ fun OrderDetailScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Nếu bạn đã chuyển khoản nhưng hệ thống ngân hàng chậm gửi webhook, hãy cung cấp link hoặc mã giao dịch ảnh chụp biên lai để nhân viên quán đối soát.",
+                        "Nếu bạn đã chuyển khoản nhưng hệ thống ngân hàng chậm báo, hãy gửi ảnh chụp biên lai. Nhóm hỗ trợ SurplusIQ sẽ đối soát với sao kê và kích hoạt đơn khi thấy tiền về.",
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
-                    OutlinedTextField(
-                        value = proofUrlInput,
-                        onValueChange = { proofUrlInput = it },
-                        placeholder = { Text("Nhập link ảnh hoặc mã giao dịch...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
+                    OutlinedButton(
+                        onClick = { proofPicker.launch("image/*") },
+                        enabled = !ordersState.isAttachingProof && !ordersState.attachProofSuccess,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Chọn ảnh biên lai") }
                     if (ordersState.attachProofError != null) {
                         Text(ordersState.attachProofError ?: "", color = CoralRed, fontSize = 12.sp)
                     }
@@ -450,21 +480,7 @@ fun OrderDetailScreen(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        if (proofUrlInput.isNotBlank()) {
-                            onAttachPaymentProof?.invoke(order.id, proofUrlInput.trim())
-                        }
-                    },
-                    enabled = !ordersState.isAttachingProof && proofUrlInput.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryOrange)
-                ) {
-                    if (ordersState.isAttachingProof) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Xác nhận gửi")
-                    }
-                }
+                if (ordersState.isAttachingProof) CircularProgressIndicator(color = PrimaryOrange, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -489,7 +505,7 @@ fun OrderDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "Xin gia hạn giờ hẹn nhận hàng (KX04)",
+                    text = "Xin gia hạn giờ hẹn nhận hàng",
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
@@ -566,7 +582,7 @@ private fun proxyStatusLabel(status: String): Pair<String, Color> = when (status
     else -> status to TextMuted
 }
 
-/** K29 - mã nhận hộ 8 ký tự (R1-052): trạng thái, chia sẻ qua bảng chia sẻ Android, thu hồi. */
+/** K29 - mã nhận hộ 8 ký tự: trạng thái, chia sẻ qua bảng chia sẻ Android, thu hồi. */
 @Composable
 private fun ProxyPickupCodeSection(
     order: ActiveOrder,
@@ -576,14 +592,14 @@ private fun ProxyPickupCodeSection(
     onCreateClick: () -> Unit,
     onRevokeClick: () -> Unit
 ) {
-    Card(
+    SqCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "Mã nhận hộ (R1-052)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Text(text = "Mã nhận hộ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Cho người thân/bạn bè nhận hàng thay bạn. Mã dùng một lần, hết hạn theo khung nhận.",

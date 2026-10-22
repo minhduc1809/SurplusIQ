@@ -68,7 +68,7 @@ fun AddressSearchField(
             modifier = Modifier.fillMaxWidth()
         )
         if (suggestions.isNotEmpty()) {
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),

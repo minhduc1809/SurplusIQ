@@ -48,7 +48,7 @@ val ONBOARDING_SLIDES = listOf(
     OnboardingSlide(
         badge = "CỨU MÓN NGON",
         title = "Chống Lãng Phí Thực Phẩm",
-        description = "Khám phá các suất ăn tươi ngon chất lượng cao từ các nhà hàng, tiệm bánh uy tín với giá giảm từ 40% đến 70% mỗi ngày.",
+        description = "Khám phá các suất ăn tươi ngon chất lượng cao từ các nhà hàng, tiệm bánh uy tín với giá ưu đãi mỗi ngày.",
         icon = Icons.Default.Eco,
         themeColor = ForestGreenPrimary,
         gradientColors = listOf(Color(0xFF2E7D32), Color(0xFF81C784))
@@ -64,7 +64,7 @@ val ONBOARDING_SLIDES = listOf(
     OnboardingSlide(
         badge = "TÌM KIẾM THÔNG MINH",
         title = "Radar Quét Deal Quanh Bạn",
-        description = "Tự động gợi ý các deal ngon trong bán kính GPS 1 - 10km quanh bạn. Bật thông báo để không bao giờ bỏ lỡ món yêu thích từ tiệm quen.",
+        description = "Tự động gợi ý các deal ngon trong bán kính bạn chọn quanh vị trí của bạn. Bật thông báo để không bao giờ bỏ lỡ món yêu thích từ tiệm quen.",
         icon = Icons.Default.NearMe,
         themeColor = Color(0xFF0288D1),
         gradientColors = listOf(Color(0xFF01579B), Color(0xFF4FC3F7))
@@ -72,7 +72,7 @@ val ONBOARDING_SLIDES = listOf(
     OnboardingSlide(
         badge = "BẢO VỆ HÀNH TINH",
         title = "Tích Điểm Xanh & Ưu Đãi",
-        description = "Mỗi phần ăn bạn giải cứu tương đương giảm 2.5kg khí thải CO2 vào môi trường. Tích lũy huy hiệu sống xanh và đổi hàng ngàn voucher hấp dẫn.",
+        description = "Mỗi phần ăn bạn giải cứu là một phần thực phẩm không bị lãng phí. Tích lũy huy hiệu sống xanh và đổi hàng ngàn voucher hấp dẫn.",
         icon = Icons.Default.WorkspacePremium,
         themeColor = ForestGreenDark,
         gradientColors = listOf(Color(0xFF1B5E20), Color(0xFF66BB6A))

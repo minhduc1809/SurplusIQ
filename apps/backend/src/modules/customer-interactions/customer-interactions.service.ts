@@ -4,15 +4,19 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  Optional,
 } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, Not } from 'typeorm';
+import { DataSource, Repository, Not, In } from 'typeorm';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { ComplaintAttachmentEntity } from '../../entities/complaints/complaint-attachment.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { OfferEntity } from '../../entities/catalog/offer.entity';
-import { ItemEntity } from '../../entities/catalog/item.entity';
+import { ItemEntity, TrustpassReviewStatus } from '../../entities/catalog/item.entity';
+import { CloudinaryService } from '../uploads/cloudinary.service';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import { ViolationReportEntity } from '../../entities/complaints/violation-report.entity';
 import { SupportTicketEntity, TicketStatus } from '../../entities/complaints/support-ticket.entity';
@@ -30,6 +34,7 @@ import {
   ResolveComplaintDto,
   RejectComplaintDto,
   ReplyReviewDto,
+  ViolationTargetType,
 } from './dto/interaction-extras.dto';
 import {
   PaymentTransactionEntity,
@@ -67,6 +72,8 @@ export class CustomerInteractionsService {
     private readonly paymentTxnRepo: Repository<PaymentTransactionEntity>,
     private readonly dataSource: DataSource,
     private readonly rewardsService: RewardsService,
+    private readonly cloudinary: CloudinaryService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -138,6 +145,14 @@ export class CustomerInteractionsService {
       );
       attachments = await this.attachmentRepo.save(attachmentEntities);
     }
+
+    await this.notifications?.notifyQuietly({
+      storeId: order.storeId,
+      type: NotificationType.COMPLAINT,
+      title: 'Khiếu nại mới',
+      body: `Đơn ${order.code} có khiếu nại mới. Vui lòng phản hồi trước hạn.`,
+      data: { orderId: order.id, complaintId: savedComplaint.id, kind: 'COMPLAINT_CREATED' },
+    });
 
     return {
       id: savedComplaint.id,
@@ -335,61 +350,90 @@ export class CustomerInteractionsService {
     const impact = await this.getCustomerImpact(customerId);
     const { totalOrders, totalFoodSavedKg, totalSavingsVnd } = impact;
 
-    const badges = [
+    // Mỗi huy hiệu khai báo điều kiện một lần; tiến độ và trạng thái mở khóa cùng tính từ điều kiện đó
+    // nên không thể lệch nhau (trước đây mô tả ghi 200.000đ nhưng chỉ kiểm số đơn).
+    const current = { orders: totalOrders, kg: totalFoodSavedKg, savings: totalSavingsVnd };
+    type Req = { key: keyof typeof current; target: number };
+    const ratio = (r: Req) => Math.min(1, current[r.key] / r.target);
+    const defs: {
+      id: string;
+      name: string;
+      description: string;
+      icon: string;
+      any?: Req[];
+      all?: Req[];
+    }[] = [
       {
         id: 'BRONZE_RESCUER',
         name: 'Người Cứu Món Tập Sự',
-        description: 'Giải cứu thành công suất bánh đầu tiên.',
+        description: 'Nhận thành công suất cứu đầu tiên.',
         icon: '🥉',
-        isUnlocked: totalOrders >= 1,
-        progress: Math.min(100, Math.round((totalOrders / 1) * 100)),
+        all: [{ key: 'orders', target: 1 }],
       },
       {
         id: 'GREEN_PIONEER',
         name: 'Chiến Binh Xanh',
-        description: 'Giải cứu từ 5 suất ăn hoặc 2kg thực phẩm.',
+        description: 'Nhận 5 suất hoặc cứu 2kg thực phẩm.',
         icon: '🌱',
-        isUnlocked: totalOrders >= 5 || totalFoodSavedKg >= 2,
-        progress: Math.min(100, Math.round((totalOrders / 5) * 100)),
+        any: [
+          { key: 'orders', target: 5 },
+          { key: 'kg', target: 2 },
+        ],
       },
       {
         id: 'SILVER_CHAMPION',
         name: 'Dũng Sĩ Tiết Kiệm',
-        description: 'Giải cứu từ 10 suất ăn và tiết kiệm hơn 200.000đ.',
+        description: 'Nhận 10 suất và tiết kiệm từ 200.000đ.',
         icon: '🥈',
-        isUnlocked: totalOrders >= 10,
-        progress: Math.min(100, Math.round((totalOrders / 10) * 100)),
+        all: [
+          { key: 'orders', target: 10 },
+          { key: 'savings', target: 200000 },
+        ],
       },
       {
         id: 'PLANET_HERO',
         name: 'Anh Hùng Hành Tinh',
-        description: 'Giải cứu từ 25 suất ăn hoặc hơn 10kg thực phẩm.',
+        description: 'Nhận 25 suất hoặc cứu 10kg thực phẩm.',
         icon: '🌍',
-        isUnlocked: totalOrders >= 25 || totalFoodSavedKg >= 10,
-        progress: Math.min(100, Math.round((totalOrders / 25) * 100)),
+        any: [
+          { key: 'orders', target: 25 },
+          { key: 'kg', target: 10 },
+        ],
       },
       {
         id: 'ZERO_WASTE_MASTER',
         name: 'Bậc Thầy Chống Lãng Phí',
-        description: 'Giải cứu trên 50 suất ăn - giảm phát thải rác thải thực phẩm xuất sắc.',
+        description: 'Nhận 50 suất cứu.',
         icon: '👑',
-        isUnlocked: totalOrders >= 50,
-        progress: Math.min(100, Math.round((totalOrders / 50) * 100)),
+        all: [{ key: 'orders', target: 50 }],
       },
     ];
+    const badges = defs.map(({ any, all, ...b }) => {
+      const progress = Math.round(
+        100 * (any ? Math.max(...any.map(ratio)) : Math.min(...(all ?? []).map(ratio))),
+      );
+      return { ...b, isUnlocked: progress >= 100, progress };
+    });
 
-    const currentBadge = [...badges].reverse().find((b) => b.isUnlocked) || badges[0];
+    const currentBadge = [...badges].reverse().find((b) => b.isUnlocked) || null;
+    const nextBadge = badges.find((b) => !b.isUnlocked) || null;
 
     return {
       impact,
-      currentBadgeTitle: currentBadge.name,
+      currentBadgeTitle: currentBadge?.name ?? null,
+      nextBadge: nextBadge && {
+        id: nextBadge.id,
+        name: nextBadge.name,
+        progress: nextBadge.progress,
+      },
       unlockedCount: badges.filter((b) => b.isUnlocked).length,
       totalBadges: badges.length,
       badges,
       shareCard: {
         title: `Tôi đã cứu được ${totalFoodSavedKg}kg thực phẩm cùng SurplusIQ!`,
         statLine: `${totalOrders} đơn hàng hoàn tất • Tiết kiệm ${totalSavingsVnd.toLocaleString('vi-VN')}đ`,
-        shareUrl: `https://surplusiq.vn/impact/${customerId}`,
+        // Không đưa mã khách vào đường dẫn: thẻ chia sẻ không được chứa dữ liệu cá nhân (R1-081).
+        shareUrl: 'https://surplusiq.vn',
         hashtag: '#SurplusIQ #GiaiCuuThucPham #ZeroWasteVietnam',
       },
     };
@@ -649,6 +693,17 @@ export class CustomerInteractionsService {
       reason: dto.reason,
     });
     const saved = await this.violationRepo.save(report);
+
+    // Báo cáo về một deal: chuyển hồ sơ minh bạch của món sang chờ rà soát, không tự kết luận (CM-B05)
+    if (dto.targetType === ViolationTargetType.DEAL) {
+      const offer = await this.offerRepo.findOne({ where: { id: dto.targetId } });
+      if (offer?.itemId) {
+        await this.itemRepo.update(
+          { id: offer.itemId },
+          { reviewStatus: TrustpassReviewStatus.UNDER_REVIEW },
+        );
+      }
+    }
     return saved;
   }
 
@@ -659,6 +714,15 @@ export class CustomerInteractionsService {
   /**
    * Gửi yêu cầu hỗ trợ cho người thật (R1-070)
    */
+  /** Chỉ nhận địa chỉ ảnh do chính hệ thống lưu; không cho gắn đường dẫn tùy ý. */
+  private ownImageUrls(urls?: string[]): string[] {
+    const list = urls ?? [];
+    if (list.some((u) => !this.cloudinary.isOwnImageUrl(u))) {
+      throw new BadRequestException('Ảnh đính kèm không hợp lệ, hãy tải ảnh lên trước.');
+    }
+    return list;
+  }
+
   async createSupportTicket(customerId: string, dto: CreateSupportTicketDto) {
     const activeCount = await this.ticketRepo.count({
       where: {
@@ -675,6 +739,7 @@ export class CustomerInteractionsService {
     const ticket = this.ticketRepo.create({
       userId: customerId,
       subject: dto.subject,
+      category: dto.category ?? 'OTHER',
       status: TicketStatus.OPEN,
     });
     const savedTicket = await this.ticketRepo.save(ticket);
@@ -683,6 +748,7 @@ export class CustomerInteractionsService {
       ticketId: savedTicket.id,
       senderId: customerId,
       message: dto.message,
+      attachmentUrls: this.ownImageUrls(dto.attachmentUrls),
       isInternal: false,
     });
     await this.messageRepo.save(message);
@@ -690,11 +756,24 @@ export class CustomerInteractionsService {
     return savedTicket;
   }
 
+  /** Danh sách yêu cầu; hasNewReply = tin gần nhất là của bộ phận hỗ trợ, đang chờ người dùng trả lời. */
   async getCustomerSupportTickets(customerId: string) {
-    return this.ticketRepo.find({
+    const tickets = await this.ticketRepo.find({
       where: { userId: customerId },
       order: { createdAt: 'DESC' },
     });
+    if (tickets.length === 0) return [];
+    const messages = await this.messageRepo.find({
+      where: { ticketId: In(tickets.map((t) => t.id)), isInternal: false },
+      order: { createdAt: 'ASC' },
+    });
+    const last = new Map<string, (typeof messages)[number]>();
+    for (const m of messages) last.set(m.ticketId, m);
+    return tickets.map((t) => ({
+      ...t,
+      lastMessageAt: last.get(t.id)?.createdAt ?? t.createdAt,
+      hasNewReply: !!last.get(t.id) && last.get(t.id)!.senderId !== customerId,
+    }));
   }
 
   async getSupportTicketDetail(customerId: string, ticketId: string) {
@@ -731,6 +810,7 @@ export class CustomerInteractionsService {
       ticketId,
       senderId: customerId,
       message: dto.message,
+      attachmentUrls: this.ownImageUrls(dto.attachmentUrls),
       isInternal: false,
     });
     const saved = await this.messageRepo.save(msg);
@@ -806,10 +886,23 @@ export class CustomerInteractionsService {
     const order = await this.orderRepo.findOne({
       where: { id: complaint.orderId },
     });
+    const refund = await this.paymentTxnRepo.findOne({
+      where: { orderId: complaint.orderId, kind: PaymentKind.ORDER_REFUND },
+      order: { createdAt: 'DESC' },
+    });
+    const dest = refund?.refundDestination;
     return {
       complaint,
       attachments,
       order,
+      // Số tài khoản đầy đủ chỉ nền tảng dùng khi chi trả; cửa hàng chỉ thấy phần che.
+      refundDestination: dest
+        ? {
+            bankName: dest.bankName,
+            accountHolder: dest.accountHolder,
+            accountLast4: dest.accountLast4,
+          }
+        : null,
     };
   }
 
@@ -817,7 +910,7 @@ export class CustomerInteractionsService {
    * Cửa hàng chấp nhận khiếu nại và hoàn tiền cho khách (R2-055, BR-054)
    */
   async resolveComplaint(storeId: string, complaintId: string, dto: ResolveComplaintDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const res = await this.dataSource.transaction(async (manager) => {
       const { complaint } = await decideComplaint(
         manager,
         complaintId,
@@ -834,13 +927,32 @@ export class CustomerInteractionsService {
       }
       return { success: true, message: 'Giải quyết khiếu nại thành công.', complaint };
     });
+    await this.notifyComplaintDecision(res.complaint);
+    return res;
+  }
+
+  /** Báo kết quả khiếu nại cho khách (chấp nhận, từ chối). */
+  private async notifyComplaintDecision(complaint: ComplaintEntity) {
+    if (!this.notifications) return;
+    const order = await this.orderRepo.findOne({ where: { id: complaint.orderId } });
+    if (!order) return;
+    const accepted = complaint.status === ComplaintStatus.ACCEPTED;
+    await this.notifications.notifyQuietly({
+      userId: order.customerId,
+      type: NotificationType.COMPLAINT,
+      title: accepted ? 'Khiếu nại được chấp nhận' : 'Khiếu nại bị từ chối',
+      body: accepted
+        ? `Khiếu nại đơn ${order.code} được chấp nhận. Số tiền hoàn: ${complaint.refundAmount.toLocaleString('vi-VN')}đ.`
+        : `Khiếu nại đơn ${order.code} đã bị cửa hàng từ chối. Xem lý do trong chi tiết khiếu nại.`,
+      data: { orderId: order.id, complaintId: complaint.id, kind: 'COMPLAINT_DECIDED' },
+    });
   }
 
   /**
    * Cửa hàng từ chối khiếu nại với lý do bắt buộc (R2-056, BR-056)
    */
   async rejectComplaint(storeId: string, complaintId: string, dto: RejectComplaintDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const res = await this.dataSource.transaction(async (manager) => {
       const { complaint } = await decideComplaint(
         manager,
         complaintId,
@@ -849,6 +961,8 @@ export class CustomerInteractionsService {
       );
       return { success: true, message: 'Đã từ chối khiếu nại.', complaint };
     });
+    await this.notifyComplaintDecision(res.complaint);
+    return res;
   }
 
   /**

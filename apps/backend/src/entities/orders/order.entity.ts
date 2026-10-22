@@ -81,6 +81,17 @@ export class OrderEntity {
   @Column({ type: 'varchar', length: 200, nullable: true })
   note: string | null;
 
+  /** Phần giảm giá do nền tảng bù (voucher đổi điểm); cửa hàng vẫn được tính đủ giá trị đơn gồm cả phần này. */
+  /** KX05: suất gốc trước khi đổi, mỗi đơn chỉ đổi một lần. */
+  @Column({ type: 'uuid', nullable: true, name: 'swapped_from_offer_id' })
+  swappedFromOfferId: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true, name: 'swapped_at' })
+  swappedAt: Date | null;
+
+  @Column({ type: 'int', default: 0, name: 'platform_subsidy' })
+  platformSubsidy: number;
+
   @Column({ type: 'varchar', length: 500, nullable: true, name: 'payment_proof_url' })
   paymentProofUrl: string | null;
 

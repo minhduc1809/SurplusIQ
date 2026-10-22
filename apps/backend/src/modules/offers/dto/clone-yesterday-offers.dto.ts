@@ -9,7 +9,7 @@ export class CloneYesterdayOffersDto {
   })
   @IsOptional()
   @IsArray({ message: 'sourceOfferIds phải là danh sách mảng ID.' })
-  @IsUUID('4', { each: true, message: 'Mỗi offerId phải là UUID v4 hợp lệ.' })
+  @IsUUID('all', { each: true, message: 'Mỗi offerId phải là UUID v4 hợp lệ.' })
   sourceOfferIds?: string[];
 
   @ApiPropertyOptional({

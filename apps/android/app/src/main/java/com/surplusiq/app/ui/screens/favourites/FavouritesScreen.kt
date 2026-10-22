@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.favourites
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -115,7 +116,7 @@ fun FavouritesScreen(
 
 @Composable
 private fun FavoriteStoreRow(store: StoreDetail, onClick: () -> Unit, onUnfavorite: () -> Unit) {
-    Card(
+    SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),

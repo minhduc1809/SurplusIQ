@@ -1,5 +1,6 @@
 package com.surplusiq.app.domain.repository
 
+import com.surplusiq.app.domain.model.DefaultMapCenter
 import com.surplusiq.app.domain.model.BasketSuggestion
 import com.surplusiq.app.domain.model.CompareDeal
 import com.surplusiq.app.domain.model.Deal
@@ -15,8 +16,8 @@ import com.surplusiq.app.domain.model.UserPreferences
 
 interface DiscoveryRepository {
     suspend fun getNearbyDeals(
-        latitude: Double? = 10.7769,
-        longitude: Double? = 106.7009,
+        latitude: Double? = DefaultMapCenter.LATITUDE,
+        longitude: Double? = DefaultMapCenter.LONGITUDE,
         radiusKm: Double = 2.0,
         searchQuery: String? = null,
         preferences: UserPreferences? = null,
@@ -33,8 +34,15 @@ interface DiscoveryRepository {
         latitude: Double? = null,
         longitude: Double? = null,
         radiusKm: Double? = null,
-        budgetMax: Double? = null
+        budgetMax: Double? = null,
+        pickupFrom: String? = null,
+        pickupTo: String? = null,
+        excludeAllergens: List<String>? = null,
+        prioritizeInTime: Boolean? = null
     ): Result<List<RadarDeal>>
+
+    /** K21: gợi ý dành cho bạn theo thói quen thật, đã loại món không hợp hồ sơ ăn uống. */
+    suspend fun getForYou(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<com.surplusiq.app.domain.model.ForYouResult>
 
     /** TrustPass (CM-C03): hồ sơ minh bạch món của một deal. */
     suspend fun getDealTrustpass(dealId: String): Result<TrustpassInfo>
@@ -50,7 +58,7 @@ interface DiscoveryRepository {
     ): Result<List<BasketSuggestion>>
 
     /** K10 (R1-021): điểm ghim cửa hàng có deal đang mở quanh vị trí. */
-    suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<List<MapPin>>
+    suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?, minDiscountPercent: Int? = null): Result<List<MapPin>>
 
     /** K14 (R1-027): chi tiết cửa hàng + deal đang mở. */
     suspend fun getStoreDetail(storeId: String): Result<StoreDetail>

@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.profile
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -76,7 +77,7 @@ fun ImpactScreen(
             }
             else -> {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Card(
+                    SqCard(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -116,11 +117,30 @@ fun ImpactScreen(
                     if (badges != null) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            "Huy hiệu (${badges.unlockedCount}/${badges.totalBadges}) • ${badges.currentBadgeTitle}",
+                            "Huy hiệu (${badges.unlockedCount}/${badges.totalBadges}) • ${badges.currentBadgeTitle ?: "Chưa mở huy hiệu nào"}",
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = TextPrimary
                         )
+                        badges.nextBadge?.let {
+                            Text("Tiếp theo: ${it.name} (${it.progress}%)", fontSize = 12.sp, color = TextSecondary)
+                        }
+                        if (impact.totalOrders > 0) {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    // Chỉ chia sẻ số tổng hợp, không kèm tên, đơn hàng hay vị trí (R1-081).
+                                    val card = badges.shareCard
+                                    com.surplusiq.app.ui.util.shareText(
+                                        context,
+                                        listOf(card.title, card.statLine, card.hashtag, card.shareUrl).joinToString("\n"),
+                                        "Chia sẻ thành tích"
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Chia sẻ thành tích", color = ForestGreenPrimary) }
+                        }
                         Spacer(modifier = Modifier.height(10.dp))
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
@@ -152,7 +172,7 @@ private fun ImpactStatItem(label: String, value: String, icon: androidx.compose.
 
 @Composable
 private fun BadgeCard(badge: ImpactBadgeDto) {
-    Card(
+    SqCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (badge.isUnlocked)

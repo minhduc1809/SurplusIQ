@@ -72,6 +72,8 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
               return this.jobsService.processRescuePoolDeadlines();
             case JOBS_CONSTANTS.JOB_NAMES.RESCUE_BRIDGE_DEADLINES:
               return this.jobsService.processRescueBridgeDeadlines();
+            case JOBS_CONSTANTS.JOB_NAMES.CAMPAIGN_DISPATCH:
+              return this.jobsService.dispatchDueCampaigns();
             default:
               return this.jobsService.processAllBackgroundJobs();
           }
@@ -114,6 +116,11 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
         {},
         { repeat: { every: 60 * 1000 } },
       );
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.CAMPAIGN_DISPATCH,
+        {},
+        { repeat: { every: 60 * 1000 } },
+      );
 
       // 5 phút: Tự chấp nhận khiếu nại quá hạn
       await this.queue.add(
@@ -140,6 +147,22 @@ export class BullMqScheduler implements OnModuleInit, OnModuleDestroy {
         {},
         { repeat: { every: 15 * 60 * 1000 } },
       );
+
+      // Tác vụ theo lịch ngày/tuần (giờ Việt Nam): trước đây chỉ chạy khi không có Redis hoặc gọi tay
+      const dailyAtVn = (pattern: string) => ({ repeat: { pattern, tz: 'Asia/Ho_Chi_Minh' } });
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.STATEMENTS_CLOSE_WEEK,
+        {},
+        dailyAtVn('5 0 * * 1'),
+      );
+      await this.queue.add(
+        JOBS_CONSTANTS.JOB_NAMES.SUBSCRIPTION_LIFECYCLE,
+        {},
+        dailyAtVn('0 0 * * *'),
+      );
+      await this.queue.add(JOBS_CONSTANTS.JOB_NAMES.FORECAST_DAILY, {}, dailyAtVn('0 22 * * *'));
+      await this.queue.add(JOBS_CONSTANTS.JOB_NAMES.RETENTION_CLEANUP, {}, dailyAtVn('30 2 * * *'));
+      await this.queue.add(JOBS_CONSTANTS.JOB_NAMES.ACCOUNT_ANONYMIZE, {}, dailyAtVn('0 3 * * *'));
 
       this.logger.log(`[BULLMQ] Đã kết nối Redis (${redisHost}:${redisPort}) và khởi chạy worker.`);
     } catch (err: unknown) {

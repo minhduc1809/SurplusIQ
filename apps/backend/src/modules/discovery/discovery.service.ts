@@ -16,6 +16,9 @@ import { SavedDealEntity } from '../../entities/auth/saved-deal.entity';
 import { DealAlertEntity } from '../../entities/auth/deal-alert.entity';
 import { SavedFilterEntity } from '../../entities/auth/saved-filter.entity';
 import { ViewHistoryEntity } from '../../entities/auth/view-history.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { DietaryProfileEntity } from '../../entities/auth/dietary-profile.entity';
+import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { ReviewEntity, ReviewStatus } from '../../entities/complaints/review.entity';
 import { QueryDealsDto, DealSortBy } from './dto/query-deals.dto';
@@ -28,6 +31,7 @@ import { SuggestBasketDto } from './dto/suggest-basket.dto';
 import { BasketSubstitutesQueryDto, BasketCheckoutDto } from './dto/basket-checkout.dto';
 import { OrdersService } from '../orders/orders.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { FOOD_CATEGORIES, normalizeFoodCategory } from '../catalog/food-category';
 
 export interface DealResponseItem {
   id: string;
@@ -117,7 +121,7 @@ export class DiscoveryService {
 
     // 2. Bộ lọc danh mục món (R1-023)
     if (query.category) {
-      qb.andWhere('i.category ILIKE :category', { category: `%${query.category}%` });
+      qb.andWhere('i.category = :category', { category: normalizeFoodCategory(query.category) });
     }
 
     // 3. Bộ lọc giá tối đa (R1-023)
@@ -266,7 +270,14 @@ export class DiscoveryService {
     }
 
     if (query.category) {
-      qb.andWhere('i.category ILIKE :category', { category: `%${query.category}%` });
+      qb.andWhere('i.category = :category', { category: normalizeFoodCategory(query.category) });
+    }
+
+    if (query.minDiscountPercent !== undefined && query.minDiscountPercent !== null) {
+      qb.andWhere(
+        '((1.0 - CAST(o.current_price AS FLOAT) / o.original_price) * 100) >= :minDiscountPercent',
+        { minDiscountPercent: query.minDiscountPercent },
+      );
     }
 
     // distance_meters đưa vào cùng select() - addSelect() sau select() sẽ bị
@@ -285,11 +296,30 @@ export class DiscoveryService {
         'ST_X(s.location::geometry) AS longitude',
         'COUNT(o.id) AS active_deals_count',
         'MIN(o.current_price) AS min_price',
+        'MAX(o.current_price) AS max_price',
+        'MAX(i.image_url) AS cover_image_url',
         'MAX((1.0 - CAST(o.current_price AS FLOAT) / o.original_price) * 100) AS max_discount_percent',
+        'ARRAY_REMOVE(ARRAY_AGG(DISTINCT i.category), NULL) AS categories',
+        'MIN(o.pickup_end) AS soonest_pickup_end',
       ]);
     qb.addSelect(distanceSelectExpr, 'distance_meters');
 
     const rawPins = await qb.getRawMany();
+
+    // Điểm đánh giá lấy từ các đánh giá hiển thị thật của từng quán (cùng nguồn với trang chi tiết quán)
+    const storeIds: string[] = rawPins.map((p) => p.store_id);
+    const ratingRows = storeIds.length
+      ? await this.reviewRepo
+          .createQueryBuilder('r')
+          .where('r.store_id IN (:...storeIds)', { storeIds })
+          .andWhere('r.status = :visible', { visible: ReviewStatus.VISIBLE })
+          .select('r.store_id', 'store_id')
+          .addSelect('ROUND(AVG(r.rating)::numeric, 1)', 'avg_rating')
+          .addSelect('COUNT(r.id)', 'review_count')
+          .groupBy('r.store_id')
+          .getRawMany<{ store_id: string; avg_rating: string; review_count: string }>()
+      : [];
+    const ratingByStore = new Map(ratingRows.map((r) => [r.store_id, r]));
 
     return rawPins.map((p) => ({
       storeId: p.store_id,
@@ -300,8 +330,18 @@ export class DiscoveryService {
       longitude: Number(p.longitude),
       activeDealsCount: Number(p.active_deals_count),
       minPrice: Number(p.min_price),
+      maxPrice: Number(p.max_price),
+      imageUrl: p.cover_image_url ?? null,
+      ratingAvg: ratingByStore.has(p.store_id)
+        ? Number(ratingByStore.get(p.store_id)!.avg_rating)
+        : null,
+      ratingCount: ratingByStore.has(p.store_id)
+        ? Number(ratingByStore.get(p.store_id)!.review_count)
+        : 0,
       maxDiscountPercent: Math.round(Number(p.max_discount_percent || 0)),
       distanceMeters: p.distance_meters !== null ? Number(p.distance_meters) : null,
+      categories: (p.categories as string[] | null) ?? [],
+      soonestPickupEnd: p.soonest_pickup_end,
     }));
   }
 
@@ -379,7 +419,7 @@ export class DiscoveryService {
         logoUrl: store.logoUrl,
         openHours: store.openHours,
         status: store.status,
-        averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 5.0,
+        averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 0,
         reviewsCount: reviewStats?.review_count ? Number(reviewStats.review_count) : 0,
       },
     };
@@ -489,7 +529,7 @@ export class DiscoveryService {
         logoUrl: store.logoUrl,
         openHours: store.openHours,
         status: store.status,
-        averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 5.0,
+        averageRating: reviewStats?.avg_rating ? Number(reviewStats.avg_rating) : 0,
         reviewsCount: reviewStats?.review_count ? Number(reviewStats.review_count) : 0,
       },
       activeDeals: activeOffers.map((o) => {
@@ -538,7 +578,7 @@ export class DiscoveryService {
     const averageRating =
       totalReviews > 0
         ? Number((allStoreReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1))
-        : 5.0;
+        : 0;
 
     const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     allStoreReviews.forEach((r) => {
@@ -960,6 +1000,11 @@ export class DiscoveryService {
       qb.andWhere('o.current_price <= :budgetMax', { budgetMax: query.budgetMax });
     }
 
+    // Khung giờ nhận khách mong muốn (KC15): suất nào có khung nhận giao với khoảng này mới được xét.
+    if (query.pickupFrom)
+      qb.andWhere('o.pickup_end >= :pickupFrom', { pickupFrom: query.pickupFrom });
+    if (query.pickupTo) qb.andWhere('o.pickup_start <= :pickupTo', { pickupTo: query.pickupTo });
+
     // distance_meters đưa vào cùng select() - addSelect() sau select() sẽ bị
     // TypeORM reset mất cột đã thêm trước đó.
     qb.select([
@@ -974,6 +1019,7 @@ export class DiscoveryService {
       'i.name AS item_name',
       'i.category AS item_category',
       'i.image_url AS item_image_url',
+      'i.allergens AS item_allergens',
       's.name AS store_name',
       's.address AS store_address',
     ]);
@@ -982,7 +1028,29 @@ export class DiscoveryService {
     const rawResults = await qb.limit(500).getRawMany();
     const now = Date.now();
 
-    const ranked = rawResults.map((r) => {
+    // Dị ứng là điều kiện an toàn nên loại hẳn, không chỉ hạ điểm.
+    const avoid = new Set(
+      (query.excludeAllergens ?? '')
+        .split(',')
+        .map((a) => a.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    // Ưu tiên nhận kịp: ẩn suất còn dưới 15 phút và đẩy trọng số thời gian lên (không khẳng định đến kịp khi thiếu nguồn di chuyển).
+    const inTime = query.prioritizeInTime === true;
+    let hiddenByAllergens = 0;
+    const safeResults = rawResults.filter((r) => {
+      if (
+        avoid.size > 0 &&
+        (r.item_allergens ?? []).some((a: string) => avoid.has(String(a).toLowerCase()))
+      ) {
+        hiddenByAllergens += 1;
+        return false;
+      }
+      if (inTime && (new Date(r.pickup_end).getTime() - now) / 60000 < 15) return false;
+      return true;
+    });
+
+    const ranked = safeResults.map((r) => {
       const distanceMeters = r.distance_meters !== null ? Number(r.distance_meters) : null;
       const minutesLeft = Math.max(0, (new Date(r.pickup_end).getTime() - now) / 60000);
       const orig = Number(r.original_price || 0);
@@ -996,14 +1064,14 @@ export class DiscoveryService {
 
       if (distanceMeters !== null) {
         const distanceScore = Math.max(0, 1 - distanceMeters / ((query.radiusKm || 5) * 1000));
-        score += distanceScore * 40;
+        score += distanceScore * (inTime ? 30 : 40);
         reasons.push(`Cách bạn khoảng ${(distanceMeters / 1000).toFixed(1)}km`);
       } else {
         reasons.push('Chưa có vị trí để tính khoảng cách - nhập địa điểm để cải thiện xếp hạng');
       }
 
       const timeScore = Math.min(1, minutesLeft / 120);
-      score += timeScore * 35;
+      score += timeScore * (inTime ? 45 : 35);
       reasons.push(
         minutesLeft > 30
           ? `Còn ${Math.round(minutesLeft)} phút để nhận`
@@ -1049,7 +1117,126 @@ export class DiscoveryService {
       data: ranked.slice(0, limit),
       meta: {
         total: ranked.length,
+        hiddenByAllergens,
         locationSource: hasCoords ? 'GPS_OR_SELECTED' : 'NONE',
+      },
+    };
+  }
+
+  /**
+   * Gợi ý dành cho bạn (K21, R1-084, R1-085, R1-093): xếp hạng suất đang mở theo thói quen THẬT của khách
+   * (cửa hàng yêu thích, loại món đã nhận, khung giờ hay nhận, món vừa xem) cộng điểm Radar có sẵn.
+   * Suất chứa chất gây dị ứng hoặc món khách loại trừ bị loại hẳn, không chỉ hạ điểm (an toàn thực phẩm).
+   * Mỗi suất kèm lý do có căn cứ; khách mới chưa có lịch sử vẫn nhận xếp hạng Radar, kèm ghi chú.
+   */
+  async getForYou(userId: string, query: QueryRadarDto) {
+    const limit = query.limit && query.limit > 0 ? query.limit : 20;
+    const radar = await this.getRadarRanking({ ...query, limit: 500 });
+    const m = this.dataSource.manager;
+    const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [favorites, orders, views, dietary] = await Promise.all([
+      m.find(FavoriteStoreEntity, { where: { userId } }),
+      m
+        .createQueryBuilder(OrderEntity, 'o')
+        .innerJoin(OfferEntity, 'of', 'of.id = o.offer_id')
+        .leftJoin(ItemEntity, 'i', 'i.id = of.item_id')
+        .where('o.customer_id = :userId', { userId })
+        .andWhere('o.status IN (:...ok)', { ok: [OrderStatus.PICKED_UP, OrderStatus.PAID] })
+        .andWhere('o.created_at >= :since90', { since90 })
+        .select([
+          'i.category AS category',
+          'of.store_id AS store_id',
+          'of.pickup_start AS pickup_start',
+        ])
+        .getRawMany<{ category: string | null; store_id: string; pickup_start: Date }>(),
+      m
+        .createQueryBuilder(ViewHistoryEntity, 'v')
+        .innerJoin(OfferEntity, 'of', 'of.id = v.offer_id')
+        .leftJoin(ItemEntity, 'i', 'i.id = of.item_id')
+        .where('v.user_id = :userId', { userId })
+        .andWhere('v.viewed_at >= :since30', { since30 })
+        .select(['i.category AS category', 'of.store_id AS store_id'])
+        .getRawMany<{ category: string | null; store_id: string }>(),
+      m.findOne(DietaryProfileEntity, { where: { userId } }),
+    ]);
+
+    const favoriteStores = new Set(favorites.map((f) => f.storeId));
+    const boughtByCategory = new Map<string, number>();
+    const boughtHours: number[] = [];
+    for (const o of orders) {
+      if (o.category) boughtByCategory.set(o.category, (boughtByCategory.get(o.category) ?? 0) + 1);
+      boughtHours.push(new Date(o.pickup_start).getHours());
+    }
+    const viewedStores = new Set(views.map((v) => v.store_id));
+    const viewedCategories = new Set(views.map((v) => v.category).filter((c): c is string => !!c));
+
+    // Dị ứng: lấy từ hồ sơ ăn uống; so khớp không phân biệt hoa thường.
+    const norm = (v: string) => v.trim().toLowerCase();
+    const myAllergens = new Set((dietary?.allergens ?? []).map(norm));
+    const myExcluded = (dietary?.excludedItems ?? []).map(norm).filter(Boolean);
+    const items = radar.data.length
+      ? await m.find(ItemEntity, {
+          where: { id: In(radar.data.map((d) => d.itemId).filter(Boolean)) },
+        })
+      : [];
+    const itemById = new Map(items.map((i) => [i.id, i]));
+
+    let excludedByDietary = 0;
+    const personalised = radar.data
+      .filter((d) => {
+        const item = itemById.get(d.itemId);
+        const hasAllergen = (item?.allergens ?? []).some((a) => myAllergens.has(norm(a)));
+        const isExcluded = myExcluded.some((x) => norm(d.title).includes(x));
+        if (hasAllergen || isExcluded) excludedByDietary += 1;
+        return !hasAllergen && !isExcluded;
+      })
+      .map((d) => {
+        const reasons: string[] = [];
+        let bonus = 0;
+        if (favoriteStores.has(d.storeId)) {
+          bonus += 25;
+          reasons.push('Cửa hàng bạn yêu thích');
+        }
+        const bought = boughtByCategory.get(d.category) ?? 0;
+        if (bought > 0) {
+          bonus += Math.min(20, bought * 7);
+          reasons.push(
+            `Vì bạn đã nhận ${bought} suất ${(FOOD_CATEGORIES.find((c) => c.code === d.category)?.label ?? 'món').toLowerCase()} gần đây`,
+          );
+        }
+        const pickupHour = new Date(d.pickupEnd).getHours();
+        if (boughtHours.some((h) => Math.abs(h - pickupHour) <= 2)) {
+          bonus += 10;
+          reasons.push('Khung nhận hợp với giờ bạn hay lấy hàng');
+        }
+        if (viewedStores.has(d.storeId) || viewedCategories.has(d.category)) {
+          bonus += 8;
+          reasons.push('Giống món bạn vừa xem');
+        }
+        if (myAllergens.size > 0 || myExcluded.length > 0)
+          reasons.push('Đã loại món không hợp hồ sơ ăn uống của bạn');
+        return {
+          ...d,
+          forYouScore: Math.round((d.rankingScore + bonus) * 100) / 100,
+          // Lý do cá nhân hóa đứng trước, lý do Radar (khoảng cách, thời gian nhận) theo sau.
+          forYouReasons: [...reasons, ...d.rankingReasons].slice(0, 4),
+        };
+      });
+
+    personalised.sort((a, b) => b.forYouScore - a.forYouScore);
+    const hasHistory = favorites.length + orders.length + views.length > 0;
+    return {
+      data: personalised.slice(0, limit),
+      meta: {
+        total: personalised.length,
+        excludedByDietary,
+        personalised: hasHistory,
+        note: hasHistory
+          ? null
+          : 'Chưa có lịch sử mua hoặc xem nên danh sách xếp theo khoảng cách, thời gian nhận và mức giảm.',
+        locationSource: radar.meta.locationSource,
       },
     };
   }
@@ -1350,17 +1537,6 @@ export class DiscoveryService {
       await queryRunner.release();
     }
 
-    // 3. Thông báo Realtime cho từng món qua WebSocket
-    for (const checked of checkedItems) {
-      const remaining = Math.max(0, checked.offer.remainingQuantity - checked.quantity);
-      this.realtimeService.notifyStockUpdated({
-        dealId: checked.offer.id,
-        storeId: dto.storeId,
-        remainingQuantity: remaining,
-        status: remaining < 3 ? (remaining === 0 ? 'SOLD_OUT' : 'LOW_STOCK') : 'AVAILABLE',
-      });
-    }
-
     const totalAmount = createdOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     const holdExpiresAt = createdOrders[0]?.holdExpiresAt || new Date(Date.now() + 10 * 60 * 1000);
 
@@ -1461,6 +1637,11 @@ export class DiscoveryService {
   async getPriceHistory(offerId: string) {
     const offer = await this.offerRepo.findOne({ where: { id: offerId } });
     if (!offer) {
+      throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
+    }
+    // Công khai chỉ cho suất đang hiển thị: suất đã gỡ/hết hạn hoặc cửa hàng bị khóa trả 404 (Q-08).
+    const store = await this.storeRepo.findOne({ where: { id: offer.storeId } });
+    if (offer.status !== OfferStatus.OPEN || !store || store.status !== StoreStatus.ACTIVE) {
       throw new NotFoundException(`Không tìm thấy deal với ID [${offerId}].`);
     }
 

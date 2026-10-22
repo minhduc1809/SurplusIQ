@@ -14,6 +14,11 @@ import { OfferEntity, OfferKind, OfferStatus } from '../../entities/catalog/offe
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { QuotaService } from '../subscriptions/quota.service';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { CampaignDeliveryEntity } from '../../entities/marketing/campaign-delivery.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { ConsentEntity } from '../../entities/auth/consent.entity';
+import { NotificationEntity } from '../../entities/notifications/notification.entity';
 
 describe('MarketingService Unit Tests (R2-082..R2-094, R1-026, R2-091, BR-085, BR-086)', () => {
   let service: MarketingService;
@@ -25,6 +30,11 @@ describe('MarketingService Unit Tests (R2-082..R2-094, R1-026, R2-091, BR-085, B
   let itemRepo: any;
   let orderRepo: any;
   let quotaService: any;
+  let deliveryRepo: any;
+  let settingsRepo: any;
+  let favoriteRepo: any;
+  let consentRepo: any;
+  let notifRepo: any;
 
   beforeEach(async () => {
     promoRepo = {
@@ -59,6 +69,21 @@ describe('MarketingService Unit Tests (R2-082..R2-094, R1-026, R2-091, BR-085, B
     orderRepo = {
       find: jest.fn().mockResolvedValue([]),
     };
+    settingsRepo = {
+      findOne: jest.fn().mockResolvedValue({ storeId: 'store-1', segmentationConfig: null }),
+      save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
+    };
+    deliveryRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
+    };
+    favoriteRepo = { find: jest.fn().mockResolvedValue([]) };
+    consentRepo = { find: jest.fn().mockResolvedValue([]) };
+    notifRepo = {
+      create: jest.fn().mockImplementation((d) => d),
+      save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
+    };
     quotaService = {
       checkQuota: jest.fn().mockResolvedValue({
         isExceeded: false,
@@ -77,6 +102,11 @@ describe('MarketingService Unit Tests (R2-082..R2-094, R1-026, R2-091, BR-085, B
         { provide: getRepositoryToken(OfferEntity), useValue: offerRepo },
         { provide: getRepositoryToken(ItemEntity), useValue: itemRepo },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
+        { provide: getRepositoryToken(StoreSettingsEntity), useValue: settingsRepo },
+        { provide: getRepositoryToken(CampaignDeliveryEntity), useValue: deliveryRepo },
+        { provide: getRepositoryToken(FavoriteStoreEntity), useValue: favoriteRepo },
+        { provide: getRepositoryToken(ConsentEntity), useValue: consentRepo },
+        { provide: getRepositoryToken(NotificationEntity), useValue: notifRepo },
         { provide: QuotaService, useValue: quotaService },
       ],
     }).compile();
@@ -278,16 +308,112 @@ describe('MarketingService Unit Tests (R2-082..R2-094, R1-026, R2-091, BR-085, B
         status: CampaignStatus.SENT,
       });
 
+      deliveryRepo.find.mockResolvedValueOnce([
+        { customerId: 'u1', sentAt: scheduledDate, openedAt: scheduledDate },
+        { customerId: 'u2', sentAt: scheduledDate, openedAt: null },
+      ]);
       orderRepo.find.mockResolvedValueOnce([
-        { id: 'ord-1', unitPrice: 30000, quantity: 2, status: OrderStatus.PICKED_UP },
-        { id: 'ord-2', unitPrice: 20000, quantity: 1, status: OrderStatus.PAID },
+        { id: 'ord-1', totalAmount: 60000, status: OrderStatus.PICKED_UP },
+        { id: 'ord-2', totalAmount: 20000, status: OrderStatus.PAID },
       ]);
 
       const analytics = await service.getCampaignAnalytics('store-1', 'cam-1');
       expect(analytics.campaignId).toBe('cam-1');
+      expect(analytics.metrics.recipientsCount).toBe(2);
+      expect(analytics.metrics.openedCount).toBe(1);
+      expect(analytics.metrics.openRatePercent).toBe(50);
       expect(analytics.metrics.ordersWithin24h).toBe(2);
       expect(analytics.metrics.revenueGeneratedVnd).toBe(80000);
-      expect(analytics.metrics.recipientsCount).toBe(120);
+    });
+
+    it('chưa gửi cho ai thì mọi số đo bằng 0, không bịa số', async () => {
+      campaignRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'cam-2',
+        storeId: 'store-1',
+        title: 'x',
+        target: 'ALL',
+        scheduledAt: new Date(),
+        status: CampaignStatus.SENT,
+      });
+      const analytics = await service.getCampaignAnalytics('store-1', 'cam-2');
+      expect(analytics.metrics).toEqual({
+        recipientsCount: 0,
+        openedCount: 0,
+        openRatePercent: 0,
+        ordersWithin24h: 0,
+        revenueGeneratedVnd: 0,
+      });
+    });
+  });
+
+  describe('ngưỡng phân nhóm và sửa ưu đãi (R2-087, R2-090)', () => {
+    it('trả ngưỡng mặc định khi chủ chưa chỉnh, và lưu ngưỡng mới', async () => {
+      expect((await service.getSegmentConfig('store-1')).loyalMinOrders).toBe(3);
+
+      const saved = await service.updateSegmentConfig('store-1', {
+        loyalMinOrders: 5,
+        loyalMaxDaysSinceLastOrder: 10,
+        atRiskMinOrders: 2,
+        atRiskDaysThreshold: 45,
+        highNoShowRatioPercent: 30,
+      });
+      expect(saved.loyalMinOrders).toBe(5);
+      expect(settingsRepo.save).toHaveBeenCalled();
+    });
+
+    it('không sửa ưu đãi đã có lượt dùng', async () => {
+      promoRepo.findOne = jest
+        .fn()
+        .mockResolvedValue({ id: 'p1', storeId: 'store-1', usedCount: 2 });
+      await expect(service.updatePromotion('store-1', 'p1', { name: 'Mới' })).rejects.toThrow(
+        'đã có lượt dùng',
+      );
+    });
+  });
+
+  describe('dispatchDueCampaigns (R2-092)', () => {
+    const due = (target: string) => ({
+      id: 'cam-1',
+      storeId: 'store-1',
+      title: 'Bánh mới',
+      content: 'Giảm sâu',
+      target,
+      status: CampaignStatus.SCHEDULED,
+    });
+
+    it('chỉ gửi cho khách yêu thích đã đồng ý nhận ưu đãi', async () => {
+      campaignRepo.find = jest.fn().mockResolvedValue([due('ALL')]);
+      campaignRepo.update = jest.fn().mockResolvedValue({ affected: 1 });
+      favoriteRepo.find.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
+      consentRepo.find.mockResolvedValue([{ userId: 'u1' }]);
+
+      expect(await service.dispatchDueCampaigns(new Date())).toBe(1);
+      expect(notifRepo.save).toHaveBeenCalledTimes(1);
+      expect(notifRepo.save.mock.calls[0][0]).toHaveLength(1);
+      expect(deliveryRepo.save.mock.calls[0][0]).toEqual([
+        expect.objectContaining({ campaignId: 'cam-1', customerId: 'u1' }),
+      ]);
+    });
+
+    it('chiến dịch theo nhóm chỉ gửi cho khách thuộc nhóm đó', async () => {
+      campaignRepo.find = jest.fn().mockResolvedValue([due('LOYAL')]);
+      campaignRepo.update = jest.fn().mockResolvedValue({ affected: 1 });
+      favoriteRepo.find.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
+      consentRepo.find.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
+      segmentRepo.find = jest.fn().mockResolvedValue([{ customerId: 'u2' }]);
+
+      await service.dispatchDueCampaigns(new Date());
+      expect(deliveryRepo.save.mock.calls[0][0]).toEqual([
+        expect.objectContaining({ customerId: 'u2' }),
+      ]);
+    });
+
+    it('không gửi trùng khi chiến dịch đã bị tiến trình khác nhận', async () => {
+      campaignRepo.find = jest.fn().mockResolvedValue([due('ALL')]);
+      campaignRepo.update = jest.fn().mockResolvedValue({ affected: 0 });
+
+      expect(await service.dispatchDueCampaigns(new Date())).toBe(0);
+      expect(notifRepo.save).not.toHaveBeenCalled();
     });
   });
 });

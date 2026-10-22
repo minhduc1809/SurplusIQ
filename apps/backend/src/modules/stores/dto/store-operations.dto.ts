@@ -1,7 +1,9 @@
 import {
+  IsIn,
   IsString,
   IsOptional,
   MaxLength,
+  MinLength,
   IsEnum,
   IsEmail,
   IsNotEmpty,
@@ -58,6 +60,13 @@ export class UpdateStoreProfileDto {
 }
 
 export class InviteStaffDto {
+  @ApiProperty({ description: 'Họ tên nhân viên (2–60 ký tự)', example: 'Nguyễn Văn A' })
+  @IsNotEmpty({ message: 'Họ tên không được để trống.' })
+  @IsString()
+  @MinLength(2, { message: 'Họ tên từ 2 đến 60 ký tự.' })
+  @MaxLength(60, { message: 'Họ tên từ 2 đến 60 ký tự.' })
+  fullName: string;
+
   @ApiProperty({
     description: 'Email nhân viên được mời tham gia quản lý quán',
     example: 'staff.counter@surplusiq.vn',
@@ -72,7 +81,7 @@ export class InviteStaffDto {
     example: StorePermission.COUNTER,
   })
   @IsNotEmpty({ message: 'Quyền hạn không được để trống.' })
-  @IsEnum(StorePermission, {
+  @IsIn([StorePermission.MANAGER, StorePermission.COUNTER], {
     message: 'Quyền hạn chỉ có thể là MANAGER hoặc COUNTER.',
   })
   permission: StorePermission;
@@ -85,7 +94,7 @@ export class UpdateStaffDto {
     example: StorePermission.MANAGER,
   })
   @IsNotEmpty({ message: 'Quyền hạn không được để trống.' })
-  @IsEnum(StorePermission, {
+  @IsIn([StorePermission.MANAGER, StorePermission.COUNTER], {
     message: 'Quyền hạn chỉ có thể là MANAGER hoặc COUNTER.',
   })
   permission: StorePermission;
@@ -96,8 +105,16 @@ export class UpdateStaffDto {
     example: StoreMemberStatus.ACTIVE,
   })
   @IsOptional()
-  @IsEnum(StoreMemberStatus)
+  @IsIn([StoreMemberStatus.ACTIVE, StoreMemberStatus.LOCKED], {
+    message: 'Trạng thái chỉ có thể là ACTIVE hoặc LOCKED.',
+  })
   status?: StoreMemberStatus;
+
+  @ApiPropertyOptional({ description: 'Lý do tạm khóa (bắt buộc khi khóa), tối đa 200 ký tự' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  reason?: string;
 }
 
 export class AcceptStaffInviteDto {

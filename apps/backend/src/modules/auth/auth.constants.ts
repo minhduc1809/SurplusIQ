@@ -1,5 +1,4 @@
 export const AUTH_CONSTANTS = {
-  JWT_SECRET: process.env.JWT_SECRET || 'surplusiq_super_secret_jwt_key_2026',
   JWT_ACCESS_EXPIRES_IN: '15m',
   JWT_REFRESH_EXPIRES_DAYS: 30,
   OTP_LENGTH: 6,

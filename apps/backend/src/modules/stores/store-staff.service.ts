@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, MoreThan } from 'typeorm';
+import { Repository, Not, MoreThan, IsNull } from 'typeorm';
 import * as crypto from 'crypto';
 import {
   StoreMemberEntity,
@@ -17,6 +17,7 @@ import { StaffInviteEntity } from '../../entities/stores/staff-invite.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
 import { InviteStaffDto, UpdateStaffDto } from './dto/store-operations.dto';
 import { QuotaService } from '../subscriptions/quota.service';
+import { AuditLogService } from '../audit/audit-log.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
 
 @Injectable()
@@ -31,6 +32,7 @@ export class StoreStaffService {
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     private readonly quotaService: QuotaService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   /**
@@ -73,6 +75,7 @@ export class StoreStaffService {
         createdAt: m.createdAt,
         user: userMap.has(m.userId)
           ? {
+              fullName: userMap.get(m.userId)?.fullName,
               email: userMap.get(m.userId)?.email,
               phone: userMap.get(m.userId)?.phone,
               status: userMap.get(m.userId)?.status,
@@ -83,6 +86,7 @@ export class StoreStaffService {
         .filter((inv) => !inv.usedAt)
         .map((inv) => ({
           id: inv.id,
+          fullName: inv.fullName,
           email: inv.email,
           permission: inv.permission,
           expiresAt: inv.expiresAt,
@@ -134,6 +138,7 @@ export class StoreStaffService {
     const invite = this.inviteRepo.create({
       storeId,
       email: dto.email.toLowerCase(),
+      fullName: dto.fullName.trim(),
       permission: dto.permission,
       tokenHash,
       expiresAt,
@@ -153,7 +158,12 @@ export class StoreStaffService {
   /**
    * Cập nhật phân quyền hoặc khóa/mở khóa nhân viên (R2-077)
    */
-  async updateStaffRole(storeId: string, memberId: string, dto: UpdateStaffDto) {
+  async updateStaffRole(
+    storeId: string,
+    memberId: string,
+    dto: UpdateStaffDto,
+    actorId = 'system',
+  ) {
     const member = await this.memberRepo.findOne({
       where: { id: memberId, storeId },
     });
@@ -165,12 +175,33 @@ export class StoreStaffService {
       throw new BadRequestException('Không thể thay đổi quyền hạn của Chủ sở hữu (OWNER).');
     }
 
+    if (dto.status === StoreMemberStatus.LOCKED && !dto.reason?.trim()) {
+      throw new BadRequestException('Hãy nhập lý do khi tạm khóa nhân viên.');
+    }
+
+    const before = { permission: member.permission, status: member.status };
     member.permission = dto.permission;
     if (dto.status) {
       member.status = dto.status;
     }
+    const saved = await this.memberRepo.save(member);
 
-    return this.memberRepo.save(member);
+    await this.auditLogService.log({
+      storeId,
+      actorId,
+      actorRole: StorePermission.OWNER,
+      action:
+        dto.status === StoreMemberStatus.LOCKED
+          ? 'STAFF_LOCKED'
+          : dto.status === StoreMemberStatus.ACTIVE && before.status === StoreMemberStatus.LOCKED
+            ? 'STAFF_UNLOCKED'
+            : 'STAFF_ROLE_CHANGED',
+      targetType: 'STORE_MEMBER',
+      targetId: memberId,
+      oldValue: before,
+      newValue: { permission: saved.permission, status: saved.status, reason: dto.reason ?? null },
+    });
+    return saved;
   }
 
   /**
@@ -234,6 +265,11 @@ export class StoreStaffService {
     }
 
     await this.memberRepo.save(member);
+
+    // Họ tên do chủ nhập khi mời; không ghi đè nếu người dùng đã có tên
+    if (invite.fullName) {
+      await this.userRepo.update({ id: userId, fullName: IsNull() }, { fullName: invite.fullName });
+    }
 
     // Đánh dấu lời mời đã sử dụng
     invite.usedAt = new Date();

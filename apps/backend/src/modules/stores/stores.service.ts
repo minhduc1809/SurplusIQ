@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In } from 'typeorm';
+import { Repository, Between, In, MoreThanOrEqual } from 'typeorm';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import { StoreClosureEntity, StoreClosureType } from '../../entities/stores/store-closure.entity';
 import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
@@ -29,6 +29,10 @@ import {
   ComparePeriodsDto,
 } from './dto/store-operations.dto';
 import { ReconciliationEngine, type ReconciliationOrderStatus } from '@surplusiq/core';
+import { orderGrossAmount } from '../orders/order-amounts';
+
+/** Dịch mốc thời gian sang giờ Việt Nam (UTC+7, không có giờ mùa hè); đọc bằng getUTC*. */
+const toVietnamTime = (d: Date | string) => new Date(new Date(d).getTime() + 7 * 3_600_000);
 
 @Injectable()
 export class StoresService {
@@ -178,14 +182,14 @@ export class StoresService {
     for (const ord of ordersToday) {
       if (ord.status === OrderStatus.PICKED_UP) {
         completedOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
         rescuedItemsCount += ord.quantity;
       } else if (ord.status === OrderStatus.PAID) {
         paidOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
       } else if (ord.status === OrderStatus.PICKUP_EXPIRED) {
         noShowOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
       } else if (ord.status === OrderStatus.CANCELLED) {
         cancelledOrders++;
       }
@@ -246,9 +250,9 @@ export class StoresService {
     const buckets: Record<string, OrderEntity[]> = {};
 
     for (const order of orders) {
-      const timeRef = order.pickupSlot ? new Date(order.pickupSlot) : new Date(order.createdAt);
-      const hours = timeRef.getHours().toString().padStart(2, '0');
-      const minutes = Math.floor(timeRef.getMinutes() / 15) * 15;
+      const timeRef = toVietnamTime(order.pickupSlot ?? order.createdAt);
+      const hours = timeRef.getUTCHours().toString().padStart(2, '0');
+      const minutes = Math.floor(timeRef.getUTCMinutes() / 15) * 15;
       const minStart = minutes.toString().padStart(2, '0');
       const minEnd = (minutes + 15).toString().padStart(2, '0');
       const slotKey = `${hours}:${minStart} - ${hours}:${minEnd}`;
@@ -299,11 +303,11 @@ export class StoresService {
     for (const ord of orders) {
       if (ord.status === OrderStatus.PICKED_UP) {
         completedOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
         rescuedItemsCount += ord.quantity;
       } else if (ord.status === OrderStatus.PICKUP_EXPIRED) {
         noShowOrders++;
-        grossRevenue += ord.totalAmount;
+        grossRevenue += orderGrossAmount(ord);
       } else if (ord.status === OrderStatus.CANCELLED) {
         cancelledOrders++;
       }
@@ -374,6 +378,101 @@ export class StoresService {
     };
   }
 
+  private toReconciliationOrders(orders: OrderEntity[]) {
+    return orders.map((o) => {
+      let reconStatus: ReconciliationOrderStatus = 'CANCELLED';
+      if (o.status === OrderStatus.PICKED_UP) {
+        reconStatus = 'PICKED_UP';
+      } else if (o.status === OrderStatus.PICKUP_EXPIRED) {
+        reconStatus = 'PICKUP_EXPIRED';
+      } else if (o.status === OrderStatus.REFUNDED) {
+        reconStatus = 'REFUNDED';
+      }
+      return {
+        orderId: o.id,
+        amount: o.totalAmount,
+        status: reconStatus,
+        completedAt: o.updatedAt || new Date(),
+        storeFault: false,
+      };
+    });
+  }
+
+  /**
+   * Thống kê tài chính theo khoảng ngày cho chủ cửa hàng: doanh thu gộp, hoa hồng, hoàn tiền khiếu nại,
+   * thực nhận ước tính (cùng công thức đối soát tuần), tiền đang chờ nhận hàng và doanh thu theo ngày.
+   */
+  async getFinanceSummary(storeId: string, query: StoreReportsQueryDto) {
+    const now = new Date();
+    const endDate = query.endDate ? new Date(query.endDate) : now;
+    const startDate = query.startDate
+      ? new Date(query.startDate)
+      : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const orders = await this.orderRepo.find({
+      where: { storeId, createdAt: Between(startDate, endDate) },
+    });
+    const complaints = await this.complaintRepo.find({
+      where: {
+        storeId,
+        status: ComplaintStatus.ACCEPTED,
+        createdAt: Between(startDate, endDate),
+      },
+    });
+    const refundsDeduction = complaints.reduce((sum, c) => sum + (c.refundAmount || 0), 0);
+
+    const statement = ReconciliationEngine.calculate({
+      storeId,
+      period: {
+        cycleId: `${startDate.toISOString().split('T')[0]}_${endDate.toISOString().split('T')[0]}`,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      },
+      orders: this.toReconciliationOrders(orders),
+      refundsDeduction,
+      subscriptionFee: 0,
+      adjustments: [],
+    });
+
+    // Tiền khách đã trả nhưng chưa nhận hàng: chưa tính vào doanh thu đối soát
+    const pendingPaidAmount = orders
+      .filter((o) => o.status === OrderStatus.PAID)
+      .reduce((sum, o) => sum + orderGrossAmount(o), 0);
+
+    const byDay = new Map<string, { grossSales: number; orders: number }>();
+    for (const o of orders) {
+      const eligible =
+        o.status === OrderStatus.PICKED_UP || o.status === OrderStatus.PICKUP_EXPIRED;
+      const day = toVietnamTime(o.createdAt).toISOString().split('T')[0];
+      const row = byDay.get(day) ?? { grossSales: 0, orders: 0 };
+      row.orders += 1;
+      if (eligible) row.grossSales += orderGrossAmount(o);
+      byDay.set(day, row);
+    }
+
+    const soldOrders = statement.orderSummary.pickedUpCount + statement.orderSummary.noShowCount;
+    return {
+      period: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+      },
+      summary: {
+        grossSales: statement.grossSales,
+        commissionRate: statement.commissionRate,
+        commissionAmount: statement.commissionAmount,
+        refundsDeduction: statement.refundsDeduction,
+        netPayout: statement.netPayout,
+        pendingPaidAmount,
+        soldOrders,
+        averageOrderValue: soldOrders > 0 ? Math.round(statement.grossSales / soldOrders) : 0,
+      },
+      daily: [...byDay.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, v]) => ({ date, ...v })),
+      explanation: statement.explanation,
+    };
+  }
+
   /**
    * Báo cáo đối soát tài chính tuần và lịch sử sao kê bất biến (R2-068..R2-075)
    */
@@ -405,23 +504,7 @@ export class StoresService {
 
     const refundDeductions = complaints.reduce((sum, c) => sum + (c.refundAmount || 0), 0);
 
-    const coreOrders = currentCycleOrders.map((o) => {
-      let reconStatus: ReconciliationOrderStatus = 'CANCELLED';
-      if (o.status === OrderStatus.PICKED_UP) {
-        reconStatus = 'PICKED_UP';
-      } else if (o.status === OrderStatus.PICKUP_EXPIRED) {
-        reconStatus = 'PICKUP_EXPIRED';
-      } else if (o.status === OrderStatus.REFUNDED) {
-        reconStatus = 'REFUNDED';
-      }
-      return {
-        orderId: o.id,
-        amount: o.totalAmount,
-        status: reconStatus,
-        completedAt: o.updatedAt || new Date(),
-        storeFault: false,
-      };
-    });
+    const coreOrders = this.toReconciliationOrders(currentCycleOrders);
 
     const currentStatement = ReconciliationEngine.calculate({
       storeId,
@@ -646,6 +729,7 @@ export class StoresService {
         customerId: string;
         totalOrders: number;
         completedOrders: number;
+        noShowCount: number;
         totalSpend: number;
         lastOrderDate: Date;
       }
@@ -656,11 +740,13 @@ export class StoresService {
         customerId: o.customerId,
         totalOrders: 0,
         completedOrders: 0,
+        noShowCount: 0,
         totalSpend: 0,
         lastOrderDate: o.createdAt,
       };
 
       existing.totalOrders += 1;
+      if (o.status === OrderStatus.PICKUP_EXPIRED) existing.noShowCount += 1;
       if (o.status === OrderStatus.PICKED_UP) {
         existing.completedOrders += 1;
         existing.totalSpend += o.totalAmount;
@@ -686,19 +772,98 @@ export class StoresService {
 
     return Array.from(customerMap.values()).map((c) => {
       const p = profileMap.get(c.customerId);
-      const name = p?.fullName || 'Khách hàng';
-      const maskedName =
-        name.length > 2 ? `${name.substring(0, 1)}***${name.substring(name.length - 1)}` : 'K***';
+      // Chủ cửa hàng chỉ thấy chữ cái đầu (BR-083), không lộ thêm chữ cuối
+      const maskedName = `${(p?.fullName || 'Khách hàng').trim().charAt(0).toUpperCase()}***`;
       return {
         customerId: c.customerId,
         customerName: maskedName,
         totalOrders: c.totalOrders,
         completedOrders: c.completedOrders,
+        noShowCount: c.noShowCount,
         totalSpend: c.totalSpend,
         lastOrderDate: c.lastOrderDate,
         internalNote: noteMap.get(c.customerId) || null,
       };
     });
+  }
+
+  /**
+   * Chi tiết một khách (R2-083, R2-085): lịch sử đơn, món hay mua, khiếu nại và đánh giá tại cửa hàng này.
+   * Vẫn ẩn danh: chỉ chữ cái đầu, không trả nội dung khiếu nại của khách.
+   */
+  async getCustomerDetail(storeId: string, customerId: string) {
+    const orders = await this.orderRepo.find({
+      where: { storeId, customerId },
+      order: { createdAt: 'DESC' },
+    });
+    if (orders.length === 0) {
+      throw new NotFoundException('Khách chưa từng mua tại cửa hàng này.');
+    }
+
+    const offers = await this.offerRepo.find({
+      where: { id: In(Array.from(new Set(orders.map((o) => o.offerId)))) },
+    });
+    const itemIds = Array.from(
+      new Set(offers.map((o) => o.itemId).filter((id): id is string => Boolean(id))),
+    );
+    const items =
+      itemIds.length > 0 ? await this.itemRepo.find({ where: { id: In(itemIds) } }) : [];
+    const itemByOffer = new Map(
+      offers.map((o) => [
+        o.id,
+        items.find((i) => i.id === o.itemId)?.name ?? 'Món không định danh',
+      ]),
+    );
+
+    const quantityByItem = new Map<string, number>();
+    for (const o of orders) {
+      if (o.status !== OrderStatus.PICKED_UP) continue;
+      const name = itemByOffer.get(o.offerId) ?? 'Món không định danh';
+      quantityByItem.set(name, (quantityByItem.get(name) ?? 0) + o.quantity);
+    }
+
+    const [complaints, reviews, note, profile] = await Promise.all([
+      this.complaintRepo.find({ where: { storeId, customerId }, order: { createdAt: 'DESC' } }),
+      this.reviewRepo.find({ where: { storeId, customerId }, order: { createdAt: 'DESC' } }),
+      this.customerNoteRepo.findOne({ where: { storeId, customerId } }),
+      this.customerProfileRepo.findOne({ where: { userId: customerId } }),
+    ]);
+
+    return {
+      customerId,
+      customerName: `${(profile?.fullName || 'Khách hàng').trim().charAt(0).toUpperCase()}***`,
+      totalOrders: orders.length,
+      completedOrders: orders.filter((o) => o.status === OrderStatus.PICKED_UP).length,
+      noShowCount: orders.filter((o) => o.status === OrderStatus.PICKUP_EXPIRED).length,
+      totalSpend: orders
+        .filter((o) => o.status === OrderStatus.PICKED_UP)
+        .reduce((sum, o) => sum + o.totalAmount, 0),
+      internalNote: note?.note ?? null,
+      recentOrders: orders.slice(0, 20).map((o) => ({
+        code: o.code,
+        status: o.status,
+        quantity: o.quantity,
+        totalAmount: o.totalAmount,
+        createdAt: o.createdAt,
+        itemName: itemByOffer.get(o.offerId) ?? null,
+      })),
+      topItems: Array.from(quantityByItem.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, quantity]) => ({ name, quantity })),
+      complaints: complaints.map((c) => ({
+        id: c.id,
+        category: c.category,
+        status: c.status,
+        refundAmount: c.refundAmount,
+        createdAt: c.createdAt,
+      })),
+      reviews: reviews.map((r) => ({
+        rating: r.rating,
+        comment: r.comment,
+        createdAt: r.createdAt,
+      })),
+    };
   }
 
   /**
@@ -977,8 +1142,7 @@ export class StoresService {
     }));
 
     for (const order of orders) {
-      const orderDate = new Date(order.createdAt);
-      const hourIndex = orderDate.getHours();
+      const hourIndex = toVietnamTime(order.createdAt).getUTCHours();
       hours[hourIndex].orderCount += 1;
       hours[hourIndex].totalQuantity += order.quantity;
       if (order.status === OrderStatus.PICKED_UP) {
@@ -1145,9 +1309,22 @@ export class StoresService {
       where: { storeId },
     });
 
+    // Số lượt yêu thích mới theo tuần (8 tuần gần nhất). Bỏ yêu thích không được lưu nên không có số giảm.
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const since = new Date(Date.now() - 8 * weekMs);
+    const recent = await this.favoriteStoreRepo.find({
+      where: { storeId, createdAt: MoreThanOrEqual(since) },
+    });
+    const newPerWeek = Array.from({ length: 8 }, () => 0);
+    for (const f of recent) {
+      const idx = 7 - Math.floor((Date.now() - new Date(f.createdAt).getTime()) / weekMs);
+      if (idx >= 0 && idx < 8) newPerWeek[idx] += 1;
+    }
+
     return {
       storeId,
       favoriteCount: count,
+      newPerWeek,
     };
   }
 }

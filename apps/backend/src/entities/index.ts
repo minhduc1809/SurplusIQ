@@ -1,3 +1,4 @@
+import { PickupIncidentEntity, OrderMessageEntity, OrderGiftEntity } from './order-support';
 import {
   UserEntity,
   CustomerProfileEntity,
@@ -25,6 +26,8 @@ import {
   CustomerSegmentEntity,
   CustomerNoteEntity,
   AuditLogEntity,
+  StoreLegalProfileEntity,
+  StoreContractEntity,
 } from './stores';
 
 import {
@@ -117,6 +120,11 @@ export * from './rescue-bridge';
 export * from './rescue-lab';
 
 export const ALL_ENTITIES = [
+  // Hỗ trợ đơn hàng: sự cố khi nhận, trò chuyện, tặng suất
+  PickupIncidentEntity,
+  OrderMessageEntity,
+  OrderGiftEntity,
+
   // Auth & Identity (13)
   UserEntity,
   CustomerProfileEntity,
@@ -221,4 +229,8 @@ export const ALL_ENTITIES = [
   // Rescue Lab (2)
   RescueLabScenarioEntity,
   RescueLabScenarioVersionEntity,
+
+  // Hồ sơ pháp lý & hợp đồng cửa hàng (2)
+  StoreLegalProfileEntity,
+  StoreContractEntity,
 ];

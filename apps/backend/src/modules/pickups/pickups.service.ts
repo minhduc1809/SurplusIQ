@@ -1,4 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { getJwtSecret } from '../../common/config/jwt-secret';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
@@ -48,7 +57,7 @@ export interface PickupPassDetails {
 @Injectable()
 export class PickupsService {
   private readonly logger = new Logger(PickupsService.name);
-  private readonly jwtSecret = process.env.JWT_SECRET || 'surplusiq_super_secret_jwt_key_2026';
+  private readonly jwtSecret = getJwtSecret();
 
   constructor(
     @InjectRepository(OrderEntity)
@@ -66,7 +75,18 @@ export class PickupsService {
     private readonly auditLogService: AuditLogService,
     private readonly rewardsService: RewardsService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
+
+  private async notifyPickedUp(order: OrderEntity) {
+    await this.notifications?.notifyQuietly({
+      userId: order.customerId,
+      type: NotificationType.ORDER,
+      title: 'Đã nhận hàng',
+      body: `Đơn ${order.code} đã được xác nhận nhận hàng. Hãy đánh giá cửa hàng nhé.`,
+      data: { orderId: order.id, kind: 'ORDER_PICKED_UP' },
+    });
+  }
 
   /**
    * Che giấu thông tin liên hệ khách hàng để hiển thị an toàn tại quầy (bảo vệ quyền riêng tư)
@@ -262,6 +282,8 @@ export class PickupsService {
         },
       });
 
+      await this.notifyPickedUp(savedOrder);
+
       return {
         success: true,
         orderId: savedOrder.id,
@@ -449,6 +471,8 @@ export class PickupsService {
           proxyCode: proxyRecord.code,
         },
       });
+
+      await this.notifyPickedUp(savedOrder);
 
       return {
         success: true,

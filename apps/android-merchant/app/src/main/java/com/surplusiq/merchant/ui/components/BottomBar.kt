@@ -1,5 +1,6 @@
 package com.surplusiq.merchant.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,31 +41,38 @@ fun SqBottomBar(
     center: BottomBarItem? = null,
     onCenterClick: () -> Unit = {}
 ) {
-    val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    val shape = RoundedCornerShape(32.dp)
     val half = items.size / 2
-    Box(modifier = modifier.fillMaxWidth()) {
+    Box(modifier = modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 10.dp, top = 22.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(16.dp, shape, ambientColor = Color(0x333B2A22), spotColor = Color(0x333B2A22))
+                .shadow(14.dp, shape, ambientColor = Color(0x403B2A22), spotColor = Color(0x403B2A22))
                 .clip(shape)
                 .background(Color.White)
-                .navigationBarsPadding()
-                .padding(top = 10.dp, bottom = 8.dp, start = 8.dp, end = 8.dp),
-            verticalAlignment = Alignment.Bottom
+                .border(1.dp, Color(0xFFF0E7E1), shape)
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             items.forEachIndexed { i, item ->
-                if (center != null && i == half) Spacer(Modifier.weight(1f))
+                if (center != null && i == half) Spacer(Modifier.weight(0.9f))
                 BarItem(item, item.key == selectedKey, accent, inactive, Modifier.weight(1f)) { onSelect(item.key) }
             }
         }
         if (center != null) {
+            Text(
+                center.label,
+                fontSize = 11.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = accent,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp)
+            )
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = (-22).dp)
-                    .size(68.dp)
-                    .shadow(10.dp, CircleShape, ambientColor = accent.copy(alpha = 0.4f), spotColor = accent.copy(alpha = 0.4f))
+                    .offset(y = (-26).dp)
+                    .size(66.dp)
+                    .shadow(12.dp, CircleShape, ambientColor = accent.copy(alpha = 0.45f), spotColor = accent.copy(alpha = 0.45f))
                     .clip(CircleShape)
                     .background(Color.White)
                     .padding(5.dp)
@@ -85,12 +93,14 @@ private fun BarItem(item: BottomBarItem, selected: Boolean, accent: Color, inact
     val color = if (selected) accent else inactive
     Column(
         modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) accent.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
-            .padding(vertical = 2.dp),
+            .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(if (selected) item.selectedIcon else item.icon, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
-        Spacer(Modifier.height(3.dp))
+        Icon(if (selected) item.selectedIcon else item.icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(2.dp))
         Text(item.label, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = color, maxLines = 1)
     }
 }

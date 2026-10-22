@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.alerts
 
 import androidx.compose.foundation.clickable
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -91,7 +92,7 @@ fun DealAlertsScreen(
 
 @Composable
 private fun DealAlertCard(alert: DealAlert, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
-    Card(
+    SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),

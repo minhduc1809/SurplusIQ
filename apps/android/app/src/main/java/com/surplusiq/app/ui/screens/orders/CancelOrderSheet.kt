@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.orders
 
 import androidx.compose.foundation.layout.*
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -59,7 +60,7 @@ fun CancelOrderSheet(
         Text(if (isPaid) "Hủy đơn hàng" else "Hủy giữ suất", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(modifier = Modifier.height(12.dp))
 
-        Card(
+        SqCard(
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
         ) {

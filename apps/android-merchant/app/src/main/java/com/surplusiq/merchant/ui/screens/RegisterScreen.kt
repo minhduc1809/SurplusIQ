@@ -35,6 +35,7 @@ fun RegisterScreen(
     onRegistered: (email: String) -> Unit
 ) {
     var step by remember { mutableIntStateOf(1) }
+    var ownerName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
@@ -47,7 +48,7 @@ fun RegisterScreen(
     val scope = rememberCoroutineScope()
 
     fun stepError(): String? = when (step) {
-        1 -> if (!Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) "Email không đúng định dạng." else passwordError(password, confirm)
+        1 -> if (ownerName.trim().length !in 2..60) "Họ tên từ 2 đến 60 ký tự." else if (!Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) "Email không đúng định dạng." else passwordError(password, confirm)
         2 -> when {
             storeName.trim().length !in 2..80 -> "Tên cửa hàng từ 2 đến 80 ký tự."
             storeAddress.isBlank() -> "Vui lòng nhập địa chỉ cửa hàng."
@@ -65,16 +66,22 @@ fun RegisterScreen(
         scope.launch {
             val target = email.trim()
             val result = repository.registerStore(
-                StoreRegisterRequest(target, password, storeName.trim(), storeAddress.trim(), storePhone)
+                StoreRegisterRequest(target, password, storeName.trim(), storeAddress.trim(), storePhone, ownerName.trim())
             )
             isLoading = false
             result.fold(onSuccess = { onRegistered(target) }, onFailure = { error = it.message })
         }
     }
 
-    AuthCard(onBackClick = { if (step > 1) { step--; error = null } else onBackClick() }) {
-        Text(text = "Đăng ký cửa hàng", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
-        Spacer(modifier = Modifier.height(10.dp))
+    AuthCard(onBackClick = { if (step > 1) { step--; error = null } else onBackClick() }, waveHeader = true) {
+        AuthHeading(
+            title = "Đăng ký cửa hàng",
+            subtitle = when (step) {
+                1 -> "Tạo tài khoản chủ cửa hàng để bắt đầu bán suất cứu món cùng SurplusIQ."
+                2 -> "Cho khách biết cửa hàng của bạn ở đâu và liên hệ thế nào."
+                else -> "Xem lại thông tin và đồng ý điều khoản để hoàn tất."
+            }
+        )
         LinearProgressIndicator(
             progress = { step / 3f },
             modifier = Modifier.fillMaxWidth(),
@@ -91,23 +98,30 @@ fun RegisterScreen(
 
         when (step) {
             1 -> {
-                MerchantField(value = email, onValueChange = { email = it }, placeholder = "Email", icon = Icons.Default.Mail, keyboardType = KeyboardType.Email)
-                Spacer(modifier = Modifier.height(12.dp))
-                PasswordField(value = password, onValueChange = { password = it })
-                Spacer(modifier = Modifier.height(12.dp))
+                AuthLabel("Họ tên chủ cửa hàng")
+                MerchantField(value = ownerName, onValueChange = { ownerName = it.take(60) }, placeholder = "Nhập họ tên", icon = Icons.Default.Storefront)
+                Spacer(modifier = Modifier.height(14.dp))
+                AuthLabel("Email")
+                MerchantField(value = email, onValueChange = { email = it }, placeholder = "Nhập email", icon = Icons.Default.Mail, keyboardType = KeyboardType.Email)
+                Spacer(modifier = Modifier.height(14.dp))
+                AuthLabel("Mật khẩu")
+                PasswordField(value = password, onValueChange = { password = it }, placeholder = "Tối thiểu 8 ký tự, gồm chữ và số")
+                Spacer(modifier = Modifier.height(14.dp))
+                AuthLabel("Nhập lại mật khẩu")
                 PasswordField(value = confirm, onValueChange = { confirm = it }, placeholder = "Nhập lại mật khẩu")
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(text = "Tối thiểu 8 ký tự, gồm cả chữ và số.", fontSize = 12.sp, color = SqInkMuted)
             }
             2 -> {
-                MerchantField(value = storeName, onValueChange = { storeName = it }, placeholder = "Tên cửa hàng", icon = Icons.Default.Storefront)
-                Spacer(modifier = Modifier.height(12.dp))
-                MerchantField(value = storeAddress, onValueChange = { storeAddress = it }, placeholder = "Địa chỉ cửa hàng", icon = Icons.Default.LocationOn)
-                Spacer(modifier = Modifier.height(12.dp))
+                AuthLabel("Tên cửa hàng")
+                MerchantField(value = storeName, onValueChange = { storeName = it }, placeholder = "Nhập tên cửa hàng", icon = Icons.Default.Storefront)
+                Spacer(modifier = Modifier.height(14.dp))
+                AuthLabel("Địa chỉ cửa hàng")
+                MerchantField(value = storeAddress, onValueChange = { storeAddress = it }, placeholder = "Số nhà, đường, phường, quận", icon = Icons.Default.LocationOn)
+                Spacer(modifier = Modifier.height(14.dp))
+                AuthLabel("Số điện thoại cửa hàng")
                 MerchantField(
                     value = storePhone,
                     onValueChange = { storePhone = it.filter(Char::isDigit).take(11) },
-                    placeholder = "Số điện thoại cửa hàng",
+                    placeholder = "Nhập số điện thoại",
                     icon = Icons.Default.Phone,
                     keyboardType = KeyboardType.Phone
                 )
@@ -116,18 +130,19 @@ fun RegisterScreen(
                 Text(text = "$storeName · $storeAddress", fontSize = 13.sp, color = SqInkSoft)
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.Top,
                     modifier = Modifier.fillMaxWidth().clickable { acceptedTerms = !acceptedTerms }
                 ) {
                     Checkbox(
                         checked = acceptedTerms,
                         onCheckedChange = { acceptedTerms = it },
-                        colors = CheckboxDefaults.colors(checkedColor = SqCoral)
+                        colors = CheckboxDefaults.colors(checkedColor = SqCoralDeep)
                     )
                     Text(
                         text = "Tôi đồng ý Điều khoản đối tác và Chính sách bảo mật của SurplusIQ.",
                         fontSize = 13.sp,
-                        color = SqInk
+                        color = SqInk,
+                        modifier = Modifier.padding(top = 12.dp)
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -141,6 +156,18 @@ fun RegisterScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        PrimaryButton(text = if (step < 3) "Tiếp tục" else "Đăng ký", onClick = ::next, loading = isLoading)
+        AuthGradientButton(text = if (step < 3) "Tiếp tục" else "Đăng ký", loading = isLoading, withArrow = step < 3, onClick = ::next)
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            Text(text = "Đã có tài khoản? ", color = SqInkSoft, fontSize = 13.sp)
+            Text(
+                text = "Đăng nhập",
+                color = SqCoralDeep,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable { onBackClick() }
+            )
+        }
     }
 }

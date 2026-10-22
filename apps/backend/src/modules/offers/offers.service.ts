@@ -6,6 +6,12 @@ import { OfferEventEntity, OfferEventType } from '../../entities/catalog/offer-e
 import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { AuditLogService } from '../audit/audit-log.service';
+import { PickupTokenEntity, PickupTokenStatus } from '../../entities/orders/pickup-token.entity';
+import {
+  ProxyPickupCodeEntity,
+  ProxyPickupCodeStatus,
+} from '../../entities/orders/proxy-pickup-code.entity';
+import { createRefundTransaction } from '../payments/refund-transaction';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
 import { DynamicPricingEngine } from '@surplusiq/core';
@@ -451,96 +457,109 @@ export class OffersService {
     dto: UpdateOfferDto,
     actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<OfferEntity> {
-    const offer = await this.offerRepo.findOne({
-      where: { id: offerId, storeId },
-    });
+    // Khóa dòng suất để không ghi đè tồn kho đang được đơn đặt đồng thời trừ (mất cập nhật).
+    const { saved, oldPrice, priceChanged, wasDraftOpened } =
+      await this.offerRepo.manager.transaction(async (m) => {
+        const offer = await m.findOne(OfferEntity, {
+          where: { id: offerId, storeId },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-    if (!offer) {
-      throw new NotFoundException(`Không tìm thấy suất bán với ID [${offerId}] trong cửa hàng.`);
-    }
+        if (!offer) {
+          throw new NotFoundException(
+            `Không tìm thấy suất bán với ID [${offerId}] trong cửa hàng.`,
+          );
+        }
 
-    if (offer.status === OfferStatus.CLOSED || offer.status === OfferStatus.CANCELLED) {
-      throw new BadRequestException(
-        `Không thể chỉnh sửa suất đã ở trạng thái ${offer.status} (R2-030).`,
-      );
-    }
+        if (offer.status === OfferStatus.CLOSED || offer.status === OfferStatus.CANCELLED) {
+          throw new BadRequestException(
+            `Không thể chỉnh sửa suất đã ở trạng thái ${offer.status} (R2-030).`,
+          );
+        }
 
-    const oldPrice = offer.currentPrice;
-    let priceChanged = false;
+        const oldPrice = offer.currentPrice;
+        let priceChanged = false;
 
-    // 1. Chỉnh sửa tổng số lượng
-    if (dto.totalQuantity !== undefined) {
-      if (dto.totalQuantity < offer.soldQuantity) {
-        throw new BadRequestException(
-          `Tổng số lượng (${dto.totalQuantity}) không được nhỏ hơn số lượng đã bán (${offer.soldQuantity}) (R2-030, BR1).`,
-        );
-      }
+        // 1. Chỉnh sửa tổng số lượng
+        if (dto.totalQuantity !== undefined) {
+          const heldOrSold = offer.totalQuantity - offer.remainingQuantity;
+          if (dto.totalQuantity < heldOrSold) {
+            throw new BadRequestException(
+              `Tổng số lượng (${dto.totalQuantity}) không được nhỏ hơn số lượng đã bán (${heldOrSold}) (R2-030, BR1).`,
+            );
+          }
 
-      const diff = dto.totalQuantity - offer.totalQuantity;
-      offer.totalQuantity = dto.totalQuantity;
-      offer.remainingQuantity = Math.max(0, offer.remainingQuantity + diff);
+          const diff = dto.totalQuantity - offer.totalQuantity;
+          offer.totalQuantity = dto.totalQuantity;
+          offer.remainingQuantity = Math.max(0, offer.remainingQuantity + diff);
 
-      if (offer.remainingQuantity === 0 && offer.status === OfferStatus.OPEN) {
-        offer.status = OfferStatus.SOLD_OUT;
-      } else if (offer.remainingQuantity > 0 && offer.status === OfferStatus.SOLD_OUT) {
-        offer.status = OfferStatus.OPEN;
-      }
-    }
+          if (offer.remainingQuantity === 0 && offer.status === OfferStatus.OPEN) {
+            offer.status = OfferStatus.SOLD_OUT;
+          } else if (offer.remainingQuantity > 0 && offer.status === OfferStatus.SOLD_OUT) {
+            offer.status = OfferStatus.OPEN;
+          }
+        }
 
-    // 2. Chỉnh sửa giá bán
-    if (dto.currentPrice !== undefined && dto.currentPrice !== oldPrice) {
-      if (offer.priceChangeCount >= OFFERS_CONSTANTS.MAX_PRICE_CHANGE_COUNT) {
-        throw new BadRequestException(
-          `Suất bán đã đạt tối đa ${OFFERS_CONSTANTS.MAX_PRICE_CHANGE_COUNT} lần thay đổi giá cho phép.`,
-        );
-      }
+        // 2. Chỉnh sửa giá bán
+        if (dto.currentPrice !== undefined && dto.currentPrice !== oldPrice) {
+          if (offer.priceChangeCount >= OFFERS_CONSTANTS.MAX_PRICE_CHANGE_COUNT) {
+            throw new BadRequestException(
+              `Suất bán đã đạt tối đa ${OFFERS_CONSTANTS.MAX_PRICE_CHANGE_COUNT} lần thay đổi giá cho phép.`,
+            );
+          }
 
-      if (dto.currentPrice % OFFERS_CONSTANTS.PRICE_ROUNDING_STEP !== 0) {
-        throw new BadRequestException(
-          `Giá bán mới (${dto.currentPrice} VND) phải là bội số của ${OFFERS_CONSTANTS.PRICE_ROUNDING_STEP} VND.`,
-        );
-      }
+          if (dto.currentPrice % OFFERS_CONSTANTS.PRICE_ROUNDING_STEP !== 0) {
+            throw new BadRequestException(
+              `Giá bán mới (${dto.currentPrice} VND) phải là bội số của ${OFFERS_CONSTANTS.PRICE_ROUNDING_STEP} VND.`,
+            );
+          }
 
-      if (dto.currentPrice < offer.floorPrice) {
-        throw new BadRequestException(
-          `Giá bán mới (${dto.currentPrice} VND) không được thấp hơn giá sàn an toàn (${offer.floorPrice} VND).`,
-        );
-      }
+          if (dto.currentPrice < offer.floorPrice) {
+            throw new BadRequestException(
+              `Giá bán mới (${dto.currentPrice} VND) không được thấp hơn giá sàn an toàn (${offer.floorPrice} VND).`,
+            );
+          }
 
-      if (dto.currentPrice > offer.originalPrice) {
-        throw new BadRequestException(
-          `Giá bán mới (${dto.currentPrice} VND) không được vượt quá giá gốc (${offer.originalPrice} VND).`,
-        );
-      }
+          if (dto.currentPrice > offer.originalPrice) {
+            throw new BadRequestException(
+              `Giá bán mới (${dto.currentPrice} VND) không được vượt quá giá gốc (${offer.originalPrice} VND).`,
+            );
+          }
 
-      offer.currentPrice = dto.currentPrice;
-      offer.priceChangeCount += 1;
-      priceChanged = true;
-    }
+          offer.currentPrice = dto.currentPrice;
+          offer.priceChangeCount += 1;
+          priceChanged = true;
+        }
 
-    // 3. Chỉnh sửa khung giờ
-    if (dto.pickupStart) {
-      offer.pickupStart = new Date(dto.pickupStart);
-    }
-    if (dto.pickupEnd) {
-      const newEnd = new Date(dto.pickupEnd);
-      if (newEnd <= offer.pickupStart) {
-        throw new BadRequestException('Giờ kết thúc nhận hàng phải sau giờ bắt đầu.');
-      }
-      offer.pickupEnd = newEnd;
-    }
-    if (dto.expiresAt) {
-      offer.expiresAt = new Date(dto.expiresAt);
-    }
+        // 3. Chỉnh sửa khung giờ
+        if (dto.pickupStart) {
+          offer.pickupStart = new Date(dto.pickupStart);
+        }
+        if (dto.pickupEnd) {
+          offer.pickupEnd = new Date(dto.pickupEnd);
+        }
+        if (dto.expiresAt) {
+          offer.expiresAt = new Date(dto.expiresAt);
+        }
+        if (offer.pickupEnd <= offer.pickupStart) {
+          throw new BadRequestException('Giờ kết thúc nhận hàng phải sau giờ bắt đầu.');
+        }
+        if (offer.expiresAt && offer.expiresAt < offer.pickupEnd) {
+          throw new BadRequestException(
+            'Hạn sử dụng (expiresAt) phải sau hoặc bằng giờ kết thúc nhận hàng (R2-028, BR2).',
+          );
+        }
 
-    // 4. Chuyển trạng thái từ DRAFT sang OPEN
-    let wasDraftOpened = false;
-    if (dto.status === OfferStatus.OPEN && offer.status === OfferStatus.DRAFT) {
-      offer.status = OfferStatus.OPEN;
-      wasDraftOpened = true;
-    }
+        // 4. Chuyển trạng thái từ DRAFT sang OPEN
+        let wasDraftOpened = false;
+        if (dto.status === OfferStatus.OPEN && offer.status === OfferStatus.DRAFT) {
+          offer.status = OfferStatus.OPEN;
+          wasDraftOpened = true;
+        }
 
-    const saved = await this.offerRepo.save(offer);
+        const savedOffer = await m.save(offer);
+        return { saved: savedOffer, oldPrice, priceChanged, wasDraftOpened };
+      });
 
     // Ghi nhận sự kiện và audit
     if (priceChanged) {
@@ -607,44 +626,48 @@ export class OffersService {
     dto: AdjustStockDto,
     actorId = '00000000-0000-0000-0000-000000000000',
   ): Promise<OfferEntity> {
-    const offer = await this.offerRepo.findOne({
-      where: { id: offerId, storeId },
-    });
+    // Khóa dòng suất: đơn đặt đồng thời đang trừ tồn nên không được ghi đè (mất cập nhật).
+    const { saved, oldRemaining, newRemaining, newTotal } =
+      await this.offerRepo.manager.transaction(async (m) => {
+        const offer = await m.findOne(OfferEntity, {
+          where: { id: offerId, storeId },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-    if (!offer) {
-      throw new NotFoundException(`Không tìm thấy suất bán với ID [${offerId}] trong cửa hàng.`);
-    }
+        if (!offer) {
+          throw new NotFoundException(
+            `Không tìm thấy suất bán với ID [${offerId}] trong cửa hàng.`,
+          );
+        }
 
-    if (offer.status === OfferStatus.CANCELLED) {
-      throw new BadRequestException('Không thể điều chỉnh tồn kho cho suất đã bị hủy (R2-031).');
-    }
+        if (offer.status === OfferStatus.CANCELLED) {
+          throw new BadRequestException(
+            'Không thể điều chỉnh tồn kho cho suất đã bị hủy (R2-031).',
+          );
+        }
 
-    const oldRemaining = offer.remainingQuantity;
-    const newRemaining = oldRemaining + dto.deltaQuantity;
-    const newTotal = offer.totalQuantity + dto.deltaQuantity;
+        const oldRemaining = offer.remainingQuantity;
+        const newRemaining = oldRemaining + dto.deltaQuantity;
+        const newTotal = offer.totalQuantity + dto.deltaQuantity;
 
-    if (newRemaining < 0) {
-      throw new BadRequestException(
-        `Số lượng tồn kho sau điều chỉnh (${newRemaining}) không được âm (R2-031, BR1). Hiện còn ${oldRemaining} suất.`,
-      );
-    }
+        if (newRemaining < 0) {
+          throw new BadRequestException(
+            `Số lượng tồn kho sau điều chỉnh (${newRemaining}) không được âm (R2-031, BR1). Hiện còn ${oldRemaining} suất.`,
+          );
+        }
 
-    if (newTotal < offer.soldQuantity) {
-      throw new BadRequestException(
-        `Tổng số lượng sau điều chỉnh (${newTotal}) không được nhỏ hơn số đã bán (${offer.soldQuantity}) (R2-031, BR1).`,
-      );
-    }
+        offer.remainingQuantity = newRemaining;
+        offer.totalQuantity = newTotal;
 
-    offer.remainingQuantity = newRemaining;
-    offer.totalQuantity = newTotal;
+        if (newRemaining === 0 && offer.status === OfferStatus.OPEN) {
+          offer.status = OfferStatus.SOLD_OUT;
+        } else if (newRemaining > 0 && offer.status === OfferStatus.SOLD_OUT) {
+          offer.status = OfferStatus.OPEN;
+        }
 
-    if (newRemaining === 0 && offer.status === OfferStatus.OPEN) {
-      offer.status = OfferStatus.SOLD_OUT;
-    } else if (newRemaining > 0 && offer.status === OfferStatus.SOLD_OUT) {
-      offer.status = OfferStatus.OPEN;
-    }
-
-    const saved = await this.offerRepo.save(offer);
+        const saved = await m.save(offer);
+        return { saved, oldRemaining, newRemaining, newTotal };
+      });
 
     // Lưu vào offer_events với lý do bắt buộc (R2-031)
     await this.offerEventRepo.save(
@@ -656,7 +679,7 @@ export class OffersService {
           deltaQuantity: dto.deltaQuantity,
           oldRemaining,
           newRemaining,
-          oldTotal: offer.totalQuantity - dto.deltaQuantity,
+          oldTotal: newTotal - dto.deltaQuantity,
           newTotal,
           note: dto.note,
         },
@@ -761,23 +784,43 @@ export class OffersService {
       throw new BadRequestException('Không thể hủy suất đã đóng (R2-033).');
     }
 
-    offer.status = OfferStatus.CANCELLED;
-    const saved = await this.offerRepo.save(offer);
-
-    // Tìm và hủy các đơn hàng đã thanh toán đang chờ nhận để hoàn tiền 100% (R2-033)
-    const paidOrders = await this.orderRepo.find({
-      where: {
-        offerId,
-        status: In([OrderStatus.PAID, OrderStatus.PENDING_PAYMENT]),
-      },
+    // Hủy suất + hủy đơn + tạo lệnh hoàn tiền trong MỘT giao dịch (BUG-005): không để đơn bị hủy mà khách không có lệnh hoàn.
+    const { saved, paidCount } = await this.orderRepo.manager.transaction(async (manager) => {
+      offer.status = OfferStatus.CANCELLED;
+      const savedOffer = await manager.save(offer);
+      const affected = await manager.find(OrderEntity, {
+        where: { offerId, status: In([OrderStatus.PAID, OrderStatus.PENDING_PAYMENT]) },
+        lock: { mode: 'pessimistic_write' },
+      });
+      let paid = 0;
+      for (const order of affected) {
+        if (order.status === OrderStatus.PAID) {
+          paid += 1;
+          await manager.update(
+            PickupTokenEntity,
+            { orderId: order.id, status: PickupTokenStatus.UNUSED },
+            { status: PickupTokenStatus.REVOKED },
+          );
+          await manager.update(
+            ProxyPickupCodeEntity,
+            { orderId: order.id, status: ProxyPickupCodeStatus.UNUSED },
+            { status: ProxyPickupCodeStatus.REVOKED },
+          );
+          await createRefundTransaction(
+            manager,
+            order,
+            order.totalAmount,
+            `REFUND-${order.code}-${Date.now()}`,
+          );
+        }
+        order.status = OrderStatus.CANCELLED;
+        order.cancelledBy = CancelledBy.STORE;
+        order.cancelReason = `Cửa hàng hủy suất: ${dto.reason}`;
+        order.cancelledAt = new Date();
+        await manager.save(order);
+      }
+      return { saved: savedOffer, paidCount: paid };
     });
-
-    for (const order of paidOrders) {
-      order.status = OrderStatus.CANCELLED;
-      order.cancelledBy = CancelledBy.STORE;
-      order.cancelReason = `Cửa hàng hủy suất: ${dto.reason}`;
-      await this.orderRepo.save(order);
-    }
 
     await this.offerEventRepo.save(
       this.offerEventRepo.create({
@@ -785,7 +828,7 @@ export class OffersService {
         actorId: actorId === 'SYSTEM' ? null : actorId,
         type: OfferEventType.CANCELLED,
         payload: {
-          affectedOrdersCount: paidOrders.length,
+          affectedOrdersCount: paidCount,
           note: dto.note,
         },
         reason: dto.reason,
@@ -802,7 +845,7 @@ export class OffersService {
       newValue: {
         status: OfferStatus.CANCELLED,
         reason: dto.reason,
-        refundedOrders: paidOrders.length,
+        refundedOrders: paidCount,
       },
     });
 

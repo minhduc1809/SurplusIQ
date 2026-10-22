@@ -22,6 +22,33 @@ import {
 } from '../../../entities/marketing/promotion.entity';
 import { CampaignStatus } from '../../../entities/marketing/campaign.entity';
 
+export class UpdateSegmentConfigDto {
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  loyalMinOrders: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(90)
+  loyalMaxDaysSinceLastOrder: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  atRiskMinOrders: number;
+
+  @IsInt()
+  @Min(7)
+  @Max(180)
+  atRiskDaysThreshold: number;
+
+  @IsInt()
+  @Min(5)
+  @Max(100)
+  highNoShowRatioPercent: number;
+}
+
 export class CreatePromotionDto {
   @ApiProperty({
     description: 'Tên chương trình ưu đãi',
@@ -220,7 +247,7 @@ export class SurpriseBagItemDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsNotEmpty()
-  @IsUUID('4')
+  @IsUUID('all')
   itemId: string;
 
   @ApiProperty({

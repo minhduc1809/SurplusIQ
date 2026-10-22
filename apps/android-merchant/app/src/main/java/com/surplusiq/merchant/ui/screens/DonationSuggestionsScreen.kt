@@ -112,10 +112,10 @@ private fun RescueBridgePending() {
             Icon(Icons.Default.VolunteerActivism, contentDescription = null, tint = SqMintDeep, modifier = Modifier.size(28.dp))
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text("Bàn giao qua Rescue Bridge", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SqInk)
+                Text("Bàn giao qua Bàn giao suất dư", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SqInk)
                 Text(
                     "Nơi nhận nay là đơn vị đã được duyệt và ghép theo điều kiện, không còn danh sách tự nhập. " +
-                        "Màn Rescue Bridge trên ứng dụng chưa có - tạm thời thực hiện bàn giao trên cổng web.",
+                        "Màn Bàn giao suất dư trên ứng dụng chưa có - tạm thời thực hiện bàn giao trên cổng web.",
                     fontSize = 12.sp, color = SqInkSoft
                 )
             }

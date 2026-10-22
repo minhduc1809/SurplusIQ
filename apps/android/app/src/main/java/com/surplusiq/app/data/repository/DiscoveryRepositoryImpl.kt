@@ -16,6 +16,7 @@ import com.surplusiq.app.domain.model.BasketHoldResult
 import com.surplusiq.app.domain.model.BasketHeldItem
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.domain.model.dealCategoryOf
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.RadarDeal
 import com.surplusiq.app.domain.model.TrustpassInfo
@@ -104,7 +105,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
                 remainingStock = detail.remainingQuantity,
                 initialStock = detail.remainingQuantity,
                 pickupWindowText = pickupWindowText(detail.pickupStart, detail.pickupEnd),
-                isToday = true,
+                isToday = isToday(detail.pickupEnd),
                 distanceText = "",
                 rating = store?.rating ?: 0.0,
                 reviewCount = store?.reviewCount ?: 0,
@@ -140,7 +141,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             result = result.filter {
                 it.title.lowercase().contains(q) ||
                 it.storeName.lowercase().contains(q) ||
-                it.category.displayName.lowercase().contains(q) ||
+                it.category.label.lowercase().contains(q) ||
                 it.whatYouCouldGet.lowercase().contains(q) ||
                 it.storeAddress.lowercase().contains(q)
             }
@@ -181,19 +182,80 @@ class DiscoveryRepositoryImpl @Inject constructor(
         latitude: Double?,
         longitude: Double?,
         radiusKm: Double?,
-        budgetMax: Double?
+        budgetMax: Double?,
+        pickupFrom: String?,
+        pickupTo: String?,
+        excludeAllergens: List<String>?,
+        prioritizeInTime: Boolean?
     ): Result<List<RadarDeal>> {
         return try {
             val response = discoveryApiService.getRadarRanking(
                 latitude = latitude,
                 longitude = longitude,
                 radiusKm = radiusKm,
-                budgetMax = budgetMax
+                budgetMax = budgetMax,
+                pickupFrom = pickupFrom,
+                pickupTo = pickupTo,
+                excludeAllergens = excludeAllergens?.takeIf { it.isNotEmpty() }?.joinToString(","),
+                prioritizeInTime = prioritizeInTime
             )
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!.data.map { mapRadarItemToRadarDeal(it) })
             } else {
                 Result.failure(Exception("Không thể tải Rescue Radar (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getForYou(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<com.surplusiq.app.domain.model.ForYouResult> {
+        return try {
+            val response = discoveryApiService.getForYou(latitude = latitude, longitude = longitude, radiusKm = radiusKm, limit = 30)
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                Result.success(
+                    com.surplusiq.app.domain.model.ForYouResult(
+                        deals = body.data.map { dto ->
+                            com.surplusiq.app.domain.model.ForYouDeal(
+                                deal = Deal(
+                                    id = dto.id,
+                                    storeId = dto.storeId,
+                                    storeName = dto.storeName,
+                                    storeAddress = dto.storeAddress.orEmpty(),
+                                    storeLogoUrl = "",
+                                    coverImageUrl = dto.imageUrl.orEmpty(),
+                                    title = dto.title,
+                                    description = "",
+                                    whatYouCouldGet = dto.title,
+                                    category = parseCategory(dto.category),
+                                    originalPrice = dto.originalPrice.toInt(),
+                                    discountPrice = dto.currentPrice.toInt(),
+                                    discountPercent = dto.discountPercent,
+                                    remainingStock = dto.remainingQuantity,
+                                    initialStock = dto.remainingQuantity,
+                                    pickupWindowText = "Còn ${dto.minutesLeftToPickup} phút để nhận",
+                                    isToday = true,
+                                    distanceText = dto.distanceMeters?.let { m -> if (m < 1000) "${m.toInt()} m" else "%.1f km".format(m / 1000.0) }.orEmpty(),
+                                    // Máy chủ chưa trả điểm đánh giá ở danh sách này; không bịa số.
+                                    rating = 0.0,
+                                    reviewCount = 0,
+                                    allergens = emptyList(),
+                                    dietaryType = DietaryType.NONE,
+                                    isFavorite = favoriteOverrides[dto.storeId] ?: false,
+                                    isUrgent = dto.minutesLeftToPickup <= 30
+                                ),
+                                reasons = dto.forYouReasons,
+                                score = dto.forYouScore
+                            )
+                        },
+                        excludedByDietary = body.meta.excludedByDietary,
+                        personalised = body.meta.personalised,
+                        note = body.meta.note
+                    )
+                )
+            } else {
+                Result.failure(Exception("Không thể tải gợi ý dành cho bạn (${response.code()})"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -256,8 +318,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?): Result<List<MapPin>> =
-        apiCall("Không thể tải bản đồ deal", { discoveryApiService.findMapPins(latitude, longitude, radiusKm) }) { pins ->
+    override suspend fun getMapPins(latitude: Double?, longitude: Double?, radiusKm: Double?, minDiscountPercent: Int?): Result<List<MapPin>> =
+        apiCall("Không thể tải bản đồ deal", { discoveryApiService.findMapPins(latitude, longitude, radiusKm, minDiscountPercent) }) { pins ->
             pins.map {
                 MapPin(
                     storeId = it.storeId,
@@ -268,7 +330,17 @@ class DiscoveryRepositoryImpl @Inject constructor(
                     activeDealsCount = it.activeDealsCount,
                     minPrice = it.minPrice?.toInt(),
                     maxDiscountPercent = it.maxDiscountPercent ?: 0,
-                    distanceText = formatDistance(it.distanceMeters)
+                    distanceText = formatDistance(it.distanceMeters),
+                    categories = it.categories.orEmpty(),
+                    distanceMeters = it.distanceMeters,
+                    logoUrl = it.storeLogoUrl,
+                    maxPrice = it.maxPrice?.toInt(),
+                    imageUrl = it.imageUrl,
+                    ratingAvg = it.ratingAvg,
+                    ratingCount = it.ratingCount ?: 0,
+                    pickupUntil = runCatching {
+                        java.time.OffsetDateTime.parse(it.soonestPickupEnd).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
+                    }.getOrNull()
                 )
             }
         }
@@ -457,14 +529,14 @@ class DiscoveryRepositoryImpl @Inject constructor(
         val curr = dto.currentPrice.toInt()
         val distText = if (dto.distanceMeters != null) {
             if (dto.distanceMeters < 1000) "${dto.distanceMeters.toInt()} m" else "%.1f km".format(dto.distanceMeters / 1000.0)
-        } else "850 m"
+        } else "Chưa rõ khoảng cách"
         val deal = Deal(
             id = dto.id,
             storeId = dto.storeId,
             storeName = dto.storeName,
-            storeAddress = dto.storeAddress ?: "Quận 1, TP. Hồ Chí Minh",
-            storeLogoUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=150",
-            coverImageUrl = dto.imageUrl ?: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+            storeAddress = dto.storeAddress ?: "Chưa có địa chỉ",
+            storeLogoUrl = "",
+            coverImageUrl = dto.imageUrl.orEmpty(),
             title = dto.title,
             description = "Suất cứu món xếp hạng theo khả năng nhận kịp từ ${dto.storeName}.",
             whatYouCouldGet = dto.title,
@@ -475,10 +547,10 @@ class DiscoveryRepositoryImpl @Inject constructor(
             remainingStock = dto.remainingQuantity,
             initialStock = dto.remainingQuantity + 2,
             pickupWindowText = "Còn ${dto.minutesLeftToPickup} phút để nhận",
-            isToday = true,
+            isToday = isToday(dto.pickupEnd),
             distanceText = distText,
-            rating = 4.7,
-            reviewCount = 98,
+            rating = 0.0,
+            reviewCount = 0,
             allergens = emptyList(),
             dietaryType = DietaryType.NONE,
             isFavorite = favoriteOverrides[dto.storeId] ?: false,
@@ -547,7 +619,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             remainingStock = dto.remainingQuantity,
             initialStock = dto.remainingQuantity,
             pickupWindowText = pickupWindowText(dto.pickupStart, dto.pickupEnd),
-            isToday = true,
+            isToday = isToday(dto.pickupEnd),
             distanceText = distText,
             // Danh sách deal không kèm điểm đánh giá/dị ứng: để trống thay vì bịa (chi tiết deal mới có).
             rating = 0.0,
@@ -559,24 +631,45 @@ class DiscoveryRepositoryImpl @Inject constructor(
         )
     }
 
+    private fun localDate(iso: String?) = runCatching {
+        java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDate()
+    }.getOrNull()
+
+    private fun offsetDateTime(iso: String?) = runCatching {
+        java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault())
+    }.getOrNull()
+
+    /** Hôm nay / Ngày mai / dd/MM theo mốc giờ kết thúc nhận; không có mốc thì coi như hôm nay (suất đang mở). */
+    private fun dayLabel(iso: String?): String {
+        val d = localDate(iso) ?: return "Hôm nay"
+        val today = java.time.LocalDate.now()
+        return when (d) {
+            today -> "Hôm nay"
+            today.plusDays(1) -> "Ngày mai"
+            else -> "%02d/%02d".format(d.dayOfMonth, d.monthValue)
+        }
+    }
+
+    private fun isToday(iso: String?) = localDate(iso)?.let { it == java.time.LocalDate.now() } ?: true
+
     /** "Hôm nay 19:00 - 21:30" từ mốc giờ ISO của backend (giờ máy); rỗng nếu thiếu dữ liệu. */
     private fun pickupWindowText(start: String?, end: String?): String {
+        val endZoned = offsetDateTime(end)
+        val now = java.time.ZonedDateTime.now()
+        if (endZoned != null && now.isAfter(endZoned)) {
+            return "Đã hết giờ nhận"
+        }
+
         fun hhmm(iso: String?) = runCatching {
             java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
         }.getOrNull()
         val s = hhmm(start) ?: return ""
-        val e = hhmm(end) ?: return "Hôm nay từ $s"
-        return "Hôm nay $s - $e"
+        val day = dayLabel(start)
+        val e = hhmm(end) ?: return "$day từ $s"
+        return "$day $s - $e"
     }
 
-    private fun parseCategory(cat: String?): DealCategory {
-        return when (cat?.lowercase()) {
-            "meals", "món mặn", "cơm", "bún" -> DealCategory.MEALS
-            "baked goods", "bánh", "bakery", "bánh mì" -> DealCategory.BAKED_GOODS
-            "groceries", "rau củ", "nông sản" -> DealCategory.GROCERIES
-            else -> DealCategory.OTHER
-        }
-    }
+    private fun parseCategory(cat: String?): DealCategory = dealCategoryOf(cat)
 
     private fun parseDietary(dietary: String?): DietaryType {
         return when (dietary?.lowercase()) {

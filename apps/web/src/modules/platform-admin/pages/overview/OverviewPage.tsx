@@ -897,7 +897,7 @@ export function OverviewPage() {
               letterSpacing: '-0.045em',
             }}
           >
-            Dashboard Overview
+            Tổng quan
           </Typography>
 
           <Typography

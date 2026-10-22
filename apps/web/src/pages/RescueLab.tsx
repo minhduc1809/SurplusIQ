@@ -254,7 +254,7 @@ export function RescueLabPage() {
               }}
             >
               <FlaskConical size={20} color="var(--sq-ink-soft)" />
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                 <div className="sq-body-medium" style={{ color: 'var(--sq-ink)' }}>
                   {s.title}
                 </div>
@@ -1160,6 +1160,7 @@ const listCard: CSSProperties = {
 
 const rowButton: CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap', // màn hẹp: nhãn trạng thái xuống dòng thay vì ép tiêu đề thành cột hẹp
   alignItems: 'center',
   gap: 16,
   width: '100%',

@@ -6,6 +6,10 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.Location
+import android.location.LocationListener
+import android.os.Bundle
+import android.os.Looper
+import com.surplusiq.app.domain.model.LocationAnchors
 import android.location.LocationManager
 import android.os.CancellationSignal
 import androidx.core.content.ContextCompat
@@ -81,24 +85,46 @@ class LocationRepositoryImpl @Inject constructor(
         if (!granted) return Result.failure(Exception("Chưa cấp quyền vị trí cho SurplusIQ."))
 
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val provider = listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
-            .firstOrNull { manager.isProviderEnabled(it) }
-            ?: return Result.failure(Exception("Dịch vụ định vị đang tắt. Bật vị trí trong cài đặt máy rồi thử lại."))
+        val location = acquireLocation(manager)
+            ?: return Result.failure(
+                if (listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).none { manager.isProviderEnabled(it) })
+                    Exception("Dịch vụ định vị đang tắt. Bật vị trí trong cài đặt máy rồi thử lại.")
+                else Exception("Không lấy được vị trí hiện tại. Thử lại hoặc nhập địa chỉ thủ công.")
+            )
 
-        val fresh = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
-            suspendCancellableCoroutine<Location?> { cont ->
-                val signal = CancellationSignal()
-                cont.invokeOnCancellation { signal.cancel() }
-                LocationManagerCompat.getCurrentLocation(manager, provider, signal, ContextCompat.getMainExecutor(context)) {
-                    if (cont.isActive) cont.resume(it)
-                }
-            }
+        // Điểm neo: gần địa điểm đã biết thì dùng toạ độ và địa chỉ chuẩn (xem LocationAnchors)
+        LocationAnchors.nearest(location.latitude, location.longitude)?.let {
+            return Result.success(AddressSuggestion(it.address, it.latitude, it.longitude))
         }
-        val location = fresh ?: manager.getLastKnownLocation(provider)
-            ?: return Result.failure(Exception("Không lấy được vị trí hiện tại. Thử lại hoặc nhập địa chỉ thủ công."))
-
         val address = reverseGeocode(location.latitude, location.longitude) ?: "Vị trí hiện tại"
         return Result.success(AddressSuggestion(address, location.latitude, location.longitude))
+    }
+
+    /**
+     * Ưu tiên GPS: nghe cả GPS và mạng, dừng khi có điểm sai số <= [TARGET_ACCURACY_METERS]m; hết [LOCATION_TIMEOUT_MS]
+     * thì lấy điểm chính xác nhất đã nhận, không có thì dùng vị trí cuối cùng của hệ thống.
+     */
+    @SuppressLint("MissingPermission")
+    private suspend fun acquireLocation(manager: LocationManager): Location? {
+        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).filter { manager.isProviderEnabled(it) }
+        if (providers.isEmpty()) return null
+        var best: Location? = null
+        withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
+            suspendCancellableCoroutine<Unit> { cont ->
+                val listener = object : LocationListener {
+                    override fun onLocationChanged(loc: Location) {
+                        if (best == null || loc.accuracy < best!!.accuracy) best = loc
+                        if (loc.hasAccuracy() && loc.accuracy <= TARGET_ACCURACY_METERS && cont.isActive) cont.resume(Unit)
+                    }
+                    @Deprecated("Bắt buộc trên API < 29") override fun onStatusChanged(p: String?, s: Int, e: Bundle?) {}
+                    override fun onProviderEnabled(p: String) {}
+                    override fun onProviderDisabled(p: String) {}
+                }
+                providers.forEach { manager.requestLocationUpdates(it, 1000L, 0f, listener, Looper.getMainLooper()) }
+                cont.invokeOnCancellation { manager.removeUpdates(listener) }
+            }
+        }
+        return best ?: providers.mapNotNull { manager.getLastKnownLocation(it) }.minByOrNull { it.accuracy }
     }
 
     @Suppress("DEPRECATION") // API đồng bộ chạy trên IO; bản listener chỉ có từ API 33 (minSdk 26)
@@ -116,6 +142,7 @@ class LocationRepositoryImpl @Inject constructor(
 
     @Suppress("DEPRECATION")
     override suspend fun reverseGeocode(latitude: Double, longitude: Double): String? = withContext(Dispatchers.IO) {
+        LocationAnchors.nearest(latitude, longitude)?.let { return@withContext it.address }
         if (!Geocoder.isPresent()) return@withContext null
         try {
             geocoder().getFromLocation(latitude, longitude, 1)?.firstOrNull()?.getAddressLine(0)
@@ -156,7 +183,8 @@ class LocationRepositoryImpl @Inject constructor(
         const val KEY_LNG = "key_location_lng"
         const val KEY_RADIUS = "key_location_radius_km"
         const val KEY_LABEL = "key_location_label"
-        const val LOCATION_TIMEOUT_MS = 15_000L
+        const val LOCATION_TIMEOUT_MS = 20_000L
+        const val TARGET_ACCURACY_METERS = 30f
         const val MAX_SUGGESTIONS = 5
     }
 }

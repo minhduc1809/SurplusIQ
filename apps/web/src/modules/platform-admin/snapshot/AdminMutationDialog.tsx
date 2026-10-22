@@ -342,7 +342,7 @@ export function AdminMutationDialog({
               min: -90,
               max: 90,
               step: 0.000001,
-              helperText: 'Tùy chọn tọa độ PostGIS (VD TP.HCM: 10.7769).',
+              helperText: 'Tùy chọn tọa độ PostGIS (VD Hà Nội: 21.0458).',
             })}
             {input('longitude', 'Kinh độ (Longitude)', {
               type: 'number',

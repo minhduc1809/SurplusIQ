@@ -33,7 +33,7 @@ export class CreateRescuePoolDto {
 
   @ApiPropertyOptional({ description: 'Món cụ thể (nếu đợt chỉ cho một món)' })
   @IsOptional()
-  @IsUUID('4', { message: 'targetItemId phải là UUID hợp lệ.' })
+  @IsUUID('all', { message: 'targetItemId phải là UUID hợp lệ.' })
   targetItemId?: string;
 
   @ApiProperty({ example: 'Quận 1, TP.HCM', description: 'Khu vực phục vụ (BR-B02-03)' })
@@ -108,7 +108,7 @@ export class PublishSupplyOfferDto {
   @ApiProperty({
     description: 'Suất bán (offer) đang mở của cửa hàng dùng làm nguồn cung/tồn thật',
   })
-  @IsUUID('4', { message: 'offerId phải là UUID hợp lệ.' })
+  @IsUUID('all', { message: 'offerId phải là UUID hợp lệ.' })
   offerId: string;
 
   @ApiProperty({ example: 20, description: 'Tổng số suất cung ứng cho đợt (≤ maximum_supply)' })

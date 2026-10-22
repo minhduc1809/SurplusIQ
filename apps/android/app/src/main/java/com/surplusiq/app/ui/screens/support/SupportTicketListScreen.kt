@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.support
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -103,7 +104,7 @@ fun SupportTicketListScreen(
 
 @Composable
 private fun SupportTicketRow(ticket: SupportTicketResponse, onClick: () -> Unit) {
-    Card(
+    SqCard(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

@@ -1,5 +1,11 @@
 package com.surplusiq.merchant.ui.components
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.BakeryDining
+import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.RiceBowl
+import androidx.compose.material.icons.filled.Fastfood
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,6 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocalGroceryStore
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.KebabDining
+import androidx.compose.material.icons.filled.RamenDining
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -99,8 +109,13 @@ fun TabHeader(title: String, addLabel: String, onAdd: () -> Unit, menu: List<Men
         Text(text = title, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.weight(1f))
         OverflowMenu(menu)
         Spacer(modifier = Modifier.width(4.dp))
-        IconButton(onClick = onAdd, modifier = Modifier.clip(CircleShape).background(SqCoral)) {
-            Icon(Icons.Default.Add, contentDescription = addLabel, tint = Color.White)
+        Row(
+            Modifier.clip(RoundedCornerShape(50)).background(SqCoral).clickable(onClick = onAdd).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(addLabel, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
     }
 }
@@ -184,12 +199,16 @@ private val imageCache = LruCache<String, ImageBitmap>(40)
 /** Ảnh từ URL (không có thư viện ảnh trong app) - rơi về biểu tượng món khi trống/lỗi. */
 // shortcut: tải nguyên ảnh không thu nhỏ; thêm inSampleSize nếu ảnh món lớn gây tốn bộ nhớ.
 @Composable
-fun RemoteImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 12.dp) {
+fun RemoteImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 12.dp, fallback: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.Restaurant) {
     val bitmap by produceState(initialValue = url?.let { imageCache.get(it) }, url) {
         if (url.isNullOrBlank() || value != null) return@produceState
         value = withContext(Dispatchers.IO) {
             runCatching {
-                val conn = URL(url).openConnection().apply { connectTimeout = 8000; readTimeout = 8000 }
+                // Ảnh từ kho ngoài tải qua backend để không phụ thuộc mạng của máy
+                val source = if (url.startsWith("https://images.unsplash.com/") || url.startsWith("https://res.cloudinary.com/"))
+                    com.surplusiq.merchant.BuildConfig.API_BASE_URL.trimEnd('/') + "/media/proxy?url=" + java.net.URLEncoder.encode(url, "UTF-8")
+                else url
+                val conn = URL(source).openConnection().apply { connectTimeout = 8000; readTimeout = 8000 }
                 conn.getInputStream().use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
             }.getOrNull()
         }?.also { imageCache.put(url, it) }
@@ -197,7 +216,7 @@ fun RemoteImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 12.dp)
     Box(modifier = modifier.clip(RoundedCornerShape(corner)).background(SqButterWash), contentAlignment = Alignment.Center) {
         val b = bitmap
         if (b != null) Image(b, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else Icon(Icons.Default.Restaurant, contentDescription = null, tint = SqButter)
+        else Icon(fallback, contentDescription = null, tint = SqButter)
     }
 }
 
@@ -251,33 +270,35 @@ fun SqField(
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true,
+    suffix: String? = null,
     onValueChange: (String) -> Unit
 ) {
     Column(modifier = modifier) {
         if (label.isNotEmpty()) {
-            Text(text = label, fontSize = 12.sp, color = SqInkSoft)
-            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SqInkSoft)
+            Spacer(modifier = Modifier.height(6.dp))
         }
         Box(
             modifier = Modifier.fillMaxWidth()
-                .then(if (singleLine) Modifier.height(48.dp) else Modifier.heightIn(min = 88.dp))
-                .clip(RoundedCornerShape(12.dp))
+                .then(if (singleLine) Modifier.height(52.dp) else Modifier.heightIn(min = 96.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(if (enabled) SqSurfaceSoft else SqSurface)
-                .border(1.dp, SqLine, RoundedCornerShape(12.dp))
-                .padding(horizontal = 14.dp, vertical = if (singleLine) 0.dp else 12.dp),
+                .border(1.dp, SqLine, RoundedCornerShape(14.dp))
+                .padding(start = 16.dp, end = if (suffix != null) 52.dp else 16.dp, top = if (singleLine) 0.dp else 14.dp, bottom = if (singleLine) 0.dp else 14.dp),
             contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
         ) {
+            if (suffix != null) Text(suffix, fontSize = 13.sp, color = SqInkMuted, modifier = Modifier.align(Alignment.CenterEnd).padding(start = 8.dp).offset(x = 38.dp))
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 enabled = enabled,
                 singleLine = singleLine,
                 modifier = Modifier.fillMaxWidth(),
-                textStyle = TextStyle(fontSize = 14.sp, color = SqInk),
+                textStyle = TextStyle(fontSize = 15.sp, color = SqInk),
                 cursorBrush = SolidColor(SqCoral),
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                 decorationBox = { inner ->
-                    if (value.isEmpty() && placeholder.isNotEmpty()) Text(placeholder, fontSize = 14.sp, color = SqInkMuted)
+                    if (value.isEmpty() && placeholder.isNotEmpty()) Text(placeholder, fontSize = 15.sp, color = SqInkMuted)
                     inner()
                 }
             )
@@ -292,15 +313,16 @@ fun SqField(
 @Composable
 fun SqChip(label: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        modifier = Modifier.clip(RoundedCornerShape(50))
-            .background(if (selected) SqCoralWash else SqSurface)
+        modifier = Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(50))
+            .background(if (selected) SqCoral else SqSurface)
             .border(1.dp, if (selected) SqCoral else SqLine, RoundedCornerShape(50))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            color = when { !enabled -> SqInkMuted; selected -> SqCoralDeep; else -> SqInkSoft }
+            color = when { !enabled -> SqInkMuted; selected -> Color.White; else -> SqInk }
         )
     }
 }
@@ -389,15 +411,43 @@ fun ProGate(repository: StoreRepository, feature: String, onUpgrade: () -> Unit,
     when {
         error != null -> ErrorState(error!!) { attempt++ }
         plan == null -> FullScreenLoading()
-        plan == "BASIC" -> SqCard {
-            Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = SqCoralDeep, modifier = Modifier.size(32.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("$feature thuộc gói Pro", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SqInk)
-            Text("Nâng cấp hoặc dùng thử Pro để mở tính năng này.", fontSize = 13.sp, color = SqInkSoft)
-            Spacer(modifier = Modifier.height(12.dp))
-            PrimaryButton("Xem gói Pro", onClick = onUpgrade)
-        }
+        plan == "BASIC" -> ProLockCard(feature, onUpgrade)
         else -> content()
+    }
+}
+
+/** Thẻ mời nâng cấp hiện thay cho nội dung chỉ có ở gói Chuyên nghiệp. */
+@Composable
+fun ProLockCard(feature: String, onUpgrade: () -> Unit) {
+    SqCard {
+        Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = SqCoralDeep, modifier = Modifier.size(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("$feature thuộc gói Chuyên nghiệp", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SqInk)
+        Text("Nâng cấp hoặc dùng thử Chuyên nghiệp để mở tính năng này.", fontSize = 13.sp, color = SqInkSoft)
+        Spacer(modifier = Modifier.height(12.dp))
+        PrimaryButton("Xem gói Chuyên nghiệp", onClick = onUpgrade)
+    }
+}
+
+/** Khóa cả màn hình Pro: gói Cơ bản chỉ thấy tiêu đề và thẻ mời nâng cấp, không gọi API của màn đó. */
+@Composable
+fun ProRoute(repository: StoreRepository, feature: String, onUpgrade: () -> Unit, onBack: () -> Unit, content: @Composable () -> Unit) {
+    var plan by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var attempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(attempt) {
+        error = null
+        repository.getSubscription().fold(onSuccess = { plan = it.effectivePlan ?: it.plan }, onFailure = { error = it.message })
+    }
+    if (plan != null && plan != "BASIC") { content(); return }
+    Column(Modifier.fillMaxSize().background(SqCanvas).padding(20.dp)) {
+        ScreenHeader(feature, onBack)
+        Spacer(Modifier.height(12.dp))
+        when {
+            error != null -> ErrorState(error!!) { attempt++ }
+            plan == null -> FullScreenLoading()
+            else -> ProLockCard(feature, onUpgrade)
+        }
     }
 }
 
@@ -452,3 +502,35 @@ fun rememberFileSaver(mimeType: String, onResult: (Boolean) -> Unit): (fileName:
         launcher.launch(fileName)
     }
 }
+
+/** Icon minh họa theo nhóm món khi chưa có ảnh; nhóm lạ dùng icon món ăn chung. */
+fun categoryIcon(category: String?): androidx.compose.ui.graphics.vector.ImageVector = when (category.orEmpty().uppercase()) {
+    "RICE" -> Icons.Default.RiceBowl
+    "NOODLE" -> Icons.Default.RamenDining
+    "BREAD" -> Icons.Default.BakeryDining
+    "FASTFOOD" -> Icons.Default.Fastfood
+    "SNACK" -> Icons.Default.KebabDining
+    "HEALTHY" -> Icons.Default.Eco
+    "SWEET" -> Icons.Default.Cake
+    "DRINK" -> Icons.Default.LocalCafe
+    "PRODUCE" -> Icons.Default.LocalGroceryStore
+    else -> Icons.Default.Restaurant
+}
+
+/** 10 nhóm món chuẩn (mã gửi lên máy chủ, tên hiển thị); khớp food-category.ts ở backend và app khách. */
+val FOOD_CATEGORIES = listOf(
+    "RICE" to "Cơm",
+    "NOODLE" to "Phở & Bún",
+    "BREAD" to "Bánh mì",
+    "FASTFOOD" to "Đồ nhanh",
+    "SNACK" to "Ăn vặt",
+    "HEALTHY" to "Healthy",
+    "SWEET" to "Bánh ngọt",
+    "DRINK" to "Đồ uống",
+    "PRODUCE" to "Nông sản",
+    "OTHER" to "Khác",
+)
+
+/** Tên hiển thị của một nhóm món; giá trị lạ (dữ liệu cũ) giữ nguyên. */
+fun categoryLabel(code: String?): String =
+    FOOD_CATEGORIES.firstOrNull { it.first.equals(code, ignoreCase = true) }?.second ?: code.orEmpty().ifBlank { "Khác" }

@@ -3,11 +3,16 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// API_BASE_URL: địa chỉ backend. Mặc định 10.0.2.2:4000 (emulator); điện thoại thật cắm USB dùng
+// `adb reverse tcp:4000 tcp:4000` rồi build với -PAPI_BASE_URL=http://127.0.0.1:4000/
+val apiBaseUrl: String = (project.findProperty("API_BASE_URL") as String?) ?: "http://10.0.2.2:4000/"
+
 android {
     namespace = "com.surplusiq.merchant"
     compileSdk = 36
 
     defaultConfig {
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         applicationId = "com.surplusiq.merchant"
         minSdk = 26
         targetSdk = 36
@@ -30,6 +35,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.11"

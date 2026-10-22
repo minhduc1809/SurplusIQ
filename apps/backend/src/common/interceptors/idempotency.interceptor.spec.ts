@@ -1,6 +1,6 @@
 import { ExecutionContext, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { of, firstValueFrom } from 'rxjs';
+import { of, throwError, firstValueFrom } from 'rxjs';
 import * as crypto from 'crypto';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 
@@ -8,13 +8,27 @@ describe('IdempotencyInterceptor Unit Tests (BR-015)', () => {
   let interceptor: IdempotencyInterceptor;
   let reflector: Reflector;
   let mockIdempotencyRepo: any;
+  let claimed = true;
 
   beforeEach(() => {
     reflector = new Reflector();
+    // Khóa được chiếm bằng INSERT ... ON CONFLICT DO NOTHING (BUG-006): claimed=true khi chèn được dòng mới.
+    claimed = true;
     mockIdempotencyRepo = {
       findOne: jest.fn(),
-      create: jest.fn().mockImplementation((dto) => ({ ...dto })),
-      save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
+      update: jest.fn().mockResolvedValue({}),
+      delete: jest.fn().mockResolvedValue({}),
+      createQueryBuilder: jest.fn(() => {
+        const qb: any = {
+          insert: () => qb,
+          into: () => qb,
+          values: () => qb,
+          orIgnore: () => qb,
+          returning: () => qb,
+          execute: async () => ({ raw: claimed ? [{ key: 'k' }] : [], identifiers: [] }),
+        };
+        return qb;
+      }),
     };
 
     interceptor = new IdempotencyInterceptor(reflector, mockIdempotencyRepo);
@@ -70,7 +84,6 @@ describe('IdempotencyInterceptor Unit Tests (BR-015)', () => {
 
   it('should process first call, save idempotency record, and set header to SAVED', async () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue({ required: true });
-    mockIdempotencyRepo.findOne.mockResolvedValue(null); // Key not used yet
 
     const body = { offerId: 'off-1', quantity: 2 };
     const context = createMockContext({ 'idempotency-key': 'idem-key-123' }, body);
@@ -80,12 +93,9 @@ describe('IdempotencyInterceptor Unit Tests (BR-015)', () => {
     const result = await firstValueFrom(observable);
 
     expect(result).toEqual({ orderId: 'ord-100', total: 60000 });
-    expect(mockIdempotencyRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: 'idem-key-123',
-        statusCode: 201,
-        response: { orderId: 'ord-100', total: 60000 },
-      }),
+    expect(mockIdempotencyRepo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'idem-key-123' }),
+      expect.objectContaining({ statusCode: 201, response: { orderId: 'ord-100', total: 60000 } }),
     );
   });
 
@@ -95,6 +105,7 @@ describe('IdempotencyInterceptor Unit Tests (BR-015)', () => {
     const body = { offerId: 'off-1', quantity: 2 };
     const requestHash = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
 
+    claimed = false;
     mockIdempotencyRepo.findOne.mockResolvedValue({
       key: 'idem-key-123',
       requestHash,
@@ -121,6 +132,7 @@ describe('IdempotencyInterceptor Unit Tests (BR-015)', () => {
       .update(JSON.stringify({ offerId: 'off-1', quantity: 2 }))
       .digest('hex');
 
+    claimed = false;
     mockIdempotencyRepo.findOne.mockResolvedValue({
       key: 'idem-key-123',
       requestHash: originalHash,
@@ -141,5 +153,37 @@ describe('IdempotencyInterceptor Unit Tests (BR-015)', () => {
       expect(err.getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
       expect(err.getResponse().code).toBe('IDEMPOTENCY_KEY_REUSED');
     }
+  });
+
+  it('BUG-006: yêu cầu song song cùng khóa khi yêu cầu đầu còn đang xử lý trả 409 IDEMPOTENCY_IN_PROGRESS', async () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue({ required: true });
+    const body = { offerId: 'off-1', quantity: 1 };
+    const requestHash = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+    claimed = false;
+    mockIdempotencyRepo.findOne.mockResolvedValue({
+      key: 'k',
+      requestHash,
+      statusCode: 0,
+      response: {},
+    });
+    const context = createMockContext({ 'idempotency-key': 'k' }, body);
+    const next = { handle: jest.fn() };
+
+    await expect(interceptor.intercept(context, next)).rejects.toMatchObject({
+      status: HttpStatus.CONFLICT,
+    });
+    expect(next.handle).not.toHaveBeenCalled(); // handler KHÔNG chạy lần hai
+  });
+
+  it('BUG-006: khi handler lỗi thì nhả khóa để client thử lại với cùng khóa', async () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue({ required: true });
+    const context = createMockContext({ 'idempotency-key': 'k2' }, { offerId: 'off-1' });
+    const next = {
+      handle: jest.fn().mockReturnValue(throwError(() => new BadRequestException('hết suất'))),
+    };
+
+    const observable = await interceptor.intercept(context, next);
+    await expect(firstValueFrom(observable)).rejects.toThrow(BadRequestException);
+    expect(mockIdempotencyRepo.delete).toHaveBeenCalledWith(expect.objectContaining({ key: 'k2' }));
   });
 });

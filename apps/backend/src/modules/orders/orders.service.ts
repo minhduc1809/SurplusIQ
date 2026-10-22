@@ -1,8 +1,19 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { getJwtSecret } from '../../common/config/jwt-secret';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager, In } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, IsNull } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
+import { createRefundTransaction } from '../payments/refund-transaction';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
 import {
   ProxyPickupCodeEntity,
@@ -17,11 +28,16 @@ import {
 } from '../../entities/orders/payment-transaction.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { CustomerSegmentEntity } from '../../entities/stores/customer-segment.entity';
 import {
   PromotionEntity,
   PromotionStatus,
+  PromotionTarget,
   PromotionType,
 } from '../../entities/marketing/promotion.entity';
+import { PromotionWalletEntity } from '../../entities/marketing/promotion-wallet.entity';
+import { releasePromotionUse } from './order-amounts';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QrTokenEngine } from '@surplusiq/core';
 import { CreateOrderDto, CancelOrderDto, QueryOrdersDto } from './dto';
@@ -38,7 +54,7 @@ export interface OrdersListResult {
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
-  private readonly jwtSecret = process.env.JWT_SECRET || 'surplusiq_super_secret_jwt_key_2026';
+  private readonly jwtSecret = getJwtSecret();
 
   constructor(
     @InjectRepository(OrderEntity)
@@ -59,6 +75,7 @@ export class OrdersService {
     private readonly storeRepo: Repository<StoreEntity>,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -106,6 +123,7 @@ export class OrdersService {
     }
 
     // 3. Mở Database Transaction với khóa bi quan FOR UPDATE (pessimistic_write) chống bán vượt tồn kho
+    const pickupSlot = dto.pickupSlot ? new Date(dto.pickupSlot) : null;
     const work = async (manager: EntityManager): Promise<OrderEntity> => {
       const offer = await manager
         .createQueryBuilder(OfferEntity, 'offer')
@@ -129,6 +147,30 @@ export class OrdersService {
         throw new BadRequestException('Cửa hàng hiện không nhận đơn mới.');
       }
 
+      const nowAt = new Date();
+      if (nowAt > new Date(offer.pickupEnd)) {
+        throw new BadRequestException('Suất bán đã quá khung giờ nhận hàng.');
+      }
+      if (
+        pickupSlot &&
+        (pickupSlot < new Date(offer.pickupStart) || pickupSlot > new Date(offer.pickupEnd))
+      ) {
+        throw new BadRequestException(
+          'Giờ hẹn nhận phải nằm trong khung giờ nhận hàng của quán (R1-049).',
+        );
+      }
+      // Hạn mức mỗi đơn theo cấu hình cửa hàng (R2-007), không vượt trần hệ thống BR-019.
+      const storeSettings = await manager.findOne(StoreSettingsEntity, {
+        where: { storeId: offer.storeId },
+      });
+      const maxQty = Math.min(
+        ORDERS_CONSTANTS.MAX_QUANTITY_PER_ORDER,
+        storeSettings?.maxQtyPerOrder ?? ORDERS_CONSTANTS.MAX_QUANTITY_PER_ORDER,
+      );
+      if (dto.quantity > maxQty) {
+        throw new BadRequestException(`Cửa hàng chỉ cho đặt tối đa ${maxQty} suất mỗi đơn.`);
+      }
+
       if (offer.remainingQuantity < dto.quantity) {
         throw new BadRequestException(
           `Món này đã hết suất hoặc không còn đủ số lượng yêu cầu (còn ${offer.remainingQuantity}/${dto.quantity}).`,
@@ -147,6 +189,7 @@ export class OrdersService {
       const subtotal = unitPrice * dto.quantity;
       let discountAmount = 0;
       let appliedPromotionId: string | null = null;
+      let platformSubsidy = 0;
 
       if (dto.promotionId) {
         const promo = await manager.findOne(PromotionEntity, {
@@ -157,7 +200,18 @@ export class OrdersService {
           throw new BadRequestException('Mã ưu đãi không tồn tại trên hệ thống.');
         }
 
-        if (promo.storeId !== offer.storeId) {
+        // Voucher đổi điểm do nền tảng tài trợ: chỉ chủ ví dùng được, ở mọi cửa hàng, mỗi mã một lần.
+        const platformFunded = promo.fundedBy === 'PLATFORM';
+        if (platformFunded) {
+          const wallet = await manager.findOne(PromotionWalletEntity, {
+            where: { customerId, promotionId: promo.id },
+          });
+          if (!wallet || wallet.usedAt) {
+            throw new BadRequestException(
+              'Voucher này không có trong ví của bạn hoặc đã được dùng.',
+            );
+          }
+        } else if (promo.storeId !== offer.storeId) {
           throw new BadRequestException('Mã ưu đãi này không thuộc cửa hàng đã chọn.');
         }
 
@@ -186,6 +240,21 @@ export class OrdersService {
           );
         }
 
+        // Ưu đãi chỉ dành cho đúng nhóm khách đã chọn
+        if (!platformFunded && promo.target !== PromotionTarget.ALL) {
+          const eligible =
+            promo.target === PromotionTarget.FAVORITES
+              ? await manager.exists(FavoriteStoreEntity, {
+                  where: { userId: customerId, storeId: offer.storeId },
+                })
+              : await manager.exists(CustomerSegmentEntity, {
+                  where: { storeId: offer.storeId, customerId, segment: promo.target as never },
+                });
+          if (!eligible) {
+            throw new BadRequestException('Ưu đãi này không dành cho tài khoản của bạn.');
+          }
+        }
+
         // Tính toán số tiền chiết khấu theo loại ưu đãi
         if (promo.type === PromotionType.PERCENT) {
           discountAmount = Math.round((subtotal * promo.value) / 100);
@@ -193,8 +262,17 @@ export class OrdersService {
           discountAmount = Math.min(promo.value, subtotal);
         }
 
-        // Giới hạn giảm giá không vượt quá tổng tiền
-        discountAmount = Math.min(discountAmount, subtotal);
+        // Ưu đãi của cửa hàng không đưa giá xuống dưới giá sàn (BR-019); voucher nền tảng do nền tảng bù
+        // nên cửa hàng vẫn nhận đủ giá trị đơn, chỉ không để khách trả âm.
+        if (platformFunded) {
+          discountAmount = Math.min(discountAmount, subtotal);
+          platformSubsidy = discountAmount;
+        } else {
+          discountAmount = Math.min(
+            discountAmount,
+            Math.max(0, subtotal - offer.floorPrice * dto.quantity),
+          );
+        }
 
         // Tăng số lượt sử dụng của promotion
         promo.usedCount += 1;
@@ -211,7 +289,6 @@ export class OrdersService {
       );
 
       const code = this.generateOrderCode();
-      const pickupSlot = dto.pickupSlot ? new Date(dto.pickupSlot) : null;
 
       const order = manager.create(OrderEntity, {
         code,
@@ -222,6 +299,7 @@ export class OrdersService {
         unitPrice,
         promotionId: appliedPromotionId,
         discountAmount,
+        platformSubsidy,
         totalAmount,
         status: OrderStatus.PENDING_PAYMENT,
         holdExpiresAt,
@@ -230,23 +308,34 @@ export class OrdersService {
       });
 
       const savedOrder = await manager.save(order);
+      if (appliedPromotionId) {
+        // Mã nằm trong ví thì đánh dấu đã dùng; hủy hoặc hết hạn giữ sẽ trả lại (releasePromotionUse).
+        await manager.update(
+          PromotionWalletEntity,
+          { customerId, promotionId: appliedPromotionId, usedAt: IsNull() },
+          { usedAt: new Date(), orderId: savedOrder.id },
+        );
+      }
 
       // 7. Ghi nhật ký kiểm toán
-      await this.auditLogService.log({
-        storeId: offer.storeId,
-        actorId,
-        actorRole: 'CUSTOMER',
-        action: 'ORDER_HELD',
-        targetType: 'ORDER',
-        targetId: savedOrder.id,
-        newValue: {
-          code: savedOrder.code,
-          quantity: savedOrder.quantity,
-          unitPrice: savedOrder.unitPrice,
-          totalAmount: savedOrder.totalAmount,
-          holdExpiresAt: savedOrder.holdExpiresAt,
+      await this.auditLogService.log(
+        {
+          storeId: offer.storeId,
+          actorId,
+          actorRole: 'CUSTOMER',
+          action: 'ORDER_HELD',
+          targetType: 'ORDER',
+          targetId: savedOrder.id,
+          newValue: {
+            code: savedOrder.code,
+            quantity: savedOrder.quantity,
+            unitPrice: savedOrder.unitPrice,
+            totalAmount: savedOrder.totalAmount,
+            holdExpiresAt: savedOrder.holdExpiresAt,
+          },
         },
-      });
+        manager,
+      );
 
       return savedOrder;
     };
@@ -318,16 +407,12 @@ export class OrdersService {
         );
 
         // Tạo giao dịch hoàn tiền 100% tự động (R1-043)
-        const refundTx = manager.create(PaymentTransactionEntity, {
-          orderId: order.id,
-          storeId: order.storeId,
-          kind: PaymentKind.ORDER_REFUND,
-          amount: order.totalAmount,
-          method: PaymentMethod.VIETQR,
-          gatewayTxnId: `REFUND-${order.code}-${Date.now()}`,
-          status: PaymentStatus.SUCCEEDED,
-        });
-        await manager.save(refundTx);
+        await createRefundTransaction(
+          manager,
+          order,
+          order.totalAmount,
+          `REFUND-${order.code}-${Date.now()}`,
+        );
       }
 
       // 1. Cập nhật trạng thái đơn
@@ -341,27 +426,41 @@ export class OrdersService {
       // 2. Hoàn trả tồn kho suất bán
       if (offer) {
         offer.remainingQuantity += order.quantity;
-        if (offer.status === OfferStatus.SOLD_OUT) {
+        if (offer.status === OfferStatus.SOLD_OUT && new Date(offer.pickupEnd) > new Date()) {
           offer.status = OfferStatus.OPEN;
         }
         await manager.save(offer);
       }
+      await this.releasePromotion(manager, order);
 
       // 3. Ghi nhật ký kiểm toán
-      await this.auditLogService.log({
-        storeId: order.storeId,
-        actorId: customerId,
-        actorRole: 'CUSTOMER',
-        action: wasPaid ? 'ORDER_PAID_CANCELLED' : 'ORDER_HOLD_CANCELLED',
-        targetType: 'ORDER',
-        targetId: order.id,
-        newValue: {
-          status: OrderStatus.CANCELLED,
-          reason: order.cancelReason,
-          wasPaid,
-          refundAmount: wasPaid ? order.totalAmount : 0,
+      await this.auditLogService.log(
+        {
+          storeId: order.storeId,
+          actorId: customerId,
+          actorRole: 'CUSTOMER',
+          action: wasPaid ? 'ORDER_PAID_CANCELLED' : 'ORDER_HOLD_CANCELLED',
+          targetType: 'ORDER',
+          targetId: order.id,
+          newValue: {
+            status: OrderStatus.CANCELLED,
+            reason: order.cancelReason,
+            wasPaid,
+            refundAmount: wasPaid ? order.totalAmount : 0,
+          },
         },
-      });
+        manager,
+      );
+
+      if (wasPaid) {
+        await this.notifications?.notifyQuietly({
+          storeId: order.storeId,
+          type: NotificationType.ORDER,
+          title: 'Khách hủy đơn đã thanh toán',
+          body: `Đơn ${order.code} đã bị khách hủy, tiền hoàn 100% và không cần chuẩn bị.`,
+          data: { orderId: order.id, kind: 'ORDER_CANCELLED_BY_CUSTOMER' },
+        });
+      }
 
       return savedOrder;
     });
@@ -409,12 +508,20 @@ export class OrdersService {
 
         if (offer) {
           offer.remainingQuantity += lockedOrder.quantity;
-          if (offer.status === OfferStatus.SOLD_OUT) {
+          if (offer.status === OfferStatus.SOLD_OUT && new Date(offer.pickupEnd) > new Date()) {
             offer.status = OfferStatus.OPEN;
           }
           await manager.save(offer);
         }
+        await this.releasePromotion(manager, lockedOrder);
 
+        await this.notifications?.notifyQuietly({
+          userId: lockedOrder.customerId,
+          type: NotificationType.ORDER,
+          title: 'Đơn hết hạn giữ suất',
+          body: `Đơn ${lockedOrder.code} đã quá 10 phút chưa thanh toán nên suất được nhả. Bạn có thể đặt lại.`,
+          data: { orderId: lockedOrder.id, kind: 'HOLD_EXPIRED' },
+        });
         releasedCount++;
       });
     }
@@ -429,6 +536,11 @@ export class OrdersService {
   /**
    * Xem chi tiết đơn hàng phía khách hàng (R1-046)
    */
+  /** Hủy hoặc hết hạn giữ suất thì trả lại lượt dùng ưu đãi (BR-019). */
+  private async releasePromotion(manager: EntityManager, order: OrderEntity) {
+    await releasePromotionUse(manager, order.id, order.promotionId);
+  }
+
   async getOrderById(
     customerId: string,
     orderId: string,
@@ -507,8 +619,8 @@ export class OrdersService {
   /**
    * Danh sách đơn đang hoạt động / chờ nhận hàng của khách (R1-055)
    */
-  async getCustomerActiveOrders(customerId: string): Promise<OrderEntity[]> {
-    return this.orderRepo.find({
+  async getCustomerActiveOrders(customerId: string) {
+    const orders = await this.orderRepo.find({
       where: {
         customerId,
         status: In([OrderStatus.PENDING_PAYMENT, OrderStatus.PAID]),
@@ -516,6 +628,39 @@ export class OrdersService {
       order: {
         createdAt: 'DESC',
       },
+    });
+    if (orders.length === 0) return [];
+
+    // Đơn thô không có tên quán, tên món và khung giờ nhận: bổ sung từ suất, món và cửa hàng để app hiển thị đủ.
+    const rows = await this.offerRepo
+      .createQueryBuilder('o')
+      .leftJoin(StoreEntity, 's', 's.id = o.store_id')
+      .leftJoin(ItemEntity, 'i', 'i.id = o.item_id')
+      .where('o.id IN (:...ids)', { ids: [...new Set(orders.map((o) => o.offerId))] })
+      .select([
+        'o.id AS offer_id',
+        's.name AS store_name',
+        's.address AS store_address',
+        's.logo_url AS store_logo_url',
+        'i.name AS item_name',
+        'i.image_url AS image_url',
+        'o.pickup_start AS pickup_start',
+        'o.pickup_end AS pickup_end',
+      ])
+      .getRawMany();
+    const byOffer = new Map(rows.map((r) => [r.offer_id as string, r]));
+
+    return orders.map((o) => {
+      const r = byOffer.get(o.offerId);
+      return {
+        ...o,
+        storeName: r?.store_name ?? null,
+        storeAddress: r?.store_address ?? null,
+        storeLogoUrl: r?.store_logo_url ?? null,
+        itemName: r?.item_name ?? null,
+        imageUrl: r?.image_url ?? null,
+        offer: r ? { pickupStart: r.pickup_start, pickupEnd: r.pickup_end } : null,
+      };
     });
   }
 
@@ -548,7 +693,15 @@ export class OrdersService {
     }
 
     order.arrivingNotifiedAt = new Date();
-    return this.orderRepo.save(order);
+    const saved = await this.orderRepo.save(order);
+    await this.notifications?.notifyQuietly({
+      storeId: order.storeId,
+      type: NotificationType.ORDER,
+      title: 'Khách sắp đến nhận hàng',
+      body: `Khách của đơn ${order.code} báo đang tới. Hãy chuẩn bị hàng.`,
+      data: { orderId: order.id, kind: 'CUSTOMER_ARRIVING' },
+    });
+    return saved;
   }
 
   /**
@@ -643,7 +796,31 @@ export class OrdersService {
         throw new BadRequestException(`Không thể hủy đơn hàng đã ở trạng thái ${order.status}.`);
       }
 
+      // Đơn đã hết hạn giữ/nhận đã được hệ thống xử lý, không cho cửa hàng hủy lại.
+      if (order.status !== OrderStatus.PENDING_PAYMENT && order.status !== OrderStatus.PAID) {
+        throw new BadRequestException(`Không thể hủy đơn hàng đã ở trạng thái ${order.status}.`);
+      }
+
       const wasPending = order.status === OrderStatus.PENDING_PAYMENT;
+      // Đơn đã thanh toán mà cửa hàng hủy: thu hồi vé nhận hàng và hoàn 100% cho khách (R2 hủy đơn).
+      if (!wasPending) {
+        await manager.update(
+          PickupTokenEntity,
+          { orderId: order.id, status: PickupTokenStatus.UNUSED },
+          { status: PickupTokenStatus.REVOKED },
+        );
+        await manager.update(
+          ProxyPickupCodeEntity,
+          { orderId: order.id, status: ProxyPickupCodeStatus.UNUSED },
+          { status: ProxyPickupCodeStatus.REVOKED },
+        );
+        await createRefundTransaction(
+          manager,
+          order,
+          order.totalAmount,
+          `REFUND-${order.code}-${Date.now()}`,
+        );
+      }
       order.status = OrderStatus.CANCELLED;
       order.cancelledBy = CancelledBy.STORE;
       order.cancelReason = dto?.reason || 'Cửa hàng hủy đơn (Hoàn tiền 100%)';
@@ -661,25 +838,37 @@ export class OrdersService {
 
         if (offer) {
           offer.remainingQuantity += order.quantity;
-          if (offer.status === OfferStatus.SOLD_OUT) {
+          if (offer.status === OfferStatus.SOLD_OUT && new Date(offer.pickupEnd) > new Date()) {
             offer.status = OfferStatus.OPEN;
           }
           await manager.save(offer);
         }
+        await this.releasePromotion(manager, order);
       }
 
       // Ghi nhật ký kiểm toán
-      await this.auditLogService.log({
-        storeId,
-        actorId,
-        actorRole: 'STORE_MEMBER',
-        action: 'ORDER_CANCELLED_BY_STORE',
-        targetType: 'ORDER',
-        targetId: savedOrder.id,
-        newValue: {
-          status: OrderStatus.CANCELLED,
-          reason: order.cancelReason,
+      await this.auditLogService.log(
+        {
+          storeId,
+          actorId,
+          actorRole: 'STORE_MEMBER',
+          action: 'ORDER_CANCELLED_BY_STORE',
+          targetType: 'ORDER',
+          targetId: savedOrder.id,
+          newValue: {
+            status: OrderStatus.CANCELLED,
+            reason: order.cancelReason,
+          },
         },
+        manager,
+      );
+
+      await this.notifications?.notifyQuietly({
+        userId: order.customerId,
+        type: NotificationType.ORDER,
+        title: 'Cửa hàng đã hủy đơn',
+        body: `Đơn ${order.code} bị cửa hàng hủy${order.cancelReason ? `: ${order.cancelReason}` : ''}. Nếu bạn đã thanh toán, tiền được hoàn 100%.`,
+        data: { orderId: order.id, kind: 'ORDER_CANCELLED_BY_STORE' },
       });
 
       return savedOrder;
@@ -709,6 +898,9 @@ export class OrdersService {
 
     if (order.status === OrderStatus.PICKED_UP) {
       throw new BadRequestException('Đơn hàng này đã được nhận trước đó rồi.');
+    }
+    if (order.status !== OrderStatus.PAID) {
+      throw new BadRequestException(`Chỉ giao được đơn đã thanh toán (hiện tại: ${order.status}).`);
     }
 
     order.status = OrderStatus.PICKED_UP;

@@ -1,5 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { SubscriptionPlan } from '../../../entities/subscriptions/subscription.entity';
 import { QuotaKey, QuotaPeriod } from '../../subscriptions/quota.constants';
 
@@ -60,4 +70,25 @@ export class UpdateAdminQuotaDto {
   @Min(0)
   @Max(2147483647)
   quotaValue: number;
+}
+
+export class RejectPaymentProofDto {
+  @ApiProperty({
+    description: 'Lý do từ chối biên lai',
+    example: 'Không thấy khoản tiền về tài khoản nhận',
+  })
+  @IsString()
+  @MaxLength(255)
+  reason: string;
+}
+
+export class MarkRefundPaidDto {
+  @ApiProperty({
+    description: 'Mã giao dịch ngân hàng của lần chuyển khoản hoàn tiền',
+    example: 'FT26102100123',
+  })
+  @IsString()
+  @MinLength(4)
+  @MaxLength(100)
+  reference: string;
 }

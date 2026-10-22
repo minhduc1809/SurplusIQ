@@ -1,13 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString, Min } from 'class-validator';
+import { IsString } from 'class-validator';
 
 export class RedeemRewardDto {
-  @ApiProperty({ description: 'Số điểm muốn đổi', example: 500 })
-  @IsInt()
-  @Min(1)
-  points: number;
-
-  @ApiProperty({ description: 'Mã định danh ưu đãi/phần thưởng được đổi' })
+  @ApiProperty({
+    description: 'Mã ưu đãi trong danh mục đổi điểm (GET customer/rewards/catalog)',
+    example: 'VOUCHER_10K',
+  })
   @IsString()
   redemptionId: string;
 }

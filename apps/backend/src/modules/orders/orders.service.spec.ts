@@ -6,6 +6,8 @@ import { OrdersService } from './orders.service';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus, OfferKind } from '../../entities/catalog/offer.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { PromotionEntity } from '../../entities/marketing/promotion.entity';
+import { PromotionWalletEntity } from '../../entities/marketing/promotion-wallet.entity';
 import {
   ProxyPickupCodeEntity,
   ProxyPickupCodeStatus,
@@ -55,6 +57,9 @@ describe('OrdersService', () => {
     unitPrice: 20000,
     promotionId: null,
     discountAmount: 0,
+    platformSubsidy: 0,
+    swappedFromOfferId: null,
+    swappedAt: null,
     totalAmount: 40000,
     status: OrderStatus.PENDING_PAYMENT,
     holdExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
@@ -152,6 +157,8 @@ describe('OrdersService', () => {
       create: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
+      exists: jest.fn(),
+      decrement: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -233,6 +240,7 @@ describe('OrdersService', () => {
           action: 'ORDER_HELD',
           targetType: 'ORDER',
         }),
+        expect.anything(),
       );
     });
 
@@ -267,6 +275,101 @@ describe('OrdersService', () => {
       await expect(service.holdOrder(mockCustomerId, validDto)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    describe('ưu đãi (BR-019)', () => {
+      const promo = (extra: object = {}) => ({
+        id: 'promo-1',
+        storeId: mockStoreId,
+        status: 'ACTIVE',
+        type: 'PERCENT',
+        value: 50,
+        target: 'ALL',
+        maxUses: 10,
+        usedCount: 0,
+        minOrderAmount: 0,
+        startAt: new Date(Date.now() - 1000),
+        endAt: new Date(Date.now() + 3600 * 1000),
+        ...extra,
+      });
+      const hold = (p: object) => {
+        mockOrderLockRepo.findOne.mockResolvedValue(null);
+        mockTransactionManager.createQueryBuilder.mockReturnValue(
+          createMockQueryBuilder({ ...mockOffer, remainingQuantity: 5 }),
+        );
+        mockTransactionManager.findOne.mockImplementation(async (cls: any) =>
+          cls === PromotionEntity ? p : { status: 'ACTIVE' },
+        );
+        mockTransactionManager.create.mockImplementation((_c: any, dto: any) => ({
+          ...dto,
+          id: 'o',
+        }));
+        mockTransactionManager.save.mockImplementation(async (e: any) => e);
+        return service.holdOrder(mockCustomerId, { ...validDto, promotionId: 'promo-1' });
+      };
+
+      it('không cho ưu đãi đưa giá xuống dưới giá sàn', async () => {
+        // 2 suất x 20.000 = 40.000, giá sàn 16.000/suất = 32.000 -> giảm tối đa 8.000 dù ưu đãi 50%
+        const result = await hold(promo());
+        expect(result.discountAmount).toBe(8000);
+        expect(result.totalAmount).toBe(32000);
+      });
+
+      it('từ chối khi khách không thuộc nhóm của ưu đãi', async () => {
+        mockTransactionManager.exists.mockResolvedValue(false);
+        await expect(hold(promo({ target: 'FAVORITES' }))).rejects.toThrow('không dành cho');
+      });
+
+      describe('voucher nền tảng tài trợ (đổi điểm)', () => {
+        const voucher = promo({
+          storeId: null,
+          fundedBy: 'PLATFORM',
+          type: 'FIXED',
+          value: 10000,
+          maxUses: 1,
+        });
+        const holdWithWallet = (wallet: object | null) => {
+          mockOrderLockRepo.findOne.mockResolvedValue(null);
+          mockTransactionManager.createQueryBuilder.mockReturnValue(
+            createMockQueryBuilder({ ...mockOffer, remainingQuantity: 5 }),
+          );
+          mockTransactionManager.findOne.mockImplementation(async (cls: any) => {
+            if (cls === PromotionEntity) return voucher;
+            if (cls === PromotionWalletEntity) return wallet;
+            return { status: 'ACTIVE' };
+          });
+          mockTransactionManager.create.mockImplementation((_c: any, dto: any) => ({
+            ...dto,
+            id: 'o1',
+          }));
+          mockTransactionManager.save.mockImplementation(async (e: any) => e);
+          mockTransactionManager.update = jest.fn();
+          return service.holdOrder(mockCustomerId, { ...validDto, promotionId: 'promo-1' });
+        };
+
+        it('từ chối khi voucher không có trong ví của khách hoặc đã dùng', async () => {
+          await expect(holdWithWallet(null)).rejects.toThrow('không có trong ví');
+          await expect(holdWithWallet({ usedAt: new Date() })).rejects.toThrow('đã được dùng');
+        });
+
+        it('giảm đủ giá trị voucher bất kể giá sàn, ghi phần nền tảng bù và đánh dấu ví đã dùng', async () => {
+          const result = await holdWithWallet({ usedAt: null });
+          expect(result.discountAmount).toBe(10000);
+          expect(result.platformSubsidy).toBe(10000);
+          expect(result.totalAmount).toBe(30000);
+          expect(mockTransactionManager.update).toHaveBeenCalledWith(
+            PromotionWalletEntity,
+            expect.objectContaining({ customerId: mockCustomerId, promotionId: 'promo-1' }),
+            expect.objectContaining({ orderId: 'o1' }),
+          );
+        });
+      });
+
+      it('cho dùng khi khách thuộc nhóm của ưu đãi', async () => {
+        mockTransactionManager.exists.mockResolvedValue(true);
+        const result = await hold(promo({ target: 'FAVORITES', type: 'FIXED', value: 4000 }));
+        expect(result.discountAmount).toBe(4000);
+      });
     });
 
     it('từ chối đơn mới khi Admin đã tạm ngưng cửa hàng, không trừ tồn kho', async () => {
@@ -304,6 +407,7 @@ describe('OrdersService', () => {
         expect.objectContaining({
           action: 'ORDER_HOLD_CANCELLED',
         }),
+        expect.anything(),
       );
     });
 
@@ -394,9 +498,27 @@ describe('OrdersService', () => {
     it('phải trả về các đơn đang hoạt động của khách', async () => {
       mockOrderRepo.find.mockResolvedValue([mockOrder]);
 
+      const qb = {
+        leftJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          {
+            offer_id: mockOrder.offerId,
+            store_name: 'Quán A',
+            item_name: 'Phở bò',
+            pickup_start: '2026-10-22T10:00:00.000Z',
+            pickup_end: '2026-10-22T12:00:00.000Z',
+          },
+        ]),
+      };
+      mockOfferRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
       const result = await service.getCustomerActiveOrders(mockCustomerId);
 
       expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ storeName: 'Quán A', itemName: 'Phở bò' });
+      expect(result[0].offer?.pickupEnd).toBe('2026-10-22T12:00:00.000Z');
       expect(mockOrderRepo.find).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
@@ -466,6 +588,7 @@ describe('OrdersService', () => {
         expect.objectContaining({
           action: 'ORDER_CANCELLED_BY_STORE',
         }),
+        expect.anything(),
       );
     });
   });

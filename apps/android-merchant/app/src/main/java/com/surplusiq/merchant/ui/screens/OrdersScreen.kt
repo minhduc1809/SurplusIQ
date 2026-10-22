@@ -1,5 +1,11 @@
 package com.surplusiq.merchant.ui.screens
 
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -104,41 +110,40 @@ fun OrdersScreen(repository: StoreRepository, onNavigate: (String) -> Unit = {})
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(SqCanvas),
-        contentPadding = PaddingValues(20.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 92.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Đơn hàng", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.weight(1f))
-                IconButton(onClick = { onNavigate("pickup-schedule") }) {
-                    Icon(Icons.AutoMirrored.Filled.EventNote, contentDescription = "Lịch hẹn nhận hàng", tint = SqInkSoft)
-                }
-                IconButton(onClick = ::exportCsv, enabled = !exporting) {
-                    if (exporting) CircularProgressIndicator(color = SqCoral, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                    else Icon(Icons.Default.FileDownload, contentDescription = "Xuất CSV", tint = SqInkSoft)
-                }
+                if (exporting) CircularProgressIndicator(color = SqCoral, strokeWidth = 2.dp, modifier = Modifier.padding(end = 12.dp).size(20.dp))
+                // Gom hai hành động phụ vào một menu: icon lịch riêng chỉ còn ở bộ chọn ngày bên dưới.
+                OverflowMenu(
+                    listOf(
+                        MenuEntry("Lịch hẹn nhận hàng", Icons.Default.Schedule) { onNavigate("pickup-schedule") },
+                        MenuEntry("Xuất CSV", Icons.Default.FileDownload) { if (!exporting) exportCsv() },
+                    ),
+                    contentDescription = "Thao tác khác"
+                )
             }
             InlineError(exportError)
             InlineSuccess(exportMsg)
         }
         item {
+            DatePill(
+                label = when (date) { null -> "Tất cả ngày"; LocalDate.now() -> "Hôm nay"; else -> shortDate(date.toString()) },
+                canNext = date != null && date!! < LocalDate.now(),
+                onPrev = { date = (date ?: LocalDate.now()).minusDays(1) },
+                onNext = { date = date?.plusDays(1) }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            SqSearchBar(search, "Tìm mã đơn…") { search = it.take(30) }
+            Spacer(modifier = Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { date = (date ?: LocalDate.now()).minusDays(1) }) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Ngày trước", tint = SqInk)
-                }
-                Text(
-                    when (date) { null -> "Tất cả ngày"; LocalDate.now() -> "Hôm nay"; else -> shortDate(date.toString()) },
-                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SqInk, modifier = Modifier.weight(1f), textAlign = TextAlign.Center
-                )
-                IconButton(onClick = { date = date?.plusDays(1) }, enabled = date != null && date!! < LocalDate.now()) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Ngày sau", tint = SqInk)
-                }
-                SqChip("Tất cả ngày", date == null) { date = if (date == null) LocalDate.now() else null }
+                SqChip("Mọi ngày", date == null) { date = if (date == null) LocalDate.now() else null }
+                Spacer(modifier = Modifier.width(8.dp))
+                ChipRow(STATUS_FILTERS, status, modifier = Modifier.weight(1f)) { status = it }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            ChipRow(STATUS_FILTERS, status) { status = it }
-            Spacer(modifier = Modifier.height(8.dp))
-            SqField("", search, placeholder = "Tìm mã đơn trong danh sách đã tải") { search = it.take(30) }
         }
 
         when {
@@ -160,9 +165,20 @@ fun OrdersScreen(repository: StoreRepository, onNavigate: (String) -> Unit = {})
 @Composable
 private fun OrderRow(order: OrderDto, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(SqSurface).clickable(onClick = onClick).padding(14.dp),
+        modifier = Modifier.fillMaxWidth().sqSurface(18.dp, 2.dp).clickable(onClick = onClick).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val (icon, tint) = when (order.status) {
+            "PICKED_UP" -> Icons.Default.TaskAlt to SqMintDeep
+            "PAID" -> Icons.Default.Inventory2 to SqCoral
+            "PENDING_PAYMENT" -> Icons.Default.HourglassTop to SqButter
+            "CANCELLED", "REFUNDED", "HOLD_EXPIRED", "PICKUP_EXPIRED" -> Icons.Default.Cancel to SqCoralDeep
+            else -> Icons.AutoMirrored.Filled.StickyNote2 to SqInkSoft
+        }
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(SqSurfaceSoft), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint)
+        }
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = order.code, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SqInk)
@@ -172,7 +188,8 @@ private fun OrderRow(order: OrderDto, onClick: () -> Unit) {
                 }
             }
             val slot = order.pickupSlot?.let { " · hẹn ${shortTime(it)}" }.orEmpty()
-            Text(text = "${order.quantity} suất$slot · đặt ${shortDateTime(order.createdAt)}", fontSize = 12.sp, color = SqInkSoft)
+            Text(text = "${order.quantity} suất$slot", fontSize = 13.sp, color = SqInkSoft)
+            Text(text = "Đặt ${shortDateTime(order.createdAt)}", fontSize = 12.sp, color = SqInkMuted)
             order.note?.takeIf { it.isNotBlank() }?.let {
                 Text(text = it, fontSize = 12.sp, color = SqInkMuted, maxLines = 1)
             }

@@ -1,5 +1,6 @@
 package com.surplusiq.merchant.ui.components
 
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -188,7 +189,43 @@ fun HeroGaugeCard(
 enum class TileTone(val bg: Color, val accent: Color) {
     MINT(SqMintWash, SqMintDeep),
     PEACH(SqCoralWash, SqCoralDeep),
-    BUTTER(SqButterWash, WarningText)
+    BUTTER(SqButterWash, WarningText),
+    SKY(Color(0xFFE4F1FB), Color(0xFF2B73AB))
+}
+
+/** Họa tiết nền riêng cho từng tông: vòng tròn, chấm, sóng, vạch chéo; nhạt để không lấn chữ. */
+private fun Modifier.tilePattern(tone: TileTone): Modifier = drawBehind {
+    val c = tone.accent
+    when (tone) {
+        TileTone.MINT -> {
+            drawCircle(c.copy(alpha = 0.10f), radius = 62.dp.toPx(), center = Offset(size.width + 6.dp.toPx(), -6.dp.toPx()))
+            drawCircle(c.copy(alpha = 0.09f), radius = 38.dp.toPx(), center = Offset(size.width - 6.dp.toPx(), 8.dp.toPx()))
+            drawCircle(c.copy(alpha = 0.08f), radius = 24.dp.toPx(), center = Offset(8.dp.toPx(), size.height + 4.dp.toPx()))
+        }
+        TileTone.PEACH -> {
+            val gap = 12.dp.toPx()
+            var y = size.height * 0.45f
+            while (y < size.height) {
+                var x = size.width * 0.5f
+                while (x < size.width) { drawCircle(c.copy(alpha = 0.16f), radius = 1.8.dp.toPx(), center = Offset(x, y)); x += gap }
+                y += gap
+            }
+        }
+        TileTone.BUTTER -> {
+            val step = 14.dp.toPx()
+            var x = size.width * 0.35f
+            while (x < size.width + size.height) {
+                drawLine(c.copy(alpha = 0.12f), Offset(x, 0f), Offset(x - size.height, size.height), strokeWidth = 2.dp.toPx())
+                x += step
+            }
+        }
+        TileTone.SKY -> {
+            for (i in 0..2) {
+                val r = (30 + i * 18).dp.toPx()
+                drawArc(c.copy(alpha = 0.14f - i * 0.03f), 180f, 180f, false, Offset(size.width - r - 4.dp.toPx(), size.height - r), androidx.compose.ui.geometry.Size(r * 2, r * 2), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+            }
+        }
+    }
 }
 
 /** Thẻ chỉ số pastel: icon tròn + tên, số lớn, dòng phụ, thanh tiến độ (nếu có). */
@@ -206,10 +243,11 @@ fun PastelTile(
     val shape = RoundedCornerShape(22.dp)
     Column(
         modifier = modifier
-            .height(148.dp)
+            .heightIn(min = 148.dp)
             .shadow(4.dp, shape, ambientColor = SqWarmShadow, spotColor = SqWarmShadow)
             .clip(shape)
             .background(tone.bg)
+            .tilePattern(tone)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween
@@ -219,7 +257,7 @@ fun PastelTile(
                 Icon(icon, contentDescription = null, tint = tone.accent, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(8.dp))
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SqInk, maxLines = 2)
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SqInk, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         Column {
             Text(value, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, maxLines = 1)

@@ -17,7 +17,7 @@ export class StoreAiChatDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   conversationId?: string;
 
   @ApiProperty({
@@ -98,7 +98,7 @@ export class AiFeedbackDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsNotEmpty()
-  @IsUUID('4')
+  @IsUUID('all')
   logId: string;
 
   @ApiProperty({
@@ -134,7 +134,7 @@ export class CustomerAllergyCheckDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsNotEmpty()
-  @IsUUID('4')
+  @IsUUID('all')
   dealId: string;
 
   @ApiProperty({
@@ -152,7 +152,7 @@ export class CustomerAiChatDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   conversationId?: string;
 
   @ApiProperty({
@@ -171,7 +171,7 @@ export class DraftReviewReplyDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsNotEmpty()
-  @IsUUID('4')
+  @IsUUID('all')
   reviewId: string;
 
   @ApiPropertyOptional({
@@ -190,7 +190,7 @@ export class DraftMarketingCampaignDto {
     example: '00000000-0000-0000-0000-000000000001',
   })
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   offerId?: string;
 
   @ApiPropertyOptional({
@@ -238,7 +238,7 @@ export class DraftComplaintReplyDto {
     description: 'ID khiếu nại của khách hàng (R2-118)',
     example: '00000000-0000-0000-0000-000000000001',
   })
-  @IsUUID('4')
+  @IsUUID('all')
   complaintId: string;
 
   @ApiPropertyOptional({
@@ -268,4 +268,39 @@ export class MemorySettingDto {
   @IsNotEmpty()
   @IsBoolean()
   rememberContext: boolean;
+}
+
+export class AiSuggestedActionDto {
+  @ApiProperty({
+    description: 'Nhãn hiển thị trên nút bấm hành động',
+    example: 'Xem Hướng dẫn Nhận hàng (FAQ)',
+  })
+  @IsNotEmpty()
+  @IsString()
+  label: string;
+
+  @ApiProperty({
+    description: 'Loại điều hướng',
+    example: 'NAVIGATE',
+    enum: ['NAVIGATE', 'DOCS_DEEP_LINK'],
+  })
+  @IsNotEmpty()
+  @IsString()
+  type: 'NAVIGATE' | 'DOCS_DEEP_LINK';
+
+  @ApiProperty({
+    description: 'Tên route màn hình đích trên ứng dụng',
+    example: 'help_center',
+  })
+  @IsNotEmpty()
+  @IsString()
+  route: string;
+
+  @ApiPropertyOptional({
+    description: 'Tham số bổ sung (vd: danh mục FAQ)',
+    example: 'NHAN_HANG',
+  })
+  @IsOptional()
+  @IsString()
+  targetParam?: string;
 }

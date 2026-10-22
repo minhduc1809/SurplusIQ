@@ -42,9 +42,12 @@ import { RewardsService } from '../rewards/rewards.service';
 import { RescueTimelineService } from '../rescue-timeline/rescue-timeline.service';
 import { RescuePoolService } from '../rescue-pool/rescue-pool.service';
 import { RescueBridgeService } from '../rescue-bridge/rescue-bridge.service';
+import { MarketingService } from '../marketing/marketing.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('JobsService (All 12 Background Jobs)', () => {
   let service: JobsService;
+  let notifications: { notifyQuietly: jest.Mock; hasKind: jest.Mock };
   let orderRepo: jest.Mocked<Repository<OrderEntity>>;
   let offerRepo: jest.Mocked<Repository<OfferEntity>>;
   let offerEventRepo: jest.Mocked<Repository<OfferEventEntity>>;
@@ -115,6 +118,7 @@ describe('JobsService (All 12 Background Jobs)', () => {
     itemRepo = { find: jest.fn() } as any;
     forecastRepo = {
       create: jest.fn((dto) => ({ id: 'fc-1', ...dto }) as any),
+      findOne: jest.fn().mockResolvedValue(null),
       save: jest.fn(),
     } as any;
     proposalRepo = {
@@ -151,9 +155,15 @@ describe('JobsService (All 12 Background Jobs)', () => {
     } as any;
     settingsService = { invalidateStoreSettingsCache: jest.fn().mockResolvedValue(undefined) };
 
+    notifications = {
+      notifyQuietly: jest.fn().mockResolvedValue(undefined),
+      hasKind: jest.fn().mockResolvedValue(false),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         JobsService,
+        { provide: NotificationsService, useValue: notifications },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
         { provide: getRepositoryToken(OfferEntity), useValue: offerRepo },
         { provide: getRepositoryToken(OfferEventEntity), useValue: offerEventRepo },
@@ -182,6 +192,7 @@ describe('JobsService (All 12 Background Jobs)', () => {
         { provide: RescueTimelineService, useValue: { recalculateAll: jest.fn() } },
         { provide: RescuePoolService, useValue: { processDeadlines: jest.fn() } },
         { provide: RescueBridgeService, useValue: { processDeadlines: jest.fn() } },
+        { provide: MarketingService, useValue: { dispatchDueCampaigns: jest.fn() } },
         { provide: DataSource, useValue: dataSource },
         { provide: SettingsService, useValue: settingsService },
       ],
@@ -222,6 +233,8 @@ describe('JobsService (All 12 Background Jobs)', () => {
               .mockResolvedValueOnce(mockOffer),
           }),
           save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
+          decrement: jest.fn(),
+          update: jest.fn(),
         };
         return cb(mockManager);
       });
@@ -415,6 +428,18 @@ describe('JobsService (All 12 Background Jobs)', () => {
       expect(res.count).toBe(1);
       expect(res.forecastIds).toContain('fc-1');
     });
+
+    it('BUG-008: chạy lại khi đã có dự báo của ngày mai thì bỏ qua, không tạo trùng', async () => {
+      subscriptionRepo.find.mockResolvedValueOnce([
+        { storeId: mockStoreId, plan: SubscriptionPlan.PRO } as SubscriptionEntity,
+      ]);
+      itemRepo.find.mockResolvedValueOnce([{ id: 'item-1', storeId: mockStoreId } as ItemEntity]);
+      forecastRepo.findOne.mockResolvedValueOnce({ id: 'fc-existing' } as any);
+
+      const res = await service.generateDailyForecasts(new Date('2026-10-14T21:00:00Z'));
+      expect(res.count).toBe(0);
+      expect(forecastRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('generateHourlyPriceProposals', () => {
@@ -448,22 +473,39 @@ describe('JobsService (All 12 Background Jobs)', () => {
   });
 
   describe('sendPickupReminders', () => {
-    it('đánh dấu nhắc nhở khi sắp tới giờ lấy hàng (30 phút)', async () => {
-      const now = new Date('2026-10-14T15:00:00Z');
-      const order = {
+    const now = new Date('2026-10-14T15:00:00Z');
+    const makeOrder = () =>
+      ({
         id: mockOrderId,
+        customerId: 'cus-1',
+        code: 'SQ0001',
         status: OrderStatus.PAID,
         offerId: mockOfferId,
         pickupSlot: new Date('2026-10-14T15:20:00Z'),
         arrivingNotifiedAt: null,
-      } as OrderEntity;
+      }) as OrderEntity;
 
+    it('tạo thông báo nhắc khi sắp tới giờ lấy hàng (30 phút) và không đụng cờ báo sắp đến', async () => {
+      const order = makeOrder();
       orderRepo.find.mockResolvedValueOnce([order]);
       offerRepo.findOne.mockResolvedValueOnce(null);
 
       const res = await service.sendPickupReminders(now);
+
       expect(res.count).toBe(1);
-      expect(order.arrivingNotifiedAt).toBe(now);
+      expect(notifications.notifyQuietly).toHaveBeenCalledTimes(1);
+      expect(order.arrivingNotifiedAt).toBeNull();
+    });
+
+    it('không nhắc lặp khi đã có thông báo nhắc cho đơn', async () => {
+      orderRepo.find.mockResolvedValueOnce([makeOrder()]);
+      offerRepo.findOne.mockResolvedValueOnce(null);
+      notifications.hasKind.mockResolvedValueOnce(true);
+
+      const res = await service.sendPickupReminders(now);
+
+      expect(res.count).toBe(0);
+      expect(notifications.notifyQuietly).not.toHaveBeenCalled();
     });
   });
 

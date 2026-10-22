@@ -10,6 +10,7 @@ import {
   UseGuards,
   UsePipes,
   ValidationPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { StoresService } from './stores.service';
@@ -33,6 +34,10 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentStore } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
 import { StorePermission } from '../../entities/stores/store-member.entity';
+import { PlanGuard } from '../../common/guards/plan.guard';
+import { RequiresPlan } from '../../common/decorators/requires-plan.decorator';
+import { QuotaService } from '../subscriptions/quota.service';
+import { REPORT_HISTORY_DAYS } from '../subscriptions/plan-catalog.constants';
 
 @ApiTags('Store - Operations & Reports')
 @ApiBearerAuth()
@@ -42,7 +47,24 @@ import { StorePermission } from '../../entities/stores/store-member.entity';
 @UseGuards(JwtAuthGuard, RolesGuard, ChannelGuard, StorePermissionGuard)
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class StoreOperationsController {
-  constructor(private readonly storesService: StoresService) {}
+  constructor(
+    private readonly storesService: StoresService,
+    private readonly quotaService: QuotaService,
+  ) {}
+
+  /** BRD 3.3: Cơ bản xem lịch sử báo cáo 7 ngày, Pro 365 ngày. */
+  private async assertReportRange(storeId: string, startDate?: string) {
+    if (!startDate) return;
+    const plan = await this.quotaService.getEffectivePlan(storeId);
+    const limit = REPORT_HISTORY_DAYS[plan];
+    const oldest = Date.now() - (limit + 1) * 24 * 60 * 60 * 1000;
+    if (new Date(startDate).getTime() < oldest) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN_PLAN',
+        message: `Gói hiện tại chỉ xem được báo cáo ${limit} ngày gần nhất. Nâng cấp Chuyên nghiệp để xem đến 365 ngày.`,
+      });
+    }
+  }
 
   @Get('profile')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER, StorePermission.COUNTER)
@@ -99,7 +121,20 @@ export class StoreOperationsController {
   })
   @ApiResponse({ status: 200, description: 'Dữ liệu báo cáo' })
   async getReportsOverview(@CurrentStore() storeId: string, @Query() query: StoreReportsQueryDto) {
+    await this.assertReportRange(storeId, query.startDate);
     return this.storesService.getReportsOverview(storeId, query);
+  }
+
+  @Get('reports/finance')
+  @Permissions(StorePermission.OWNER)
+  @ApiOperation({
+    summary:
+      'Thống kê tài chính theo khoảng ngày: doanh thu gộp, hoa hồng, hoàn tiền, thực nhận ước tính',
+  })
+  @ApiResponse({ status: 200, description: 'Dữ liệu tài chính và doanh thu theo ngày' })
+  async getFinanceSummary(@CurrentStore() storeId: string, @Query() query: StoreReportsQueryDto) {
+    await this.assertReportRange(storeId, query.startDate);
+    return this.storesService.getFinanceSummary(storeId, query);
   }
 
   @Get('reports/reconciliation')
@@ -186,6 +221,18 @@ export class StoreOperationsController {
     return this.storesService.getStoreCustomers(storeId);
   }
 
+  @Get('customers/:customerId/detail')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({
+    summary: 'Chi tiết một khách ẩn danh: đơn, món hay mua, khiếu nại, đánh giá (R2-083)',
+  })
+  async getCustomerDetail(
+    @CurrentStore() storeId: string,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.storesService.getCustomerDetail(storeId, customerId);
+  }
+
   @Get('customers/:customerId/notes')
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER, StorePermission.COUNTER)
   @ApiOperation({ summary: 'Xem ghi chú nội bộ về khách hàng (R2-085)' })
@@ -257,10 +304,13 @@ export class StoreOperationsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
+    await this.assertReportRange(storeId, startDate);
     return this.storesService.getItemReports(storeId, startDate, endDate);
   }
 
   @Get('reports/hourly-distribution')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Biểu đồ phân bổ lượng khách theo khung giờ trong ngày (R2-070)' })
   @ApiResponse({ status: 200, description: 'Phân bổ đơn hàng và khách hàng theo 24 giờ' })
@@ -273,6 +323,8 @@ export class StoreOperationsController {
   }
 
   @Get('reports/pricing-efficacy')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Đánh giá hiệu quả chiến lược định giá động AI (R2-071)' })
   @ApiResponse({

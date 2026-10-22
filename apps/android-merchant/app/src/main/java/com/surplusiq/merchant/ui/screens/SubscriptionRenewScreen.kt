@@ -55,7 +55,7 @@ fun SubscriptionRenewScreen(repository: StoreRepository, onBack: () -> Unit) {
     LaunchedEffect(Unit) { load() }
 
     Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(20.dp)) {
-        ScreenHeader("Gia hạn gói Pro", onBack)
+        ScreenHeader("Gia hạn gói Chuyên nghiệp", onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         when {
@@ -67,7 +67,7 @@ fun SubscriptionRenewScreen(repository: StoreRepository, onBack: () -> Unit) {
             ) {
                 Text("Gia hạn thành công", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = SqMintDeep)
                 Spacer(modifier = Modifier.height(6.dp))
-                Text("Gói Pro có hiệu lực đến ${shortDate(renewed!!.periodEnd)}.", fontSize = 14.sp, color = SqInkSoft)
+                Text("Gói Chuyên nghiệp có hiệu lực đến ${shortDate(renewed!!.periodEnd)}.", fontSize = 14.sp, color = SqInkSoft)
             }
             sub != null -> {
                 val s = sub!!

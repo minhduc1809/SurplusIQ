@@ -14,6 +14,8 @@ import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { AiFeatureGuard } from './ai-feature.guard';
 import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -31,12 +33,13 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       ReviewEntity,
       ComplaintEntity,
       StoreEntity,
+      StoreSettingsEntity,
       CustomerProfileEntity,
     ]),
     SubscriptionsModule,
   ],
   controllers: [StoreAiController, CustomerAiController],
-  providers: [AiGatewayService],
+  providers: [AiGatewayService, AiFeatureGuard],
   exports: [AiGatewayService],
 })
 export class AiModule {}

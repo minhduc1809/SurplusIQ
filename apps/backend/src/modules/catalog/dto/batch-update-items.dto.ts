@@ -20,7 +20,7 @@ export class BatchUpdateItemsDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(100)
-  @IsUUID('4', { each: true })
+  @IsUUID('all', { each: true })
   itemIds: string[];
 
   @ApiPropertyOptional({ description: 'Danh mục mới của món' })

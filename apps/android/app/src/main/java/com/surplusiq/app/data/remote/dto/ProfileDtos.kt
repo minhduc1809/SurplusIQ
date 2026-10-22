@@ -78,6 +78,16 @@ data class RecordConsentRequest(
 )
 
 
+/** Xóa tài khoản phải xác nhận lại bằng mật khẩu hiện tại. */
+data class RequestDeleteBody(@SerializedName("password") val password: String)
+
+/** Trạng thái tài khoản và ngày xóa dự kiến (ân hạn 7 ngày). */
+data class AccountStatusDto(
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("deleteRequestedAt") val deleteRequestedAt: String? = null,
+    @SerializedName("deleteScheduledAt") val deleteScheduledAt: String? = null
+)
+
 data class AccountDeleteResponse(
     @SerializedName("success") val success: Boolean = true,
     @SerializedName("status") val status: String? = null,
@@ -85,10 +95,10 @@ data class AccountDeleteResponse(
     @SerializedName("message") val message: String? = null
 )
 
-/** R1-018: xuất dữ liệu cá nhân, link tải về hiệu lực 24h */
+/** R1-018: xuất dữ liệu cá nhân, máy chủ trả thẳng dữ liệu của chính khách. */
 data class DataExportResponse(
-    @SerializedName("downloadUrl") val downloadUrl: String,
-    @SerializedName("expiresInHours") val expiresInHours: Int = 24
+    @SerializedName("exportedAt") val exportedAt: String? = null,
+    @SerializedName("data") val data: com.google.gson.JsonElement? = null
 )
 
 /** R1-077: một bản ghi payment_transactions (thanh toán hoặc hoàn tiền) của khách. */
@@ -132,7 +142,9 @@ data class PromotionWalletItemDto(
 
 data class PromotionDto(
     @SerializedName("id") val id: String,
-    @SerializedName("storeId") val storeId: String,
+    /** Rỗng với voucher do SurplusIQ tài trợ (đổi điểm), dùng được ở mọi cửa hàng. */
+    @SerializedName("storeId") val storeId: String? = null,
+    @SerializedName("fundedBy") val fundedBy: String? = null,
     @SerializedName("name") val name: String,
     @SerializedName("type") val type: String,
     @SerializedName("value") val value: Int,

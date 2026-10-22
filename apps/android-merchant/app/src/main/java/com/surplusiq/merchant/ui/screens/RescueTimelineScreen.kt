@@ -33,9 +33,9 @@ private val HOUR_FMT = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun hhmm(iso: String) = runCatching { OffsetDateTime.parse(iso).toLocalTime().format(HOUR_FMT) }.getOrDefault("")
 
-private fun lotName(name: String?, kind: String?) = name ?: if (kind == "SURPRISE_BAG") "Túi bất ngờ" else "Suất bán"
+internal fun lotName(name: String?, kind: String?) = name ?: if (kind == "SURPRISE_BAG") "Túi bất ngờ" else "Suất bán"
 
-private fun minutesLeft(iso: String): String {
+internal fun minutesLeft(iso: String): String {
     val m = runCatching { ChronoUnit.MINUTES.between(OffsetDateTime.now(), OffsetDateTime.parse(iso)) }.getOrDefault(0L)
     return when {
         m <= 0 -> "Đã hết khung nhận"
@@ -45,12 +45,12 @@ private fun minutesLeft(iso: String): String {
 }
 
 /** Lý do chính = hai yếu tố điểm cao nhất (BR-B01-03). */
-private fun topReasons(factors: List<RescueRiskFactor>) =
+internal fun topReasons(factors: List<RescueRiskFactor>) =
     factors.filter { it.points > 0 }.sortedByDescending { it.points }.take(2).joinToString(" · ") { it.label }
 
-private data class RiskStyle(val bg: Color, val fg: Color, val label: String)
+internal data class RiskStyle(val bg: Color, val fg: Color, val label: String)
 
-private fun riskStyle(level: String) = when (level) {
+internal fun riskStyle(level: String) = when (level) {
     "CRITICAL" -> RiskStyle(SqCoral, Color.White, "Khẩn cấp")
     "HIGH" -> RiskStyle(SqCoralWash, SqCoralDeep, "Cao")
     "MEDIUM" -> RiskStyle(SqButterWash, WarningText, "Trung bình")
@@ -92,7 +92,7 @@ fun RescueTimelineScreen(repository: StoreRepository, onBack: () -> Unit) {
     LaunchedEffect(Unit) { load() }
 
     Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp)) {
-        ScreenHeader("Rescue Timeline", onBack) {
+        ScreenHeader("Suất sắp hết hạn", onBack) {
             IconButton(onClick = ::refresh, enabled = !refreshing) {
                 Icon(Icons.Default.Refresh, contentDescription = "Làm mới", tint = SqCoralDeep)
             }
@@ -107,7 +107,7 @@ fun RescueTimelineScreen(repository: StoreRepository, onBack: () -> Unit) {
                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item {
                         Text(
-                            "Lô cần xử lý trước, theo số lượng còn, thời gian còn và tốc độ bán." +
+                            "Suất cần xử lý trước, theo số lượng còn, thời gian còn và tốc độ bán." +
                                 (d.oldestCalculatedAt?.let { " Tính lúc ${hhmm(it)}." } ?: ""),
                             fontSize = 13.sp, color = SqInkSoft
                         )

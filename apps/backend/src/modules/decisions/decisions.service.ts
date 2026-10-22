@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Between, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { DailyActualEntity } from '../../entities/reconciliation/daily-actual.entity';
@@ -18,13 +18,8 @@ import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity
 import { SpecialEventEntity } from '../../entities/reconciliation/special-event.entity';
 import { ActionCardEntity, ActionCardStatus } from '../../entities/ai/action-card.entity';
 import { DonationRecordEntity } from '../../entities/ai/donation-record.entity';
-import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
-import {
-  OverrideForecastDto,
-  LogDailyActualDto,
-  CreateSpecialEventDto,
-  SimulatePolicyDto,
-} from './dto/decisions.dto';
+import { OrderEntity } from '../../entities/orders/order.entity';
+import { OverrideForecastDto, LogDailyActualDto, CreateSpecialEventDto } from './dto/decisions.dto';
 import {
   DynamicPricingEngine,
   ForecastingEngine,
@@ -65,9 +60,9 @@ export class DecisionsService {
    * Tính toán hoặc lấy dự báo số lượng sản xuất cho ngày mai (R2-036..R2-043)
    */
   async getForecasts(storeId: string, targetDate?: string) {
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const tomorrow = new Date(Date.now() + 31 * 60 * 60 * 1000); // ngày mai theo giờ Việt Nam
     const date = targetDate || tomorrow.toISOString().split('T')[0];
-    const targetDayOfWeek = new Date(date).getDay();
+    const targetDayOfWeek = new Date(date).getUTCDay();
 
     const items = await this.itemRepo.find({
       where: { storeId, status: ItemStatus.ACTIVE },
@@ -91,7 +86,7 @@ export class DecisionsService {
           produced: a.produced,
           soldOffline: a.soldOffline,
           soldApp: a.soldApp,
-          dayOfWeek: new Date(a.date).getDay(),
+          dayOfWeek: new Date(a.date).getUTCDay(),
           stockoutEarly: Boolean(a.stockoutAt),
         }));
 
@@ -137,7 +132,7 @@ export class DecisionsService {
       const isLowConfidence = forecast.confidence === ForecastConfidence.LOW || historyDays < 14;
       const dayName =
         ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][
-          new Date(forecast.targetDate).getDay()
+          new Date(forecast.targetDate).getUTCDay()
         ] || 'ngày mai';
 
       const explanation = forecast.overrideReason
@@ -259,6 +254,7 @@ export class DecisionsService {
       where: {
         offerId: In(offerIds),
         status: ProposalStatus.PENDING,
+        expiresAt: MoreThan(new Date()), // đề xuất hết hiệu lực không còn chờ duyệt
       },
       order: { createdAt: 'DESC' },
     });
@@ -485,7 +481,7 @@ export class DecisionsService {
 
     for (const act of actuals) {
       const d = act.date;
-      const dayOfWeek = new Date(d).getDay();
+      const dayOfWeek = new Date(d).getUTCDay();
       const existing = dateMap.get(d) || {
         date: d,
         dayOfWeek,
@@ -501,8 +497,9 @@ export class DecisionsService {
     }
 
     for (const ord of orders) {
-      const d = ord.createdAt.toISOString().split('T')[0];
-      const dayOfWeek = ord.createdAt.getDay();
+      const vn = new Date(ord.createdAt.getTime() + 7 * 3_600_000); // ngày theo giờ Việt Nam
+      const d = vn.toISOString().split('T')[0];
+      const dayOfWeek = vn.getUTCDay();
       const existing = dateMap.get(d) || {
         date: d,
         dayOfWeek,
@@ -550,27 +547,130 @@ export class DecisionsService {
    * Danh sách thẻ hành động AI thông minh (R2-114, R2-115)
    */
   async getActionCards(storeId: string) {
-    let cards = await this.actionCardRepo.find({
+    await this.generateActionCards(storeId);
+    const cards = await this.actionCardRepo.find({
       where: { storeId },
       order: { createdAt: 'DESC' },
     });
 
-    if (cards.length === 0) {
-      // Tự động sinh thẻ gợi ý hành động mẫu
-      const defaultCard = this.actionCardRepo.create({
+    return cards;
+  }
+
+  /**
+   * Sinh thẻ đề xuất từ dữ liệu thật (R2-114): món có suất đã đóng trong 14 ngày mà bán được dưới 50%
+   * (từ 10 suất trở lên) thì đề xuất giảm số suất mở bán. Không tạo trùng nếu đã có thẻ cho món đó trong 7 ngày.
+   */
+  async generateActionCards(storeId: string, now = new Date()) {
+    const day = 24 * 60 * 60 * 1000;
+    const offers = await this.offerRepo.find({
+      where: {
         storeId,
-        actionType: 'OPTIMIZE_PRICING',
-        payload: { suggestedDiscount: 0.5, offerSlot: '19:30' },
-        reasonText: 'Lượng tồn bánh mì sau 19h cao hơn 25% so với thứ Tư tuần trước.',
-        expectedOutcome: 'Tăng doanh thu thu hồi thêm khoảng 180.000đ và giảm hao hụt 8 phần.',
-        status: ActionCardStatus.PENDING,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      });
-      await this.actionCardRepo.save(defaultCard);
-      cards = [defaultCard];
+        pickupEnd: Between(new Date(now.getTime() - 14 * day), now),
+      },
+    });
+    const byItem = new Map<string, { offered: number; sold: number }>();
+    for (const o of offers) {
+      if (!o.itemId) continue;
+      const cur = byItem.get(o.itemId) ?? { offered: 0, sold: 0 };
+      cur.offered += o.totalQuantity;
+      // soldQuantity không được cập nhật khi có đơn; số đã giữ/bán = tổng - còn lại.
+      cur.sold += o.totalQuantity - o.remainingQuantity;
+      byItem.set(o.itemId, cur);
     }
 
-    return cards;
+    const weak = Array.from(byItem.entries()).filter(
+      ([, v]) => v.offered >= 10 && v.sold / v.offered < 0.5,
+    );
+    if (weak.length === 0) return 0;
+
+    const recent = await this.actionCardRepo.find({
+      where: { storeId, createdAt: MoreThanOrEqual(new Date(now.getTime() - 7 * day)) },
+    });
+    const existing = new Set(recent.map((c) => (c.payload as { itemId?: string })?.itemId));
+    const items = await this.itemRepo.find({ where: { id: In(weak.map(([id]) => id)) } });
+
+    let created = 0;
+    for (const [itemId, v] of weak) {
+      if (existing.has(itemId)) continue;
+      const name = items.find((i) => i.id === itemId)?.name ?? 'Món này';
+      const pct = Math.round((v.sold / v.offered) * 100);
+      await this.actionCardRepo.save(
+        this.actionCardRepo.create({
+          storeId,
+          actionType: 'ADJUST_QUANTITY',
+          payload: { itemId, offered: v.offered, sold: v.sold },
+          reasonText: `${name} chỉ bán được ${v.sold}/${v.offered} suất (${pct}%) trong 14 ngày qua.`,
+          expectedOutcome: `Giảm số suất mở bán để bớt khoảng ${v.offered - v.sold} suất tồn mỗi 14 ngày.`,
+          status: ActionCardStatus.PENDING,
+          expiresAt: new Date(now.getTime() + 3 * day),
+        }),
+      );
+      created++;
+    }
+    return created;
+  }
+
+  /**
+   * Giải thích bất thường (R2-113): so số đơn của ngày đó theo giờ và theo món với mức trung bình mỗi ngày
+   * của 28 ngày trước, liệt kê các yếu tố lệch nhiều nhất. Chỉ nêu số liệu, không suy đoán nguyên nhân ngoài hệ thống.
+   */
+  async explainAnomaly(storeId: string, date: string) {
+    const target = new Date(`${date}T00:00:00+07:00`);
+    if (Number.isNaN(target.getTime())) {
+      throw new BadRequestException('Ngày không hợp lệ, cần dạng YYYY-MM-DD.');
+    }
+    const day = 24 * 60 * 60 * 1000;
+    const orders = await this.orderRepo.find({
+      where: {
+        storeId,
+        createdAt: Between(new Date(target.getTime() - 28 * day), new Date(target.getTime() + day)),
+      },
+    });
+    const offers = orders.length
+      ? await this.offerRepo.find({
+          where: { id: In(Array.from(new Set(orders.map((o) => o.offerId)))) },
+        })
+      : [];
+    const itemIds = Array.from(
+      new Set(offers.map((o) => o.itemId).filter((x): x is string => !!x)),
+    );
+    const items = itemIds.length ? await this.itemRepo.find({ where: { id: In(itemIds) } }) : [];
+    const nameOf = (offerId: string) =>
+      items.find((i) => i.id === offers.find((o) => o.id === offerId)?.itemId)?.name ??
+      'Món không định danh';
+
+    const actual = new Map<string, number>();
+    const past = new Map<string, number>();
+    for (const o of orders) {
+      const t = new Date(o.createdAt).getTime();
+      const hour = new Date(t + 7 * 3_600_000).getUTCHours();
+      const keys = [`HOUR|${String(hour).padStart(2, '0')}:00`, `ITEM|${nameOf(o.offerId)}`];
+      const bucket = t >= target.getTime() ? actual : past;
+      for (const k of keys) bucket.set(k, (bucket.get(k) ?? 0) + 1);
+    }
+
+    const factors = Array.from(new Set([...actual.keys(), ...past.keys()]))
+      .map((k) => {
+        const [type, label] = k.split('|');
+        const average = Math.round(((past.get(k) ?? 0) / 28) * 10) / 10;
+        const value = actual.get(k) ?? 0;
+        return {
+          type,
+          label,
+          actual: value,
+          average,
+          delta: Math.round((value - average) * 10) / 10,
+        };
+      })
+      .filter((f) => Math.abs(f.delta) >= 1)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 6);
+
+    return {
+      date,
+      factors,
+      note: 'So số đơn của ngày này với trung bình mỗi ngày của 28 ngày trước. Chỉ là yếu tố liên quan, chưa chắc là nguyên nhân.',
+    };
   }
 
   /**
@@ -589,7 +689,8 @@ export class DecisionsService {
       success: true,
       cardId: card.id,
       status: card.status,
-      message: 'Đã chấp nhận và áp dụng thẻ hành động thành công.',
+      message:
+        'Đã ghi nhận chấp nhận. Hệ thống không tự đổi giá hay tồn kho, hãy thực hiện thay đổi ở màn tương ứng.',
     };
   }
 
@@ -610,131 +711,6 @@ export class DecisionsService {
       cardId: card.id,
       status: card.status,
       message: 'Đã bỏ qua thẻ hành động.',
-    };
-  }
-
-  /**
-   * Mô phỏng chính sách giá trên dữ liệu 14 đến 90 ngày (R2-099, R2-104..105)
-   */
-  async simulatePolicy(storeId: string, dto: SimulatePolicyDto) {
-    const cutoff = new Date(Date.now() - dto.days * 24 * 60 * 60 * 1000);
-    const orders = await this.orderRepo.find({
-      where: { storeId },
-    });
-    const recentOrders = orders.filter((o) => o.createdAt >= cutoff);
-
-    const baselineRevenue = recentOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-    const baselineOrdersCount = recentOrders.length;
-    const discountFactor = dto.discountRatio || 0.5;
-
-    // Tính toán mô phỏng
-    const simulatedRevenue = Math.round(baselineRevenue * (1 + (dto.dynamicPricing ? 0.22 : 0.12)));
-    const salvagedWastePortions = Math.round(baselineOrdersCount * 0.35);
-    const revenueGainPercent =
-      baselineRevenue > 0
-        ? Math.round(((simulatedRevenue - baselineRevenue) / baselineRevenue) * 100)
-        : 15;
-
-    const result = {
-      simulationPeriodDays: dto.days,
-      parameters: {
-        assumedDiscount: discountFactor,
-        dynamicPricingEnabled: Boolean(dto.dynamicPricing),
-      },
-      baseline: {
-        revenue: baselineRevenue,
-        ordersCount: baselineOrdersCount,
-      },
-      simulated: {
-        revenue: simulatedRevenue,
-        revenueGainPercent,
-        salvagedWastePortions,
-      },
-      recommendation:
-        'Chính sách định giá động với mức sàn 40% giúp tối ưu thêm 18-22% doanh thu thu hồi mà không làm cannibalize kênh bán nguyên giá.',
-    };
-
-    // Lưu lại từng lần thử để chủ quán có thể đối chiếu, so sánh lịch sử (R2-105)
-    const decision = this.decisionRepo.create({
-      storeId,
-      decisionType: 'PRICE_SIMULATION',
-      inputSnapshot: dto as unknown as Record<string, unknown>,
-      outputRecommendation: result as unknown as Record<string, unknown>,
-      rationale: `Mô phỏng ${dto.days} ngày (chiết khấu ${Math.round(discountFactor * 100)}%, định giá động: ${dto.dynamicPricing ? 'Bật' : 'Tắt'})`,
-      wasAcceptedByStore: false,
-    });
-    const saved = await this.decisionRepo.save(decision);
-
-    return {
-      id: saved.id,
-      storeId,
-      createdAt: saved.createdAt,
-      ...result,
-    };
-  }
-
-  /**
-   * Lấy lịch sử các lần chạy mô phỏng chính sách giá (R2-105)
-   */
-  async getSimulationHistory(storeId: string) {
-    const records = await this.decisionRepo.find({
-      where: { storeId, decisionType: 'PRICE_SIMULATION' },
-      order: { createdAt: 'DESC' },
-      take: 20,
-    });
-    return records.map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt,
-      input: r.inputSnapshot,
-      output: r.outputRecommendation,
-      rationale: r.rationale,
-    }));
-  }
-
-  /**
-   * So sánh kết quả giữa 2 hoặc nhiều lần chạy mô phỏng (R2-105)
-   */
-  async compareSimulations(storeId: string, simulationIds: string[]) {
-    if (!simulationIds || simulationIds.length < 2) {
-      throw new BadRequestException('Vui lòng chọn ít nhất 2 lần mô phỏng để so sánh đối chiếu.');
-    }
-
-    const records = await this.decisionRepo.find({
-      where: {
-        storeId,
-        id: In(simulationIds),
-        decisionType: 'PRICE_SIMULATION',
-      },
-    });
-
-    if (records.length < 2) {
-      throw new NotFoundException('Không tìm thấy đủ các bản ghi mô phỏng cần so sánh.');
-    }
-
-    const comparisons = records.map((r) => {
-      const out = r.outputRecommendation as any;
-      const inp = r.inputSnapshot as any;
-      return {
-        id: r.id,
-        createdAt: r.createdAt,
-        days: inp?.days || out?.simulationPeriodDays || 30,
-        discountPercent: Math.round((inp?.discountRatio ?? 0.5) * 100),
-        dynamicPricing: Boolean(inp?.dynamicPricing),
-        simulatedRevenue: out?.simulated?.revenue || 0,
-        revenueGainPercent: out?.simulated?.revenueGainPercent || 0,
-        salvagedWastePortions: out?.simulated?.salvagedWastePortions || 0,
-      };
-    });
-
-    const bestOption = [...comparisons].sort((a, b) => b.simulatedRevenue - a.simulatedRevenue)[0];
-
-    return {
-      comparisonCount: comparisons.length,
-      simulations: comparisons,
-      winner: {
-        id: bestOption?.id,
-        recommendation: `Phương án mô phỏng ${bestOption?.days} ngày (giảm ${bestOption?.discountPercent}%, định giá động: ${bestOption?.dynamicPricing ? 'Bật' : 'Tắt'}) mang lại doanh thu thu hồi cao nhất (+${bestOption?.revenueGainPercent}% so với dữ liệu gốc).`,
-      },
     };
   }
 

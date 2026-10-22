@@ -24,6 +24,8 @@ import {
   VerifyOtpDto,
   ResendOtpDto,
   ChangePasswordDto,
+  RequestEmailOtpDto,
+  ConfirmEmailDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   RefreshTokenDto,
@@ -148,6 +150,30 @@ export class AuthController {
     return this.authService.changePassword(userId, dto);
   }
 
+  @Post('auth/password/change/otp')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Gửi mã OTP đổi mật khẩu về email của khách hàng' })
+  async requestPasswordChangeOtp(@CurrentUser('userId') userId: string) {
+    return this.authService.requestPasswordChangeOtp(userId);
+  }
+
+  @Post('auth/email/otp')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Gửi mã OTP xác minh email mới' })
+  async requestEmailOtp(@CurrentUser('userId') userId: string, @Body() dto: RequestEmailOtpDto) {
+    return this.authService.requestEmailOtp(userId, dto.email);
+  }
+
+  @Post('auth/email/confirm')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xác minh OTP và gắn email vào tài khoản' })
+  async confirmEmail(@CurrentUser('userId') userId: string, @Body() dto: ConfirmEmailDto) {
+    return this.authService.confirmEmail(userId, dto.email, dto.code);
+  }
+
   @Post('auth/password/forgot')
   @ApiOperation({ summary: 'Yêu cầu mã OTP đặt lại mật khẩu quên (R1-008)' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -170,13 +196,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Danh sách các phiên đăng nhập đang hoạt động (R1-014)' })
   async getSessions(
     @CurrentUser('userId') jwtUserId: string,
+    @CurrentUser('deviceId') currentDeviceId: string | undefined,
     @Headers('x-user-id') headerUserId: string,
   ) {
     const userId = jwtUserId || headerUserId;
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập. Vui lòng đăng nhập để xem phiên hoạt động.');
     }
-    return this.authService.getSessions(userId);
+    return this.authService.getSessions(userId, currentDeviceId);
   }
 
   @Delete('me/sessions/:id')
@@ -195,12 +222,28 @@ export class AuthController {
     return this.authService.revokeSession(userId, sessionId);
   }
 
+  @Get('me/2fa')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xem trạng thái xác thực 2 bước (R1-013)' })
+  async get2faStatus(
+    @CurrentUser('userId') jwtUserId: string,
+    @Headers('x-user-id') headerUserId: string,
+  ) {
+    const userId = jwtUserId || headerUserId;
+    if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
+      throw new UnauthorizedException('Chưa đăng nhập.');
+    }
+    return this.authService.get2faStatus(userId);
+  }
+
   @Post('me/2fa/toggle')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Bật / Tắt xác thực 2 bước (2FA) (R1-013)' })
   async toggle2fa(
     @CurrentUser('userId') jwtUserId: string,
+    @CurrentUser('deviceId') currentDeviceId: string | undefined,
     @Headers('x-user-id') headerUserId: string,
     @Body() dto: Enable2faDto,
   ) {
@@ -208,7 +251,7 @@ export class AuthController {
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập.');
     }
-    return this.authService.toggle2fa(userId, dto);
+    return this.authService.toggle2fa(userId, dto, currentDeviceId);
   }
 
   @Post('me/2fa/enable')
@@ -217,6 +260,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Kích hoạt xác thực 2 bước (2FA) (R1-013)' })
   async enable2fa(
     @CurrentUser('userId') jwtUserId: string,
+    @CurrentUser('deviceId') currentDeviceId: string | undefined,
     @Headers('x-user-id') headerUserId: string,
     @Body() dto: Enable2faDto,
   ) {
@@ -224,10 +268,7 @@ export class AuthController {
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập.');
     }
-    return this.authService.toggle2fa(userId, {
-      ...dto,
-      enabled: true,
-    });
+    return this.authService.toggle2fa(userId, { ...dto, enabled: true }, currentDeviceId);
   }
 
   @Post('me/2fa/disable')
@@ -236,6 +277,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Hủy kích hoạt xác thực 2 bước (2FA) (R1-013)' })
   async disable2fa(
     @CurrentUser('userId') jwtUserId: string,
+    @CurrentUser('deviceId') currentDeviceId: string | undefined,
     @Headers('x-user-id') headerUserId: string,
     @Body() dto: Enable2faDto,
   ) {
@@ -243,9 +285,6 @@ export class AuthController {
     if (!userId || userId.trim() === '' || userId === '00000000-0000-0000-0000-000000000001') {
       throw new UnauthorizedException('Chưa đăng nhập.');
     }
-    return this.authService.toggle2fa(userId, {
-      ...dto,
-      enabled: false,
-    });
+    return this.authService.toggle2fa(userId, { ...dto, enabled: false }, currentDeviceId);
   }
 }

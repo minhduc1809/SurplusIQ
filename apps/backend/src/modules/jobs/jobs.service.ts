@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
@@ -6,6 +8,7 @@ import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { OfferEventEntity, OfferEventType } from '../../entities/catalog/offer-event.entity';
 import { NoshowRecordEntity } from '../../entities/orders/noshow-record.entity';
 import { OrderLockEntity } from '../../entities/orders/order-lock.entity';
+import { PromotionEntity } from '../../entities/marketing/promotion.entity';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import {
   PaymentTransactionEntity,
@@ -53,7 +56,9 @@ import { RewardsService } from '../rewards/rewards.service';
 import { RescueTimelineService } from '../rescue-timeline/rescue-timeline.service';
 import { RescuePoolService } from '../rescue-pool/rescue-pool.service';
 import { RescueBridgeService } from '../rescue-bridge/rescue-bridge.service';
+import { MarketingService } from '../marketing/marketing.service';
 import { JOBS_CONSTANTS } from './jobs.constants';
+import { orderGrossAmount, releasePromotionUse } from '../orders/order-amounts';
 import {
   ReconciliationEngine,
   ForecastingEngine,
@@ -183,8 +188,10 @@ export class JobsService {
     private readonly rescueTimelineService: RescueTimelineService,
     private readonly rescuePoolService: RescuePoolService,
     private readonly rescueBridgeService: RescueBridgeService,
+    private readonly marketingService: MarketingService,
     private readonly dataSource: DataSource,
     private readonly settingsService: SettingsService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -232,6 +239,7 @@ export class JobsService {
           }
           await manager.save(offer);
         }
+        await releasePromotionUse(manager, lockedOrder.id, lockedOrder.promotionId);
 
         await this.auditLogService.log({
           storeId: lockedOrder.storeId,
@@ -246,6 +254,13 @@ export class JobsService {
           },
         });
 
+        await this.notifications?.notifyQuietly({
+          userId: lockedOrder.customerId,
+          type: NotificationType.ORDER,
+          title: 'Đơn hết hạn giữ suất',
+          body: `Đơn ${lockedOrder.code} đã quá 10 phút chưa thanh toán nên suất được nhả. Bạn có thể đặt lại.`,
+          data: { orderId: lockedOrder.id, kind: 'HOLD_EXPIRED' },
+        });
         releasedOrderIds.push(lockedOrder.id);
       });
     }
@@ -303,6 +318,13 @@ export class JobsService {
             .getOne();
 
           if (!lockedOrder) return;
+
+          // Khách đang chờ cửa hàng xử lý sự cố do cửa hàng gây ra (đóng cửa, món chưa sẵn sàng) thì không tính không đến nhận (KX03).
+          const [protectedByIncident] = await manager.query(
+            `SELECT 1 FROM pickup_incidents WHERE order_id = $1 AND type IN ('STORE_CLOSED', 'NOT_READY') AND status IN ('OPEN', 'ACKNOWLEDGED') LIMIT 1`,
+            [lockedOrder.id],
+          );
+          if (protectedByIncident) return;
 
           lockedOrder.status = OrderStatus.PICKUP_EXPIRED;
           await manager.save(lockedOrder);
@@ -366,6 +388,13 @@ export class JobsService {
             },
           });
 
+          await this.notifications?.notifyQuietly({
+            userId: lockedOrder.customerId,
+            type: NotificationType.ORDER,
+            title: 'Đơn quá hạn nhận hàng',
+            body: `Đơn ${lockedOrder.code} đã quá hạn nhận hàng. Nhiều lần không đến nhận có thể bị khóa đặt hàng tạm thời.`,
+            data: { orderId: lockedOrder.id, kind: 'PICKUP_EXPIRED' },
+          });
           expiredOrderIds.push(lockedOrder.id);
         });
       }
@@ -523,6 +552,19 @@ export class JobsService {
           },
         });
 
+        if (order) {
+          await this.notifications?.notifyQuietly({
+            userId: order.customerId,
+            type: NotificationType.COMPLAINT,
+            title: 'Khiếu nại được tự động chấp nhận',
+            body: `Cửa hàng không phản hồi khiếu nại đơn ${order.code} đúng hạn nên bạn được hoàn ${refundAmount.toLocaleString('vi-VN')}đ.`,
+            data: {
+              orderId: order.id,
+              complaintId: lockedComplaint.id,
+              kind: 'COMPLAINT_AUTO_ACCEPTED',
+            },
+          });
+        }
         acceptedIds.push(lockedComplaint.id);
       });
     }
@@ -583,7 +625,7 @@ export class JobsService {
 
       const coreOrders = weekOrders.map((o) => ({
         orderId: o.id,
-        amount: o.totalAmount,
+        amount: orderGrossAmount(o),
         status: o.status as any,
         completedAt: o.updatedAt || new Date(),
         storeFault: false,
@@ -620,12 +662,19 @@ export class JobsService {
           statementId: saved.id,
           orderId: o.id,
           type: 'ORDER',
-          amount: o.totalAmount,
-          commission: Math.round(o.totalAmount * 0.1),
+          amount: orderGrossAmount(o),
+          commission: Math.round(orderGrossAmount(o) * 0.1),
         });
         await this.statementLineRepo.save(line);
       }
 
+      await this.notifications?.notifyQuietly({
+        storeId: store.id,
+        type: NotificationType.SYSTEM,
+        title: 'Sao kê tuần đã chốt',
+        body: `Sao kê tuần ${startStr} đến ${endStr} đã được chốt. Thực nhận: ${statementData.netPayout.toLocaleString('vi-VN')}đ.`,
+        data: { statementId: saved.id, kind: 'STATEMENT_CLOSED' },
+      });
       closedStoreIds.push(store.id);
     }
 
@@ -800,8 +849,10 @@ export class JobsService {
    * Tác vụ 8 (22:00 hằng ngày): Chạy dự báo tự động cho các cửa hàng Pro (R2-036..R2-043, BR-060)
    */
   async generateDailyForecasts(now: Date = new Date()) {
-    const targetDate = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const targetDayOfWeek = new Date(now.getTime() + 24 * 60 * 60 * 1000).getDay();
+    // Ngày mai theo giờ Việt Nam (UTC+7)
+    const tomorrowVn = new Date(now.getTime() + 31 * 60 * 60 * 1000);
+    const targetDate = tomorrowVn.toISOString().split('T')[0];
+    const targetDayOfWeek = tomorrowVn.getUTCDay();
 
     const proSubs = await this.subscriptionRepo.find({
       where: [
@@ -816,6 +867,12 @@ export class JobsService {
       const items = await this.itemRepo.find({ where: { storeId: sub.storeId } });
 
       for (const item of items) {
+        // Idempotent (BUG-008): chạy lại trong ngày không ghi đè/đụng ràng buộc duy nhất; giữ bản đã chỉnh tay.
+        const existing = await this.forecastRepo.findOne({
+          where: { storeId: sub.storeId, itemId: item.id, targetDate },
+        });
+        if (existing) continue;
+
         const actuals = await this.dailyActualRepo.find({
           where: { storeId: sub.storeId, itemId: item.id },
           order: { date: 'ASC' },
@@ -823,7 +880,7 @@ export class JobsService {
 
         const history: DailySalesRecord[] = actuals.map((a) => ({
           date: a.date,
-          dayOfWeek: new Date(a.date).getDay(),
+          dayOfWeek: new Date(a.date).getUTCDay(),
           produced: a.produced,
           soldApp: a.soldApp,
           soldOffline: a.soldOffline,
@@ -936,6 +993,13 @@ export class JobsService {
           });
           const saved = await this.proposalRepo.save(proposal);
           proposalIds.push(saved.id);
+          await this.notifications?.notifyQuietly({
+            storeId: offer.storeId,
+            type: NotificationType.PRICE_PROPOSAL,
+            title: 'Có đề xuất giảm giá chờ duyệt',
+            body: `Đề xuất giảm giá từ ${oldPrice.toLocaleString('vi-VN')}đ xuống ${dynamicResult.proposedPrice.toLocaleString('vi-VN')}đ. Duyệt trong 15 phút.`,
+            data: { proposalId: saved.id, offerId: offer.id, kind: 'PRICE_PROPOSAL' },
+          });
         }
       }
     }
@@ -951,6 +1015,10 @@ export class JobsService {
    * Tác vụ 10 (1 phút): Gửi nhắc nhở lấy hàng trước 30 phút (R1-075)
    */
   async sendPickupReminders(now: Date = new Date()) {
+    const remindedIds: string[] = [];
+    // Không có dịch vụ thông báo thì không có cách chống gửi lặp, nên không làm gì.
+    if (!this.notifications) return { count: 0, orderIds: remindedIds };
+
     const paidOrders = await this.orderRepo.find({
       where: {
         status: OrderStatus.PAID,
@@ -958,11 +1026,8 @@ export class JobsService {
     });
 
     const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000);
-    const remindedIds: string[] = [];
 
     for (const order of paidOrders) {
-      if (order.arrivingNotifiedAt) continue;
-
       const offer = await this.offerRepo.findOne({ where: { id: order.offerId } });
       const pickupTime = offer
         ? new Date(offer.pickupStart)
@@ -971,8 +1036,16 @@ export class JobsService {
           : null;
 
       if (pickupTime && pickupTime <= thirtyMinutesFromNow && pickupTime > now) {
-        order.arrivingNotifiedAt = now;
-        await this.orderRepo.save(order);
+        // Chống gửi lặp bằng chính thông báo đã tạo; không đụng tới cờ "báo sắp đến" của khách.
+        if (await this.notifications.hasKind(order.customerId, 'PICKUP_REMINDER', order.id))
+          continue;
+        await this.notifications.notifyQuietly({
+          userId: order.customerId,
+          type: NotificationType.PICKUP_REMINDER,
+          title: 'Sắp đến giờ nhận hàng',
+          body: `Đơn ${order.code} bắt đầu nhận hàng lúc ${pickupTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}. Mở vé nhận hàng khi đến quầy.`,
+          data: { orderId: order.id, kind: 'PICKUP_REMINDER' },
+        });
         remindedIds.push(order.id);
       }
     }
@@ -1075,6 +1148,11 @@ export class JobsService {
    */
   async processRescueBridgeDeadlines(now: Date = new Date()) {
     return this.rescueBridgeService.processDeadlines(now);
+  }
+
+  /** Gửi các chiến dịch thông báo đã đến giờ (R2-092) */
+  async dispatchDueCampaigns(now: Date = new Date()) {
+    return this.marketingService.dispatchDueCampaigns(now);
   }
 
   /**

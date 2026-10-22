@@ -3,6 +3,8 @@ package com.surplusiq.app.data.repository
 import com.surplusiq.app.data.remote.SessionManager
 import com.surplusiq.app.data.remote.api.ProfileApiService
 import com.surplusiq.app.data.remote.dto.AccountDeleteResponse
+import com.surplusiq.app.data.remote.dto.AccountStatusDto
+import com.surplusiq.app.data.remote.dto.RequestDeleteBody
 import com.surplusiq.app.data.remote.dto.ConsentDto
 import com.surplusiq.app.data.remote.dto.DataExportResponse
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
@@ -102,11 +104,23 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun requestAccountDelete(): Result<AccountDeleteResponse> {
+    override suspend fun getAccountStatus(): Result<AccountStatusDto> {
         return try {
-            val response = profileApiService.requestAccountDelete()
+            val response = profileApiService.getAccountStatus()
+            if (response.isSuccessful && response.body() != null) Result.success(response.body()!!)
+            else Result.failure(Exception("Không đọc được trạng thái tài khoản (${response.code()})"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun requestAccountDelete(password: String): Result<AccountDeleteResponse> {
+        return try {
+            val response = profileApiService.requestAccountDelete(RequestDeleteBody(password))
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)
+            } else if (response.code() == 403) {
+                Result.failure(Exception("Mật khẩu không đúng. Vui lòng thử lại."))
             } else {
                 Result.failure(Exception("Không thể gửi yêu cầu xóa tài khoản (${response.code()})"))
             }
@@ -237,6 +251,7 @@ class ProfileRepositoryImpl @Inject constructor(
         return UserProfile(
             id = dto.id,
             phone = dto.phone,
+            email = dto.email,
             fullName = dto.fullName,
             avatarUrl = dto.avatarUrl,
             searchRadiusKm = dto.searchRadiusKm ?: 5.0,

@@ -21,6 +21,9 @@ data class PlacesUiState(
     val suggestions: List<AddressSuggestion> = emptyList(),
     val isSearching: Boolean = false,
     val isLocating: Boolean = false,
+    /** Vị trí thiết bị lấy được ở màn bản đồ (vẽ chấm "bạn đang ở đây"). */
+    val deviceLocation: AddressSuggestion? = null,
+    val locateError: String? = null,
     val savedPlaces: List<SavedPlace> = emptyList(),
     val isPlacesLoading: Boolean = false,
     val placesError: String? = null,
@@ -92,6 +95,32 @@ class PlacesViewModel @Inject constructor(
                 onFailure = { e -> _uiState.update { it.copy(isLocating = false, message = e.message) } }
             )
         }
+    }
+
+    /** Nút định vị trên bản đồ: lấy vị trí máy, dùng làm vị trí tìm quán (tạm thời, không ghi đè địa điểm đã lưu). */
+    fun locateMe() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLocating = true, locateError = null) }
+            locationRepository.getCurrentDeviceLocation().fold(
+                onSuccess = { found ->
+                    locationRepository.applyLocation(
+                        LocationSettings(
+                            latitude = found.latitude,
+                            longitude = found.longitude,
+                            radiusKm = _uiState.value.location.radiusKm,
+                            label = found.address,
+                            isTemporary = true
+                        )
+                    )
+                    _uiState.update { it.copy(isLocating = false, deviceLocation = found) }
+                },
+                onFailure = { e -> _uiState.update { it.copy(isLocating = false, locateError = e.message) } }
+            )
+        }
+    }
+
+    fun reportLocatePermissionDenied() = _uiState.update {
+        it.copy(locateError = "Chưa cấp quyền vị trí. Bạn có thể nhập địa chỉ hoặc ghim vị trí thủ công.")
     }
 
     /** K08: tâm bản đồ dừng ở điểm mới -> tra địa chỉ của điểm ghim. */

@@ -9,6 +9,11 @@ import { SurpriseBagItemEntity } from '../../entities/catalog/surprise-bag-item.
 import { OfferEntity } from '../../entities/catalog/offer.entity';
 import { ItemEntity } from '../../entities/catalog/item.entity';
 import { OrderEntity } from '../../entities/orders/order.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { CampaignDeliveryEntity } from '../../entities/marketing/campaign-delivery.entity';
+import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
+import { ConsentEntity } from '../../entities/auth/consent.entity';
+import { NotificationEntity } from '../../entities/notifications/notification.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -23,6 +28,11 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       ItemEntity,
       OrderEntity,
       StoreMemberEntity,
+      StoreSettingsEntity,
+      CampaignDeliveryEntity,
+      FavoriteStoreEntity,
+      ConsentEntity,
+      NotificationEntity,
     ]),
     SubscriptionsModule,
   ],

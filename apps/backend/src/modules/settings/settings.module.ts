@@ -5,6 +5,9 @@ import {
   StoreSettingsEntity,
   StoreSettingsHistoryEntity,
 } from '../../entities';
+import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
+import { SubscriptionEntity } from '../../entities/subscriptions/subscription.entity';
+import { StorePermissionGuard } from '../../common/guards/store-permission.guard';
 import { SettingsService } from './settings.service';
 import { SettingsController } from './settings.controller';
 import { RedisProvider } from './redis.provider';
@@ -15,10 +18,12 @@ import { RedisProvider } from './redis.provider';
       PlatformSettingEntity,
       StoreSettingsEntity,
       StoreSettingsHistoryEntity,
+      StoreMemberEntity,
+      SubscriptionEntity,
     ]),
   ],
   controllers: [SettingsController],
-  providers: [SettingsService, RedisProvider],
+  providers: [SettingsService, RedisProvider, StorePermissionGuard],
   exports: [SettingsService, RedisProvider],
 })
 export class SettingsModule {}

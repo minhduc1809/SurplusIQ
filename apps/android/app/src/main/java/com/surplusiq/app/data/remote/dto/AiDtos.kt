@@ -8,11 +8,26 @@ data class CustomerAiChatRequest(
     @SerializedName("conversationId") val conversationId: String? = null
 )
 
+data class AiSuggestedActionDto(
+    @SerializedName("label") val label: String,
+    @SerializedName("type") val type: String = "NAVIGATE",
+    @SerializedName("route") val route: String,
+    @SerializedName("targetParam") val targetParam: String? = null
+)
+
 data class CustomerAiChatResponse(
     @SerializedName("reply") val reply: String,
     @SerializedName("conversationId") val conversationId: String? = null,
     @SerializedName("recommendedDealIds") val recommendedDealIds: List<String> = emptyList(),
-    @SerializedName("remainingQuota") val remainingQuota: Int = 30
+    @SerializedName("remainingQuota") val remainingQuota: Int? = null,
+    @SerializedName("suggestedAction") val suggestedAction: AiSuggestedActionDto? = null
+)
+
+/** Hạn mức hỏi trợ lý trong ngày lấy từ máy chủ. */
+data class AiQuotaDto(
+    @SerializedName("limit") val limit: Int,
+    @SerializedName("used") val used: Int,
+    @SerializedName("remaining") val remaining: Int
 )
 
 data class AiMatchedOfferDto(

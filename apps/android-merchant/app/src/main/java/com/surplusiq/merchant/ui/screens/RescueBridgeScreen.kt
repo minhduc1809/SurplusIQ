@@ -88,7 +88,7 @@ fun RescueBridgeScreen(repository: StoreRepository, onBack: () -> Unit) {
         return
     }
     Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp)) {
-        ScreenHeader("Rescue Bridge", onBack)
+        ScreenHeader("Bàn giao suất dư", onBack)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
             SqChip("Đề nghị bàn giao", tab == 0) { tab = 0 }
             SqChip("Báo cáo", tab == 1) { tab = 1 }

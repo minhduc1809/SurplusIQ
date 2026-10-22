@@ -106,7 +106,7 @@ fun StatusChip(text: String, color: Color, modifier: Modifier = Modifier) {
 /** Card bo góc chuẩn của app (16dp, nền surface). */
 @Composable
 fun SectionCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Card(
+    SqCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

@@ -200,7 +200,7 @@ fun ItemImportScreen(repository: StoreRepository, onBack: () -> Unit) {
         item {
             SqCard {
                 StepHeader(2, "Chọn tệp")
-                Text("Tối đa $MAX_ROWS dòng và 2 MB. Hạn mức số dòng mỗi lần còn tùy gói (Cơ bản 100, Pro 500).", fontSize = 12.sp, color = SqInkSoft)
+                Text("Tối đa $MAX_ROWS dòng và 2 MB. Hạn mức số dòng mỗi lần còn tùy gói (Cơ bản 100, Chuyên nghiệp 500).", fontSize = 12.sp, color = SqInkSoft)
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedButton(
                     onClick = { picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel")) },

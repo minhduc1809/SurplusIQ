@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.app.domain.model.CollectionTimeSlot
 import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.ui.components.accent
 import com.surplusiq.app.domain.model.DietaryType
 import com.surplusiq.app.domain.model.UserPreferences
 import com.surplusiq.app.ui.theme.CoralRed
@@ -45,12 +46,7 @@ fun PreferencesScreen(
     var selectedDietary by remember { mutableStateOf(currentPreferences.dietaryPreference) }
     var selectedTimeSlots by remember { mutableStateOf(currentPreferences.collectionTimes) }
 
-    val categoryColors = mapOf(
-        DealCategory.MEALS to Color(0xFFFEF9C3),       // Pale Yellow
-        DealCategory.BAKED_GOODS to Color(0xFFFFEDD5), // Pale Orange/Peach
-        DealCategory.GROCERIES to Color(0xFFDCFCE7),   // Pale Green
-        DealCategory.OTHER to Color(0xFFE0F2FE)        // Pale Blue
-    )
+    val categoryColors = DealCategory.values().associateWith { it.accent().copy(alpha = 0.16f) }
 
     Box(
         modifier = modifier

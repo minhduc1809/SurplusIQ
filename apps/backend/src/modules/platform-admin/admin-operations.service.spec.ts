@@ -295,6 +295,7 @@ describe('AdminOperationsService complaint decisions', () => {
       null,
       h.dataSource as unknown as DataSource,
       { reverseForOrder: jest.fn() } as unknown as RewardsService,
+      null as never,
     );
     const results = await Promise.allSettled([
       h.service.resolveComplaint('complaint-1', 'admin-1', { decision: 'ACCEPT' }),
@@ -781,5 +782,42 @@ describe('Admin operations boundary', () => {
         }),
       ),
     ).toHaveLength(2);
+  });
+});
+
+describe('AdminOperationsService refund payouts', () => {
+  const pending = {
+    id: 'refund-1',
+    orderId: 'order-1',
+    storeId: 'store-1',
+    kind: PaymentKind.ORDER_REFUND,
+    status: PaymentStatus.SUCCEEDED,
+    amount: 50000,
+    payoutStatus: 'PENDING' as const,
+  };
+
+  it('ghi nhận đã chuyển khoản một lần kèm mã giao dịch và nhật ký, lần hai bị chặn', async () => {
+    const h = harness();
+    h.seed(PaymentTransactionEntity, [pending]);
+    const paid = await h.service.markRefundPaid('refund-1', 'admin-1', ' FT26102100123 ');
+    expect(paid).toMatchObject({ payoutStatus: 'PAID', payoutReference: 'FT26102100123' });
+    expect(h.rows(PaymentTransactionEntity)[0]).toMatchObject({
+      payoutStatus: 'PAID',
+      paidOutBy: 'admin-1',
+    });
+    expect(h.rows(AuditLogEntity)[0]).toMatchObject({
+      action: 'REFUND_PAID_OUT',
+      actorId: 'admin-1',
+    });
+    await expect(h.service.markRefundPaid('refund-1', 'admin-1', 'FT26102100123')).rejects.toThrow(
+      ConflictException,
+    );
+  });
+
+  it('không tìm thấy lệnh hoàn tiền thì báo NotFound', async () => {
+    const h = harness();
+    await expect(h.service.markRefundPaid('missing', 'admin-1', 'FT26102100123')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

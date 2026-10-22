@@ -14,8 +14,6 @@ class AiRepositoryImpl @Inject constructor(
     private val aiApiService: AiApiService
 ) : AiRepository {
 
-    private var localQuota = 28
-
     override suspend fun chatWithAi(
         message: String,
         contextDealId: String?,
@@ -38,14 +36,15 @@ class AiRepositoryImpl @Inject constructor(
                         reply = body.reply,
                         conversationId = body.conversationId ?: conversationId,
                         recommendedDeals = recommended,
-                        remainingQuota = body.remainingQuota
+                        remainingQuota = body.remainingQuota,
+                        suggestedAction = body.suggestedAction
                     )
                 )
             } else {
-                Result.success(generateSmartLocalAiResponse(message, availableDeals))
+                Result.failure(Exception("Trợ lý chưa trả lời được (${response.code()}). Vui lòng thử lại sau."))
             }
-        } catch (_: Exception) {
-            Result.success(generateSmartLocalAiResponse(message, availableDeals))
+        } catch (e: Exception) {
+            Result.failure(Exception("Không kết nối được trợ lý. Kiểm tra mạng rồi thử lại.", e))
         }
     }
 
@@ -61,12 +60,16 @@ class AiRepositoryImpl @Inject constructor(
                 val body = response.body()!!
                 Result.success(Pair(body.isSafe, body.explanation))
             } else {
-                Result.success(Pair(true, "Món này an toàn và không chứa thành phần dị ứng đã khai báo."))
+                // Không kết luận "an toàn" khi chưa kiểm tra được: chỉ báo lỗi để khách tự đọc thành phần.
+                Result.failure(Exception("Chưa kiểm tra được dị ứng (${response.code()}). Hãy xem mục Thành phần & Dị ứng của món."))
             }
-        } catch (_: Exception) {
-            Result.success(Pair(true, "Món này an toàn và không chứa thành phần dị ứng đã khai báo."))
+        } catch (e: Exception) {
+            Result.failure(Exception("Chưa kiểm tra được dị ứng. Hãy xem mục Thành phần & Dị ứng của món.", e))
         }
     }
+
+    override suspend fun getRemainingQuota(): Result<Int> =
+        apiCall("Không thể tải hạn mức hỏi trợ lý", { aiApiService.getQuota() }) { it.remaining }
 
     override suspend fun getConversations(): Result<List<AiConversationDto>> =
         apiCall("Không thể tải lịch sử hội thoại", { aiApiService.getConversations() }) { it }
@@ -87,37 +90,4 @@ class AiRepositoryImpl @Inject constructor(
         apiCall("Không thể cập nhật cài đặt ghi nhớ", {
             aiApiService.updateMemorySetting(AiMemorySettingRequest(rememberContext))
         }) { it.rememberContext }
-
-
-    private fun generateSmartLocalAiResponse(message: String, availableDeals: List<Deal>): AiAssistantResponse {
-        localQuota = (localQuota - 1).coerceAtLeast(0)
-        val lower = message.lowercase()
-
-        val matchingDeals = availableDeals.filter { deal ->
-            when {
-                lower.contains("bánh") || lower.contains("croissant") ->
-                    deal.title.contains("Bánh", ignoreCase = true) || deal.category.name == "BAKED_GOODS"
-                lower.contains("cơm") || lower.contains("mặn") || lower.contains("trưa") ->
-                    deal.category.name == "MEALS"
-                lower.contains("rẻ") || lower.contains("35k") || lower.contains("tiết kiệm") ->
-                    deal.discountPrice <= 35000
-                else -> true
-            }
-        }.ifEmpty { availableDeals.take(2) }
-
-        val reply = when {
-            lower.contains("dị ứng") || lower.contains("thành phần") ->
-                "Tất cả các món Cứu Món tại SurplusIQ đều được dán nhãn thành phần đầy đủ (Gluten, Trứng, Sữa bò, Đậu phộng). Bạn hãy kiểm tra mục 'Thành phần & Dị ứng' trước khi nhận hàng nhé!"
-            lower.contains("mấy giờ") || lower.contains("khung giờ") ->
-                "Khung giờ nhận món thường diễn ra từ 19:30 đến 21:30 mỗi tối khi các tiệm chuẩn bị đóng cửa. Bạn nên đến sớm trong 15 phút đầu khung giờ để chọn món ưng ý nhất!"
-            else ->
-                "Dựa trên yêu cầu của bạn, tôi tìm thấy ${matchingDeals.size} suất Cứu Món Magic Bag tươi ngon giá ưu đãi đến 67% quanh khu vực của bạn:"
-        }
-
-        return AiAssistantResponse(
-            reply = reply,
-            recommendedDeals = matchingDeals,
-            remainingQuota = localQuota
-        )
-    }
 }

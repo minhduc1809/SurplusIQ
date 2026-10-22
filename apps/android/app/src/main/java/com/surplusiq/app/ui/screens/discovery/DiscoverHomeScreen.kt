@@ -1,23 +1,8 @@
 package com.surplusiq.app.ui.screens.discovery
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.BakeryDining
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.LocalGroceryStore
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import com.surplusiq.app.domain.model.DealCategory
-import com.surplusiq.app.ui.theme.DividerColor
-import com.surplusiq.app.ui.theme.SkyBlueContainer
-import com.surplusiq.app.ui.theme.SkyBlueDark
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,9 +10,20 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.BakeryDining
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LocalGroceryStore
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
@@ -35,29 +31,39 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.surplusiq.app.R
 import com.surplusiq.app.domain.model.Deal
+import com.surplusiq.app.domain.model.DealCategory
+import com.surplusiq.app.ui.components.icon
 import com.surplusiq.app.domain.model.LocationSettings
 import com.surplusiq.app.domain.model.MapPin
-import com.surplusiq.app.ui.components.formatRadius
-import com.surplusiq.app.ui.components.LoadStateContent
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.ui.text.style.TextOverflow
 import com.surplusiq.app.ui.components.DealCard
+import com.surplusiq.app.ui.components.LoadStateContent
+import com.surplusiq.app.ui.components.formatRadius
 import com.surplusiq.app.ui.screens.notifications.NotificationBellIcon
+import com.surplusiq.app.ui.theme.DividerColor
 import com.surplusiq.app.ui.theme.ForestGreenDark
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
+import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SkyBlueLight
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
-
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.automirrored.filled.ViewList
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +73,7 @@ fun DiscoverHomeScreen(
     onFavoriteToggle: (Deal) -> Unit,
     onOpenPreferences: () -> Unit,
     onSeeAllClick: () -> Unit,
+    onSeeAllForYou: () -> Unit = onSeeAllClick,
     userName: String = "",
     onOpenProfile: () -> Unit = {},
     unreadNotificationCount: Int = 0,
@@ -80,7 +87,14 @@ fun DiscoverHomeScreen(
     isMapLoading: Boolean = false,
     mapErrorMessage: String? = null,
     onLoadMap: () -> Unit = {},
+    userLocation: Pair<Double, Double>? = null,
+    isLocating: Boolean = false,
+    locateError: String? = null,
+    onLocateMe: () -> Unit = {},
+    onLocatePermissionDenied: () -> Unit = {},
     onOpenStore: (storeId: String) -> Unit = {},
+    // Khung thông tin quán hiện dưới bản đồ khi chọn một quán
+    storePanel: (@Composable (pin: MapPin, onClose: () -> Unit) -> Unit)? = null,
     isLoading: Boolean = false,
     errorMessage: String? = null,
     onRetry: () -> Unit = {},
@@ -102,80 +116,78 @@ fun DiscoverHomeScreen(
                 (q.isEmpty() || d.title.contains(q, ignoreCase = true) || d.storeName.contains(q, ignoreCase = true))
         }
     }
-    // Thẻ chiếm ~78% bề rộng để thẻ kế tiếp hé ra, báo hiệu cuộn ngang
-    val cardWidth = (LocalConfiguration.current.screenWidthDp * 0.78f).dp.coerceIn(240.dp, 320.dp)
+    // Số quán đang mở và mức giảm cao nhất lấy từ chính danh sách suất đang hiển thị
+    val openStores = remember(deals) { deals.map { it.storeId }.distinct().size }
+    val maxDiscount = remember(deals) { deals.maxOfOrNull { it.discountPercent } ?: 0 }
+    val urgentDeals = remember(shown) { shown.filter { it.isUrgent } }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Header gọn một hàng: avatar | vị trí + bán kính | chuông (tên người dùng xem ở tab Tôi)
+    val header: @Composable () -> Unit = {
+    Column(Modifier.fillMaxWidth()) {
+        // Hàng 1: logo + tên màn, chuông, avatar (ẩn ở chế độ bản đồ để dành chỗ)
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Image(
+                painter = painterResource(R.drawable.logo_surplusiq_icon),
+                contentDescription = "SurplusIQ",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(38.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text("SURPLUSIQ", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenDark, letterSpacing = 0.8.sp)
+                Text("Khám Phá", fontSize = 12.sp, color = TextSecondary)
+            }
+            NotificationBellIcon(unreadCount = unreadNotificationCount, onClick = onOpenNotifications)
+            Spacer(Modifier.width(14.dp))
             Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(ForestGreenPrimary.copy(alpha = 0.15f))
-                    .clickable(onClick = onOpenProfile),
+                modifier = Modifier.size(38.dp).clip(CircleShape).background(ForestGreenPrimary).clickable(onClick = onOpenProfile),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = userName.trim().substringAfterLast(" ").take(1).ifEmpty { "?" }.uppercase(),
                     fontWeight = FontWeight.Bold,
-                    color = ForestGreenPrimary
+                    color = Color.White
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable(onClick = onOpenLocation)
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = "Vị trí",
-                    tint = ForestGreenPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = location.label ?: if (location.hasCoordinates) "Vị trí đã chọn" else "Chọn vị trí của bạn",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = TextPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+        }
+
+        // Hàng 2: vị trí + bán kính + số quán đang mở
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onOpenLocation)
+                .padding(vertical = 4.dp)
+        ) {
+            Box(Modifier.size(34.dp).clip(CircleShape).background(SkyBlueContainer), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.LocationOn, contentDescription = "Vị trí", tint = ForestGreenPrimary, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (location.hasCoordinates) "trong bán kính ${formatRadius(location.radiusKm)}" else "đang hiển thị mọi khu vực",
-                        fontSize = 11.sp,
-                        color = TextSecondary
+                        text = location.label ?: if (location.hasCoordinates) "Vị trí đã chọn" else "Chọn vị trí của bạn",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                 }
+                Text(
+                    text = if (location.hasCoordinates) "Bán kính ${formatRadius(location.radiusKm)} • $openStores quán đang mở" else "Đang hiển thị mọi khu vực • $openStores quán đang mở",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            NotificationBellIcon(
-                unreadCount = unreadNotificationCount,
-                onClick = onOpenNotifications
-            )
         }
 
         // K08: đang xem deal ở vị trí ghim tạm
@@ -189,31 +201,24 @@ fun DiscoverHomeScreen(
             )
         }
 
-        // Search & Filter Bar
+        // Tìm kiếm + bản đồ + bộ lọc
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .height(52.dp)
-                    .clip(RoundedCornerShape(26.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, DividerColor, RoundedCornerShape(26.dp))
+                    .border(1.dp, DividerColor, RoundedCornerShape(18.dp))
                     .clickable { onOpenSearch() }
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = "Tìm kiếm",
-                    tint = ForestGreenPrimary,
-                    modifier = Modifier.size(20.dp).clickable { onOpenSearch() }
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                Icon(Icons.Default.Search, contentDescription = "Tìm kiếm", tint = ForestGreenPrimary, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
                 BasicTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -222,7 +227,7 @@ fun DiscoverHomeScreen(
                     cursorBrush = SolidColor(ForestGreenPrimary),
                     modifier = Modifier.weight(1f),
                     decorationBox = { inner ->
-                        if (searchQuery.isEmpty()) Text("Tìm món, quán ăn, AI...", fontSize = 14.sp, color = TextMuted)
+                        if (searchQuery.isEmpty()) Text("Tìm món ngon, tiệm ...", fontSize = 13.sp, color = TextMuted)
                         inner()
                     }
                 )
@@ -234,40 +239,34 @@ fun DiscoverHomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(Modifier.width(10.dp))
 
             IconButton(
                 onClick = { isMapView = !isMapView },
                 modifier = Modifier
                     .size(52.dp)
-                    .clip(CircleShape)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, DividerColor, CircleShape)
+                    .border(1.dp, DividerColor, RoundedCornerShape(16.dp))
             ) {
                 Icon(
                     imageVector = if (isMapView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.Map,
                     contentDescription = if (isMapView) "Chuyển sang danh sách" else "Chuyển sang bản đồ",
-                    tint = ForestGreenPrimary,
-                    modifier = Modifier.size(20.dp)
+                    tint = ForestGreenDark,
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(Modifier.width(8.dp))
 
-            // Filter button opening FilterSortBottomSheet
             IconButton(
                 onClick = { showFilterSortSheet = true },
                 modifier = Modifier
                     .size(52.dp)
-                    .clip(CircleShape)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(if (currentSortBy != null || currentMinDiscount != null) ForestGreenDark else ForestGreenPrimary)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Tune,
-                    contentDescription = "Bộ lọc & Sắp xếp",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
+                Icon(Icons.Default.Tune, contentDescription = "Bộ lọc & Sắp xếp", tint = Color.White, modifier = Modifier.size(22.dp))
             }
         }
 
@@ -287,10 +286,11 @@ fun DiscoverHomeScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+    }
+    }
 
+    Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (isMapView) {
-            // Interactive Map View of Nearby Deals (R1-021)
             DealMapScreen(
                 pins = mapPins,
                 location = location,
@@ -298,168 +298,184 @@ fun DiscoverHomeScreen(
                 errorMessage = mapErrorMessage,
                 onLoad = onLoadMap,
                 onOpenStore = onOpenStore,
-                modifier = Modifier.fillMaxSize()
+                userLocation = userLocation,
+                isLocating = isLocating,
+                locateError = locateError,
+                onLocateMe = onLocateMe,
+                onLocatePermissionDenied = onLocatePermissionDenied,
+                storePanel = storePanel,
+                header = header,
+                modifier = Modifier.weight(1f).fillMaxWidth()
             )
         } else {
-            LoadStateContent(
-                isLoading = isLoading,
-                errorMessage = errorMessage,
-                isEmpty = deals.isEmpty(),
-                emptyIcon = Icons.Default.LocationOn,
-                emptyTitle = "Chưa có deal quanh đây",
-                emptyMessage = if (location.hasCoordinates) "Thử tăng bán kính hoặc chọn vị trí khác." else "Hiện chưa có suất cứu món nào đang mở bán.",
-                onRetry = onRetry
-            ) {
-            // Main Content List (Carousels)
+            val side = Modifier.padding(horizontal = 16.dp)
+            // Cả trang (đầu trang, bộ lọc, danh sách) cuộn cùng nhau; trạng thái tải/lỗi/rỗng chỉ thay phần danh sách.
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 96.dp)
+                contentPadding = PaddingValues(bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item {
-                    Text(
-                        text = buildAnnotatedString {
-                            append("Hôm nay bạn muốn ")
-                            withStyle(SpanStyle(color = ForestGreenPrimary)) { append("cứu món gì") }
-                            append("?")
-                        },
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = TextPrimary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                }
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        item { CategoryCircle("Tất cả", Icons.Default.Apps, category == null) { category = null } }
-                        items(DealCategory.values().toList()) { c ->
-                            CategoryCircle(c.shortName(), c.icon(), category == c) { category = if (category == c) null else c }
+                item { header() }
+                if (deals.isEmpty()) {
+                    item {
+                        Box(Modifier.fillMaxWidth().height(360.dp)) {
+                            LoadStateContent(
+                                isLoading = isLoading,
+                                errorMessage = errorMessage,
+                                isEmpty = true,
+                                emptyIcon = Icons.Default.LocationOn,
+                                emptyTitle = "Chưa có deal quanh đây",
+                                emptyMessage = if (location.hasCoordinates) "Thử tăng bán kính hoặc chọn vị trí khác." else "Hiện chưa có suất cứu món nào đang mở bán.",
+                                onRetry = onRetry
+                            ) {}
                         }
                     }
-                }
-                if (shown.isEmpty()) item {
-                    Text(
-                        "Không có suất nào khớp bộ lọc.",
-                        fontSize = 14.sp, color = TextSecondary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp)
-                    )
-                }
-                // Section 1: Recommended for you (Carousel)
-                if (shown.isNotEmpty()) item {
-                    SectionHeader(
-                        title = "Dành cho bạn",
-                        onSeeAllClick = onSeeAllClick
-                    )
-                }
-
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        items(shown) { deal ->
-                            DealCard(
-                                deal = deal,
-                                onDealClick = onDealClick,
-                                onFavoriteToggle = onFavoriteToggle,
-                                modifier = Modifier.width(cardWidth)
+                } else {
+                    item {
+                        Column(side) {
+                            Text(
+                                text = buildAnnotatedString {
+                                    append("Hôm nay bạn muốn ")
+                                    withStyle(SpanStyle(color = ForestGreenPrimary)) { append("cứu món gì") }
+                                    append("?")
+                                },
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = TextPrimary
+                            )
+                            if (maxDiscount > 0) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "Tiết kiệm tới $maxDiscount% ngân sách và chung tay giảm lãng phí thực phẩm.",
+                                    fontSize = 13.sp,
+                                    color = TextSecondary,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item { CategoryTile("Tất cả", Icons.Default.Apps, category == null) { category = null } }
+                            items(DealCategory.values().toList()) { c ->
+                                CategoryTile(c.label, c.icon(), category == c) { category = if (category == c) null else c }
+                            }
+                        }
+                    }
+                    if (urgentDeals.isNotEmpty()) item {
+                        Box(side) {
+                            GoldenHourBanner(
+                                count = urgentDeals.size,
+                                maxDiscount = urgentDeals.maxOf { it.discountPercent },
+                                onClick = onSeeAllClick
                             )
                         }
                     }
-                }
-
-                // Section 2: Save before it's too late
-                if (shown.any { it.isUrgent }) item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    SectionHeader(
-                        title = "Sắp hết giờ nhận",
-                        onSeeAllClick = onSeeAllClick
-                    )
-                }
-
-                if (shown.any { it.isUrgent }) item {
-                    val urgentDeals = shown.filter { it.isUrgent }
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        items(urgentDeals) { deal ->
-                            DealCard(
-                                deal = deal,
-                                onDealClick = onDealClick,
-                                onFavoriteToggle = onFavoriteToggle,
-                                modifier = Modifier.width(cardWidth)
+                    if (shown.isEmpty()) item {
+                        Text("Không có suất nào khớp bộ lọc.", fontSize = 14.sp, color = TextSecondary, modifier = side.padding(vertical = 24.dp))
+                    }
+                    if (shown.isNotEmpty()) item {
+                        Box(side) {
+                            SectionHeader(
+                                title = "Dành cho bạn",
+                                subtitle = "Suất cứu món nóng hổi gần vị trí của bạn nhất",
+                                onSeeAllClick = onSeeAllForYou
                             )
                         }
                     }
+                    items(shown, key = { it.id }) { deal ->
+                        Box(side) { DealCard(deal = deal, onDealClick = onDealClick, onFavoriteToggle = onFavoriteToggle) }
+                    }
                 }
-            }
             }
         }
+    }
+}
+
+/** Dải nhắc các suất sắp hết giờ nhận (số liệu lấy từ danh sách đang hiển thị). */
+@Composable
+private fun GoldenHourBanner(count: Int, maxDiscount: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.horizontalGradient(listOf(SkyBlueLight, ForestGreenPrimary)))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("GIỜ VÀNG CỨU MÓN", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.9f), letterSpacing = 0.8.sp)
+            Text(
+                "$count suất sắp hết giờ nhận" + if (maxDiscount > 0) ", giảm tới $maxDiscount%" else "",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                lineHeight = 20.sp
+            )
+        }
+        Text("Xem  ›", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }
 
 @Composable
 fun SectionHeader(
     title: String,
-    onSeeAllClick: () -> Unit
+    onSeeAllClick: () -> Unit,
+    subtitle: String? = null
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+            if (subtitle != null) Text(text = subtitle, fontSize = 12.sp, color = TextSecondary, lineHeight = 16.sp)
+        }
         Text(
-            text = title,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary
-        )
-        Text(
-            text = "Xem tất cả",
+            text = "Xem tất cả  ›",
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = ForestGreenPrimary,
-            modifier = Modifier.clickable { onSeeAllClick() }.padding(vertical = 8.dp)
+            fontWeight = FontWeight.Bold,
+            color = ForestGreenDark,
+            modifier = Modifier.clickable { onSeeAllClick() }.padding(start = 12.dp, top = 2.dp, bottom = 8.dp)
         )
     }
 }
 
-private fun DealCategory.shortName() = when (this) {
-    DealCategory.MEALS -> "Món chính"
-    DealCategory.BAKED_GOODS -> "Bánh"
-    DealCategory.GROCERIES -> "Nông sản"
-    DealCategory.OTHER -> "Khác"
-}
-
-private fun DealCategory.icon() = when (this) {
-    DealCategory.MEALS -> Icons.Default.Restaurant
-    DealCategory.BAKED_GOODS -> Icons.Default.BakeryDining
-    DealCategory.GROCERIES -> Icons.Default.LocalGroceryStore
-    DealCategory.OTHER -> Icons.Default.Category
-}
-
+/** Ô danh mục bo vuông: chọn thì nền cam, chữ trắng. */
 @Composable
-private fun CategoryCircle(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+private fun CategoryTile(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(68.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick)
+        modifier = Modifier.width(76.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(if (selected) ForestGreenPrimary else SkyBlueContainer)
-                .border(1.dp, if (selected) ForestGreenPrimary else DividerColor, CircleShape),
+                .size(60.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(if (selected) ForestGreenPrimary else MaterialTheme.colorScheme.surface)
+                .border(1.dp, if (selected) ForestGreenPrimary else DividerColor, RoundedCornerShape(18.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = if (selected) Color.White else ForestGreenDark, modifier = Modifier.size(26.dp))
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(label, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = TextPrimary, maxLines = 1)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            label,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = TextPrimary,
+            maxLines = 2,
+            lineHeight = 14.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
     }
 }

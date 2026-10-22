@@ -1,3 +1,4 @@
+import { getJwtSecret } from '../../common/config/jwt-secret';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -33,7 +34,7 @@ describe('PickupsService', () => {
   const mockOfferId = 'offer-444-uuid';
   const mockItemId = 'item-555-uuid';
   const mockTokenId = 'token-666-uuid';
-  const jwtSecret = 'surplusiq_super_secret_jwt_key_2026';
+  const jwtSecret = getJwtSecret();
 
   const baseOrder: Partial<OrderEntity> = {
     id: mockOrderId,

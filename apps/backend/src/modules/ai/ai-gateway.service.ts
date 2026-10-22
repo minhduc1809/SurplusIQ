@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, MoreThanOrEqual } from 'typeorm';
 import {
   AiConversationEntity,
   AiUserRole,
@@ -15,6 +21,8 @@ import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { ReviewEntity } from '../../entities/complaints/review.entity';
 import { ComplaintEntity } from '../../entities/complaints/complaint.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
+import { UpdateAiConfigDto } from './dto/ai-config.dto';
 import { CustomerProfileEntity } from '../../entities/auth/customer-profile.entity';
 import {
   StoreAiChatDto,
@@ -28,9 +36,37 @@ import {
   DraftComplaintReplyDto,
   SentimentAnalysisDto,
   SuggestCombosDto,
+  AiSuggestedActionDto,
 } from './dto/ai.dto';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
+
+export type AiFeatureKey = 'chat' | 'weeklySummary' | 'drafts';
+
+export interface AiConfig {
+  chat: boolean;
+  weeklySummary: boolean;
+  drafts: boolean;
+  managerCanUse: boolean;
+  defaultTone: 'FRIENDLY' | 'FORMAL' | 'APOLOGETIC';
+}
+
+export const DEFAULT_AI_CONFIG: AiConfig = {
+  chat: true,
+  weeklySummary: true,
+  drafts: true,
+  managerCanUse: true,
+  defaultTone: 'FRIENDLY',
+};
+
+function normalizeText(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .trim();
+}
 
 @Injectable()
 export class AiGatewayService {
@@ -57,6 +93,8 @@ export class AiGatewayService {
     private readonly complaintRepo: Repository<ComplaintEntity>,
     @InjectRepository(StoreEntity)
     private readonly storeRepo: Repository<StoreEntity>,
+    @InjectRepository(StoreSettingsEntity)
+    private readonly settingsRepo: Repository<StoreSettingsEntity>,
     @InjectRepository(CustomerProfileEntity)
     private readonly customerProfileRepo: Repository<CustomerProfileEntity>,
     private readonly quotaService: QuotaService,
@@ -146,6 +184,134 @@ export class AiGatewayService {
     };
   }
 
+  /** Số liệu 7 ngày gần nhất và 7 ngày trước đó, do hệ thống tính (không do AI). Doanh thu gồm cả đơn khách không đến, như báo cáo. */
+  private async weeklyStats(storeId: string, now = new Date()) {
+    const day = 24 * 60 * 60 * 1000;
+    const orders = await this.orderRepo.find({
+      where: { storeId, createdAt: MoreThanOrEqual(new Date(now.getTime() - 14 * day)) },
+    });
+    const cut = now.getTime() - 7 * day;
+    const calc = (list: OrderEntity[]) => {
+      const r = { orders: list.length, pickedUp: 0, noShow: 0, cancelled: 0, units: 0, revenue: 0 };
+      for (const o of list) {
+        if (o.status === OrderStatus.PICKED_UP) {
+          r.pickedUp++;
+          r.units += o.quantity;
+          r.revenue += o.totalAmount;
+        } else if (o.status === OrderStatus.PICKUP_EXPIRED) {
+          r.noShow++;
+          r.revenue += o.totalAmount;
+        } else if (o.status === OrderStatus.CANCELLED) {
+          r.cancelled++;
+        }
+      }
+      return r;
+    };
+    return {
+      current: calc(orders.filter((o) => new Date(o.createdAt).getTime() >= cut)),
+      previous: calc(orders.filter((o) => new Date(o.createdAt).getTime() < cut)),
+    };
+  }
+
+  private factsText(stats: Awaited<ReturnType<AiGatewayService['weeklyStats']>>): string {
+    const line = (label: string, s: typeof stats.current) =>
+      `${label}: ${s.orders} đơn (${s.pickedUp} đã nhận, ${s.noShow} khách không đến, ${s.cancelled} hủy), ${s.units} suất cứu được, doanh thu ${s.revenue.toLocaleString('vi-VN')} đ.`;
+    return `${line('7 ngày gần nhất', stats.current)}\n${line('7 ngày trước đó', stats.previous)}`;
+  }
+
+  async getAiConfig(storeId: string): Promise<AiConfig> {
+    const row = await this.settingsRepo.findOne({ where: { storeId } });
+    return { ...DEFAULT_AI_CONFIG, ...((row?.aiConfig as Partial<AiConfig>) ?? {}) };
+  }
+
+  async updateAiConfig(storeId: string, dto: UpdateAiConfigDto): Promise<AiConfig> {
+    const row = await this.settingsRepo.findOne({ where: { storeId } });
+    if (!row) throw new NotFoundException('Cửa hàng chưa có cài đặt vận hành.');
+    row.aiConfig = { ...dto };
+    await this.settingsRepo.save(row);
+    return { ...dto };
+  }
+
+  /** Chặn khi cửa hàng đã tắt nhóm tính năng này, hoặc tắt AI cho vai Quản lý. Chủ luôn được dùng nếu tính năng bật. */
+  async assertFeatureAllowed(storeId: string, feature: AiFeatureKey, permission?: string) {
+    const cfg = await this.getAiConfig(storeId);
+    if (!cfg[feature]) {
+      throw new ForbiddenException('Cửa hàng đã tắt tính năng AI này trong cấu hình AI.');
+    }
+    if (permission === 'MANAGER' && !cfg.managerCanUse) {
+      throw new ForbiddenException('Chủ cửa hàng chưa cho phép Quản lý dùng AI.');
+    }
+  }
+
+  /** Danh sách hội thoại của chính người dùng trong cửa hàng (R2-110). */
+  async listStoreConversations(storeId: string, userId: string) {
+    const list = await this.conversationRepo.find({
+      where: { storeId, userId },
+      order: { updatedAt: 'DESC' },
+      take: 50,
+    });
+    return list.map((c) => ({
+      id: c.id,
+      title: c.title,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    }));
+  }
+
+  async getStoreConversation(storeId: string, userId: string, id: string) {
+    const conversation = await this.conversationRepo.findOne({ where: { id, storeId, userId } });
+    if (!conversation) throw new NotFoundException('Cuộc trò chuyện AI không tồn tại.');
+    const messages = await this.messageRepo.find({
+      where: { conversationId: id },
+      order: { createdAt: 'ASC' },
+    });
+    return {
+      id: conversation.id,
+      title: conversation.title,
+      messages: messages.map((m) => ({
+        id: m.id,
+        sender: m.sender,
+        content: m.content,
+        createdAt: m.createdAt,
+      })),
+    };
+  }
+
+  async deleteStoreConversation(storeId: string, userId: string, id: string) {
+    const conversation = await this.conversationRepo.findOne({ where: { id, storeId, userId } });
+    if (!conversation) throw new NotFoundException('Cuộc trò chuyện AI không tồn tại.');
+    await this.messageRepo.delete({ conversationId: id });
+    await this.conversationRepo.delete({ id });
+    return { success: true };
+  }
+
+  async deleteAllStoreConversations(storeId: string, userId: string) {
+    const list = await this.conversationRepo.find({ where: { storeId, userId }, select: ['id'] });
+    if (list.length > 0) {
+      await this.messageRepo.delete({ conversationId: In(list.map((c) => c.id)) });
+      await this.conversationRepo.delete({ id: In(list.map((c) => c.id)) });
+    }
+    return { success: true, deleted: list.length };
+  }
+
+  /** Nhật ký lượt dùng AI của cửa hàng (R2-124), mới nhất trước. */
+  async listStoreAiLogs(storeId: string, page = 1, limit = 20) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const [items, total] = await this.logRepo.findAndCount({
+      where: { storeId },
+      order: { createdAt: 'DESC' },
+      skip: (Math.max(page, 1) - 1) * take,
+      take,
+    });
+    return {
+      items,
+      total,
+      page: Math.max(page, 1),
+      limit: take,
+      totalPages: Math.ceil(total / take),
+    };
+  }
+
   /**
    * Hỏi đáp trợ lý AI thông minh dành cho chủ cửa hàng (R2-108..R2-110)
    */
@@ -182,7 +348,14 @@ export class AiGatewayService {
       conversation = await this.conversationRepo.save(conversation);
     }
 
-    // 3. Lưu tin nhắn của người dùng
+    // 3. Lịch sử gần nhất để trả lời nhiều lượt, rồi lưu tin nhắn của người dùng
+    const history = (
+      await this.messageRepo.find({
+        where: { conversationId: conversation.id },
+        order: { createdAt: 'DESC' },
+        take: 6,
+      })
+    ).reverse();
     const userMessage = this.messageRepo.create({
       conversationId: conversation.id,
       sender: AiMessageSender.USER,
@@ -190,29 +363,218 @@ export class AiGatewayService {
     });
     await this.messageRepo.save(userMessage);
 
-    // 4. Sinh câu trả lời định hướng nghiệp vụ F&B và xử lý thực phẩm dư thừa
-    let fallbackReply: string;
-    const lower = dto.message.toLowerCase();
+    // 4. Phát hiện ý định hướng dẫn sử dụng / nghiệp vụ và gán action điều hướng
+    // 4. Phát hiện ý định hướng dẫn sử dụng / nghiệp vụ và gán action điều hướng
+    const norm = normalizeText(dto.message);
+    let suggestedAction: AiSuggestedActionDto | null = null;
+    let guideHint = '';
 
-    if (lower.includes('giảm giá') || lower.includes('định giá') || lower.includes('giá')) {
-      fallbackReply =
-        'Theo dữ liệu vận hành từ SurplusIQ, khi lượng tồn còn cao sát giờ đóng cửa (dưới 90 phút), bạn nên giảm thêm 15% - 25% (không vượt quá mức sàn 40% giá gốc). Đồng thời, hãy gom các món cùng loại thành Combo hoặc Túi Bất Ngờ để đẩy nhanh tốc độ giải phóng tồn kho.';
-    } else if (lower.includes('mưa') || lower.includes('thời tiết') || lower.includes('ế')) {
-      fallbackReply =
-        'Vào những ngày thời tiết bất lợi, lượng khách vãng lai thường giảm khoảng 35%. Bạn nên mở bán ưu đãi sớm hơn 45 phút trên SurplusIQ và kích hoạt tính năng thông báo flash-sale tới nhóm khách hàng thân thiết trong bán kính 2km.';
-    } else {
-      fallbackReply =
-        'Cảm ơn bạn đã hỏi trợ lý AI SurplusIQ. Để tối ưu hóa doanh thu và giảm thiểu lãng phí thực phẩm hôm nay, bạn có thể: (1) Kiểm tra dự báo sản xuất ngày mai trong mục Kế hoạch, (2) Tạo Túi Bất Ngờ (Surprise Bag) cho các món bánh nướng cuối ngày, (3) Theo dõi biểu đồ giải cứu thực phẩm để quảng bá thương hiệu xanh của quán.';
+    if (
+      norm.includes('huong dan') ||
+      norm.includes('su dung app') ||
+      norm.includes('dung app') ||
+      norm.includes('xai app') ||
+      norm.includes('cach dung') ||
+      norm.includes('quy trinh') ||
+      norm.includes('bat dau') ||
+      norm.includes('chuc nang') ||
+      norm.includes('tinh nang') ||
+      norm.includes('lam gi') ||
+      norm.includes('van hanh') ||
+      norm.includes('app nay') ||
+      norm.includes('ung dung')
+    ) {
+      suggestedAction = {
+        label: 'Mở Checklist Vận hành & Nhiệm vụ',
+        type: 'NAVIGATE',
+        route: 'tasks',
+      };
+      guideHint =
+        'Quy trình vận hành 3 bước dành cho chủ quán:\n' +
+        '1. Đăng suất bán cuối ngày (mục "Suất bán" - tạo túi bất ngờ giảm tối thiểu 40% giá niêm yết).\n' +
+        '2. Quét mã QR nhận đơn khi giao món (mục "Quét QR" trên app hoặc nhập mã PIN 6 số của khách).\n' +
+        '3. Đóng ca & kiểm kê cuối ngày (mục "Nhiệm vụ").\n' +
+        'Ngoài ra bạn có thể theo dõi doanh thu hàng ngày tại mục "Báo cáo" và nhận giải ngân định kỳ tại mục "Đối soát".';
+    } else if (
+      norm.includes('quet ma') ||
+      norm.includes('quet qr') ||
+      norm.includes('xac nhan') ||
+      norm.includes('ma pin') ||
+      norm.includes('giao mon') ||
+      norm.includes('khach den lay') ||
+      norm.includes('nhan don') ||
+      norm.includes('tra mon')
+    ) {
+      suggestedAction = {
+        label: 'Mở Quét mã QR nhận đơn',
+        type: 'NAVIGATE',
+        route: 'verify',
+      };
+      guideHint =
+        'Hướng dẫn nhân viên quầy: Bấm vào mục "Quét QR" trên thanh điều hướng để quét camera vé QR của khách hoặc nhập mã PIN 6 số dự phòng để hoàn tất giao món.';
+    } else if (
+      norm.includes('dang mon') ||
+      norm.includes('tui bat ngo') ||
+      norm.includes('suat cuu') ||
+      norm.includes('surprise bag') ||
+      norm.includes('mo ban') ||
+      norm.includes('them suat') ||
+      norm.includes('tao mon') ||
+      norm.includes('tao suat')
+    ) {
+      suggestedAction = {
+        label: 'Đi đến Đăng suất bán',
+        type: 'NAVIGATE',
+        route: 'offers',
+      };
+      guideHint =
+        'Hướng dẫn quản lý: Vào mục "Suất bán" (hoặc Túi bất ngờ) để tạo gói giải cứu cuối ngày với giá tối thiểu bằng giá sàn (40% giá gốc) và cài đặt khung giờ nhận hàng.';
+    } else if (
+      norm.includes('nhiem vu') ||
+      norm.includes('checklist') ||
+      norm.includes('dong ca') ||
+      norm.includes('cuoi ngay') ||
+      norm.includes('viec can lam')
+    ) {
+      suggestedAction = {
+        label: 'Mở Nhiệm vụ & Checklist đóng ca',
+        type: 'NAVIGATE',
+        route: 'tasks',
+      };
+      guideHint =
+        'Hướng dẫn đóng ca: Mở màn hình "Nhiệm vụ" để tích chọn checklist dọn quầy và kiểm kê lượng tồn thực tế giúp hệ thống đối soát chính xác.';
+    } else if (
+      norm.includes('doanh thu') ||
+      norm.includes('bao cao') ||
+      norm.includes('ban duoc bao nhieu') ||
+      norm.includes('tuan nay the nao') ||
+      norm.includes('thong ke') ||
+      norm.includes('tien ban')
+    ) {
+      suggestedAction = {
+        label: 'Xem Báo cáo Doanh thu',
+        type: 'NAVIGATE',
+        route: 'reports',
+      };
+      guideHint =
+        'Theo dõi hiệu quả: Bạn hãy mở mục "Báo cáo" để xem chi tiết biểu đồ doanh thu, số đơn đã nhận và số suất ăn giải cứu thành công.';
+    } else if (
+      norm.includes('doi soat') ||
+      norm.includes('sao ke') ||
+      norm.includes('rut tien') ||
+      norm.includes('chu ky') ||
+      norm.includes('thanh toan tuan') ||
+      norm.includes('tien ve') ||
+      norm.includes('nhan tien')
+    ) {
+      suggestedAction = {
+        label: 'Mở Đối soát & Sao kê tuần',
+        type: 'NAVIGATE',
+        route: 'reconciliation',
+      };
+      guideHint =
+        'Quy trình đối soát: Hệ thống chốt sao kê tự động vào thứ Hai hàng tuần và giải ngân về tài khoản ngân hàng của quán sau khi khấu trừ phí nền tảng.';
+    } else if (
+      norm.includes('khieu nai') ||
+      norm.includes('khach phan anh') ||
+      norm.includes('den bu') ||
+      norm.includes('hong do') ||
+      norm.includes('khach che')
+    ) {
+      suggestedAction = {
+        label: 'Mở Quản lý Khiếu nại khách hàng',
+        type: 'NAVIGATE',
+        route: 'complaints',
+      };
+      guideHint =
+        'Xử lý khiếu nại: Quán có 48 giờ để xem ảnh thực tế và phản hồi khách (chấp nhận hoàn tiền, từ chối kèm lý do hoặc tặng voucher xin lỗi).';
+    } else if (
+      norm.includes('hop dong') ||
+      norm.includes('phap ly') ||
+      norm.includes('ngan hang') ||
+      norm.includes('tai khoan thu huong') ||
+      norm.includes('an toan thuc pham')
+    ) {
+      suggestedAction = {
+        label: 'Xem Hồ sơ pháp lý & Hợp đồng',
+        type: 'NAVIGATE',
+        route: 'store-legal',
+      };
+      guideHint =
+        'Hồ sơ pháp lý: Mở mục "Hồ sơ pháp lý" để xem hợp đồng điện tử đã ký, giấy chứng nhận VSATTP và tài khoản thụ hưởng thanh toán.';
+    } else if (
+      norm.includes('nhan vien') ||
+      norm.includes('phan quyen') ||
+      norm.includes('them thu ngan') ||
+      norm.includes('quan ly nhan su')
+    ) {
+      suggestedAction = {
+        label: 'Mở Quản lý Nhân viên',
+        type: 'NAVIGATE',
+        route: 'staff',
+      };
+      guideHint =
+        'Phân quyền: Chủ quán (Owner) có thể mời nhân viên và gán quyền Counter (chỉ quét QR giao món) hoặc Manager (đăng món và xem báo cáo).';
+    } else if (
+      norm.includes('ho tro') ||
+      norm.includes('lien he') ||
+      norm.includes('ky thuat') ||
+      norm.includes('bao loi')
+    ) {
+      suggestedAction = {
+        label: 'Gửi yêu cầu Hỗ trợ kỹ thuật',
+        type: 'NAVIGATE',
+        route: 'support',
+      };
+      guideHint =
+        'Hỗ trợ kỹ thuật: Bạn có thể gửi yêu cầu hỗ trợ hoặc gọi hotline kỹ thuật SurplusIQ để được trợ giúp 24/7.';
     }
 
+    // 5. Trả lời dựa trên số liệu hệ thống tính & hướng dẫn nghiệp vụ
+    const facts = this.factsText(await this.weeklyStats(storeId));
+    const fallbackReply = guideHint
+      ? `${guideHint}\n\nBạn có thể bấm nút bên dưới để mở nhanh tính năng này nhé!`
+      : `Dạ chào bạn, tôi là Trợ lý vận hành SurplusIQ dành cho chủ quán! Tôi có thể hướng dẫn bạn cách đăng suất bán, quét mã QR nhận đơn, xem báo cáo doanh thu, đối soát tuần hay xử lý khiếu nại. Bạn muốn tìm hiểu chức năng nào trước ạ?\n\nSố liệu hiện tại của quán:\n${facts}`;
+
+    const transcript = history
+      .map((m) => `${m.sender === AiMessageSender.USER ? 'Chủ quán' : 'Trợ lý'}: ${m.content}`)
+      .join('\n');
+
+    const actionPrompt = suggestedAction
+      ? `\nNút hành động hỗ trợ trên app: "${suggestedAction.label}". Hãy trả lời súc tích 2-3 câu hướng dẫn thao tác và nhắc người dùng có thể bấm nút bên dưới để mở nhanh tính năng.`
+      : '';
+
+    const systemKnowledge = `
+Kiến thức nghiệp vụ nền tảng SurplusIQ dành cho Chủ quán/Quản lý:
+- Bước 1 (Đăng suất bán): Vào mục "Suất bán" để tạo túi bất ngờ hoặc giảm giá món cuối ngày (giá tối thiểu 40% giá niêm yết theo quy định giá sàn, chọn khung giờ nhận hàng trước giờ đóng cửa).
+- Bước 2 (Quét mã giao món): Khách xuất trình vé QR trên app. Nhân viên vào mục "Quét QR" để quét camera hoặc nhập mã PIN 6 số dự phòng để hoàn tất đơn.
+- Bước 3 (Checklist đóng ca): Vào mục "Nhiệm vụ" để kiểm kê lượng món đã cứu, dọn quầy và chốt ca.
+- Theo dõi Doanh thu & Đối soát: Vào mục "Báo cáo" để xem biểu đồ bán hàng; hệ thống tự động chốt sao kê và giải ngân định kỳ về tài khoản ngân hàng của quán tại mục "Đối soát".
+- Nhân sự & Phân quyền: Vào mục "Nhân viên" để thêm nhân viên quầy (Counter) hoặc quản lý (Manager).
+- Xử lý khiếu nại: Vào mục "Khiếu nại" để phản hồi yêu cầu của khách hàng trong 48 giờ.
+`;
+
     const geminiResult = await this.callGemini(
-      `Bạn là trợ lý vận hành AI của nền tảng giải cứu thực phẩm SurplusIQ dành cho chủ cửa hàng F&B tại Việt Nam. Hãy trả lời ngắn gọn, súc tích bằng tiếng Việt cho câu hỏi sau của chủ quán: "${dto.message}"`,
+      `Bạn là trợ lý vận hành AI chuyên nghiệp của nền tảng giải cứu thực phẩm SurplusIQ dành riêng cho Chủ cửa hàng và Quản lý quán ăn/nhà hàng tại Việt Nam.
+Hãy trả lời ân cần, súc tích (3-5 câu), thực tế bằng tiếng Việt.
+${systemKnowledge}
+Số liệu kinh doanh thực tế của cửa hàng tuần qua:
+${facts}
+${guideHint ? `Hướng dẫn nghiệp vụ trọng tâm:\n${guideHint}\n` : ''}
+${transcript ? `Lịch sử trao đổi gần nhất:\n${transcript}\n` : ''}
+${actionPrompt}
+
+Lưu ý:
+- Nếu người dùng hỏi về số liệu doanh thu/đơn hàng: chỉ dùng số liệu hệ thống ở trên, tuyệt đối không bịa số.
+- Nếu người dùng hỏi về cách sử dụng app, quy trình vận hành, hướng dẫn thao tác, quyền lợi, cách đăng món hoặc quét QR: hãy giải thích rõ ràng theo Kiến thức nghiệp vụ nền tảng và nhắc người dùng bấm nút hành động bên dưới (nếu có).
+
+Câu hỏi của chủ quán: "${dto.message}"`,
       fallbackReply,
       process.env.GEMINI_CHAT_MODEL,
     );
     const assistantReply = geminiResult.text;
 
-    // 5. Lưu tin nhắn trợ lý
+    // 6. Lưu tin nhắn trợ lý
     const assistantMessage = this.messageRepo.create({
       conversationId: conversation.id,
       sender: AiMessageSender.ASSISTANT,
@@ -220,7 +582,7 @@ export class AiGatewayService {
     });
     await this.messageRepo.save(assistantMessage);
 
-    // 6. Ghi log kiểm toán AI
+    // 7. Ghi log kiểm toán AI
     const aiLog = this.logRepo.create({
       userId,
       storeId,
@@ -232,7 +594,7 @@ export class AiGatewayService {
     });
     const savedLog = await this.logRepo.save(aiLog);
 
-    // 7. Khấu trừ quota
+    // 8. Khấu trừ quota
     await this.quotaService.consume({
       storeId,
       userId,
@@ -245,6 +607,7 @@ export class AiGatewayService {
       conversationId: conversation.id,
       reply: assistantReply,
       logId: savedLog.id,
+      suggestedAction: suggestedAction || undefined,
     };
   }
 
@@ -309,36 +672,30 @@ export class AiGatewayService {
    * Tóm tắt báo cáo kinh doanh và tác động môi trường tuần dưới dạng câu chuyện (R2-111)
    */
   async generateWeeklySummary(storeId: string, userId: string) {
-    const pastWeekOrders = await this.orderRepo.find({
-      where: {
-        storeId,
-        status: In([OrderStatus.PICKED_UP, OrderStatus.PICKUP_EXPIRED]),
-      },
-    });
-
-    let totalRevenue = 0;
-    let rescuedItemsCount = 0;
-    for (const ord of pastWeekOrders) {
-      totalRevenue += ord.totalAmount;
-      rescuedItemsCount += ord.quantity;
-    }
-
-    const foodSavedKg = Number((rescuedItemsCount * 0.4).toFixed(1));
+    const stats = await this.weeklyStats(storeId);
+    const { current, previous } = stats;
+    const totalRevenue = current.revenue;
+    const foodSavedKg = Number((current.units * 0.4).toFixed(1));
     const co2SavedKg = Number((foodSavedKg * 2.5).toFixed(1));
 
-    const fallbackSummary = `Tuần qua, cửa hàng của bạn đã đồng hành tuyệt vời cùng cộng đồng SurplusIQ! Nhờ sự chủ động mở bán vào các khung giờ vàng, quán đã giải cứu thành công ${rescuedItemsCount} sản phẩm (tương đương ${foodSavedKg} kg thực phẩm sạch), cắt giảm ${co2SavedKg} kg phát thải khí CO2 ra môi trường, và mang lại tổng doanh thu bổ sung đạt ${totalRevenue.toLocaleString('vi-VN')} VND.`;
+    const fallbackSummary = `7 ngày qua cửa hàng có ${current.orders} đơn, ${current.pickedUp} đơn đã nhận, cứu được ${current.units} suất (khoảng ${foodSavedKg} kg thực phẩm), doanh thu ${totalRevenue.toLocaleString('vi-VN')} đ.`;
 
     const geminiResult = await this.callGemini(
-      `Hãy viết một đoạn tóm tắt truyền cảm hứng (2-3 câu, tiếng Việt) cho chủ cửa hàng F&B trên SurplusIQ với kết quả tuần qua: giải cứu ${rescuedItemsCount} món (${foodSavedKg} kg thực phẩm), giảm ${co2SavedKg} kg CO2 và đạt doanh thu ${totalRevenue.toLocaleString('vi-VN')} VND.`,
+      `Viết 2-3 câu tiếng Việt tóm tắt tuần qua cho chủ cửa hàng. Chỉ dùng số liệu sau, không bịa thêm, không đưa lời khuyên không có căn cứ.\n${this.factsText(stats)}`,
       fallbackSummary,
       process.env.GEMINI_MODEL,
     );
     const narrativeSummary = geminiResult.text;
 
+    const change = (cur: number, prev: number) =>
+      prev > 0
+        ? `${cur >= prev ? 'tăng' : 'giảm'} ${Math.abs(Math.round(((cur - prev) / prev) * 100))}% so với tuần trước`
+        : 'chưa có tuần trước để so sánh';
     const keyInsights = [
-      `Tỷ lệ giải cứu thực phẩm đạt mức ấn tượng với ${rescuedItemsCount} món bánh ngon.`,
-      `Đóng góp giảm thải ${co2SavedKg} kg khí nhà kính cho thành phố xanh.`,
-      'Khuyến nghị tuần tới: Tiếp tục duy trì khung giờ mở bán lúc 18h30 để đón đầu khách hàng tan sở.',
+      `Doanh thu ${totalRevenue.toLocaleString('vi-VN')} đ, ${change(totalRevenue, previous.revenue)}.`,
+      `Số đơn ${current.orders}, ${change(current.orders, previous.orders)}.`,
+      ...(current.noShow > 0 ? [`${current.noShow} đơn khách không đến nhận.`] : []),
+      ...(current.cancelled > 0 ? [`${current.cancelled} đơn bị hủy.`] : []),
     ];
 
     const aiLog = this.logRepo.create({
@@ -358,6 +715,8 @@ export class AiGatewayService {
       co2SavedKg,
       totalRevenue,
       keyInsights,
+      current,
+      previous,
       logId: savedLog.id,
     };
   }
@@ -640,20 +999,21 @@ export class AiGatewayService {
     });
     await this.messageRepo.save(userMessage);
 
-    const msgLower = dto.message.toLowerCase();
+    const norm = normalizeText(dto.message);
     let fallbackReply: string;
+    let suggestedAction: AiSuggestedActionDto | null = null;
 
     const isOrderQuery =
-      msgLower.includes('đơn hàng') ||
-      msgLower.includes('đơn của tôi') ||
-      msgLower.includes('nhận hàng') ||
-      msgLower.includes('quét mã') ||
-      msgLower.includes('lấy bánh') ||
-      msgLower.includes('lấy món') ||
-      msgLower.includes('ở đâu') ||
-      msgLower.includes('mấy giờ') ||
-      msgLower.includes('bao giờ') ||
-      msgLower.includes('tình trạng');
+      norm.includes('don hang') ||
+      norm.includes('don cua toi') ||
+      norm.includes('nhan hang') ||
+      norm.includes('quet ma') ||
+      norm.includes('lay banh') ||
+      norm.includes('lay mon') ||
+      norm.includes('o dau') ||
+      norm.includes('may gio') ||
+      norm.includes('bao gio') ||
+      norm.includes('tinh trang');
 
     if (isOrderQuery) {
       // Truy vấn đơn hàng thật của khách hàng (R1-083, R1-088)
@@ -671,11 +1031,23 @@ export class AiGatewayService {
       if (!activeOrder) {
         fallbackReply =
           'Để nhận hàng tại quán, bạn chỉ cần mở ứng dụng SurplusIQ, vào mục "Đơn hàng" để lấy vé mã QR và đưa nhân viên quầy quét khi đến khung giờ nhận (hoặc đọc mã PIN 6 số dự phòng). Hiện bạn chưa có đơn hàng nào đang chờ nhận trên SurplusIQ. Bạn có muốn mình gợi ý vài suất Cứu Món ngon giá tốt quanh khu vực của bạn tối nay không?';
+        suggestedAction = {
+          label: 'Xem Hướng dẫn Nhận hàng (FAQ)',
+          type: 'DOCS_DEEP_LINK',
+          route: 'help_center',
+          targetParam: 'NHAN_HANG',
+        };
       } else {
         const store = await this.storeRepo.findOne({ where: { id: activeOrder.storeId } });
         const storeName = store?.name || 'Cửa hàng';
         const storeAddress = store?.address || '';
         const nowMs = Date.now();
+
+        suggestedAction = {
+          label: 'Mở Danh sách Đơn hàng của tôi',
+          type: 'NAVIGATE',
+          route: 'my_orders',
+        };
 
         if (activeOrder.status === OrderStatus.PENDING_PAYMENT) {
           fallbackReply = `Đơn hàng #${activeOrder.code} tại quán "${storeName}" của bạn hiện ĐANG CHỜ THANH TOÁN (thời gian giữ suất 10 phút theo BR-017). Vui lòng hoàn tất quét mã VietQR trong app để khóa giá và nhận Vé QR lấy món nhé!`;
@@ -704,16 +1076,101 @@ export class AiGatewayService {
         }
       }
     } else if (
-      msgLower.includes('hoàn tiền') ||
-      msgLower.includes('hủy đơn') ||
-      msgLower.includes('đổi')
+      norm.includes('hoan tien') ||
+      norm.includes('huy don') ||
+      norm.includes('doi mon') ||
+      norm.includes('khieu nai') ||
+      norm.includes('do hong') ||
+      norm.includes('chat luong') ||
+      norm.includes('hong do')
     ) {
       fallbackReply =
         'Theo chính sách chống lãng phí, đơn hàng đã thanh toán không thể tự hủy. Tuy nhiên, nếu món ăn nhận được không đúng mô tả hoặc chất lượng có vấn đề, bạn có thể gửi khiếu nại kèm ảnh chụp trong 24 giờ kể từ khi nhận để được hoàn tiền 100% (BR-071).';
+      suggestedAction = {
+        label: 'Xem Quy trình Khiếu nại 24h',
+        type: 'DOCS_DEEP_LINK',
+        route: 'help_center',
+        targetParam: 'KHIEU_NAI',
+      };
     } else if (
-      msgLower.includes('bảo quản') ||
-      msgLower.includes('để qua đêm') ||
-      msgLower.includes('hâm')
+      norm.includes('thanh toan') ||
+      norm.includes('vietqr') ||
+      norm.includes('chuyen khoan') ||
+      norm.includes('giu suat') ||
+      norm.includes('10 phut')
+    ) {
+      fallbackReply =
+        'Hệ thống giữ suất trong đúng 10 phút để bạn quét mã VietQR. Nếu chuyển khoản muộn hơn 10 phút, hệ thống tự động phát hiện và hoàn tiền 100% về tài khoản của bạn (VC-07, R1-047).';
+      suggestedAction = {
+        label: 'Xem Quy định Thanh toán & Hoàn tiền',
+        type: 'DOCS_DEEP_LINK',
+        route: 'help_center',
+        targetParam: 'THANH_TOAN',
+      };
+    } else if (
+      norm.includes('gia san') ||
+      norm.includes('no-show') ||
+      norm.includes('bung hang') ||
+      norm.includes('khoa tai khoan') ||
+      norm.includes('chinh sach') ||
+      norm.includes('quy dinh')
+    ) {
+      fallbackReply =
+        'Tất cả các món giảm giá trên SurplusIQ đều có giá bán tối thiểu bằng giá sàn (40% giá gốc). Nếu đặt đơn nhưng không đến nhận quá 3 lần trong vòng 30 ngày, tài khoản sẽ bị tạm ngưng đặt hàng 7 ngày theo quy tắc chống lãng phí (BR-020).';
+      suggestedAction = {
+        label: 'Xem Quy định & Chính sách',
+        type: 'DOCS_DEEP_LINK',
+        route: 'help_center',
+        targetParam: 'QUY_DINH',
+      };
+    } else if (
+      norm.includes('xu') ||
+      norm.includes('diem thuong') ||
+      norm.includes('doi qua') ||
+      norm.includes('rewards')
+    ) {
+      fallbackReply =
+        'Mỗi đơn hàng giải cứu thực phẩm thành công giúp bạn tích lũy Xu thưởng và mở khóa Huy hiệu Xanh. Bạn có thể dùng Xu đổi mã giảm giá hoặc quà tặng hấp dẫn trong Ví Xu SurplusIQ!';
+      suggestedAction = {
+        label: 'Mở Ví Xu & Quà thưởng',
+        type: 'NAVIGATE',
+        route: 'rewards',
+      };
+    } else if (
+      norm.includes('quy') ||
+      norm.includes('cuu tro') ||
+      norm.includes('rescue pool') ||
+      norm.includes('tu thien') ||
+      norm.includes('chia se')
+    ) {
+      fallbackReply =
+        'Quỹ Giải Cứu Thực Phẩm (Rescue Pool) kết nối thực phẩm dôi dư từ nhà hàng với các tổ chức thiện nguyện và hoàn cảnh khó khăn. Bạn có thể theo dõi và chung tay đóng góp suất ăn trực tiếp trên app.';
+      suggestedAction = {
+        label: 'Xem Quỹ Giải Cứu Thực Phẩm',
+        type: 'NAVIGATE',
+        route: 'rescue_pools',
+      };
+    } else if (
+      norm.includes('huong dan') ||
+      norm.includes('cach dung') ||
+      norm.includes('su dung app') ||
+      norm.includes('dung app') ||
+      norm.includes('faq') ||
+      norm.includes('ung dung')
+    ) {
+      fallbackReply =
+        'Chào bạn! Để sử dụng SurplusIQ, bạn chỉ cần: 1) Duyệt món ngon quanh bạn trên Bản đồ; 2) Đặt và quét VietQR giữ suất trong 10 phút; 3) Đến quán đúng khung giờ mở Vé QR đưa nhân viên quét lấy món. Để xem toàn bộ cẩm nang chi tiết, bạn mở Trung tâm trợ giúp nhé!';
+      suggestedAction = {
+        label: 'Mở Trung tâm trợ giúp (FAQ)',
+        type: 'DOCS_DEEP_LINK',
+        route: 'help_center',
+      };
+    } else if (
+      norm.includes('bao quan') ||
+      norm.includes('de qua dem') ||
+      norm.includes('ham') ||
+      norm.includes('nuong lai') ||
+      norm.includes('lo vi song')
     ) {
       fallbackReply =
         'Các món cứu thực phẩm được chuẩn bị tươi mới trong ngày. Bạn nên dùng ngay hoặc bọc kín trong màng bọc thực phẩm để ngăn mát tủ lạnh (dùng trong 24-48 giờ). Khi ăn hãy nướng lại bằng nồi chiên không dầu 160°C trong 3 phút là bánh sẽ giòn ngon như mới!';
@@ -742,8 +1199,12 @@ export class AiGatewayService {
       }
     }
 
+    const actionPrompt = suggestedAction
+      ? `\nNút hành động hỗ trợ trên ứng dụng: "${suggestedAction.label}". Hãy trả lời súc tích (2-3 câu) hướng dẫn khách hàng và nhắc khách có thể bấm nút bên dưới để mở trực tiếp màn hình/tài liệu tương ứng.`
+      : '';
+
     const geminiCustomer = await this.callGemini(
-      `Bạn là trợ lý SaveBite AI của ứng dụng giải cứu thực phẩm SurplusIQ dành cho khách hàng Việt Nam. ${contextHistoryPrompt}Dữ liệu nghiệp vụ hệ thống: "${fallbackReply}". Hãy trả lời câu hỏi của khách hàng "${dto.message}" một cách thân thiện, hữu ích và ngắn gọn bằng tiếng Việt.`,
+      `Bạn là trợ lý SaveBite AI của ứng dụng giải cứu thực phẩm SurplusIQ dành cho khách hàng Việt Nam. ${contextHistoryPrompt}Dữ liệu nghiệp vụ hệ thống: "${fallbackReply}". ${actionPrompt}\nHãy trả lời câu hỏi của khách hàng "${dto.message}" một cách thân thiện, hữu ích và ngắn gọn bằng tiếng Việt.`,
       fallbackReply,
       process.env.GEMINI_CHAT_MODEL,
     );
@@ -774,11 +1235,29 @@ export class AiGatewayService {
       refId: savedLog.id,
     });
 
+    // Số lượt còn lại lấy từ hạn mức thật của backend để app không phải tự đếm (BUG hạn mức giả 28/30).
+    const after = await this.quotaService.checkQuota({
+      userId,
+      quotaKey: QuotaKey.AI_CUSTOMER_QUERIES,
+    });
+
     return {
       conversationId: conversation.id,
       reply,
       logId: savedLog.id,
+      remainingQuota: after.remaining,
+      quotaLimit: after.limit,
+      suggestedAction: suggestedAction || undefined,
     };
+  }
+
+  /** Hạn mức hỏi trợ lý trong ngày của khách (R1-082), dùng để hiển thị số lượt còn lại. */
+  async getCustomerQuota(userId: string) {
+    const q = await this.quotaService.checkQuota({
+      userId,
+      quotaKey: QuotaKey.AI_CUSTOMER_QUERIES,
+    });
+    return { limit: q.limit, used: q.used, remaining: q.remaining, resetsAt: q.resetsAt };
   }
 
   // =========================================================================
@@ -809,7 +1288,7 @@ export class AiGatewayService {
     const store = await this.storeRepo.findOne({ where: { id: storeId } });
     const storeName = store?.name || 'Cửa hàng';
     const rating = review.rating;
-    const tone = dto.tone || 'FRIENDLY';
+    const tone = dto.tone || (await this.getAiConfig(storeId)).defaultTone;
 
     let fallbackDraft: string;
     if (rating >= 4) {

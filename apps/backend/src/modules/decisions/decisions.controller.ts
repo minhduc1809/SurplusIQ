@@ -17,8 +17,6 @@ import {
   LogDailyActualDto,
   QueryForecastDto,
   CreateSpecialEventDto,
-  SimulatePolicyDto,
-  CompareSimulationsDto,
   QueryAnomalyDto,
 } from './dto/decisions.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -35,6 +33,8 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
 import { StorePermission } from '../../entities/stores/store-member.entity';
+import { PlanGuard } from '../../common/guards/plan.guard';
+import { RequiresPlan } from '../../common/decorators/requires-plan.decorator';
 
 @ApiTags('Store - Decisions & Forecasts')
 @ApiBearerAuth()
@@ -47,6 +47,8 @@ export class DecisionsController {
   constructor(private readonly decisionsService: DecisionsService) {}
 
   @Get('forecast')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Xem dự báo sản xuất bánh/thực phẩm cho ngày mai (R2-036..R2-043)' })
   @ApiResponse({ status: 200, description: 'Danh sách dự báo theo từng món' })
@@ -55,6 +57,8 @@ export class DecisionsController {
   }
 
   @Post('forecast/:id/override')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Chủ quán ghi đè số lượng kế hoạch sản xuất (R2-041)' })
   @ApiResponse({ status: 200, description: 'Đã cập nhật số lượng ghi đè' })
@@ -67,6 +71,8 @@ export class DecisionsController {
   }
 
   @Post('forecast/actuals')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER, StorePermission.COUNTER)
   @ApiOperation({ summary: 'Ghi nhận số lượng sản xuất và bán thực tế cuối ngày (R2-039)' })
   @ApiResponse({ status: 201, description: 'Đã ghi nhận số liệu thực tế' })
@@ -75,6 +81,8 @@ export class DecisionsController {
   }
 
   @Get('decisions/pricing/proposals')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Danh sách đề xuất định giá động đang chờ duyệt (R2-047)' })
   @ApiResponse({ status: 200, description: 'Danh sách đề xuất giá' })
@@ -83,6 +91,8 @@ export class DecisionsController {
   }
 
   @Post('decisions/pricing/propose/:offerId')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Khởi tạo đề xuất định giá động theo thời gian thực (R2-044..R2-048)' })
   @ApiResponse({ status: 200, description: 'Kết quả đề xuất giá' })
@@ -91,6 +101,8 @@ export class DecisionsController {
   }
 
   @Post('decisions/pricing/proposals/:id/accept')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Chấp nhận đề xuất giá và cập nhật giá bán mới (R2-047)' })
   @ApiResponse({ status: 200, description: 'Áp dụng giá mới thành công' })
@@ -103,6 +115,8 @@ export class DecisionsController {
   }
 
   @Post('decisions/pricing/proposals/:id/reject')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Từ chối đề xuất giá (R2-047)' })
   @ApiResponse({ status: 200, description: 'Đã từ chối đề xuất giá' })
@@ -115,6 +129,8 @@ export class DecisionsController {
   }
 
   @Get('special-events')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Danh sách sự kiện đặc biệt tác động dự báo (R2-040)' })
   @ApiResponse({ status: 200, description: 'Danh sách sự kiện' })
@@ -123,6 +139,8 @@ export class DecisionsController {
   }
 
   @Post('special-events')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Tạo mới sự kiện đặc biệt (R2-040)' })
   @ApiResponse({ status: 201, description: 'Đã tạo sự kiện đặc biệt' })
@@ -131,6 +149,8 @@ export class DecisionsController {
   }
 
   @Delete('special-events/:id')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Xóa sự kiện đặc biệt (R2-040)' })
   @ApiResponse({ status: 200, description: 'Đã xóa sự kiện thành công' })
@@ -139,6 +159,8 @@ export class DecisionsController {
   }
 
   @Get('anomalies')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({
     summary:
@@ -149,7 +171,18 @@ export class DecisionsController {
     return this.decisionsService.detectAnomalies(storeId, query.sensitivity);
   }
 
+  @Get('anomalies/why')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Các yếu tố liên quan đến một ngày bất thường (R2-113)' })
+  async explainAnomaly(@CurrentStore() storeId: string, @Query('date') date: string) {
+    return this.decisionsService.explainAnomaly(storeId, date);
+  }
+
   @Get('action-cards')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Xem các thẻ hành động AI thông minh gợi ý cho quán (R2-114, R2-115)' })
   @ApiResponse({ status: 200, description: 'Danh sách thẻ hành động' })
@@ -158,6 +191,8 @@ export class DecisionsController {
   }
 
   @Post('action-cards/:id/apply')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Chấp nhận và áp dụng thẻ hành động (R2-114)' })
   @ApiResponse({ status: 200, description: 'Đã áp dụng thẻ hành động' })
@@ -166,38 +201,13 @@ export class DecisionsController {
   }
 
   @Post('action-cards/:id/dismiss')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({ summary: 'Bỏ qua thẻ hành động (R2-114)' })
   @ApiResponse({ status: 200, description: 'Đã bỏ qua thẻ hành động' })
   async dismissActionCard(@CurrentStore() storeId: string, @Param('id') id: string) {
     return this.decisionsService.dismissActionCard(storeId, id);
-  }
-
-  @Post('simulation/policy')
-  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
-  @ApiOperation({
-    summary:
-      'Mô phỏng chính sách giá và giảm hao hụt trên dữ liệu 14-90 ngày (R2-099, R2-104..105)',
-  })
-  @ApiResponse({ status: 200, description: 'Kết quả mô phỏng chính sách kèm lưu lịch sử' })
-  async simulatePolicy(@CurrentStore() storeId: string, @Body() dto: SimulatePolicyDto) {
-    return this.decisionsService.simulatePolicy(storeId, dto);
-  }
-
-  @Get('simulation/history')
-  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
-  @ApiOperation({ summary: 'Xem lịch sử các lần chạy mô phỏng chính sách giá đã lưu (R2-105)' })
-  @ApiResponse({ status: 200, description: 'Danh sách các lần thử mô phỏng' })
-  async getSimulationHistory(@CurrentStore() storeId: string) {
-    return this.decisionsService.getSimulationHistory(storeId);
-  }
-
-  @Post('simulation/compare')
-  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
-  @ApiOperation({ summary: 'So sánh đối chiếu kết quả giữa các lần thử mô phỏng (R2-105)' })
-  @ApiResponse({ status: 200, description: 'Bảng so sánh chi tiết và phương án tốt nhất' })
-  async compareSimulations(@CurrentStore() storeId: string, @Body() dto: CompareSimulationsDto) {
-    return this.decisionsService.compareSimulations(storeId, dto.simulationIds);
   }
 
   @Get('donations/suggestions')

@@ -31,13 +31,22 @@ interface DiscoveryApiService {
     suspend fun findMapPins(
         @Query("latitude") latitude: Double? = null,
         @Query("longitude") longitude: Double? = null,
-        @Query("radiusKm") radiusKm: Double? = null
+        @Query("radiusKm") radiusKm: Double? = null,
+        @Query("minDiscountPercent") minDiscountPercent: Int? = null
     ): Response<List<MapPinDto>>
 
     @GET("customer/deals/{id}")
     suspend fun getDealDetail(
         @Path("id") id: String
     ): Response<DealDetailDto>
+
+    @GET("customer/deals/for-you")
+    suspend fun getForYou(
+        @Query("latitude") latitude: Double? = null,
+        @Query("longitude") longitude: Double? = null,
+        @Query("radiusKm") radiusKm: Double? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ForYouResponseDto>
 
     @GET("customer/deals/radar")
     suspend fun getRadarRanking(
@@ -46,6 +55,10 @@ interface DiscoveryApiService {
         @Query("radiusKm") radiusKm: Double? = null,
         @Query("budgetMax") budgetMax: Double? = null,
         @Query("travelTimeSource") travelTimeSource: String? = null,
+        @Query("pickupFrom") pickupFrom: String? = null,
+        @Query("pickupTo") pickupTo: String? = null,
+        @Query("excludeAllergens") excludeAllergens: String? = null,
+        @Query("prioritizeInTime") prioritizeInTime: Boolean? = null,
         @Query("limit") limit: Int? = null
     ): Response<RadarResponseDto>
 

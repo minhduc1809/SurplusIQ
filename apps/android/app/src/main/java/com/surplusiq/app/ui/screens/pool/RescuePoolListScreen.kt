@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.pool
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -69,7 +70,7 @@ fun RescuePoolListScreen(
                 onValueChange = { area = it },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                placeholder = { Text("Lọc theo khu vực (vd. Quận 1)") }
+                placeholder = { Text("Lọc theo khu vực (vd. Cầu Giấy)") }
             )
             Spacer(Modifier.width(8.dp))
             IconButton(onClick = { onSearch(area) }) {
@@ -107,7 +108,7 @@ fun RescuePoolListScreen(
 
 @Composable
 private fun PoolCard(pool: RescuePool, onClick: () -> Unit) {
-    Card(
+    SqCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp)
     ) {

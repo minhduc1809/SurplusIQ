@@ -115,7 +115,7 @@ fun StoreReviewsScreen(
 }
 
 @Composable
-private fun RatingSummaryCard(
+internal fun RatingSummaryCard(
     averageRating: Double,
     totalReviews: Int,
     distribution: Map<String, Int>,
@@ -216,7 +216,7 @@ private fun RatingSummaryCard(
 }
 
 @Composable
-private fun RatingFilterChips(
+internal fun RatingFilterChips(
     selectedRating: Int?,
     onSelectRating: (Int?) -> Unit,
     modifier: Modifier = Modifier
@@ -259,7 +259,7 @@ private fun RatingFilterChips(
 }
 
 @Composable
-private fun StoreReviewItemCard(
+internal fun StoreReviewItemCard(
     review: StoreReviewItemDto,
     modifier: Modifier = Modifier
 ) {

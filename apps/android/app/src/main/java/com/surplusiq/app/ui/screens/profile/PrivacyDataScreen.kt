@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.profile
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.app.data.remote.dto.ConsentDto
@@ -33,11 +35,12 @@ fun PrivacyDataScreen(
     state: ProfileUiState,
     onBackClick: () -> Unit,
     onExportData: () -> Unit,
-    onRequestDelete: () -> Unit,
+    onRequestDelete: (String) -> Unit,
     onCancelDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var deletePassword by remember { mutableStateOf("") }
     val isPendingDelete = state.deleteRequestStatus == "PENDING_DELETE"
 
     Column(
@@ -59,11 +62,11 @@ fun PrivacyDataScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                SqCard(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Xuất dữ liệu của tôi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text(
-                            "Nhận liên kết tải toàn bộ dữ liệu cá nhân, có hiệu lực 24 giờ (R1-018).",
+                            "Nhận liên kết tải toàn bộ dữ liệu cá nhân, có hiệu lực 24 giờ.",
                             fontSize = 12.sp,
                             color = TextSecondary
                         )
@@ -83,23 +86,31 @@ fun PrivacyDataScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(state.exportMessage, fontSize = 12.sp, color = ForestGreenPrimary)
                         }
-                        if (state.exportDownloadUrl != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(state.exportDownloadUrl, fontSize = 11.sp, color = TextMuted)
+                        if (state.exportJson != null) {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(onClick = {
+                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Dữ liệu cá nhân SurplusIQ")
+                                    putExtra(android.content.Intent.EXTRA_TEXT, state.exportJson)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(send, "Lưu hoặc gửi bản sao dữ liệu"))
+                            }) { Text("Lưu hoặc gửi bản sao dữ liệu") }
                         }
                     }
                 }
             }
 
             item {
-                Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                SqCard(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Yêu cầu xóa tài khoản", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text(
                             if (isPendingDelete)
-                                "Tài khoản đang trong 7 ngày ân hạn trước khi bị xóa (BR-007)."
+                                "Tài khoản đang trong 7 ngày ân hạn trước khi bị xóa."
                             else
-                                "Tài khoản sẽ được ẩn danh sau 7 ngày ân hạn kể từ khi gửi yêu cầu (R1-011, R1-019, BR-007).",
+                                "Tài khoản sẽ được ẩn danh sau 7 ngày ân hạn kể từ khi gửi yêu cầu.",
                             fontSize = 12.sp,
                             color = TextSecondary
                         )
@@ -158,16 +169,31 @@ fun PrivacyDataScreen(
                 onDismissRequest = { showDeleteConfirm = false },
                 title = { Text("Xóa tài khoản?") },
                 text = {
-                    Text(
-                        "Sau khi gửi yêu cầu, tài khoản sẽ có 7 ngày ân hạn để bạn hủy. " +
-                            "Hết thời hạn, dữ liệu cá nhân sẽ bị ẩn danh và không thể hoàn tác (BR-007)."
-                    )
+                    Column {
+                        Text(
+                            "Sau khi gửi yêu cầu, tài khoản sẽ có 7 ngày ân hạn để bạn hủy. " +
+                                "Hết thời hạn, dữ liệu cá nhân sẽ bị ẩn danh và không thể hoàn tác."
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = deletePassword,
+                            onValueChange = { deletePassword = it },
+                            label = { Text("Nhập mật khẩu để xác nhận") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 },
                 confirmButton = {
-                    TextButton(onClick = {
-                        showDeleteConfirm = false
-                        onRequestDelete()
-                    }) { Text("Xác nhận xóa", color = CoralRed) }
+                    TextButton(
+                        enabled = deletePassword.isNotBlank(),
+                        onClick = {
+                            showDeleteConfirm = false
+                            onRequestDelete(deletePassword)
+                            deletePassword = ""
+                        }
+                    ) { Text("Xác nhận xóa", color = CoralRed) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text("Hủy") }
@@ -179,7 +205,7 @@ fun PrivacyDataScreen(
 
 @Composable
 private fun ConsentRow(consent: ConsentDto) {
-    Card(shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+    SqCard(shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,

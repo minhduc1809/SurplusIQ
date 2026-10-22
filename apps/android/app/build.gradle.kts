@@ -26,6 +26,10 @@ val mapsApiKey: String = (localProperties.getProperty("MAPS_API_KEY")
     ?: project.findProperty("MAPS_API_KEY") as String?
     ?: "")
 
+// API_BASE_URL: địa chỉ backend. Mặc định 10.0.2.2:4000 (emulator); điện thoại thật cắm USB dùng
+// `adb reverse tcp:4000 tcp:4000` rồi build với -PAPI_BASE_URL=http://127.0.0.1:4000/ (hoặc IP LAN của máy chạy backend).
+val apiBaseUrl: String = (project.findProperty("API_BASE_URL") as String?) ?: "http://10.0.2.2:4000/"
+
 android {
     namespace = "com.surplusiq.app"
     compileSdk = 36
@@ -43,6 +47,7 @@ android {
         }
         buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"$googleServerClientId\"")
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 

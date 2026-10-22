@@ -10,6 +10,7 @@ import {
 import { StaffInviteEntity } from '../../entities/stores/staff-invite.entity';
 import { UserEntity } from '../../entities/auth/user.entity';
 import { QuotaService } from '../subscriptions/quota.service';
+import { AuditLogService } from '../audit/audit-log.service';
 
 describe('StoreStaffService Unit Tests (R2-076..R2-081)', () => {
   let service: StoreStaffService;
@@ -17,6 +18,7 @@ describe('StoreStaffService Unit Tests (R2-076..R2-081)', () => {
   let inviteRepo: any;
   let userRepo: any;
   let quotaService: any;
+  let auditLog: any;
 
   beforeEach(async () => {
     memberRepo = {
@@ -43,6 +45,8 @@ describe('StoreStaffService Unit Tests (R2-076..R2-081)', () => {
       }),
     };
 
+    auditLog = { log: jest.fn().mockResolvedValue({}) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StoreStaffService,
@@ -50,6 +54,7 @@ describe('StoreStaffService Unit Tests (R2-076..R2-081)', () => {
         { provide: getRepositoryToken(StaffInviteEntity), useValue: inviteRepo },
         { provide: getRepositoryToken(UserEntity), useValue: userRepo },
         { provide: QuotaService, useValue: quotaService },
+        { provide: AuditLogService, useValue: auditLog },
       ],
     }).compile();
 
@@ -91,6 +96,7 @@ describe('StoreStaffService Unit Tests (R2-076..R2-081)', () => {
       userRepo.findOne.mockResolvedValue(null);
 
       const res = await service.inviteStaff('store-1', {
+        fullName: 'Nguyễn Văn A',
         email: 'newstaff@gmail.com',
         permission: StorePermission.COUNTER,
       });
@@ -109,6 +115,7 @@ describe('StoreStaffService Unit Tests (R2-076..R2-081)', () => {
 
       await expect(
         service.inviteStaff('store-1', {
+          fullName: 'Nguyễn Văn A',
           email: 'another@gmail.com',
           permission: StorePermission.COUNTER,
         }),
@@ -124,6 +131,7 @@ describe('StoreStaffService Unit Tests (R2-076..R2-081)', () => {
 
       await expect(
         service.inviteStaff('store-1', {
+          fullName: 'Nguyễn Văn A',
           email: 'existing@gmail.com',
           permission: StorePermission.COUNTER,
         }),
@@ -145,6 +153,36 @@ describe('StoreStaffService Unit Tests (R2-076..R2-081)', () => {
 
       expect(res.permission).toBe(StorePermission.MANAGER);
       expect(memberRepo.save).toHaveBeenCalled();
+    });
+
+    it('khóa nhân viên bắt buộc có lý do và được ghi nhật ký', async () => {
+      memberRepo.findOne.mockResolvedValue({
+        id: 'mem-1',
+        storeId: 'store-1',
+        permission: StorePermission.COUNTER,
+        status: StoreMemberStatus.ACTIVE,
+      });
+
+      await expect(
+        service.updateStaffRole('store-1', 'mem-1', {
+          permission: StorePermission.COUNTER,
+          status: StoreMemberStatus.LOCKED,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await service.updateStaffRole(
+        'store-1',
+        'mem-1',
+        {
+          permission: StorePermission.COUNTER,
+          status: StoreMemberStatus.LOCKED,
+          reason: 'Nghi ngờ lộ tài khoản',
+        },
+        'owner-1',
+      );
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'STAFF_LOCKED', actorId: 'owner-1' }),
+      );
     });
 
     it('chặn đổi quyền hạn của OWNER', async () => {

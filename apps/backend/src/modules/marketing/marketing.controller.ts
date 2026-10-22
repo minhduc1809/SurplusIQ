@@ -19,6 +19,7 @@ import {
   CreateCampaignDto,
   CreateSurpriseBagDto,
   UpdateCampaignDto,
+  UpdateSegmentConfigDto,
 } from './dto/marketing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -30,6 +31,8 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentStore } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
 import { StorePermission } from '../../entities/stores/store-member.entity';
+import { PlanGuard } from '../../common/guards/plan.guard';
+import { RequiresPlan } from '../../common/decorators/requires-plan.decorator';
 
 @ApiTags('Store - Marketing & Campaigns')
 @ApiBearerAuth()
@@ -144,7 +147,27 @@ export class MarketingController {
     return this.marketingService.getCampaignAnalytics(storeId, id);
   }
 
+  @Get('segment-config')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Xem ngưỡng phân nhóm khách đang áp dụng (R2-087)' })
+  async getSegmentConfig(@CurrentStore() storeId: string) {
+    return this.marketingService.getSegmentConfig(storeId);
+  }
+
+  @Put('segment-config')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
+  @Permissions(StorePermission.OWNER)
+  @ApiOperation({ summary: 'Chủ cửa hàng chỉnh ngưỡng phân nhóm khách (R2-087)' })
+  async updateSegmentConfig(@CurrentStore() storeId: string, @Body() dto: UpdateSegmentConfigDto) {
+    return this.marketingService.updateSegmentConfig(storeId, dto);
+  }
+
   @Get('segments')
+  @UseGuards(PlanGuard)
+  @RequiresPlan()
   @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
   @ApiOperation({
     summary: 'Phân nhóm khách hàng thông minh (ngưỡng tối thiểu 20 khách) (R2-082..R2-085)',

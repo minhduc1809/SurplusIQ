@@ -27,6 +27,7 @@ import { CATALOG_CONSTANTS } from './catalog.constants';
 import { AuditLogService } from '../audit/audit-log.service';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
+import { normalizeFoodCategory } from './food-category';
 
 export interface PaginatedItemsResult {
   data: ItemEntity[];
@@ -98,7 +99,7 @@ export class CatalogService {
 
     // Lọc theo danh mục
     if (query.category && query.category.trim()) {
-      qb.andWhere('item.category = :category', { category: query.category.trim() });
+      qb.andWhere('item.category = :category', { category: normalizeFoodCategory(query.category) });
     }
 
     // Sắp xếp
@@ -140,7 +141,7 @@ export class CatalogService {
     const statsRaw = await this.offerRepo
       .createQueryBuilder('offer')
       .select('COUNT(offer.id)', 'totalOffers')
-      .addSelect('COALESCE(SUM(offer.soldQuantity), 0)', 'totalSold')
+      .addSelect('COALESCE(SUM(offer.totalQuantity - offer.remainingQuantity), 0)', 'totalSold')
       .where('offer.itemId = :itemId', { itemId })
       .andWhere('offer.storeId = :storeId', { storeId })
       .getRawOne();
@@ -200,6 +201,7 @@ export class CatalogService {
     const newItem = this.itemRepo.create({
       ...dto,
       name: trimmedName,
+      category: normalizeFoodCategory(dto.category, trimmedName),
       storeId,
       status: ItemStatus.ACTIVE,
       allergens: dto.allergens || [],
@@ -283,7 +285,8 @@ export class CatalogService {
     const oldPrice = item.originalPrice;
 
     // Cập nhật các trường được truyền vào
-    if (dto.category !== undefined) item.category = dto.category;
+    if (dto.category !== undefined)
+      item.category = normalizeFoodCategory(dto.category, dto.name ?? item.name);
     if (dto.originalPrice !== undefined) item.originalPrice = dto.originalPrice;
     if (dto.costPrice !== undefined) item.costPrice = dto.costPrice;
     if (dto.standardShelfLifeHours !== undefined)
@@ -634,7 +637,8 @@ export class CatalogService {
     const updatedIds: string[] = [];
 
     for (const item of storeItems) {
-      if (dto.category !== undefined) item.category = dto.category;
+      if (dto.category !== undefined)
+        item.category = normalizeFoodCategory(dto.category, item.name);
       if (dto.standardShelfLifeHours !== undefined)
         item.standardShelfLifeHours = dto.standardShelfLifeHours;
       if (dto.estimatedWeightGrams !== undefined) item.weightGrams = dto.estimatedWeightGrams;
@@ -676,6 +680,19 @@ export class CatalogService {
     'storageInstructions',
   ] as const;
 
+  /** Lịch sử thay đổi các trường trọng yếu của hồ sơ minh bạch, mới nhất trước (BR-B05-06). */
+  async getTrustpassHistory(storeId: string, itemId: string) {
+    const item = await this.itemRepo.findOne({ where: { id: itemId, storeId } });
+    if (!item) {
+      throw new NotFoundException(`Không tìm thấy món ăn với ID [${itemId}] trong cửa hàng.`);
+    }
+    return this.trustpassHistoryRepo.find({
+      where: { itemId },
+      order: { versionNo: 'DESC', createdAt: 'DESC' },
+      take: 50,
+    });
+  }
+
   async updateTrustpass(
     storeId: string,
     itemId: string,
@@ -685,6 +702,13 @@ export class CatalogService {
     const item = await this.itemRepo.findOne({ where: { id: itemId, storeId } });
     if (!item) {
       throw new NotFoundException(`Không tìm thấy món ăn với ID [${itemId}] trong cửa hàng.`);
+    }
+
+    // Thông tin mâu thuẫn thì chặn công bố (CM-B05): hạn dùng phải sau thời điểm chuẩn bị
+    const prepared = dto.preparedAt ? new Date(dto.preparedAt) : item.preparedAt;
+    const expiry = dto.expiryAt ? new Date(dto.expiryAt) : item.expiryAt;
+    if (prepared && expiry && new Date(expiry).getTime() <= new Date(prepared).getTime()) {
+      throw new BadRequestException('Hạn dùng phải sau thời điểm chuẩn bị món.');
     }
 
     // BR-B05-02: "đã xác minh" chỉ dùng khi có quy trình xác minh cụ thể - không

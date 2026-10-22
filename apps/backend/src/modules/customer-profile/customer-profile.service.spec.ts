@@ -1,3 +1,4 @@
+import { CryptoUtil } from '../auth/crypto.util';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
@@ -31,6 +32,10 @@ describe('CustomerProfileService (Full Customer Features)', () => {
   let orderRepo: any;
   let walletRepo: any;
   let promotionRepo: any;
+
+  beforeAll(() => {
+    process.env.DATA_ENCRYPTION_KEY = 'test-key';
+  });
 
   beforeEach(async () => {
     userRepo = {
@@ -157,10 +162,42 @@ describe('CustomerProfileService (Full Customer Features)', () => {
 
   describe('account deletion & export', () => {
     it('yêu cầu xóa tài khoản chuyển status sang PENDING_DELETE (R1-011, BR-007)', async () => {
-      userRepo.findOne.mockResolvedValueOnce({ id: 'u1', status: UserStatus.ACTIVE });
-      const res = await service.requestAccountDelete('u1');
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'u1',
+        status: UserStatus.ACTIVE,
+        passwordHash: CryptoUtil.hashPassword('Mat-khau-1'),
+      });
+      orderRepo.count = jest.fn().mockResolvedValue(0);
+      const res = await service.requestAccountDelete('u1', 'Mat-khau-1');
       expect(res.status).toBe(UserStatus.PENDING_DELETE);
       expect(res.deleteRequestedAt).toBeDefined();
+    });
+
+    it('BUG-017: còn đơn đang xử lý thì chặn yêu cầu xóa', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'u1',
+        status: UserStatus.ACTIVE,
+        passwordHash: CryptoUtil.hashPassword('Mat-khau-1'),
+      });
+      orderRepo.count = jest.fn().mockResolvedValue(2);
+      await expect(service.requestAccountDelete('u1', 'Mat-khau-1')).rejects.toThrow(
+        'chưa hoàn tất',
+      );
+    });
+
+    it('BUG-016: sai mật khẩu hoặc thiếu mật khẩu thì KHÔNG được chuyển PENDING_DELETE', async () => {
+      const user = {
+        id: 'u1',
+        status: UserStatus.ACTIVE,
+        passwordHash: CryptoUtil.hashPassword('Mat-khau-1'),
+      };
+      userRepo.findOne.mockResolvedValueOnce(user);
+      await expect(service.requestAccountDelete('u1', 'sai')).rejects.toThrow(
+        /Mật khẩu không đúng/,
+      );
+      userRepo.findOne.mockResolvedValueOnce(user);
+      await expect(service.requestAccountDelete('u1', '')).rejects.toThrow(/Mật khẩu không đúng/);
+      expect(user.status).toBe(UserStatus.ACTIVE);
     });
 
     it('hủy yêu cầu xóa tài khoản chuyển status về ACTIVE (R1-019)', async () => {
@@ -177,8 +214,8 @@ describe('CustomerProfileService (Full Customer Features)', () => {
       userRepo.findOne.mockResolvedValueOnce({ id: 'u1', email: 'test@example.com' });
       profileRepo.findOne.mockResolvedValueOnce({ userId: 'u1', fullName: 'Test' });
       const res = await service.exportUserData('u1');
-      expect(res.downloadUrl).toBeDefined();
-      expect(res.expiresInHours).toBe(24);
+      expect(res.exportedAt).toBeDefined();
+      expect(res.data.profile).toBeDefined();
     });
   });
 
@@ -244,7 +281,7 @@ describe('CustomerProfileService (Full Customer Features)', () => {
         userId: 'u1',
         refundBankAccount: null,
       };
-      profileRepo.findOne.mockResolvedValueOnce(mockProfile);
+      profileRepo.findOne.mockResolvedValue(mockProfile);
 
       const res = await service.updateRefundBankAccount('u1', {
         bankBin: '970436',
@@ -257,6 +294,9 @@ describe('CustomerProfileService (Full Customer Features)', () => {
       expect(res.accountHolder).toBe('NGUYEN VAN A');
       expect(res.updatedAt).toBeDefined();
       expect(profileRepo.save).toHaveBeenCalled();
+      // Lưu mã hóa, không lưu rõ số tài khoản; khách vẫn xem lại được đúng số của mình.
+      expect(JSON.stringify(mockProfile.refundBankAccount)).not.toContain('0071001234567');
+      expect(res.accountNumber).toBe('0071001234567');
     });
   });
 });

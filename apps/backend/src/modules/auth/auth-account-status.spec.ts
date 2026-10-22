@@ -33,7 +33,18 @@ describe('Authentication account status', () => {
     );
   });
 
-  it.each([UserStatus.LOCKED, UserStatus.PENDING_DELETE, UserStatus.ANONYMIZED])(
+  it('BUG-017: tài khoản không phải khách ở PENDING_DELETE vẫn bị từ chối đăng nhập', async () => {
+    users.findOne.mockResolvedValue({
+      id: 'user',
+      role: UserRole.ADMIN,
+      status: UserStatus.PENDING_DELETE,
+    });
+    await expect(
+      service.loginStore({ email: 'admin@example.com', password: 'Password123', deviceId: 'test' }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it.each([UserStatus.LOCKED, UserStatus.ANONYMIZED])(
     'rejects login and refresh for %s',
     async (status) => {
       users.findOne.mockResolvedValue({ id: 'user', role: UserRole.CUSTOMER, status });

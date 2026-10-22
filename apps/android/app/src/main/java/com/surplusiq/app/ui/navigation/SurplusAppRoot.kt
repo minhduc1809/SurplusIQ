@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import com.surplusiq.app.ui.components.SurplusBottomNav
 import com.surplusiq.app.ui.screens.ai.AiChatHistoryScreen
 import com.surplusiq.app.ui.screens.ai.SaveBiteAiSheet
+import com.surplusiq.app.ui.screens.profile.PendingDeleteScreen
 import com.surplusiq.app.ui.viewmodel.AiViewModel
 import com.surplusiq.app.ui.screens.auth.ForgotPasswordScreen
 import com.surplusiq.app.ui.screens.auth.LoginScreen
@@ -38,6 +39,12 @@ import com.surplusiq.app.ui.screens.checkout.OrderHoldCheckoutScreen
 import com.surplusiq.app.ui.screens.discovery.BrowseScreen
 import com.surplusiq.app.ui.screens.discovery.DealDetailScreen
 import com.surplusiq.app.ui.screens.discovery.DiscoverHomeScreen
+import com.surplusiq.app.ui.screens.discovery.ForYouScreen
+import com.surplusiq.app.ui.screens.ordersupport.GiftsScreen
+import com.surplusiq.app.ui.screens.ordersupport.OrderChatScreen
+import com.surplusiq.app.ui.screens.ordersupport.OrderTrackingScreen
+import com.surplusiq.app.ui.screens.ordersupport.ReportIncidentScreen
+import com.surplusiq.app.ui.screens.ordersupport.SwapOrderScreen
 import com.surplusiq.app.ui.screens.discovery.PreferencesScreen
 import com.surplusiq.app.ui.screens.discovery.SearchScreen
 import com.surplusiq.app.ui.screens.favourites.FavouritesScreen
@@ -65,6 +72,9 @@ import com.surplusiq.app.ui.viewmodel.InteractionsViewModel
 import com.surplusiq.app.ui.viewmodel.MyOrdersViewModel
 import com.surplusiq.app.ui.viewmodel.ProfileViewModel
 import com.surplusiq.app.ui.viewmodel.RewardsViewModel
+import com.surplusiq.app.ui.viewmodel.SecurityViewModel
+import com.surplusiq.app.ui.screens.profile.DevicesScreen
+import com.surplusiq.app.ui.screens.profile.TwoFactorScreen
 import com.surplusiq.app.ui.viewmodel.NotificationsViewModel
 import com.surplusiq.app.ui.viewmodel.RescuePoolViewModel
 import com.surplusiq.app.ui.screens.pool.RescuePoolDetailScreen
@@ -78,6 +88,7 @@ import com.surplusiq.app.ui.screens.discovery.SavedDealsScreen
 import com.surplusiq.app.ui.screens.location.LocationSettingsScreen
 import com.surplusiq.app.ui.screens.location.PinLocationScreen
 import com.surplusiq.app.ui.screens.location.SavedPlacesScreen
+import com.surplusiq.app.ui.screens.store.StoreDetailPanel
 import com.surplusiq.app.ui.screens.store.StoreDetailScreen
 import com.surplusiq.app.ui.screens.store.StoreReviewsScreen
 import com.surplusiq.app.ui.viewmodel.DealAlertsViewModel
@@ -151,6 +162,17 @@ sealed class AppDestination {
     object RefundBankAccount : AppDestination()
     // KX09: Onboarding 4 slide vuốt ngang
     object Onboarding : AppDestination()
+    // K55, K56: bảo mật tài khoản
+    object TwoFactor : AppDestination()
+    // K21: Gợi ý dành cho bạn
+    object ForYou : AppDestination()
+    // KX03, KX05, KX11, KX12, KX18: hỗ trợ đơn hàng
+    data class OrderTracking(val order: ActiveOrder) : AppDestination()
+    data class OrderChat(val order: ActiveOrder) : AppDestination()
+    data class ReportIncident(val order: ActiveOrder) : AppDestination()
+    data class SwapOrder(val order: ActiveOrder) : AppDestination()
+    object Gifts : AppDestination()
+    object Devices : AppDestination()
 }
 
 enum class AuthScreenState {
@@ -169,6 +191,8 @@ fun SurplusAppRoot(
     myOrdersViewModel: MyOrdersViewModel = hiltViewModel(),
     interactionsViewModel: InteractionsViewModel = hiltViewModel(),
     rewardsViewModel: RewardsViewModel = hiltViewModel(),
+    securityViewModel: SecurityViewModel = hiltViewModel(),
+    orderSupportViewModel: com.surplusiq.app.ui.viewmodel.OrderSupportViewModel = hiltViewModel(),
     notificationsViewModel: NotificationsViewModel = hiltViewModel(),
     rescuePoolViewModel: RescuePoolViewModel = hiltViewModel(),
     profileViewModel: ProfileViewModel = hiltViewModel(),
@@ -191,6 +215,8 @@ fun SurplusAppRoot(
     val discoveryState by discoveryViewModel.uiState.collectAsState()
     val myOrdersState by myOrdersViewModel.uiState.collectAsState()
     val rewardsState by rewardsViewModel.uiState.collectAsState()
+    val securityState by securityViewModel.uiState.collectAsState()
+    val supportState by orderSupportViewModel.state.collectAsState()
     val notificationsState by notificationsViewModel.uiState.collectAsState()
     val interactionsState by interactionsViewModel.uiState.collectAsState()
     val profileUiState by profileViewModel.uiState.collectAsState()
@@ -212,7 +238,13 @@ fun SurplusAppRoot(
     val displayName = profileUiState.userProfile?.fullName?.takeIf { it.isNotBlank() } ?: authState.fullName
     LaunchedEffect(authState.isLoggedIn) { if (authState.isLoggedIn) profileViewModel.loadProfile() }
     var selectedTab by remember { mutableStateOf(NavTab.DISCOVER) }
-    LaunchedEffect(selectedTab, authState.isLoggedIn) { if (selectedTab == NavTab.ME && authState.isLoggedIn) interactionsViewModel.loadImpact() }
+    LaunchedEffect(selectedTab, authState.isLoggedIn) {
+        if (selectedTab == NavTab.ME && authState.isLoggedIn) {
+            interactionsViewModel.loadImpact()
+            rewardsViewModel.load()
+            myOrdersViewModel.loadOrders()
+        }
+    }
     val onboardingPrefs = remember { context.getSharedPreferences("surplusiq_session_prefs", android.content.Context.MODE_PRIVATE) }
     val initialDestination = remember {
         if (!onboardingPrefs.getBoolean("key_onboarding_completed", false)) {
@@ -222,7 +254,17 @@ fun SurplusAppRoot(
         }
     }
     var currentDestination by remember { mutableStateOf<AppDestination>(initialDestination) }
+    val giftToastContext = LocalContext.current
+    LaunchedEffect(supportState.message, currentDestination) {
+        val m = supportState.message
+        if (m != null && currentDestination is AppDestination.OrderDetail) {
+            android.widget.Toast.makeText(giftToastContext, m, android.widget.Toast.LENGTH_LONG).show()
+            orderSupportViewModel.consumeMessage()
+        }
+    }
     var authScreenState by remember { mutableStateOf(AuthScreenState.WELCOME) }
+    // Đổi giữa các màn đăng nhập/đăng ký thì bỏ thông báo lỗi cũ.
+    LaunchedEffect(authScreenState) { authViewModel.clearError() }
     
     // K06: lần đầu vào app (đăng nhập hoặc khách) mà chưa thiết lập vị trí -> màn quyền vị trí & bán kính.
     LaunchedEffect(authState.isLoggedIn, authState.isGuestMode) {
@@ -257,6 +299,11 @@ fun SurplusAppRoot(
                         onPhoneChange = { authViewModel.onPhoneChanged(it) },
                         onPasswordChange = { authViewModel.onPasswordChanged(it) },
                         onLoginClick = { authViewModel.login() },
+                        onRememberLoginChange = { authViewModel.setRememberLogin(it) },
+                        onTwoFactorCodeChange = { authViewModel.onTwoFactorCodeChanged(it) },
+                        onSubmitTwoFactor = { authViewModel.submitTwoFactor() },
+                        onResendTwoFactor = { authViewModel.resendTwoFactor() },
+                        onCancelTwoFactor = { authViewModel.cancelTwoFactor() },
                         onNavigateToRegister = { authScreenState = AuthScreenState.REGISTER },
                         onNavigateToForgotPassword = {
                             authViewModel.resetForgotPasswordFlow()
@@ -268,9 +315,11 @@ fun SurplusAppRoot(
                                 try {
                                     val idToken = GoogleSignInHelper.requestIdToken(context)
                                     authViewModel.loginWithGoogle(idToken)
+                                } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    // Người dùng tự đóng hộp thoại Google: không báo lỗi.
                                 } catch (e: GetCredentialException) {
                                     authViewModel.onGoogleSignInFailed(
-                                        e.localizedMessage ?: "Đăng nhập Google thất bại"
+                                        "Không đăng nhập được bằng Google. Vui lòng thử lại hoặc dùng số điện thoại."
                                     )
                                 }
                             }
@@ -313,6 +362,7 @@ fun SurplusAppRoot(
                         state = authState,
                         onFullNameChange = { authViewModel.onFullNameChanged(it) },
                         onPhoneChange = { authViewModel.onPhoneChanged(it) },
+                        onEmailChange = { authViewModel.onEmailChanged(it) },
                         onPasswordChange = { authViewModel.onPasswordChanged(it) },
                         onRegisterClick = { authViewModel.register() },
                         onBackToLogin = { authScreenState = AuthScreenState.LOGIN },
@@ -321,9 +371,11 @@ fun SurplusAppRoot(
                                 try {
                                     val idToken = GoogleSignInHelper.requestIdToken(context)
                                     authViewModel.loginWithGoogle(idToken)
+                                } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    // Người dùng tự đóng hộp thoại Google: không báo lỗi.
                                 } catch (e: GetCredentialException) {
                                     authViewModel.onGoogleSignInFailed(
-                                        e.localizedMessage ?: "Đăng nhập Google thất bại"
+                                        "Không đăng nhập được bằng Google. Vui lòng thử lại hoặc dùng số điện thoại."
                                     )
                                 }
                             }
@@ -333,6 +385,18 @@ fun SurplusAppRoot(
 
             }
         }
+        return
+    }
+
+    // Tài khoản đang chờ xóa: chỉ được xem ngày xóa dự kiến, hủy yêu cầu hoặc đăng xuất (R1-019).
+    if (profileUiState.deleteRequestStatus == "PENDING_DELETE") {
+        PendingDeleteScreen(
+            scheduledAt = profileUiState.deleteRequestedAt,
+            isBusy = profileUiState.isAccountDeleteActionLoading,
+            message = profileUiState.accountDeleteMessage,
+            onCancelDelete = { profileViewModel.cancelAccountDelete() },
+            onLogout = { authViewModel.logout() }
+        )
         return
     }
 
@@ -454,7 +518,80 @@ fun SurplusAppRoot(
                 onRevokeProxyCode = { orderId -> myOrdersViewModel.revokeProxyCode(orderId) },
                 onAttachPaymentProof = { orderId, proofUrl -> myOrdersViewModel.attachPaymentProof(orderId, proofUrl) },
                 onUpdatePickupSlot = { orderId, newSlotIso -> myOrdersViewModel.updatePickupSlot(orderId, newSlotIso) },
-                onResetActionStates = { myOrdersViewModel.resetActionStates() }
+                onResetActionStates = { myOrdersViewModel.resetActionStates() },
+                onOpenTracking = { order ->
+                    orderSupportViewModel.clear()
+                    currentDestination = AppDestination.OrderTracking(order)
+                },
+                onOpenSwap = { order ->
+                    orderSupportViewModel.clear()
+                    currentDestination = AppDestination.SwapOrder(order)
+                },
+                onSendGift = { orderId, recipient, message -> orderSupportViewModel.sendGift(orderId, recipient, message) },
+                isGiftBusy = supportState.isBusy,
+                giftSentCounter = supportState.doneCounter,
+                onPickProofImage = { orderId, bytes, name, mime -> myOrdersViewModel.attachPaymentProofImage(orderId, bytes, name, mime) }
+            )
+        }
+
+        is AppDestination.OrderTracking -> {
+            OrderTrackingScreen(
+                state = supportState,
+                orderId = dest.order.id,
+                onLoad = { orderSupportViewModel.loadTracking(dest.order.id) },
+                onBackClick = { currentDestination = AppDestination.OrderDetail(dest.order) },
+                onOpenChat = { currentDestination = AppDestination.OrderChat(dest.order) },
+                onReportIncident = { currentDestination = AppDestination.ReportIncident(dest.order) },
+                onOpenMap = { name, address ->
+                    com.surplusiq.app.ui.util.NavigationUtil.openMapOrCopyAddress(context = context, storeAddress = address, storeName = name)
+                }
+            )
+        }
+
+        is AppDestination.OrderChat -> {
+            OrderChatScreen(
+                state = supportState,
+                orderId = dest.order.id,
+                onLoad = { orderSupportViewModel.loadChat(dest.order.id) },
+                onSend = { orderSupportViewModel.sendChat(dest.order.id, it) },
+                onBackClick = { currentDestination = AppDestination.OrderTracking(dest.order) },
+                onConsumeMessage = { orderSupportViewModel.consumeMessage() }
+            )
+        }
+
+        is AppDestination.ReportIncident -> {
+            ReportIncidentScreen(
+                state = supportState,
+                orderId = dest.order.id,
+                onLoad = { orderSupportViewModel.loadIncidents(dest.order.id) },
+                onSubmit = { type, note -> orderSupportViewModel.reportIncident(dest.order.id, type, note) },
+                onBackClick = { currentDestination = AppDestination.OrderTracking(dest.order) },
+                onConsumeMessage = { orderSupportViewModel.consumeMessage() }
+            )
+        }
+
+        is AppDestination.SwapOrder -> {
+            SwapOrderScreen(
+                state = supportState,
+                orderId = dest.order.id,
+                onLoad = { orderSupportViewModel.loadSwap(dest.order.id) },
+                onSwap = { orderSupportViewModel.swap(dest.order.id, it) },
+                onBackClick = { currentDestination = AppDestination.OrderDetail(dest.order) },
+                onDone = {
+                    myOrdersViewModel.loadOrders()
+                    currentDestination = AppDestination.MyOrders
+                },
+                onConsumeMessage = { orderSupportViewModel.consumeMessage() }
+            )
+        }
+
+        is AppDestination.Gifts -> {
+            GiftsScreen(
+                state = supportState,
+                onLoad = { orderSupportViewModel.loadGifts() },
+                onRespond = { id, action -> orderSupportViewModel.respondGift(id, action) },
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onConsumeMessage = { orderSupportViewModel.consumeMessage() }
             )
         }
 
@@ -488,6 +625,9 @@ fun SurplusAppRoot(
         is AppDestination.ChangePassword -> {
             ChangePasswordScreen(
                 state = authState,
+                hasEmail = !profileUiState.userProfile?.email.isNullOrBlank(),
+                onOtpChange = { authViewModel.onChangePasswordOtpChanged(it) },
+                onSendOtpClick = { authViewModel.requestChangePasswordOtp() },
                 onCurrentPasswordChange = { authViewModel.onCurrentPasswordChanged(it) },
                 onNewPasswordChange = { authViewModel.onNewChangePasswordChanged(it) },
                 onConfirmPasswordChange = { authViewModel.onConfirmChangePasswordChanged(it) },
@@ -503,11 +643,45 @@ fun SurplusAppRoot(
             )
         }
 
+        is AppDestination.ForYou -> {
+            ForYouScreen(
+                state = discoveryState,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onRetry = { discoveryViewModel.loadForYou() },
+                onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = AppDestination.ForYou) },
+                onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) },
+                onCustomize = { currentDestination = AppDestination.DietaryProfile }
+            )
+        }
+
+        is AppDestination.TwoFactor -> {
+            TwoFactorScreen(
+                state = securityState,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onRetry = { securityViewModel.load() },
+                onToggle = { enabled, password -> securityViewModel.setTwoFactor(enabled, password) },
+                onConsumeMessage = { securityViewModel.consumeMessage() }
+            )
+        }
+
+        is AppDestination.Devices -> {
+            DevicesScreen(
+                state = securityState,
+                onBackClick = { currentDestination = AppDestination.MainTabs },
+                onRetry = { securityViewModel.load() },
+                onRevoke = { securityViewModel.revokeSession(it.id) },
+                onConsumeMessage = { securityViewModel.consumeMessage() }
+            )
+        }
+
         is AppDestination.Rewards -> {
             RewardsScreen(
                 state = rewardsState,
                 onBackClick = { currentDestination = AppDestination.MainTabs },
-                onRetry = { rewardsViewModel.load() }
+                onRetry = { rewardsViewModel.load() },
+                onOpenRedeem = { rewardsViewModel.loadCatalog() },
+                onOpenRules = { rewardsViewModel.loadRules() },
+                onRedeem = { rewardsViewModel.redeem(it) }
             )
         }
 
@@ -689,7 +863,7 @@ fun SurplusAppRoot(
                 state = profileUiState,
                 onBackClick = { currentDestination = AppDestination.MainTabs },
                 onExportData = { profileViewModel.exportUserData() },
-                onRequestDelete = { profileViewModel.requestAccountDelete() },
+                onRequestDelete = { password -> profileViewModel.requestAccountDelete(password) },
                 onCancelDelete = { profileViewModel.cancelAccountDelete() }
             )
         }
@@ -887,7 +1061,8 @@ fun SurplusAppRoot(
                 onReport = { storeId, reason -> storeViewModel.reportStore(storeId, reason) },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal, back = dest) },
                 onConsumeMessage = { storeViewModel.consumeMessage() },
-                onOpenReviews = { storeId -> currentDestination = AppDestination.StoreReviews(storeId, back = dest) }
+                onOpenReviews = { storeId -> currentDestination = AppDestination.StoreReviews(storeId, back = dest) },
+                onLoadReviews = { storeId, rating -> storeViewModel.loadStoreReviews(storeId, rating) }
             )
         }
 
@@ -969,6 +1144,7 @@ fun SurplusAppRoot(
         }
 
         is AppDestination.AiChat -> {
+            LaunchedEffect(Unit) { aiViewModel.loadQuota() }
             SaveBiteAiSheet(
                 state = aiUiState,
                 onSendMessage = { text -> aiViewModel.sendMessage(text, dealsList) },
@@ -978,6 +1154,16 @@ fun SurplusAppRoot(
                 },
                 onNewChat = { aiViewModel.startNewChat() },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal) },
+                onActionClick = { act ->
+                    when (act.route) {
+                        "help_center" -> currentDestination = AppDestination.HelpCenter
+                        "my_orders" -> currentDestination = AppDestination.MyOrders
+                        "rewards" -> currentDestination = AppDestination.Rewards
+                        "rescue_pool" -> currentDestination = AppDestination.RescuePoolList
+                        "complaints" -> currentDestination = AppDestination.ComplaintList
+                        else -> currentDestination = AppDestination.HelpCenter
+                    }
+                },
                 onClose = { currentDestination = AppDestination.MainTabs }
             )
         }
@@ -1082,6 +1268,10 @@ fun SurplusAppRoot(
                                     currentDestination = AppDestination.Preferences
                                 },
                                 onSeeAllClick = { selectedTab = NavTab.BROWSE },
+                                onSeeAllForYou = {
+                                    discoveryViewModel.loadForYou()
+                                    currentDestination = AppDestination.ForYou
+                                },
                                 unreadNotificationCount = notificationsState.unreadCount,
                                 onOpenNotifications = { currentDestination = AppDestination.Notifications },
                                 location = discoveryState.location,
@@ -1094,9 +1284,25 @@ fun SurplusAppRoot(
                                 isMapLoading = discoveryState.isMapLoading,
                                 mapErrorMessage = discoveryState.mapErrorMessage,
                                 onLoadMap = { discoveryViewModel.loadMapPins() },
+                                userLocation = placesState.deviceLocation?.let { it.latitude to it.longitude },
+                                isLocating = placesState.isLocating,
+                                locateError = placesState.locateError,
+                                onLocateMe = { placesViewModel.locateMe() },
+                                onLocatePermissionDenied = { placesViewModel.reportLocatePermissionDenied() },
                                 onOpenStore = { storeId ->
                                     storeViewModel.openStore(storeId)
                                     currentDestination = AppDestination.StoreDetail(storeId)
+                                },
+                                storePanel = { pin, onClose ->
+                                    StoreDetailPanel(
+                                        state = storeState,
+                                        storeId = pin.storeId,
+                                        onLoad = { storeViewModel.openStore(it) },
+                                        onClose = onClose,
+                                        onToggleFavorite = { storeViewModel.toggleFavorite(it) },
+                                        onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal) },
+                                        onLoadReviews = { id, rating -> storeViewModel.loadStoreReviews(id, rating) }
+                                    )
                                 },
                                 isLoading = discoveryState.isLoading,
                                 errorMessage = discoveryState.errorMessage,
@@ -1125,6 +1331,13 @@ fun SurplusAppRoot(
                                 isRadarLoading = discoveryState.isRadarLoading,
                                 radarErrorMessage = discoveryState.radarErrorMessage,
                                 onLoadRadar = { discoveryViewModel.loadRadarRanking() },
+                                radarSettings = discoveryState.radarSettings,
+                                locationLabel = discoveryState.location.label,
+                                onApplyRadarSettings = { discoveryViewModel.updateRadarSettings(it) },
+                                onOpenLocation = {
+                                    placesViewModel.startSelection()
+                                    currentDestination = AppDestination.LocationSettings
+                                },
                                 onOpenSavedDeals = { currentDestination = AppDestination.SavedDeals }
                             )
                         }
@@ -1149,7 +1362,15 @@ fun SurplusAppRoot(
                         }
 
                         NavTab.ME -> {
+                            val waitingOrders = myOrdersState.activeOrders.filter { it.status == com.surplusiq.app.domain.model.OrderStatus.PAID_WAITING_PICKUP }
                             ProfileScreen(
+                                pointsBalance = if (rewardsState.isLoading) null else rewardsState.pointsBalance,
+                                upcomingOrdersCount = waitingOrders.size,
+                                upcomingPickupWindow = waitingOrders.firstOrNull()?.pickupWindow,
+                                locationLabel = discoveryState.location.label,
+                                radiusKm = discoveryState.location.radiusKm.takeIf { discoveryState.location.hasCoordinates },
+                                unreadNotificationCount = notificationsState.unreadCount,
+                                onOpenNotifications = { currentDestination = AppDestination.Notifications },
                                 userName = displayName,
                                 userPhone = profileUiState.userProfile?.phone?.takeIf { it.isNotBlank() } ?: authState.phone,
                                 avatarUrl = profileUiState.userProfile?.avatarUrl,
@@ -1243,6 +1464,18 @@ fun SurplusAppRoot(
                                 },
                                 onOpenNotificationSettings = {
                                     currentDestination = AppDestination.NotificationSettings
+                                },
+                                onOpenGifts = {
+                                    orderSupportViewModel.clear()
+                                    currentDestination = AppDestination.Gifts
+                                },
+                                onOpenTwoFactor = {
+                                    securityViewModel.load()
+                                    currentDestination = AppDestination.TwoFactor
+                                },
+                                onOpenDevices = {
+                                    securityViewModel.load()
+                                    currentDestination = AppDestination.Devices
                                 },
                                 onLogout = { authViewModel.logout() }
                             )

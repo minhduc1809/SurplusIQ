@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.postpurchase
 
 import android.net.Uri
+import com.surplusiq.app.ui.components.SqCard
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -100,12 +101,6 @@ fun CreateComplaintScreen(
         }
     }
 
-    val sampleEvidencePhotos = listOf(
-        "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500",
-        "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500",
-        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500"
-    )
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -139,7 +134,7 @@ fun CreateComplaintScreen(
                 .padding(20.dp)
         ) {
             // Rule Banner: 24h & 48h limit (BR-026 & R1-061)
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = CoralRed.copy(alpha = 0.08f)),
                 border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.3f)),
@@ -158,7 +153,7 @@ fun CreateComplaintScreen(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Thời hạn khiếu nại (Quy chuẩn BR-026)",
+                            text = "Thời hạn khiếu nại",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = CoralRed
@@ -177,7 +172,7 @@ fun CreateComplaintScreen(
             Spacer(modifier = Modifier.height(18.dp))
 
             // Order Target Card
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()
@@ -307,17 +302,6 @@ fun CreateComplaintScreen(
                     fontSize = 14.sp,
                     color = TextPrimary
                 )
-                if (evidenceImages.size < 3) {
-                    TextButton(
-                        onClick = {
-                            val nextPhoto = sampleEvidencePhotos.getOrNull(evidenceImages.size)
-                                ?: sampleEvidencePhotos.first()
-                            evidenceImages.add(nextPhoto)
-                        }
-                    ) {
-                        Text("+ Thêm ảnh mẫu", fontSize = 12.sp, color = ForestGreenPrimary)
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -328,7 +312,7 @@ fun CreateComplaintScreen(
             ) {
                 // Display attached photos
                 evidenceImages.forEachIndexed { index, url ->
-                    val fullUrl = if (url.startsWith("http") || url.startsWith("content://")) url else "http://10.0.2.2:3000$url"
+                    val fullUrl = if (url.startsWith("http") || url.startsWith("content://")) url else com.surplusiq.app.BuildConfig.API_BASE_URL.trimEnd('/') + url
                     Box(
                         modifier = Modifier
                             .size(90.dp)
@@ -366,13 +350,7 @@ fun CreateComplaintScreen(
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surface)
                             .clickable {
-                                if (onUploadEvidence != null) {
-                                    photoPickerLauncher.launch("image/*")
-                                } else {
-                                    val nextPhoto = sampleEvidencePhotos.getOrNull(evidenceImages.size)
-                                        ?: sampleEvidencePhotos.first()
-                                    evidenceImages.add(nextPhoto)
-                                }
+                                if (onUploadEvidence != null) photoPickerLauncher.launch("image/*")
                             },
                         contentAlignment = Alignment.Center
                     ) {

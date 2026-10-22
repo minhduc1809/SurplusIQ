@@ -33,7 +33,7 @@ val WarningOnLight = Color(0xFFA96B18)         // sqWarning
 val InfoOnLight = Color(0xFF3D73A8)            // sqInfo
 
 // --- Surface & neutral (sqCanvas/sqSurface/sqLine) ---
-val AppBackground = Color(0xFFFFFCF9)          // sqCanvas
+val AppBackground = Color(0xFFFFFFFF)          // sqCanvas
 val SurfaceWhite = Color(0xFFFFFFFF)           // sqSurface
 val CardBackground = SurfaceWhite
 val SurfaceSubtle = Color(0xFFF8F4F0)          // sqSurfaceSoft

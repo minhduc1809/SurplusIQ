@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.pool
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -80,9 +81,7 @@ fun RescuePoolDetailScreen(
                     CircularProgressIndicator(color = ForestGreenPrimary)
                 }
             }
-            return@Column
-        }
-
+        } else {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -142,6 +141,7 @@ fun RescuePoolDetailScreen(
                     fontSize = 13.sp
                 )
             }
+        }
         }
     }
 }
@@ -284,7 +284,7 @@ private fun OfferCard(offer: RescuePoolOffer, quantity: Int, isSubmitting: Boole
 /** BR-C02-04: ngưỡng, thời hạn, khung nhận công bố trước khi đăng ký; giá/ngân sách trước đề nghị là dự kiến (BR-C02-02). */
 @Composable
 private fun PublishedConditions(pool: RescuePool) {
-    Card(shape = RoundedCornerShape(14.dp)) {
+    SqCard(shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Điều kiện của đợt", fontWeight = FontWeight.Bold, color = TextPrimary)
             ConditionRow("Đăng ký", "${formatPoolTime(pool.registrationOpenAt)} → ${formatPoolTime(pool.registrationCloseAt)}")
@@ -330,7 +330,7 @@ private fun DemandForm(
         mutableStateOf(slots.firstOrNull { it.first == parsePoolInstant(initial?.preferredPickupStart) })
     }
 
-    Card(shape = RoundedCornerShape(14.dp)) {
+    SqCard(shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(if (initial == null) "Đăng ký nhu cầu" else "Sửa nhu cầu", fontWeight = FontWeight.Bold, color = TextPrimary)
             Row(verticalAlignment = Alignment.CenterVertically) {

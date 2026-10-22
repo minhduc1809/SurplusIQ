@@ -27,12 +27,23 @@ data class Deal(
     val isUrgent: Boolean = false  // Closes in less than 60 mins
 )
 
-enum class DealCategory(val displayName: String, val subtitle: String) {
-    MEALS("Meals", "Cơm, bún, mì, món mặn"),
-    BAKED_GOODS("Baked goods", "Bánh mì, bánh ngọt, croissant, tiramisu"),
-    GROCERIES("Groceries", "Rau củ hữu cơ, trái cây, nông sản"),
-    OTHER("Other", "Thức uống, combo đặc biệt")
+/** 10 nhóm món chuẩn; [displayName] là mã gửi/nhận với backend, [label] là tên ngắn hiển thị. */
+enum class DealCategory(val displayName: String, val label: String, val subtitle: String) {
+    RICE("RICE", "Cơm", "Cơm tấm, cơm gà, cơm phần"),
+    NOODLE("NOODLE", "Phở & Bún", "Phở, bún, mì, miến, cháo"),
+    BREAD("BREAD", "Bánh mì", "Bánh mì kẹp, bánh mì que"),
+    FASTFOOD("FASTFOOD", "Đồ nhanh", "Burger, pizza, gà rán, khoai chiên"),
+    SNACK("SNACK", "Ăn vặt", "Xiên nướng, bánh tráng, bánh bao"),
+    HEALTHY("HEALTHY", "Healthy", "Salad, ngũ cốc, món chay"),
+    SWEET("SWEET", "Bánh ngọt", "Bánh kem, croissant, chè, kem"),
+    DRINK("DRINK", "Đồ uống", "Trà sữa, cà phê, nước ép, sinh tố"),
+    PRODUCE("PRODUCE", "Nông sản", "Rau củ quả, trái cây, trứng"),
+    OTHER("OTHER", "Khác", "Lẩu và món không thuộc nhóm trên")
 }
+
+/** Mã backend (hoặc giá trị cũ) -> nhóm món; không nhận ra thì là Khác. */
+fun dealCategoryOf(code: String?): DealCategory =
+    DealCategory.values().firstOrNull { it.displayName.equals(code?.trim(), ignoreCase = true) } ?: DealCategory.OTHER
 
 enum class DietaryType(val displayName: String) {
     NONE("Bình thường"),
@@ -48,12 +59,7 @@ enum class CollectionTimeSlot(val title: String, val timeRange: String) {
 
 data class UserPreferences(
     val filterMatchingOnly: Boolean = true,
-    val categories: Set<DealCategory> = setOf(
-        DealCategory.MEALS,
-        DealCategory.BAKED_GOODS,
-        DealCategory.GROCERIES,
-        DealCategory.OTHER
-    ),
+    val categories: Set<DealCategory> = DealCategory.values().toSet(),
     val dietaryPreference: DietaryType = DietaryType.NONE,
     val collectionTimes: Set<CollectionTimeSlot> = setOf(
         CollectionTimeSlot.MORNING,
@@ -115,11 +121,41 @@ data class UserImpactStats(
 )
 
 /** Rescue Radar (CM-C05): deal xếp hạng kèm lý do - không chỉ khoảng cách/giảm giá. */
+/** KC15: thiết lập Radar do khách chọn. Điểm xuất phát lấy từ vị trí khám phá đang chọn (K06 đến K08). */
+data class RadarSettings(
+    val budgetMax: Int? = null,
+    val window: RadarWindow = RadarWindow.ANY,
+    val hideMyAllergens: Boolean = true,
+    val prioritizeInTime: Boolean = false
+)
+
+enum class RadarWindow(val label: String) {
+    ANY("Bất kỳ giờ nào"),
+    NEXT_2H("2 giờ tới"),
+    EVENING("Tối nay 17:00 - 21:00")
+}
+
 data class RadarDeal(
     val deal: Deal,
     val minutesLeftToPickup: Int,
     val canArriveInTime: Boolean?,
     val rankingReasons: List<String>
+)
+
+/** K21: suất gợi ý kèm lý do có căn cứ do máy chủ tính từ lịch sử thật của khách. */
+data class ForYouDeal(
+    val deal: Deal,
+    val reasons: List<String>,
+    /** Điểm xếp hạng thật từ máy chủ (khoảng cách, giờ nhận, giảm giá, thói quen...). */
+    val score: Double = 0.0
+)
+
+data class ForYouResult(
+    val deals: List<ForYouDeal>,
+    /** Số suất bị loại vì chứa chất gây dị ứng hoặc món khách loại trừ. */
+    val excludedByDietary: Int,
+    val personalised: Boolean,
+    val note: String?
 )
 
 /**
@@ -160,6 +196,29 @@ data class RewardBalanceInfo(
     val pointsBalance: Int
 )
 
+data class RewardCatalogItem(
+    val id: String,
+    val name: String,
+    val points: Int,
+    val valueVnd: Int,
+    val minOrderVnd: Int,
+    val validDays: Int,
+    val canRedeem: Boolean,
+    val shortfall: Int
+)
+
+data class RewardCatalog(
+    val pointsBalance: Int,
+    val dailyLimit: Int,
+    val redeemedToday: Int,
+    val items: List<RewardCatalogItem>
+)
+
+data class RewardRuleSection(val title: String, val body: String)
+
+/** Kết quả đổi điểm: số dư mới và voucher đã vào ví. */
+data class RedeemResult(val pointsBalance: Int, val voucherName: String?, val voucherExpiresAt: String?)
+
 data class RewardHistoryEntry(
     val id: String,
     val entryType: String,
@@ -171,6 +230,8 @@ data class RewardHistoryEntry(
 data class UserProfile(
     val id: String,
     val phone: String,
+    /** Email đã che bớt ký tự (vd. k***@gmail.com); null nếu chưa thêm email. */
+    val email: String? = null,
     val fullName: String,
     val avatarUrl: String? = null,
     val searchRadiusKm: Double = 5.0,
@@ -192,13 +253,7 @@ data class NotificationSettings(
     val reminderPush: Boolean = true
 )
 
-/** Tên hiển thị tiếng Việt; [DealCategory.displayName] giữ nguyên vì còn dùng làm giá trị lọc gửi backend. */
-fun DealCategory.viName() = when (this) {
-    DealCategory.MEALS -> "Món chính"
-    DealCategory.BAKED_GOODS -> "Bánh"
-    DealCategory.GROCERIES -> "Nông sản"
-    DealCategory.OTHER -> "Khác"
-}
+fun DealCategory.viName() = label
 
 fun CollectionTimeSlot.viTitle() = when (this) {
     CollectionTimeSlot.MORNING -> "Sáng"

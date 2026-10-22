@@ -580,7 +580,7 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
             >
               <Box>
                 <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#1E293B' }}>
-                  Performance Line Chart
+                  Biểu đồ hiệu suất
                 </Typography>
                 <Typography sx={{ fontSize: 12.5, color: '#64748B', mt: 0.25 }}>
                   Biểu đồ tăng trưởng đơn hàng cứu món & lưu lượng xử lý AI trong tuần
@@ -591,13 +591,13 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#1F3BB3' }} />
                   <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
-                    This week
+                    Tuần này
                   </Typography>
                 </Stack>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#38BDF8' }} />
                   <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
-                    Last week
+                    Tuần trước
                   </Typography>
                 </Stack>
               </Stack>
@@ -608,7 +608,7 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
                 viewBox={`0 0 ${chartWidth} ${chartHeight + 18}`}
                 style={{ width: '100%', height: 'auto', minWidth: 460, display: 'block' }}
                 role="img"
-                aria-label="Performance Line Chart"
+                aria-label="Biểu đồ hiệu suất"
               >
                 <defs>
                   <linearGradient id="starAdminPrimaryGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1776,7 +1776,7 @@ export function SnapshotPage({
                 fontWeight: 600,
               }}
             >
-              Export
+              Xuất dữ liệu
             </Button>
           )}
           <Button

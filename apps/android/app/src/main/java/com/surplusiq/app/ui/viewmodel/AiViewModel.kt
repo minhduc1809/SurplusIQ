@@ -24,11 +24,12 @@ data class AiUiState(
     val messages: List<ChatMessage> = listOf(
         ChatMessage(
             sender = "ai",
-            text = "Xin chào! Tôi là Trợ lý Cứu Món SaveBite AI. Bạn có thể hỏi tôi bất kỳ điều gì, ví dụ: 'Tìm bánh ngọt dưới 35k gần Quận 1 sau 19h' hoặc hỏi về thành phần dị ứng món ăn!"
+            text = "Xin chào! Tôi là Trợ lý Cứu Món. Mình có thể giúp bạn tìm suất cứu món quanh đây, so sánh giá, xem giờ nhận hàng và kiểm tra thành phần dị ứng của món ăn."
         )
     ),
     val isChatLoading: Boolean = false,
-    val remainingQuota: Int = 28,
+    /** null = chưa biết (chưa tải được từ máy chủ), không hiện số giả. */
+    val remainingQuota: Int? = null,
     // Cài đặt ghi nhớ ngữ cảnh (R1-091, K51)
     val rememberContext: Boolean = true,
     val isSettingUpdating: Boolean = false,
@@ -103,7 +104,7 @@ class AiViewModel @Inject constructor(
             messages = listOf(
                 ChatMessage(
                     sender = "ai",
-                    text = "Xin chào! Tôi là Trợ lý Cứu Món SaveBite AI. Bạn có thể hỏi tôi bất kỳ điều gì, ví dụ: 'Tìm bánh ngọt dưới 35k gần Quận 1 sau 19h' hoặc hỏi về thành phần dị ứng món ăn!"
+                    text = "Xin chào! Tôi là Trợ lý Cứu Món. Mình có thể giúp bạn tìm suất cứu món quanh đây, so sánh giá, xem giờ nhận hàng và kiểm tra thành phần dị ứng của món ăn."
                 )
             )
         )
@@ -163,6 +164,14 @@ class AiViewModel @Inject constructor(
         }
     }
 
+    fun loadQuota() {
+        viewModelScope.launch {
+            aiRepository.getRemainingQuota().onSuccess { left ->
+                _uiState.value = _uiState.value.copy(remainingQuota = left)
+            }
+        }
+    }
+
     fun sendMessage(messageText: String, availableDeals: List<Deal>) {
         if (messageText.isBlank()) return
         val currentList = _uiState.value.messages.toMutableList()
@@ -182,14 +191,15 @@ class AiViewModel @Inject constructor(
                         ChatMessage(
                             sender = "ai",
                             text = res.reply,
-                            recommendedDeals = res.recommendedDeals
+                            recommendedDeals = res.recommendedDeals,
+                            action = res.suggestedAction
                         )
                     )
                     _uiState.value = _uiState.value.copy(
                         messages = updated,
                         isChatLoading = false,
                         activeConversationId = res.conversationId ?: _uiState.value.activeConversationId,
-                        remainingQuota = res.remainingQuota
+                        remainingQuota = res.remainingQuota ?: _uiState.value.remainingQuota
                     )
                 },
                 onFailure = { error ->

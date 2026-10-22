@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.orders
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -142,7 +143,7 @@ fun OrderCardItem(
     onResumePayment: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    SqCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onCardClick() },
@@ -161,7 +162,9 @@ fun OrderCardItem(
                     text = order.deal.storeName,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    maxLines = 2,
+                    modifier = Modifier.weight(1f).padding(end = 8.dp)
                 )
 
                 OrderStatusBadge(order.status)
@@ -179,11 +182,13 @@ fun OrderCardItem(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            Text(
-                text = "Khung giờ nhận: ${order.pickupWindow}",
-                fontSize = 12.sp,
-                color = TextSecondary
-            )
+            if (order.pickupWindow.isNotBlank()) {
+                Text(
+                    text = "Khung giờ nhận: ${order.pickupWindow}",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -254,6 +259,6 @@ fun OrderStatusBadge(status: OrderStatus) {
             .background(bgColor, RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(text = text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor)
+        Text(text = text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
     }
 }

@@ -6,7 +6,9 @@ import {
   BadRequestException,
   NotFoundException,
   Logger,
+  Optional,
 } from '@nestjs/common';
+import { MailService } from '../mail/mail.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, IsNull, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -34,6 +36,7 @@ import {
 } from '../../entities';
 import { AUTH_CONSTANTS, AUTH_ERRORS } from './auth.constants';
 import { CryptoUtil } from './crypto.util';
+import { getJwtSecret } from '../../common/config/jwt-secret';
 import {
   CustomerRegisterDto,
   CustomerLoginDto,
@@ -76,6 +79,7 @@ export class AuthService {
     private readonly consentRepo: Repository<ConsentEntity>,
     private readonly jwtService: JwtService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly mail?: MailService,
   ) {}
 
   // =========================================================================
@@ -217,10 +221,8 @@ export class AuthService {
 
       throw new UnauthorizedException({
         code: AUTH_ERRORS.INVALID_CREDENTIALS,
-        message: `Sai mật khẩu. Bạn còn ${Math.max(
-          0,
-          AUTH_CONSTANTS.LOGIN_MAX_WRONG - user.failedLoginCount,
-        )} lần thử`,
+        // Cùng một thông báo với tài khoản không tồn tại để không dò được tài khoản (BUG-018).
+        message: 'Tài khoản hoặc mật khẩu không chính xác',
       });
     }
 
@@ -240,24 +242,33 @@ export class AuthService {
       });
 
       if (!isTrusted) {
-        // Sinh OTP 2FA và yêu cầu bước tiếp theo
-        const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
-        const otpEntity = this.otpRepo.create({
-          target: user.phone || user.email || user.id,
-          purpose: OtpPurpose.TWO_FA,
-          codeHash: CryptoUtil.sha256(otp),
-          expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
-        });
-        await this.otpRepo.save(otpEntity);
+        const otpTarget = user.phone || user.email || user.id;
+        if (dto.otpCode?.trim()) {
+          await this.verifyOtp({
+            target: otpTarget,
+            code: dto.otpCode.trim(),
+            purpose: OtpPurpose.TWO_FA,
+          });
+        } else {
+          // Sinh OTP 2FA và yêu cầu bước tiếp theo
+          const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
+          const otpEntity = this.otpRepo.create({
+            target: otpTarget,
+            purpose: OtpPurpose.TWO_FA,
+            codeHash: CryptoUtil.sha256(otp),
+            expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
+          });
+          await this.otpRepo.save(otpEntity);
 
-        this.logger.log(`[2FA OTP SIMULATION] Mã xác thực 2FA: ${otp}`);
+          this.logger.log(`[2FA OTP SIMULATION] Mã xác thực 2FA: ${otp}`);
 
-        return {
-          twoFactorRequired: true,
-          target: user.phone || user.email,
-          message: 'Vui lòng xác thực mã 2FA gửi về số điện thoại / email của bạn',
-          otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
-        };
+          return {
+            twoFactorRequired: true,
+            target: this.maskContact(otpTarget),
+            message: 'Vui lòng xác thực mã 2FA gửi về số điện thoại / email của bạn',
+            otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
+          };
+        }
       }
     }
 
@@ -356,6 +367,7 @@ export class AuthService {
       // 1. Tạo tài khoản User
       const user = manager.create(UserEntity, {
         email: dto.email,
+        fullName: dto.ownerName?.trim() || null,
         passwordHash,
         role: UserRole.STORE_USER,
         status: UserStatus.PENDING_VERIFY,
@@ -738,7 +750,9 @@ export class AuthService {
     }
 
     const user = await this.userRepo.findOne({ where: { id: tokenRecord.userId } });
-    if (!user || user.status !== UserStatus.ACTIVE) {
+    const pendingDelete =
+      user?.status === UserStatus.PENDING_DELETE && user.role === UserRole.CUSTOMER;
+    if (!user || (user.status !== UserStatus.ACTIVE && !pendingDelete)) {
       throw new UnauthorizedException('Người dùng không còn hoạt động');
     }
 
@@ -792,7 +806,7 @@ export class AuthService {
               ) => { sub?: string; deviceId?: string };
             }
           ).verify(rawToken, {
-            secret: AUTH_CONSTANTS.JWT_SECRET,
+            secret: getJwtSecret(),
             ignoreExpiration: true,
           });
           if (effectiveUserId && decoded.sub && effectiveUserId !== decoded.sub) {
@@ -832,7 +846,10 @@ export class AuthService {
   }
 
   private assertActiveUser(user: UserEntity) {
-    if (user.status !== UserStatus.ACTIVE) {
+    // Khách đang chờ xóa vẫn đăng nhập được (phiên bị giới hạn) để hủy yêu cầu trong 7 ngày ân hạn (BUG-017).
+    const pendingDelete =
+      user.status === UserStatus.PENDING_DELETE && user.role === UserRole.CUSTOMER;
+    if (user.status !== UserStatus.ACTIVE && !pendingDelete) {
       throw new ForbiddenException({
         code: AUTH_ERRORS.LOCKED,
         message: 'Tài khoản đã bị khóa hoặc không còn hoạt động',
@@ -858,6 +875,21 @@ export class AuthService {
       throw new BadRequestException('Mật khẩu hiện tại không chính xác');
     }
 
+    // Khách hàng đã có email thì phải nhập mã OTP gửi về email trước khi đổi mật khẩu
+    if (user.role === UserRole.CUSTOMER && user.email) {
+      if (!dto.otpCode) {
+        throw new BadRequestException({
+          code: AUTH_ERRORS.OTP_INVALID,
+          message: 'Vui lòng nhập mã OTP đã gửi về email của bạn để đổi mật khẩu.',
+        });
+      }
+      await this.verifyOtp({
+        target: user.email,
+        code: dto.otpCode,
+        purpose: OtpPurpose.CHANGE_PASSWORD,
+      });
+    }
+
     user.passwordHash = CryptoUtil.hashPassword(dto.newPassword);
     await this.userRepo.save(user);
 
@@ -869,6 +901,81 @@ export class AuthService {
       message:
         'Đổi mật khẩu thành công. Các phiên đăng nhập trên thiết bị khác đã được thu hồi (BR-003)',
     };
+  }
+
+  /** Tạo và "gửi" OTP tới [target] (giới hạn 3 lần/giờ); môi trường dev trả kèm mã để thử. */
+  private async issueOtp(target: string, purpose: OtpPurpose) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recent = await this.otpRepo.count({
+      where: { target, purpose, createdAt: MoreThan(oneHourAgo) },
+    });
+    if (recent >= AUTH_CONSTANTS.OTP_RESEND_MAX_HOURS) {
+      throw new BadRequestException({
+        code: AUTH_ERRORS.OTP_RATE_LIMITED,
+        message: 'Bạn đã yêu cầu mã quá 3 lần trong 1 giờ. Vui lòng thử lại sau.',
+      });
+    }
+    const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
+    await this.otpRepo.save(
+      this.otpRepo.create({
+        target,
+        purpose,
+        codeHash: CryptoUtil.sha256(otp),
+        expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
+      }),
+    );
+    const sent = target.includes('@')
+      ? ((await this.mail?.sendOtp(target, purpose, otp)) ?? false)
+      : false;
+    if (!sent) this.logger.log(`[OTP ${purpose} SIMULATION] Mã ${otp} gửi tới ${target}`);
+    return {
+      success: true,
+      message: sent
+        ? 'Đã gửi mã OTP về email của bạn'
+        : 'Chưa gửi được email thật, dùng mã thử nghiệm bên dưới',
+      emailSent: sent,
+      otpPreview: !sent && process.env.NODE_ENV !== 'production' ? otp : undefined,
+    };
+  }
+
+  /** Gửi OTP đổi mật khẩu về email đang gắn với tài khoản khách hàng. */
+  async requestPasswordChangeOtp(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+    if (!user.email) {
+      throw new BadRequestException(
+        'Tài khoản chưa có email. Hãy thêm email ở mục Chỉnh sửa hồ sơ trước khi đổi mật khẩu.',
+      );
+    }
+    return this.issueOtp(user.email, OtpPurpose.CHANGE_PASSWORD);
+  }
+
+  /** Gửi OTP xác minh email mới trước khi gắn vào tài khoản. */
+  async requestEmailOtp(userId: string, email: string) {
+    const normalized = email.trim().toLowerCase();
+    const taken = await this.userRepo.findOne({ where: { email: normalized } });
+    if (taken && taken.id !== userId) {
+      throw new ConflictException({
+        code: AUTH_ERRORS.USER_EXISTS,
+        message: 'Email này đã được dùng cho một tài khoản khác.',
+      });
+    }
+    return this.issueOtp(normalized, OtpPurpose.CHANGE_ID);
+  }
+
+  /** Xác minh OTP rồi gắn email vào tài khoản. */
+  async confirmEmail(userId: string, email: string, code: string) {
+    const normalized = email.trim().toLowerCase();
+    await this.verifyOtp({ target: normalized, code, purpose: OtpPurpose.CHANGE_ID });
+    const taken = await this.userRepo.findOne({ where: { email: normalized } });
+    if (taken && taken.id !== userId) {
+      throw new ConflictException({
+        code: AUTH_ERRORS.USER_EXISTS,
+        message: 'Email này đã được dùng cho một tài khoản khác.',
+      });
+    }
+    await this.userRepo.update({ id: userId }, { email: normalized });
+    return { success: true, message: 'Đã cập nhật email', email: normalized };
   }
 
   /**
@@ -896,12 +1003,16 @@ export class AuthService {
     });
     await this.otpRepo.save(otpEntity);
 
-    this.logger.log(`[RESET PASSWORD OTP SIMULATION] Mã OTP đặt lại mật khẩu: ${otp}`);
+    const emailed = dto.target.includes('@')
+      ? ((await this.mail?.sendOtp(dto.target, OtpPurpose.RESET, otp)) ?? false)
+      : false;
+    if (!emailed)
+      this.logger.log(`[RESET PASSWORD OTP SIMULATION] Mã OTP đặt lại mật khẩu: ${otp}`);
 
     return {
       success: true,
       message: 'Mã OTP đặt lại mật khẩu đã được gửi',
-      otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
+      otpPreview: !emailed && process.env.NODE_ENV !== 'production' ? otp : undefined,
     };
   }
 
@@ -939,32 +1050,80 @@ export class AuthService {
   /**
    * Danh sách phiên đăng nhập (R1-014)
    */
-  async getSessions(userId: string) {
-    return this.refreshTokenRepo.find({
-      where: {
-        userId,
-        expiresAt: MoreThan(new Date()),
-      },
+  async getSessions(userId: string, currentDeviceId?: string) {
+    const sessions = await this.refreshTokenRepo.find({
+      where: { userId, revokedAt: IsNull(), expiresAt: MoreThan(new Date()) },
       order: { lastUsedAt: 'DESC' },
     });
+    // Không trả tokenHash; chỉ phiên của thiết bị đang dùng được đánh dấu isCurrent.
+    return sessions.map((t) => ({
+      id: t.id,
+      deviceId: t.deviceId,
+      deviceName: t.deviceName,
+      ip: t.ip,
+      lastUsedAt: t.lastUsedAt,
+      expiresAt: t.expiresAt,
+      isCurrent: !!currentDeviceId && t.deviceId === currentDeviceId,
+    }));
   }
 
   /**
-   * Xóa / Thu hồi phiên đăng nhập cụ thể (R1-014)
+   * Xóa / Thu hồi phiên đăng nhập cụ thể (R1-014). Thiết bị bị thu hồi cũng mất tin cậy 2FA.
    */
   async revokeSession(userId: string, sessionId: string) {
+    const session = await this.refreshTokenRepo.findOne({ where: { id: sessionId, userId } });
+    if (!session || session.revokedAt) {
+      throw new NotFoundException('Không tìm thấy phiên đăng nhập đang hoạt động.');
+    }
     await this.refreshTokenRepo.update({ id: sessionId, userId }, { revokedAt: new Date() });
+    await this.trustedDeviceRepo.delete({ userId, deviceId: session.deviceId });
     return { success: true, message: 'Đã thu hồi phiên đăng nhập' };
+  }
+
+  /** Che bớt email hoặc số điện thoại trước khi trả về app. */
+  private maskContact(value: string | null | undefined): string | null {
+    if (!value) return null;
+    if (value.includes('@')) return value.replace(/^(.).*(@.*)$/, '$1***$2');
+    return value.length > 5 ? `${value.slice(0, 3)}***${value.slice(-2)}` : value;
+  }
+
+  /** Trạng thái 2FA và nơi nhận mã (che bớt) để app hiển thị trước khi bật (R1-013). */
+  async get2faStatus(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Tài khoản không tồn tại.');
+    return {
+      twoFactorEnabled: !!user.twoFactorEnabled,
+      target: this.maskContact(user.email || user.phone),
+      trustedDeviceDays: AUTH_CONSTANTS.TRUSTED_DEVICE_DAYS,
+    };
   }
 
   /**
    * Bật / Tắt xác thực 2 bước 2FA (R1-013)
    */
-  async toggle2fa(userId: string, dto: Enable2faDto) {
+  async toggle2fa(userId: string, dto: Enable2faDto, currentDeviceId?: string) {
     const isEnabled = dto.enabled ?? dto.enable ?? true;
-    await this.userRepo.update(userId, {
-      twoFactorEnabled: isEnabled,
-    });
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Tài khoản không tồn tại.');
+    if (!dto.password || !CryptoUtil.verifyPassword(dto.password, user.passwordHash)) {
+      throw new UnauthorizedException({
+        code: AUTH_ERRORS.INVALID_CREDENTIALS,
+        message: 'Mật khẩu xác nhận không chính xác.',
+      });
+    }
+    if (isEnabled && !user.email && !user.phone) {
+      throw new BadRequestException('Cần có email hoặc số điện thoại để nhận mã xác thực 2 bước.');
+    }
+    await this.userRepo.update(userId, { twoFactorEnabled: isEnabled });
+    // Thiết bị từng đăng nhập khi chưa bật 2FA không được miễn mã: chỉ giữ thiết bị đang dùng.
+    await this.trustedDeviceRepo.delete({ userId });
+    if (isEnabled && currentDeviceId) {
+      await this.trustedDeviceRepo.save({
+        userId,
+        deviceId: currentDeviceId,
+        expiresAt: new Date(Date.now() + AUTH_CONSTANTS.TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000),
+      });
+    }
     return {
       success: true,
       twoFactorEnabled: isEnabled,
@@ -998,6 +1157,12 @@ export class AuthService {
       expiresIn: AUTH_CONSTANTS.JWT_ACCESS_EXPIRES_IN,
     });
 
+    // Mỗi thiết bị chỉ giữ một phiên: đăng nhập lại thu hồi phiên cũ của cùng thiết bị để danh sách thiết bị không bị trùng.
+    await this.refreshTokenRepo.update(
+      { userId: user.id, deviceId, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+
     const refreshTokenPlain = CryptoUtil.generateRandomToken();
     const tokenHash = CryptoUtil.sha256(refreshTokenPlain);
 
@@ -1014,15 +1179,20 @@ export class AuthService {
     });
     await this.refreshTokenRepo.save(refreshTokenEntity);
 
-    // Ghi nhận thiết bị tin cậy nếu có 2FA
-    const trustedExpires = new Date(
-      Date.now() + AUTH_CONSTANTS.TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000,
-    );
-    await this.trustedDeviceRepo.save({
-      userId: user.id,
-      deviceId,
-      expiresAt: trustedExpires,
-    });
+    // Chỉ khi 2FA đang bật (tức đã qua bước mã hoặc thiết bị đã tin cậy) mới gia hạn tin cậy; không tạo bản ghi trùng.
+    if (user.twoFactorEnabled) {
+      const trustedExpires = new Date(
+        Date.now() + AUTH_CONSTANTS.TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000,
+      );
+      const existing = await this.trustedDeviceRepo.findOne({
+        where: { userId: user.id, deviceId },
+      });
+      await this.trustedDeviceRepo.save(
+        existing
+          ? { ...existing, expiresAt: trustedExpires }
+          : { userId: user.id, deviceId, expiresAt: trustedExpires },
+      );
+    }
 
     return {
       accessToken,
@@ -1035,6 +1205,11 @@ export class AuthService {
         storeId,
         permission,
       },
+      accountStatus: user.status,
+      deleteScheduledAt:
+        user.status === UserStatus.PENDING_DELETE && user.deleteRequestedAt
+          ? new Date(new Date(user.deleteRequestedAt).getTime() + 7 * 24 * 60 * 60 * 1000)
+          : null,
     };
   }
 }

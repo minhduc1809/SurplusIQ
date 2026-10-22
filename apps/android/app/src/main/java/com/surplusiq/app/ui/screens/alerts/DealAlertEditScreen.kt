@@ -97,6 +97,7 @@ fun DealAlertEditScreen(
             )
         },
         bottomBar = {
+            Box(Modifier.background(MaterialTheme.colorScheme.surface).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
             Column(Modifier.padding(16.dp)) {
                 Row(
                     Modifier
@@ -120,6 +121,7 @@ fun DealAlertEditScreen(
                     Text(if (state.isSaving) "Đang lưu..." else "Lưu cảnh báo", fontWeight = FontWeight.Bold)
                 }
             }
+        }
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
@@ -142,7 +144,7 @@ fun DealAlertEditScreen(
                         FilterChip(
                             selected = category == option.displayName,
                             onClick = { category = if (category == option.displayName) null else option.displayName },
-                            label = { Text(option.displayName) }
+                            label = { Text(option.label) }
                         )
                     }
                 }

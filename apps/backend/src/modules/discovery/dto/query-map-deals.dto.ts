@@ -45,4 +45,12 @@ export class QueryMapDealsDto {
   @IsString()
   @MaxLength(100)
   category?: string;
+
+  @ApiPropertyOptional({ description: 'Chỉ hiện quán có suất giảm từ mức này (%)', example: 30 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'minDiscountPercent phải là số.' })
+  @Min(0)
+  @Max(100)
+  minDiscountPercent?: number;
 }

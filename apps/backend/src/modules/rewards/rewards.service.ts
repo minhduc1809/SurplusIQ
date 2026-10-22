@@ -1,13 +1,20 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, EntityManager, MoreThanOrEqual, QueryFailedError, Repository } from 'typeorm';
+import {
+  PromotionEntity,
+  PromotionStatus,
+  PromotionTarget,
+  PromotionType,
+} from '../../entities/marketing/promotion.entity';
+import { PromotionWalletEntity } from '../../entities/marketing/promotion-wallet.entity';
 import { RewardAccountEntity } from '../../entities/rewards/reward-account.entity';
 import {
   RewardEntryType,
   RewardLedgerEntryEntity,
 } from '../../entities/rewards/reward-ledger-entry.entity';
 import { AuditLogService } from '../audit/audit-log.service';
-import { REWARDS_CONSTANTS } from './rewards.constants';
+import { MAX_REDEEM_PER_DAY, REWARDS_CONSTANTS, REWARD_CATALOG } from './rewards.constants';
 import { RedeemRewardDto } from './dto';
 
 export interface RewardBalance {
@@ -22,8 +29,20 @@ export interface RewardBalance {
  * Số dư không âm, mọi thay đổi số dư nguyên tử (BR-C04-04).
  */
 @Injectable()
-export class RewardsService {
+export class RewardsService implements OnModuleInit {
   private readonly logger = new Logger(RewardsService.name);
+
+  /**
+   * shortcut: hẹn giờ trong tiến trình thay vì hàng đợi BullMQ; an toàn khi chạy nhiều bản vì có khóa tư vấn
+   * Postgres, đổi sang tác vụ BullMQ khi cần theo dõi lịch sử chạy.
+   */
+  onModuleInit() {
+    if (process.env.NODE_ENV === 'test') return;
+    setInterval(
+      () => void this.expireDuePoints().catch((e) => this.logger.error(`[REWARDS_EXPIRE] ${e}`)),
+      60 * 60 * 1000,
+    ).unref();
+  }
 
   constructor(
     @InjectRepository(RewardAccountEntity)
@@ -167,12 +186,77 @@ export class RewardsService {
     });
   }
 
-  /** Đổi điểm lấy ưu đãi - trừ điểm nguyên tử, không để số dư âm (BR-C04-04). */
-  async redeem(customerId: string, dto: RedeemRewardDto): Promise<RewardBalance> {
-    if (dto.points > REWARDS_CONSTANTS.MAX_REDEEM_PER_REQUEST) {
-      throw new BadRequestException(
-        `Mỗi lần đổi tối đa ${REWARDS_CONSTANTS.MAX_REDEEM_PER_REQUEST} điểm.`,
-      );
+  /** Danh mục đổi điểm kèm số dư, để app hiện đúng điều kiện trước khi khách xác nhận (BR-C04-03). */
+  async getCatalog(customerId: string) {
+    const balance = await this.getBalance(customerId);
+    const redeemedToday = await this.countRedeemedToday(customerId);
+    return {
+      pointsBalance: balance.pointsBalance,
+      dailyLimit: MAX_REDEEM_PER_DAY,
+      redeemedToday,
+      items: REWARD_CATALOG.map((c) => ({
+        ...c,
+        canRedeem: balance.pointsBalance >= c.points && redeemedToday < MAX_REDEEM_PER_DAY,
+        shortfall: Math.max(0, c.points - balance.pointsBalance),
+      })),
+    };
+  }
+
+  /** Quy tắc chương trình điểm: mọi con số lấy từ cấu hình đang chạy nên không lệch với hành vi thật (KC14). */
+  getRules() {
+    const c = REWARDS_CONSTANTS;
+    return {
+      ruleVersion: c.RULE_VERSION,
+      sections: [
+        {
+          title: 'Cách nhận điểm',
+          body: `Mỗi ${c.POINTS_PER_VND_DIVISOR.toLocaleString('vi-VN')}đ giá trị đơn đã nhận thành công được 1 điểm, làm tròn xuống. Đơn chưa nhận, đơn hủy hoặc đơn không đến nhận không được cộng điểm.`,
+        },
+        {
+          title: 'Hạn dùng điểm',
+          body: `Điểm hết hạn sau ${c.POINTS_EXPIRY_DAYS} ngày kể từ ngày nhận. Điểm cũ nhất được dùng trước và hết hạn trước.`,
+        },
+        {
+          title: 'Đổi điểm lấy voucher',
+          body: `Voucher do SurplusIQ tài trợ, dùng ở mọi cửa hàng, mỗi mã một lần, hiệu lực ${REWARD_CATALOG[0].validDays} ngày. Tối đa ${MAX_REDEEM_PER_DAY} lượt đổi mỗi ngày. Voucher chỉ có trong ví của bạn, không chuyển nhượng được.`,
+        },
+        {
+          title: 'Khi đơn được hoàn tiền',
+          body: 'Điểm đã cộng cho đơn được hoàn tiền sẽ bị trừ lại bằng một bút toán điều chỉnh; lịch sử không bị xóa. Điểm không thay thế tiền hoàn của đơn.',
+        },
+        {
+          title: 'Khi chương trình tạm dừng hoặc xóa tài khoản',
+          body: 'Điểm hiện có được giữ nguyên khi chương trình tạm dừng. Khi bạn xóa tài khoản, điểm và voucher chưa dùng sẽ mất cùng tài khoản.',
+        },
+        {
+          title: 'Nghi ngờ gian lận',
+          body: 'Giao dịch nghi ngờ lạm dụng có thể được rà soát; SurplusIQ không tự kết luận trước khi xem xét.',
+        },
+      ],
+    };
+  }
+
+  private countRedeemedToday(customerId: string): Promise<number> {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    return this.ledgerRepo.count({
+      where: {
+        customerId,
+        entryType: RewardEntryType.REDEEM,
+        createdAt: MoreThanOrEqual(startOfDay),
+      },
+    });
+  }
+
+  /**
+   * Đổi điểm lấy voucher (BR-C04-04): giá điểm lấy từ danh mục chứ không nhận từ app; trừ điểm, tạo voucher
+   * trong ví và ghi bút toán cùng một giao dịch nên không thể mất điểm mà không có voucher.
+   */
+  async redeem(customerId: string, dto: RedeemRewardDto) {
+    const item = REWARD_CATALOG.find((c) => c.id === dto.redemptionId);
+    if (!item) throw new BadRequestException('Ưu đãi không tồn tại trong danh mục đổi điểm.');
+    if ((await this.countRedeemedToday(customerId)) >= MAX_REDEEM_PER_DAY) {
+      throw new BadRequestException(`Mỗi ngày chỉ đổi tối đa ${MAX_REDEEM_PER_DAY} lần.`);
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -184,21 +268,48 @@ export class RewardsService {
            updated_at = NOW()
          WHERE customer_id = $1 AND points_balance >= $2
          RETURNING points_balance;`,
-        [customerId, dto.points],
+        [customerId, item.points],
       );
 
       if (rows.length === 0) {
         throw new BadRequestException('Số dư điểm không đủ để đổi (BR-C04-04).');
       }
 
+      const now = new Date();
+      const promo = await manager.save(
+        manager.create(PromotionEntity, {
+          storeId: null,
+          fundedBy: 'PLATFORM',
+          name: item.name,
+          type: PromotionType.FIXED,
+          value: item.valueVnd,
+          target: PromotionTarget.ALL,
+          maxUses: 1,
+          usedCount: 0,
+          startAt: now,
+          endAt: new Date(now.getTime() + item.validDays * 24 * 60 * 60 * 1000),
+          minOrderAmount: item.minOrderVnd,
+          status: PromotionStatus.ACTIVE,
+        }),
+      );
+      await manager.save(
+        manager.create(PromotionWalletEntity, {
+          customerId,
+          promotionId: promo.id,
+          claimedAt: now,
+          usedAt: null,
+          orderId: null,
+        }),
+      );
+
       const ledgerRepo = manager.getRepository(RewardLedgerEntryEntity);
       const entry = ledgerRepo.create({
         customerId,
         entryType: RewardEntryType.REDEEM,
-        pointsDelta: -dto.points,
+        pointsDelta: -item.points,
         ruleVersion: REWARDS_CONSTANTS.RULE_VERSION,
-        redemptionId: dto.redemptionId,
-        reason: `Đổi điểm lấy ưu đãi [${dto.redemptionId}]`,
+        redemptionId: item.id,
+        reason: `Đổi điểm lấy ${item.name}`,
       });
       await ledgerRepo.save(entry);
 
@@ -208,14 +319,68 @@ export class RewardsService {
         action: 'REWARD_POINTS_REDEEMED',
         targetType: 'REWARD_LEDGER_ENTRY',
         targetId: entry.id,
-        newValue: { points: dto.points, redemptionId: dto.redemptionId },
+        newValue: { points: item.points, redemptionId: item.id, promotionId: promo.id },
       });
 
       return {
         customerId,
         pointsBalance: rows[0].points_balance,
-        updatedAt: new Date(),
+        updatedAt: now,
+        voucher: {
+          promotionId: promo.id,
+          name: item.name,
+          valueVnd: item.valueVnd,
+          minOrderVnd: item.minOrderVnd,
+          expiresAt: promo.endAt,
+        },
       };
+    });
+  }
+
+  /**
+   * Hết hạn điểm (KC14): điểm kiếm đã quá hạn mà chưa được dùng thì trừ khỏi số dư bằng bút toán EXPIRE.
+   * Quy ước điểm cũ nhất dùng trước: số điểm đã dùng hoặc hoàn tác được trừ dần vào các khoản kiếm cũ nhất.
+   */
+  async expireDuePoints(now = new Date()): Promise<number> {
+    return this.dataSource.transaction(async (manager) => {
+      // Chỉ một tiến trình được chạy tại một thời điểm, tránh trừ điểm hết hạn hai lần.
+      const [lock] = await manager.query('SELECT pg_try_advisory_xact_lock(710001) AS locked');
+      if (!lock?.locked) return 0;
+      const rows: { customer_id: string; expired: string }[] = await manager.query(
+        `SELECT customer_id,
+                GREATEST(0,
+                  SUM(CASE WHEN entry_type = 'EARN' AND expiry_at <= $1 THEN points_delta ELSE 0 END)
+                  + SUM(CASE WHEN entry_type IN ('REDEEM', 'REVERSAL', 'EXPIRE') THEN points_delta ELSE 0 END)
+                  + SUM(CASE WHEN entry_type = 'ADJUST' THEN LEAST(points_delta, 0) ELSE 0 END)
+                ) AS expired
+           FROM reward_ledger_entries
+          GROUP BY customer_id
+         HAVING SUM(CASE WHEN entry_type = 'EARN' AND expiry_at <= $1 THEN points_delta ELSE 0 END) > 0`,
+        [now],
+      );
+      let count = 0;
+      for (const r of rows) {
+        const points = Number(r.expired);
+        if (points <= 0) continue;
+        const [updated]: [Array<{ points_balance: number }>, number] = await manager.query(
+          `UPDATE reward_accounts SET points_balance = GREATEST(0, points_balance - $2), updated_at = NOW()
+            WHERE customer_id = $1 RETURNING points_balance`,
+          [r.customer_id, points],
+        );
+        if (updated.length === 0) continue;
+        const ledger = manager.getRepository(RewardLedgerEntryEntity);
+        await ledger.save(
+          ledger.create({
+            customerId: r.customer_id,
+            entryType: RewardEntryType.EXPIRE,
+            pointsDelta: -points,
+            ruleVersion: REWARDS_CONSTANTS.RULE_VERSION,
+            reason: `Điểm hết hạn sau ${REWARDS_CONSTANTS.POINTS_EXPIRY_DAYS} ngày`,
+          }),
+        );
+        count += 1;
+      }
+      return count;
     });
   }
 }

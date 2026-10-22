@@ -1,5 +1,10 @@
 package com.surplusiq.merchant.ui.screens
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import com.surplusiq.merchant.ui.theme.SqCoralWash
+import com.surplusiq.merchant.ui.theme.SqCoral
+import com.surplusiq.merchant.ui.theme.SqInk
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -111,9 +116,27 @@ fun PickupVerifyScreen(repository: StoreRepository) {
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(SqSurface).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = SqCoralDeep, modifier = Modifier.size(56.dp))
+                Box(Modifier.size(88.dp).clip(CircleShape).background(SqCoralWash), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = SqCoral, modifier = Modifier.size(44.dp))
+                }
                 Spacer(modifier = Modifier.height(12.dp))
+                Text("Quét mã nhận hàng của khách", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SqInk)
+                Spacer(modifier = Modifier.height(10.dp))
+                listOf("Bấm nút bên dưới để mở camera", "Hướng camera vào mã QR trên điện thoại khách", "Kiểm tra món rồi giao hàng").forEachIndexed { i, step ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(22.dp).clip(CircleShape).background(SqCoralWash), contentAlignment = Alignment.Center) {
+                            Text("${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SqCoralDeep)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(step, fontSize = 13.sp, color = SqInkSoft)
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
                 PrimaryButton("Mở camera quét QR", loading = isVerifying && lastByCamera, onClick = ::scan)
+                Text(
+                    "Ứng dụng dùng trình quét của Google Play services nên không cần cấp quyền camera riêng. Nếu không quét được, hãy nhập mã dự phòng bên dưới.",
+                    fontSize = 11.sp, color = SqInkMuted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp)
+                )
                 Text(
                     "Sau mỗi đơn hợp lệ, bấm \"Quét đơn tiếp theo\" để quét liên tục.",
                     fontSize = 12.sp, color = SqInkMuted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp)

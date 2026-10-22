@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.discovery
 
 import androidx.compose.animation.AnimatedVisibility
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -201,7 +202,7 @@ fun DealDetailScreen(
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = "${deal.remainingStock} left",
+                        text = "Còn ${deal.remainingStock} suất",
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
@@ -255,7 +256,8 @@ fun DealDetailScreen(
                         text = deal.title,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f).padding(end = 12.dp)
                     )
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
@@ -266,6 +268,7 @@ fun DealDetailScreen(
                         )
                         Text(
                             text = "${String.format("%,d", deal.discountPrice)} ₫",
+                            softWrap = false,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = ForestGreenPrimary
@@ -295,7 +298,7 @@ fun DealDetailScreen(
                 // Cảnh báo dị ứng cá nhân hóa theo hồ sơ người dùng (K58 / K13)
                 if (matchedAllergens.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(10.dp))
-                    Card(
+                    SqCard(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = CoralRedLight),
@@ -487,7 +490,7 @@ fun DealDetailScreen(
                 }
 
                 AnimatedVisibility(visible = showTrustpass) {
-                    Card(
+                    SqCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp),
@@ -588,7 +591,7 @@ fun DealDetailScreen(
                 }
 
                 AnimatedVisibility(visible = showAiTips) {
-                    Card(
+                    SqCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp),
@@ -597,17 +600,17 @@ fun DealDetailScreen(
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
-                                text = "💡 Hướng dẫn hâm nóng & Bảo quản:",
+                                text = "Hướng dẫn hâm nóng & bảo quản",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 color = Color(0xFF513F9E)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             val storageGuide = when (deal.category) {
-                                DealCategory.BAKED_GOODS -> "• Làm nóng: Xịt một chút nước lên vỏ bánh rồi nướng ở 180°C trong 3-4 phút để vỏ giòn rụm như mới ra lò.\n• Bảo quản: Để ngăn đông nếu không dùng hết trong 24h, khi ăn chỉ cần rã đông ở nhiệt độ phòng."
-                                DealCategory.MEALS -> "• Hâm nóng: Sử dụng chảo với một chút dầu/nước, hoặc đậy kín trong lò vi sóng để món ăn không bị khô.\n• Bảo quản: Giữ ở ngăn mát tủ lạnh (dưới 5°C) và dùng tốt nhất trong vòng 24 giờ."
-                                DealCategory.GROCERIES -> "• Sơ chế: Rửa sạch và để ráo nước trước khi cho vào hộp kín trong ngăn mát.\n• Ý tưởng chế biến: Có thể nấu canh soup thanh nhiệt, làm salad trộn sốt mè rang hoặc làm sinh tố trái cây."
-                                DealCategory.OTHER -> "• Bảo quản nơi khô ráo, thoáng mát hoặc ngăn mát tủ lạnh tùy tính chất thực phẩm.\n• Dùng hết trong khung thời gian khuyến nghị để đảm bảo hương vị chuẩn nhất."
+                                DealCategory.BREAD, DealCategory.SWEET -> "• Làm nóng: Xịt một chút nước lên vỏ bánh rồi nướng ở 180°C trong 3-4 phút để vỏ giòn rụm như mới ra lò.\n• Bảo quản: Để ngăn đông nếu không dùng hết trong 24h, khi ăn chỉ cần rã đông ở nhiệt độ phòng."
+                                DealCategory.RICE, DealCategory.NOODLE, DealCategory.FASTFOOD, DealCategory.SNACK -> "• Hâm nóng: Sử dụng chảo với một chút dầu/nước, hoặc đậy kín trong lò vi sóng để món ăn không bị khô.\n• Bảo quản: Giữ ở ngăn mát tủ lạnh (dưới 5°C) và dùng tốt nhất trong vòng 24 giờ."
+                                DealCategory.PRODUCE, DealCategory.HEALTHY -> "• Sơ chế: Rửa sạch và để ráo nước trước khi cho vào hộp kín trong ngăn mát.\n• Ý tưởng chế biến: Có thể nấu canh soup thanh nhiệt, làm salad trộn sốt mè rang hoặc làm sinh tố trái cây."
+                                DealCategory.DRINK, DealCategory.OTHER -> "• Bảo quản nơi khô ráo, thoáng mát hoặc ngăn mát tủ lạnh tùy tính chất thực phẩm.\n• Dùng hết trong khung thời gian khuyến nghị để đảm bảo hương vị chuẩn nhất."
                             }
                             Text(
                                 text = storageGuide,
@@ -618,7 +621,7 @@ fun DealDetailScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "🌿 Cùng SurplusIQ giảm phát thải CO2 và bảo vệ môi trường!",
+                                text = "Cùng SurplusIQ giảm lãng phí thực phẩm và bảo vệ môi trường.",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = ForestGreenDark
@@ -633,7 +636,7 @@ fun DealDetailScreen(
                 )
 
                 // KX07: Lịch sử và Biến động giá cứu món (Minh bạch)
-                Card(
+                SqCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
@@ -755,7 +758,7 @@ fun DealDetailScreen(
                 .align(Alignment.TopCenter)
                 .padding(top = 70.dp, start = 20.dp, end = 20.dp)
         ) {
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -847,7 +850,7 @@ fun DealDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Card(
+                            SqCard(
                                 modifier = Modifier.weight(1f),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                                 shape = RoundedCornerShape(10.dp)
@@ -863,7 +866,7 @@ fun DealDetailScreen(
                                     )
                                 }
                             }
-                            Card(
+                            SqCard(
                                 modifier = Modifier.weight(1f),
                                 colors = CardDefaults.cardColors(containerColor = PrimaryOrange.copy(alpha = 0.12f)),
                                 shape = RoundedCornerShape(10.dp)

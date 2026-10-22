@@ -16,7 +16,7 @@ export class CreateOrderDto {
     description: 'ID suất bán muốn đặt giữ (UUID v4)',
     example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
   })
-  @IsUUID('4', { message: 'offerId phải là định dạng UUID v4 hợp lệ.' })
+  @IsUUID('all', { message: 'offerId phải là định dạng UUID v4 hợp lệ.' })
   offerId: string;
 
   @ApiProperty({
@@ -47,7 +47,7 @@ export class CreateOrderDto {
     example: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
   })
   @IsOptional()
-  @IsUUID('4', { message: 'promotionId phải là UUID v4 hợp lệ.' })
+  @IsUUID('all', { message: 'promotionId phải là UUID v4 hợp lệ.' })
   promotionId?: string;
 
   @ApiPropertyOptional({

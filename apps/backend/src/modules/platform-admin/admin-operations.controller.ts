@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -17,12 +18,15 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../entities/auth/user.entity';
 import { UpdateStoreSettingsDto } from '../settings/dto/update-store-settings.dto';
 import { AdminOperationsService } from './admin-operations.service';
+import { PaymentsService } from '../payments/payments.service';
 import {
   CreateAdminQuotaDto,
   ResolveAdminComplaintDto,
   UpdateAdminQuotaDto,
   UpdateAdminReviewDto,
   UpdateAdminViolationDto,
+  RejectPaymentProofDto,
+  MarkRefundPaidDto,
 } from './dto/admin-operations.dto';
 
 @ApiTags('Platform Admin - Operations')
@@ -31,7 +35,51 @@ import {
 @Roles(UserRole.ADMIN)
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AdminOperationsController {
-  constructor(private readonly service: AdminOperationsService) {}
+  constructor(
+    private readonly service: AdminOperationsService,
+    private readonly payments: PaymentsService,
+  ) {}
+
+  @Get('payment-proofs')
+  @ApiOperation({ summary: 'Biên lai khách gửi đang chờ đối chiếu (KX02)' })
+  listPaymentProofs() {
+    return this.service.listPaymentProofs();
+  }
+
+  @Get('refund-payouts')
+  @ApiOperation({ summary: 'Lệnh hoàn tiền chờ chuyển khoản, kèm tài khoản nhận của khách' })
+  listRefundPayouts() {
+    return this.service.listRefundPayouts();
+  }
+
+  @Post('refund-payouts/:id/paid')
+  @ApiOperation({ summary: 'Ghi nhận đã chuyển khoản hoàn tiền' })
+  markRefundPaid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('userId') actorId: string,
+    @Body() dto: MarkRefundPaidDto,
+  ) {
+    return this.service.markRefundPaid(id, actorId, dto.reference);
+  }
+
+  @Post('orders/:id/payment-proof/confirm')
+  @ApiOperation({ summary: 'Xác nhận đã nhận tiền theo biên lai khách gửi (KX02)' })
+  confirmPaymentProof(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('userId') actorId: string,
+  ) {
+    return this.payments.confirmPaymentProof(id, actorId);
+  }
+
+  @Post('orders/:id/payment-proof/reject')
+  @ApiOperation({ summary: 'Từ chối biên lai khách gửi (KX02)' })
+  rejectPaymentProof(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('userId') actorId: string,
+    @Body() dto: RejectPaymentProofDto,
+  ) {
+    return this.payments.rejectPaymentProof(id, actorId, dto.reason);
+  }
 
   @Post('complaints/:id/resolve')
   @ApiOperation({

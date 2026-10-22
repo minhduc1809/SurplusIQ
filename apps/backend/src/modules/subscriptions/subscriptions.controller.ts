@@ -12,6 +12,15 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentStore } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../../entities/auth/user.entity';
 import { StorePermission } from '../../entities/stores/store-member.entity';
+import { PLAN_QUOTAS_MAP, QuotaKey } from './quota.constants';
+import { SubscriptionPlan } from '../../entities/subscriptions/subscription.entity';
+import {
+  PRO_FEATURES,
+  PRO_PERIOD_DAYS,
+  PRO_PRICE_VND,
+  REPORT_HISTORY_DAYS,
+} from './plan-catalog.constants';
+import { SettingsService } from '../settings/settings.service';
 
 @ApiTags('Store - Subscriptions & Quotas')
 @ApiBearerAuth()
@@ -23,6 +32,7 @@ export class SubscriptionsController {
   constructor(
     private readonly subscriptionsService: SubscriptionsService,
     private readonly quotaService: QuotaService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   @Get('current')
@@ -31,6 +41,46 @@ export class SubscriptionsController {
   @ApiResponse({ status: 200, description: 'Chi tiết gói và thời hạn' })
   async getCurrentSubscription(@CurrentStore() storeId: string) {
     return this.subscriptionsService.getCurrentSubscription(storeId);
+  }
+
+  @Get('catalog')
+  @Permissions(StorePermission.OWNER, StorePermission.MANAGER)
+  @ApiOperation({ summary: 'Bảng so sánh gói Cơ bản và Pro: giá, hạn mức, tính năng (R2-011)' })
+  @ApiResponse({ status: 200, description: 'Danh mục gói lấy từ cấu hình, không ghi cứng ở app' })
+  async getPlanCatalog() {
+    const storeQuotaKeys = [
+      QuotaKey.DAILY_OFFERS,
+      QuotaKey.CSV_IMPORT_LINES,
+      QuotaKey.ACTIVE_PROMOTIONS,
+      QuotaKey.CAMPAIGNS_PER_MONTH,
+      QuotaKey.EXPORT_ORDERS,
+      QuotaKey.EXPORT_REPORTS,
+      QuotaKey.AI_CHAT_QUERY,
+      QuotaKey.AI_CONTENT_GEN,
+      QuotaKey.AI_IMAGE_SCAN,
+      QuotaKey.ACTIVE_STAFF,
+    ];
+    const settings = await this.settingsService.getAllPlatformSettings();
+    return {
+      proPriceVnd: PRO_PRICE_VND,
+      periodDays: PRO_PERIOD_DAYS,
+      commissionRate: settings['commission.rate'] ?? null,
+      reportHistoryDays: {
+        basic: REPORT_HISTORY_DAYS[SubscriptionPlan.BASIC],
+        pro: REPORT_HISTORY_DAYS[SubscriptionPlan.PRO],
+      },
+      quotas: storeQuotaKeys.map((k) => {
+        const d = PLAN_QUOTAS_MAP[k];
+        return {
+          key: d.key,
+          name: d.name,
+          period: d.period,
+          basic: d.limits[SubscriptionPlan.BASIC],
+          pro: d.limits[SubscriptionPlan.PRO],
+        };
+      }),
+      proFeatures: PRO_FEATURES,
+    };
   }
 
   @Get('quotas')

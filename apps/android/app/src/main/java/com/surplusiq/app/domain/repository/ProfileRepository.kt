@@ -1,6 +1,7 @@
 package com.surplusiq.app.domain.repository
 
 import com.surplusiq.app.data.remote.dto.AccountDeleteResponse
+import com.surplusiq.app.data.remote.dto.AccountStatusDto
 import com.surplusiq.app.data.remote.dto.ConsentDto
 import com.surplusiq.app.data.remote.dto.DataExportResponse
 import com.surplusiq.app.data.remote.dto.OrderLockStatusDto
@@ -22,7 +23,8 @@ interface ProfileRepository {
     suspend fun getConsents(): Result<List<ConsentDto>>
 
     /** R1-011/R1-019/BR-007: yêu cầu xóa tài khoản, ân hạn 7 ngày */
-    suspend fun requestAccountDelete(): Result<AccountDeleteResponse>
+    suspend fun getAccountStatus(): Result<AccountStatusDto>
+    suspend fun requestAccountDelete(password: String): Result<AccountDeleteResponse>
 
     /** R1-019: hủy yêu cầu xóa tài khoản trong thời gian ân hạn */
     suspend fun cancelAccountDelete(): Result<AccountDeleteResponse>

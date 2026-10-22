@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
+import { createRefundTransaction } from '../payments/refund-transaction';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
 import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import {
@@ -67,16 +68,12 @@ export async function decideComplaint(
     complaint.rejectReason = null;
     complaint.autoAccepted = false;
     if (refundAmount > 0) {
-      refundTransaction = manager.create(PaymentTransactionEntity, {
-        orderId: order.id,
-        storeId: order.storeId,
-        kind: PaymentKind.ORDER_REFUND,
-        amount: refundAmount,
-        method: PaymentMethod.SIMULATED,
-        status: PaymentStatus.SUCCEEDED,
-        gatewayTxnId: `${refundPrefix}_${complaint.id}`,
-      });
-      await manager.save(refundTransaction);
+      refundTransaction = await createRefundTransaction(
+        manager,
+        order,
+        refundAmount,
+        `${refundPrefix}_${complaint.id}`,
+      );
     }
     if (
       alreadyRefunded + refundAmount >= order.totalAmount &&

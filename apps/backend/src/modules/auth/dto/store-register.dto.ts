@@ -1,6 +1,6 @@
-import { IsNotEmpty, IsString, IsEmail } from 'class-validator';
+import { IsNotEmpty, IsString, IsEmail, IsOptional, MinLength, MaxLength } from 'class-validator';
 import { IsStrongPassword } from './password-rule';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class StoreRegisterDto {
   @ApiProperty({ example: 'tiembanh@example.com' })
@@ -13,6 +13,13 @@ export class StoreRegisterDto {
   @IsString()
   @IsStrongPassword()
   password: string;
+
+  @ApiPropertyOptional({ example: 'Nguyễn Văn A', description: 'Họ tên chủ cửa hàng (2–60 ký tự)' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2, { message: 'Họ tên từ 2 đến 60 ký tự.' })
+  @MaxLength(60, { message: 'Họ tên từ 2 đến 60 ký tự.' })
+  ownerName?: string;
 
   @ApiProperty({ example: 'Tiệm Bánh ABC' })
   @IsNotEmpty({ message: 'Tên cửa hàng không được để trống' })

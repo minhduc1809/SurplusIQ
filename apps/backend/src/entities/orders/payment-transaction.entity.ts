@@ -76,6 +76,30 @@ export class PaymentTransactionEntity {
   @Column({ type: 'timestamptz', nullable: true, name: 'last_checked_at' })
   lastCheckedAt: Date | null;
 
+  /** Ảnh chụp tài khoản nhận hoàn tại lúc quyết định hoàn, để khách đổi tài khoản sau đó không ảnh hưởng lệnh đã tạo. */
+  @Column({ type: 'jsonb', nullable: true, name: 'refund_destination' })
+  refundDestination: {
+    bankBin?: string;
+    bankName: string;
+    accountHolder: string;
+    accountLast4: string;
+    accountNumberEnc: string;
+    snapshotAt: string;
+  } | null;
+
+  /** Chi trả hoàn tiền: PENDING chờ chuyển khoản, PAID đã chuyển. NULL = lệnh hoàn không cần chi trả (mô phỏng cũ). */
+  @Column({ type: 'varchar', length: 10, nullable: true, name: 'payout_status' })
+  payoutStatus: 'PENDING' | 'PAID' | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true, name: 'payout_reference' })
+  payoutReference: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true, name: 'paid_out_at' })
+  paidOutAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true, name: 'paid_out_by' })
+  paidOutBy: string | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt: Date;
 

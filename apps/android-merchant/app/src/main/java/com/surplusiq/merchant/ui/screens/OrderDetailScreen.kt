@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,6 +89,12 @@ fun OrderDetailScreen(repository: StoreRepository, orderId: String, canCancel: B
                     o.discountAmount?.takeIf { it > 0 }?.let { InfoRow("Giảm giá", "-${currency(it)}", SqCoralDeep) }
                     HorizontalDivider(color = SqLine, modifier = Modifier.padding(vertical = 6.dp))
                     InfoRow("Tổng tiền", currency(o.totalAmount))
+                    o.paymentProofUrl?.let { url ->
+                        val uri = LocalUriHandler.current
+                        InfoRow("Biên lai khách gửi", shortDateTime(o.paymentProofUploadedAt.orEmpty()))
+                        if (o.status == "PENDING_PAYMENT") Text("Đang chờ nền tảng đối chiếu tiền về.", fontSize = 12.sp, color = SqInkSoft)
+                        TextButton(onClick = { uri.openUri(url) }, contentPadding = PaddingValues(0.dp)) { Text("Xem ảnh biên lai", color = SqCoralDeep) }
+                    }
                     Text("Hoa hồng tính theo sao kê đối soát tuần, chưa có theo từng đơn.", fontSize = 11.sp, color = SqInkMuted)
                 }
 

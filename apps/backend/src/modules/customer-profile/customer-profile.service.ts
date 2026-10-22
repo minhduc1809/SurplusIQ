@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,7 +18,7 @@ import { FcmTokenEntity } from '../../entities/auth/fcm-token.entity';
 import { ConsentEntity, ConsentType } from '../../entities/auth/consent.entity';
 import { FavoriteStoreEntity } from '../../entities/auth/favorite-store.entity';
 import { PaymentTransactionEntity } from '../../entities/orders/payment-transaction.entity';
-import { OrderEntity } from '../../entities/orders/order.entity';
+import { OrderEntity, OrderStatus } from '../../entities/orders/order.entity';
 import { PromotionWalletEntity } from '../../entities/marketing/promotion-wallet.entity';
 import { PromotionEntity, PromotionStatus } from '../../entities/marketing/promotion.entity';
 import { UpdateCustomerProfileDto } from './dto/update-profile.dto';
@@ -26,6 +27,8 @@ import { UpdateDietaryProfileDto } from './dto/dietary-profile.dto';
 import { UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
 import { RegisterFcmTokenDto } from './dto/fcm-token.dto';
 import { UpdateRefundBankAccountDto } from './dto/refund-bank-account.dto';
+import { decryptField, encryptField } from '../../common/crypto/field-crypto';
+import { CryptoUtil } from '../auth/crypto.util';
 
 function maskEmail(email: string | null): string | null {
   if (!email) return null;
@@ -371,9 +374,26 @@ export class CustomerProfileService {
   /**
    * Yêu cầu xóa tài khoản (R1-011, R1-019, BR-007)
    */
-  async requestAccountDelete(userId: string) {
+  async requestAccountDelete(userId: string, password: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Người dùng không tồn tại');
+    // Xác nhận lại mật khẩu: access token bị lộ không đủ để xóa tài khoản (BUG-016).
+    if (!password || !CryptoUtil.verifyPassword(password, user.passwordHash)) {
+      throw new ForbiddenException(
+        'Mật khẩu không đúng. Vui lòng nhập lại để xác nhận xóa tài khoản.',
+      );
+    }
+
+    // Còn đơn đang xử lý thì chưa cho xóa, tránh dính logic hủy đơn và hoàn tiền (BUG-017, CẦN XÁC NHẬN).
+    const openOrders = await this.orderRepo.count({
+      where: { customerId: userId, status: In([OrderStatus.PENDING_PAYMENT, OrderStatus.PAID]) },
+    });
+    if (openOrders > 0) {
+      throw new ConflictException({
+        code: 'ACCOUNT_DELETE_BLOCKED_OPEN_ORDERS',
+        message: `Bạn còn ${openOrders} đơn chưa hoàn tất. Hãy nhận hàng hoặc hủy đơn trước khi xóa tài khoản.`,
+      });
+    }
 
     user.status = UserStatus.PENDING_DELETE;
     user.deleteRequestedAt = new Date();
@@ -394,6 +414,7 @@ export class CustomerProfileService {
   async cancelAccountDelete(userId: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Người dùng không tồn tại');
+    // Hủy lặp lại khi đã ACTIVE: idempotent, không đổi dữ liệu.
 
     user.status = UserStatus.ACTIVE;
     user.deleteRequestedAt = null;
@@ -406,8 +427,21 @@ export class CustomerProfileService {
     };
   }
 
+  /** Trạng thái tài khoản và ngày xóa dự kiến, cho màn hình chờ xóa của app (BUG-017). */
+  async getAccountStatus(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Người dùng không tồn tại');
+    return {
+      status: user.status,
+      deleteRequestedAt: user.deleteRequestedAt,
+      deleteScheduledAt: user.deleteRequestedAt
+        ? new Date(new Date(user.deleteRequestedAt).getTime() + 7 * 24 * 60 * 60 * 1000)
+        : null,
+    };
+  }
+
   /**
-   * Xuất dữ liệu cá nhân (R1-018 - link 24h)
+   * Xuất dữ liệu cá nhân (R1-018): trả dữ liệu trực tiếp cho chính chủ, app tự lưu/chia sẻ tệp
    */
   async exportUserData(userId: string) {
     const profile = await this.getProfile(userId);
@@ -423,11 +457,7 @@ export class CustomerProfileService {
       consents,
     };
 
-    return {
-      downloadUrl: `https://api.surplusiq.vn/v1/customer/data-export/download?token=${Buffer.from(userId).toString('base64')}`,
-      expiresInHours: 24,
-      data: exportPayload,
-    };
+    return { exportedAt: exportPayload.exportedAt, data: exportPayload };
   }
 
   /**
@@ -573,7 +603,14 @@ export class CustomerProfileService {
     if (!profile) {
       throw new NotFoundException('Hồ sơ khách hàng không tồn tại');
     }
-    return profile.refundBankAccount || null;
+    const acc = profile.refundBankAccount;
+    if (!acc) return null;
+    // Trả đúng dạng cũ cho app khách: khách xem lại chính số tài khoản của mình.
+    const { accountNumberEnc, ...rest } = acc;
+    return {
+      ...rest,
+      accountNumber: accountNumberEnc ? decryptField(accountNumberEnc) : acc.accountNumber,
+    };
   }
 
   /**
@@ -588,12 +625,12 @@ export class CustomerProfileService {
     profile.refundBankAccount = {
       bankBin: dto.bankBin,
       bankName: dto.bankName,
-      accountNumber: dto.accountNumber,
+      accountNumberEnc: encryptField(dto.accountNumber),
       accountHolder: dto.accountHolder.trim().toUpperCase(),
       updatedAt: new Date().toISOString(),
     };
 
     await this.profileRepo.save(profile);
-    return profile.refundBankAccount;
+    return this.getRefundBankAccount(userId);
   }
 }

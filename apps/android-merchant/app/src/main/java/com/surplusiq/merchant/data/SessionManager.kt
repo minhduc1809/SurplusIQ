@@ -17,10 +17,10 @@ class SessionManager(context: Context) {
         private const val KEY_USER_ID = "user_id"
         private const val KEY_PERMISSION = "permission"
         // 10.0.2.2 ánh xạ tới localhost máy host khi chạy trên Android Emulator.
-        // shortcut: hardcode cho dev; thêm màn Cài đặt đổi BASE_URL khi build bản thật.
+        // Địa chỉ backend cấu hình lúc build qua -PAPI_BASE_URL (xem build.gradle.kts).
         /** Bật khi refresh token hết hạn/bị thu hồi: UI quay về màn đăng nhập. */
         val expired = MutableStateFlow(false)
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:4000/"
+        val DEFAULT_BASE_URL: String = com.surplusiq.merchant.BuildConfig.API_BASE_URL
     }
 
     fun getAccessToken(): String? = prefs.getString(KEY_TOKEN, null)
@@ -45,7 +45,8 @@ class SessionManager(context: Context) {
     /** id cần cho header x-user-id (đổi mật khẩu); permission: OWNER | MANAGER | COUNTER. */
     fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
 
-    fun getPermission(): String? = prefs.getString(KEY_PERMISSION, null)
+    // Hệ thống chỉ còn vai trò chủ cửa hàng: mọi tài khoản cửa hàng đều là OWNER.
+    fun getPermission(): String? = if (prefs.getString(KEY_PERMISSION, null) == null) null else "OWNER"
 
     fun saveLogin(res: LoginResponse) {
         prefs.edit()
@@ -55,6 +56,13 @@ class SessionManager(context: Context) {
             .putString(KEY_USER_ID, res.user.id)
             .putString(KEY_PERMISSION, res.user.permission)
             .apply()
+    }
+
+    /** Ghi nhớ đăng nhập (mặc định bật). Tắt thì phiên bị xóa ở lần mở app kế tiếp. */
+    fun isRememberLogin(): Boolean = prefs.getBoolean("remember_login", true)
+
+    fun setRememberLogin(remember: Boolean) {
+        prefs.edit().putBoolean("remember_login", remember).apply()
     }
 
     fun isLoggedIn(): Boolean = !getAccessToken().isNullOrBlank()
