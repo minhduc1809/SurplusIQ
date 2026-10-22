@@ -194,8 +194,8 @@ export class SettingsService implements OnModuleInit {
       // Khởi tạo mặc định theo quy định BRD
       settings = this.storeSettingsRepo.create({
         storeId,
-        defaultPickupStart: '19:00:00',
-        defaultPickupEnd: '21:00:00',
+        defaultPickupStart: '21:30:00',
+        defaultPickupEnd: '23:30:00',
         floorRatio: 0.4,
         costPriceRatio: null,
         pricingMode: PricingMode.MANUAL,
@@ -250,8 +250,8 @@ export class SettingsService implements OnModuleInit {
       if (!currentSettings) {
         currentSettings = manager.create(StoreSettingsEntity, {
           storeId,
-          defaultPickupStart: '19:00:00',
-          defaultPickupEnd: '21:00:00',
+          defaultPickupStart: '21:30:00',
+          defaultPickupEnd: '23:30:00',
           floorRatio: 0.4,
           costPriceRatio: null,
           pricingMode: PricingMode.MANUAL,

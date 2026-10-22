@@ -449,10 +449,13 @@ if (scenarios.status < 300 && scenarioList.length === 0) {
     console.warn('Kịch bản mô phỏng chưa hoàn tất:', created.latestVersion?.simulationStatus);
 }
 
-// Làm mới khung giờ nhận của các suất đang mở để luôn nhận được hàng ngay khi thử (chỉ suất sắp hết giờ)
+// Làm mới các suất đang mở hôm nay theo khung giờ cứu món chuẩn 21:30 - 23:30
 await q(
-  `update offers set pickup_start = now() - interval '1 hour', pickup_end = now() + interval '9 hours', expires_at = now() + interval '9 hours'
-   where status = 'OPEN' and pickup_end < now() + interval '6 hours'`,
+  `update offers 
+   set pickup_start = (date_trunc('day', now() at time zone 'Asia/Bangkok') + interval '21 hours 30 minutes') at time zone 'Asia/Bangkok',
+       pickup_end = (date_trunc('day', now() at time zone 'Asia/Bangkok') + interval '23 hours 30 minutes') at time zone 'Asia/Bangkok',
+       expires_at = (date_trunc('day', now() at time zone 'Asia/Bangkok') + interval '23 hours 30 minutes') at time zone 'Asia/Bangkok'
+   where status = 'OPEN'`,
 );
 
 // ---------- 4. Tóm tắt ----------

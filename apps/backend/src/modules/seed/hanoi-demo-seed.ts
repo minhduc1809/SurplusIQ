@@ -1649,13 +1649,18 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
     }
 
     const now = new Date();
-    // Khung giờ nhận hàng: từ sáng (07:00) đến tối muộn (23:30) để hiển thị tự nhiên, hợp lý cho quán ăn
+    // Khung giờ cứu món cuối ngày chuẩn: từ 21:30 đến 23:30 tối
     const pickupStart = new Date(now);
-    pickupStart.setHours(7, 0, 0, 0);
+    pickupStart.setHours(21, 30, 0, 0);
 
     const pickupEnd = new Date(now);
-    pickupEnd.setDate(pickupEnd.getDate() + 1);
     pickupEnd.setHours(23, 30, 0, 0);
+
+    // Nếu thời điểm hiện tại đã qua 23:30 đêm, chuyển sang khung 21:30 - 23:30 tối mai
+    if (now.getTime() > pickupEnd.getTime()) {
+      pickupStart.setDate(pickupStart.getDate() + 1);
+      pickupEnd.setDate(pickupEnd.getDate() + 1);
+    }
 
     const expiresAt = new Date(pickupEnd);
 
@@ -1735,13 +1740,17 @@ export async function seedHanoiStoresAndOffers(dataSource: DataSource): Promise<
       if (!existingSettings) {
         const settings = queryRunner.manager.create(StoreSettingsEntity, {
           storeId: storeDef.id,
-          defaultPickupStart: '18:00:00',
-          defaultPickupEnd: '21:30:00',
+          defaultPickupStart: '21:30:00',
+          defaultPickupEnd: '23:30:00',
           floorRatio: 0.4,
           pricingMode: PricingMode.MANUAL,
           taskReminders: { closingChecklist: true },
         });
         await queryRunner.manager.save(StoreSettingsEntity, settings);
+      } else {
+        existingSettings.defaultPickupStart = '21:30:00';
+        existingSettings.defaultPickupEnd = '23:30:00';
+        await queryRunner.manager.save(StoreSettingsEntity, existingSettings);
       }
 
       // Kích hoạt gói PRO (Subscription) cho quán để mở toàn bộ tính năng và quota

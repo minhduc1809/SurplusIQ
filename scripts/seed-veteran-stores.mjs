@@ -656,10 +656,13 @@ await seedStoreHistory({
   baseRescuedPerDay: 9,
 });
 
-// Làm mới các suất đang mở hôm nay để demo đặt/nhận đơn tức thì
+// Làm mới các suất đang mở hôm nay theo khung giờ cứu món chuẩn 21:30 - 23:30
 await q(
-  `UPDATE offers SET pickup_start = now() - interval '1 hour', pickup_end = now() + interval '8 hours', expires_at = now() + interval '8 hours'
-   WHERE status = 'OPEN' AND pickup_end < now() + interval '4 hours'`,
+  `UPDATE offers 
+   SET pickup_start = (date_trunc('day', now() at time zone 'Asia/Bangkok') + interval '21 hours 30 minutes') at time zone 'Asia/Bangkok',
+       pickup_end = (date_trunc('day', now() at time zone 'Asia/Bangkok') + interval '23 hours 30 minutes') at time zone 'Asia/Bangkok',
+       expires_at = (date_trunc('day', now() at time zone 'Asia/Bangkok') + interval '23 hours 30 minutes') at time zone 'Asia/Bangkok'
+   WHERE status = 'OPEN'`,
 );
 
 // 4. Bảng tổng kết kết quả
