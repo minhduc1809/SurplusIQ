@@ -82,4 +82,8 @@ run(
   'Tài khoản kiểm thử, đơn hàng, lịch sử bán, Phòng mô phỏng',
   'node scripts/seed-test-accounts.mjs',
 );
+run(
+  'Tài khoản chủ quán kỳ cựu (1-2.5 tháng, lưu lượng cứu món cao, đối soát, khiếu nại, AI cards)',
+  'node scripts/seed-veteran-stores.mjs',
+);
 console.log('\nHoàn tất. Đăng nhập lại trên app (phiên cũ đã mất nếu dùng --reset).');
