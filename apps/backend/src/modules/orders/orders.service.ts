@@ -1,5 +1,13 @@
 import { getJwtSecret } from '../../common/config/jwt-secret';
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In, IsNull } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
@@ -67,6 +75,7 @@ export class OrdersService {
     private readonly storeRepo: Repository<StoreEntity>,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -443,6 +452,16 @@ export class OrdersService {
         manager,
       );
 
+      if (wasPaid) {
+        await this.notifications?.notifyQuietly({
+          storeId: order.storeId,
+          type: NotificationType.ORDER,
+          title: 'Khách hủy đơn đã thanh toán',
+          body: `Đơn ${order.code} đã bị khách hủy, tiền hoàn 100% và không cần chuẩn bị.`,
+          data: { orderId: order.id, kind: 'ORDER_CANCELLED_BY_CUSTOMER' },
+        });
+      }
+
       return savedOrder;
     });
   }
@@ -496,6 +515,13 @@ export class OrdersService {
         }
         await this.releasePromotion(manager, lockedOrder);
 
+        await this.notifications?.notifyQuietly({
+          userId: lockedOrder.customerId,
+          type: NotificationType.ORDER,
+          title: 'Đơn hết hạn giữ suất',
+          body: `Đơn ${lockedOrder.code} đã quá 10 phút chưa thanh toán nên suất được nhả. Bạn có thể đặt lại.`,
+          data: { orderId: lockedOrder.id, kind: 'HOLD_EXPIRED' },
+        });
         releasedCount++;
       });
     }
@@ -667,7 +693,15 @@ export class OrdersService {
     }
 
     order.arrivingNotifiedAt = new Date();
-    return this.orderRepo.save(order);
+    const saved = await this.orderRepo.save(order);
+    await this.notifications?.notifyQuietly({
+      storeId: order.storeId,
+      type: NotificationType.ORDER,
+      title: 'Khách sắp đến nhận hàng',
+      body: `Khách của đơn ${order.code} báo đang tới. Hãy chuẩn bị hàng.`,
+      data: { orderId: order.id, kind: 'CUSTOMER_ARRIVING' },
+    });
+    return saved;
   }
 
   /**
@@ -828,6 +862,14 @@ export class OrdersService {
         },
         manager,
       );
+
+      await this.notifications?.notifyQuietly({
+        userId: order.customerId,
+        type: NotificationType.ORDER,
+        title: 'Cửa hàng đã hủy đơn',
+        body: `Đơn ${order.code} bị cửa hàng hủy${order.cancelReason ? `: ${order.cancelReason}` : ''}. Nếu bạn đã thanh toán, tiền được hoàn 100%.`,
+        data: { orderId: order.id, kind: 'ORDER_CANCELLED_BY_STORE' },
+      });
 
       return savedOrder;
     });

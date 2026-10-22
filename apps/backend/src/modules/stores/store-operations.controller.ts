@@ -125,6 +125,18 @@ export class StoreOperationsController {
     return this.storesService.getReportsOverview(storeId, query);
   }
 
+  @Get('reports/finance')
+  @Permissions(StorePermission.OWNER)
+  @ApiOperation({
+    summary:
+      'Thống kê tài chính theo khoảng ngày: doanh thu gộp, hoa hồng, hoàn tiền, thực nhận ước tính',
+  })
+  @ApiResponse({ status: 200, description: 'Dữ liệu tài chính và doanh thu theo ngày' })
+  async getFinanceSummary(@CurrentStore() storeId: string, @Query() query: StoreReportsQueryDto) {
+    await this.assertReportRange(storeId, query.startDate);
+    return this.storesService.getFinanceSummary(storeId, query);
+  }
+
   @Get('reports/reconciliation')
   @Permissions(StorePermission.OWNER)
   @ApiOperation({

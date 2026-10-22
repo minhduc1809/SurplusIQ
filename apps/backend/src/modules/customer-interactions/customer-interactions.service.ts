@@ -4,7 +4,10 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  Optional,
 } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, Not, In } from 'typeorm';
 import { ComplaintEntity, ComplaintStatus } from '../../entities/complaints/complaint.entity';
@@ -70,6 +73,7 @@ export class CustomerInteractionsService {
     private readonly dataSource: DataSource,
     private readonly rewardsService: RewardsService,
     private readonly cloudinary: CloudinaryService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -141,6 +145,14 @@ export class CustomerInteractionsService {
       );
       attachments = await this.attachmentRepo.save(attachmentEntities);
     }
+
+    await this.notifications?.notifyQuietly({
+      storeId: order.storeId,
+      type: NotificationType.COMPLAINT,
+      title: 'Khiếu nại mới',
+      body: `Đơn ${order.code} có khiếu nại mới. Vui lòng phản hồi trước hạn.`,
+      data: { orderId: order.id, complaintId: savedComplaint.id, kind: 'COMPLAINT_CREATED' },
+    });
 
     return {
       id: savedComplaint.id,
@@ -898,7 +910,7 @@ export class CustomerInteractionsService {
    * Cửa hàng chấp nhận khiếu nại và hoàn tiền cho khách (R2-055, BR-054)
    */
   async resolveComplaint(storeId: string, complaintId: string, dto: ResolveComplaintDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const res = await this.dataSource.transaction(async (manager) => {
       const { complaint } = await decideComplaint(
         manager,
         complaintId,
@@ -915,13 +927,32 @@ export class CustomerInteractionsService {
       }
       return { success: true, message: 'Giải quyết khiếu nại thành công.', complaint };
     });
+    await this.notifyComplaintDecision(res.complaint);
+    return res;
+  }
+
+  /** Báo kết quả khiếu nại cho khách (chấp nhận, từ chối). */
+  private async notifyComplaintDecision(complaint: ComplaintEntity) {
+    if (!this.notifications) return;
+    const order = await this.orderRepo.findOne({ where: { id: complaint.orderId } });
+    if (!order) return;
+    const accepted = complaint.status === ComplaintStatus.ACCEPTED;
+    await this.notifications.notifyQuietly({
+      userId: order.customerId,
+      type: NotificationType.COMPLAINT,
+      title: accepted ? 'Khiếu nại được chấp nhận' : 'Khiếu nại bị từ chối',
+      body: accepted
+        ? `Khiếu nại đơn ${order.code} được chấp nhận. Số tiền hoàn: ${complaint.refundAmount.toLocaleString('vi-VN')}đ.`
+        : `Khiếu nại đơn ${order.code} đã bị cửa hàng từ chối. Xem lý do trong chi tiết khiếu nại.`,
+      data: { orderId: order.id, complaintId: complaint.id, kind: 'COMPLAINT_DECIDED' },
+    });
   }
 
   /**
    * Cửa hàng từ chối khiếu nại với lý do bắt buộc (R2-056, BR-056)
    */
   async rejectComplaint(storeId: string, complaintId: string, dto: RejectComplaintDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const res = await this.dataSource.transaction(async (manager) => {
       const { complaint } = await decideComplaint(
         manager,
         complaintId,
@@ -930,6 +961,8 @@ export class CustomerInteractionsService {
       );
       return { success: true, message: 'Đã từ chối khiếu nại.', complaint };
     });
+    await this.notifyComplaintDecision(res.complaint);
+    return res;
   }
 
   /**

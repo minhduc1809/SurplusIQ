@@ -226,46 +226,18 @@ describe('3-Tier RBAC & Security Guards Unit Tests', () => {
       expect((req as any).storeMember).toBeDefined();
     });
 
-    it('should allow MANAGER on MANAGER and COUNTER routes, but reject on OWNER-only route', async () => {
-      const managerMember = {
-        storeId: 's1',
-        userId: 'u2',
-        permission: StorePermission.MANAGER,
-        status: StoreMemberStatus.ACTIVE,
-      };
-      mockStoreMemberRepo.findOne.mockResolvedValue(managerMember);
-      const req = { user: { userId: 'u2', storeId: 's1' } };
-
-      // Route requiring COUNTER -> ALLOW
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([StorePermission.COUNTER]);
-      await expect(guard.canActivate(createMockContext(req))).resolves.toBe(true);
-
-      // Route requiring MANAGER -> ALLOW
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([StorePermission.MANAGER]);
-      await expect(guard.canActivate(createMockContext(req))).resolves.toBe(true);
-
-      // Route requiring OWNER -> REJECT
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([StorePermission.OWNER]);
-      await expect(guard.canActivate(createMockContext(req))).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should reject COUNTER on MANAGER or OWNER routes', async () => {
-      const counterMember = {
-        storeId: 's1',
-        userId: 'u3',
-        permission: StorePermission.COUNTER,
-        status: StoreMemberStatus.ACTIVE,
-      };
-      mockStoreMemberRepo.findOne.mockResolvedValue(counterMember);
-      const req = { user: { userId: 'u3', storeId: 's1' } };
-
-      // Route requiring COUNTER -> ALLOW
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([StorePermission.COUNTER]);
-      await expect(guard.canActivate(createMockContext(req))).resolves.toBe(true);
-
-      // Route requiring MANAGER -> REJECT
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([StorePermission.MANAGER]);
-      await expect(guard.canActivate(createMockContext(req))).rejects.toThrow(ForbiddenException);
+    it('should treat every ACTIVE member as OWNER (single-role system)', async () => {
+      for (const permission of [StorePermission.MANAGER, StorePermission.COUNTER]) {
+        mockStoreMemberRepo.findOne.mockResolvedValue({
+          storeId: 's1',
+          userId: 'u2',
+          permission,
+          status: StoreMemberStatus.ACTIVE,
+        });
+        const req = { user: { userId: 'u2', storeId: 's1' } };
+        jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([StorePermission.OWNER]);
+        await expect(guard.canActivate(createMockContext(req))).resolves.toBe(true);
+      }
     });
   });
 

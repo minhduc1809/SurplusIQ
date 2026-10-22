@@ -378,6 +378,101 @@ export class StoresService {
     };
   }
 
+  private toReconciliationOrders(orders: OrderEntity[]) {
+    return orders.map((o) => {
+      let reconStatus: ReconciliationOrderStatus = 'CANCELLED';
+      if (o.status === OrderStatus.PICKED_UP) {
+        reconStatus = 'PICKED_UP';
+      } else if (o.status === OrderStatus.PICKUP_EXPIRED) {
+        reconStatus = 'PICKUP_EXPIRED';
+      } else if (o.status === OrderStatus.REFUNDED) {
+        reconStatus = 'REFUNDED';
+      }
+      return {
+        orderId: o.id,
+        amount: o.totalAmount,
+        status: reconStatus,
+        completedAt: o.updatedAt || new Date(),
+        storeFault: false,
+      };
+    });
+  }
+
+  /**
+   * Thống kê tài chính theo khoảng ngày cho chủ cửa hàng: doanh thu gộp, hoa hồng, hoàn tiền khiếu nại,
+   * thực nhận ước tính (cùng công thức đối soát tuần), tiền đang chờ nhận hàng và doanh thu theo ngày.
+   */
+  async getFinanceSummary(storeId: string, query: StoreReportsQueryDto) {
+    const now = new Date();
+    const endDate = query.endDate ? new Date(query.endDate) : now;
+    const startDate = query.startDate
+      ? new Date(query.startDate)
+      : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const orders = await this.orderRepo.find({
+      where: { storeId, createdAt: Between(startDate, endDate) },
+    });
+    const complaints = await this.complaintRepo.find({
+      where: {
+        storeId,
+        status: ComplaintStatus.ACCEPTED,
+        createdAt: Between(startDate, endDate),
+      },
+    });
+    const refundsDeduction = complaints.reduce((sum, c) => sum + (c.refundAmount || 0), 0);
+
+    const statement = ReconciliationEngine.calculate({
+      storeId,
+      period: {
+        cycleId: `${startDate.toISOString().split('T')[0]}_${endDate.toISOString().split('T')[0]}`,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      },
+      orders: this.toReconciliationOrders(orders),
+      refundsDeduction,
+      subscriptionFee: 0,
+      adjustments: [],
+    });
+
+    // Tiền khách đã trả nhưng chưa nhận hàng: chưa tính vào doanh thu đối soát
+    const pendingPaidAmount = orders
+      .filter((o) => o.status === OrderStatus.PAID)
+      .reduce((sum, o) => sum + orderGrossAmount(o), 0);
+
+    const byDay = new Map<string, { grossSales: number; orders: number }>();
+    for (const o of orders) {
+      const eligible =
+        o.status === OrderStatus.PICKED_UP || o.status === OrderStatus.PICKUP_EXPIRED;
+      const day = toVietnamTime(o.createdAt).toISOString().split('T')[0];
+      const row = byDay.get(day) ?? { grossSales: 0, orders: 0 };
+      row.orders += 1;
+      if (eligible) row.grossSales += orderGrossAmount(o);
+      byDay.set(day, row);
+    }
+
+    const soldOrders = statement.orderSummary.pickedUpCount + statement.orderSummary.noShowCount;
+    return {
+      period: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+      },
+      summary: {
+        grossSales: statement.grossSales,
+        commissionRate: statement.commissionRate,
+        commissionAmount: statement.commissionAmount,
+        refundsDeduction: statement.refundsDeduction,
+        netPayout: statement.netPayout,
+        pendingPaidAmount,
+        soldOrders,
+        averageOrderValue: soldOrders > 0 ? Math.round(statement.grossSales / soldOrders) : 0,
+      },
+      daily: [...byDay.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, v]) => ({ date, ...v })),
+      explanation: statement.explanation,
+    };
+  }
+
   /**
    * Báo cáo đối soát tài chính tuần và lịch sử sao kê bất biến (R2-068..R2-075)
    */
@@ -409,23 +504,7 @@ export class StoresService {
 
     const refundDeductions = complaints.reduce((sum, c) => sum + (c.refundAmount || 0), 0);
 
-    const coreOrders = currentCycleOrders.map((o) => {
-      let reconStatus: ReconciliationOrderStatus = 'CANCELLED';
-      if (o.status === OrderStatus.PICKED_UP) {
-        reconStatus = 'PICKED_UP';
-      } else if (o.status === OrderStatus.PICKUP_EXPIRED) {
-        reconStatus = 'PICKUP_EXPIRED';
-      } else if (o.status === OrderStatus.REFUNDED) {
-        reconStatus = 'REFUNDED';
-      }
-      return {
-        orderId: o.id,
-        amount: o.totalAmount,
-        status: reconStatus,
-        completedAt: o.updatedAt || new Date(),
-        storeFault: false,
-      };
-    });
+    const coreOrders = this.toReconciliationOrders(currentCycleOrders);
 
     const currentStatement = ReconciliationEngine.calculate({
       storeId,
