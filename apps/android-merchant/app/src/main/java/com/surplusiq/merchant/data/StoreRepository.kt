@@ -232,6 +232,10 @@ class StoreRepository(private val api: StoreApiService) {
 
     suspend fun getOrder(id: String) = runCatchingCall { api.getOrder(id) }
 
+    suspend fun getOrderChat(id: String) = runCatchingCall { api.getOrderChat(id) }
+
+    suspend fun sendOrderChat(id: String, body: String) = runCatchingCall { api.sendOrderChat(id, SendOrderChatRequest(body)) }
+
     suspend fun cancelOrder(id: String, reason: String) = runCatchingCall { api.cancelOrder(id, CancelOrderRequest(reason)) }
 
     suspend fun verifyPickup(backupCode: String) = runCatchingCall { api.verifyPickup(VerifyPickupRequest(backupCode = backupCode)) }

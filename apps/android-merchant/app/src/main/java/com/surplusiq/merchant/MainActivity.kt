@@ -318,8 +318,12 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
                     repository,
                     orderId = entry.arguments?.getString("id").orEmpty(),
                     canCancel = session.getPermission() != "COUNTER",
+                    onOpenChat = { open("order/${entry.arguments?.getString("id").orEmpty()}/chat") },
                     onBack = back
                 )
+            }
+            composable("order/{id}/chat") { entry ->
+                OrderChatScreen(repository, orderId = entry.arguments?.getString("id").orEmpty(), onBack = back)
             }
             // Trợ lý AI (S66-S70, S72)
             composable("ai") {

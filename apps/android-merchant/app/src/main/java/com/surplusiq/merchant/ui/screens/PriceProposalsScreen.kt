@@ -96,7 +96,7 @@ private fun ProposalsContent(repository: StoreRepository) {
             SectionTitle("Chờ duyệt (${proposals!!.size})")
             Spacer(modifier = Modifier.height(8.dp))
             if (proposals!!.isEmpty()) {
-                EmptyState("Không có đề xuất chờ duyệt", "Hệ thống tự đề xuất theo thời gian còn lại và tồn kho, hoặc tạo đề xuất cho suất đang mở bên dưới.")
+                EmptyState("Không có đề xuất chờ duyệt", "Đề xuất tự động theo giờ còn lại và tồn kho, hoặc tạo cho suất đang mở.")
             }
             proposals!!.forEach { p ->
                 ProposalCard(

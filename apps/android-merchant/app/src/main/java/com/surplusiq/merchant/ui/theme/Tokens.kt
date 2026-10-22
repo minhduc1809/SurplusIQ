@@ -28,7 +28,7 @@ val SqMintWash = Color(0xFFDDF3E8)
 val SqLilac = Color(0xFFF58F87)
 val SqLilacWash = Color(0xFFFDE9E7)
 val WarningText = Color(0xFF8F620C)
-val SqWarmShadow = Color(0x2E3B2A22)
+val SqWarmShadow = Color(0x143B2A22)
 val SqError = Color(0xFFD9534F)
 
 @Composable

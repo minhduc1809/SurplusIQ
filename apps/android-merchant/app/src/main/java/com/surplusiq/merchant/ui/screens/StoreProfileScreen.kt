@@ -143,7 +143,7 @@ fun StoreProfileScreen(repository: StoreRepository, onBack: () -> Unit) {
                     SqField("Số điện thoại", phone, enabled = editing) { phone = it.filter { c -> c.isDigit() || c == '+' } }
                     Spacer(modifier = Modifier.height(10.dp))
                     // shortcut: backend chưa có endpoint tải ảnh lên, chỉ nhận logoUrl; thêm upload khi có API storage.
-                    SqField("URL logo", logoUrl, enabled = editing, placeholder = "https://…") { logoUrl = it }
+                    SqField("Đường dẫn logo", logoUrl, enabled = editing, placeholder = "https://…") { logoUrl = it }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 

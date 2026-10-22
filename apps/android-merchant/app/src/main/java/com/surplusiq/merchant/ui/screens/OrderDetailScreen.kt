@@ -34,7 +34,7 @@ private val CANCELLED_BY = mapOf("CUSTOMER" to "khách", "STORE" to "quán", "SY
  * Backend không tính hoa hồng theo đơn (chỉ có trong sao kê tuần) nên không hiển thị tiền sau hoa hồng.
  */
 @Composable
-fun OrderDetailScreen(repository: StoreRepository, orderId: String, canCancel: Boolean, onBack: () -> Unit) {
+fun OrderDetailScreen(repository: StoreRepository, orderId: String, canCancel: Boolean, onOpenChat: () -> Unit = {}, onBack: () -> Unit) {
     var order by remember { mutableStateOf<OrderDto?>(null) }
     var itemName by remember { mutableStateOf<String?>(null) }
     var complaints by remember { mutableStateOf<List<ComplaintDto>>(emptyList()) }
@@ -78,6 +78,9 @@ fun OrderDetailScreen(repository: StoreRepository, orderId: String, canCancel: B
                         StatusBadge(o.status)
                     }
                     o.pickupSlot?.let { Text("Hẹn nhận lúc ${shortDateTime(it)}", fontSize = 13.sp, color = SqInkSoft) }
+                    OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), shape = RoundedCornerShape(14.dp)) {
+                        Text("Nhắn tin với khách", color = SqCoralDeep, fontWeight = FontWeight.SemiBold)
+                    }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 

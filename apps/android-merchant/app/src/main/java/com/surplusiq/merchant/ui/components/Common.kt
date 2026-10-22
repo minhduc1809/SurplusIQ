@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.surplusiq.merchant.ui.theme.*
 
 /** Khối trắng kiểu NutriWise: bo góc, viền nhạt, bóng ấm mềm. */
-fun Modifier.sqSurface(radius: androidx.compose.ui.unit.Dp = 22.dp, elevation: androidx.compose.ui.unit.Dp = 4.dp): Modifier {
+fun Modifier.sqSurface(radius: androidx.compose.ui.unit.Dp = 22.dp, elevation: androidx.compose.ui.unit.Dp = 2.dp): Modifier {
     val shape = RoundedCornerShape(radius)
     return this
         .shadow(elevation, shape, ambientColor = SqWarmShadow, spotColor = SqWarmShadow)
