@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
 
 const PURPOSE_TEXT: Record<string, string> = {
   CHANGE_ID: 'xác minh email của bạn',
@@ -10,10 +9,14 @@ const PURPOSE_TEXT: Record<string, string> = {
 };
 
 /** Gửi thư giao dịch qua SMTP (cấu hình SMTP_* trong .env). Không bao giờ ném lỗi: gửi hỏng thì trả false. */
+interface MailTransporter {
+  sendMail: (options: Record<string, unknown>) => Promise<unknown>;
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter | null = null;
+  private transporter: MailTransporter | null = null;
 
   /** Chỉ gửi thật khi đã cấu hình SMTP, không phải DB kiểm thử và không tắt bằng MAIL_DELIVERY=off. */
   isEnabled(): boolean {
@@ -22,14 +25,21 @@ export class MailService {
     return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
   }
 
-  private getTransporter() {
+  private getTransporter(): MailTransporter | null {
     if (!this.transporter) {
-      this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT ?? 587),
-        secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
-      });
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const nodemailer = require('nodemailer');
+        this.transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: Number(process.env.SMTP_PORT ?? 587),
+          secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+        }) as MailTransporter;
+      } catch {
+        this.logger.warn('Nodemailer không khả dụng trên môi trường hiện tại.');
+        return null;
+      }
     }
     return this.transporter;
   }
@@ -39,7 +49,9 @@ export class MailService {
     if (!this.isEnabled()) return false;
     const action = PURPOSE_TEXT[purpose] ?? 'xác thực';
     try {
-      await this.getTransporter().sendMail({
+      const client = this.getTransporter();
+      if (!client) return false;
+      await client.sendMail({
         from: `"SurplusIQ" <${process.env.SMTP_USER}>`,
         to,
         subject: `Mã xác thực SurplusIQ: ${code}`,

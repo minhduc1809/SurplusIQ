@@ -1154,6 +1154,16 @@ fun SurplusAppRoot(
                 },
                 onNewChat = { aiViewModel.startNewChat() },
                 onDealClick = { deal -> currentDestination = AppDestination.DealDetail(deal) },
+                onActionClick = { act ->
+                    when (act.route) {
+                        "help_center" -> currentDestination = AppDestination.HelpCenter
+                        "my_orders" -> currentDestination = AppDestination.MyOrders
+                        "rewards" -> currentDestination = AppDestination.Rewards
+                        "rescue_pool" -> currentDestination = AppDestination.RescuePoolList
+                        "complaints" -> currentDestination = AppDestination.ComplaintList
+                        else -> currentDestination = AppDestination.HelpCenter
+                    }
+                },
                 onClose = { currentDestination = AppDestination.MainTabs }
             )
         }

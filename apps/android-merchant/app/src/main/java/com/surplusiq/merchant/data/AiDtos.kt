@@ -4,7 +4,19 @@ package com.surplusiq.merchant.data
 
 data class AiChatRequest(val message: String, val conversationId: String? = null)
 
-data class AiChatResponse(val conversationId: String, val reply: String, val logId: String)
+data class AiSuggestedActionDto(
+    val label: String,
+    val type: String,
+    val route: String,
+    val targetParam: String? = null
+)
+
+data class AiChatResponse(
+    val conversationId: String,
+    val reply: String,
+    val logId: String,
+    val suggestedAction: AiSuggestedActionDto? = null
+)
 
 data class AiConversationDto(val id: String, val title: String, val updatedAt: String)
 

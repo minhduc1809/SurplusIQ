@@ -36,6 +36,7 @@ import {
   DraftComplaintReplyDto,
   SentimentAnalysisDto,
   SuggestCombosDto,
+  AiSuggestedActionDto,
 } from './dto/ai.dto';
 import { QuotaService } from '../subscriptions/quota.service';
 import { QuotaKey } from '../subscriptions/quota.constants';
@@ -57,6 +58,15 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
   managerCanUse: true,
   defaultTone: 'FRIENDLY',
 };
+
+function normalizeText(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .trim();
+}
 
 @Injectable()
 export class AiGatewayService {
@@ -353,23 +363,218 @@ export class AiGatewayService {
     });
     await this.messageRepo.save(userMessage);
 
-    // 4. Trả lời dựa trên số liệu hệ thống tính; không có số liệu thì nói rõ, không bịa
+    // 4. Phát hiện ý định hướng dẫn sử dụng / nghiệp vụ và gán action điều hướng
+    // 4. Phát hiện ý định hướng dẫn sử dụng / nghiệp vụ và gán action điều hướng
+    const norm = normalizeText(dto.message);
+    let suggestedAction: AiSuggestedActionDto | null = null;
+    let guideHint = '';
+
+    if (
+      norm.includes('huong dan') ||
+      norm.includes('su dung app') ||
+      norm.includes('dung app') ||
+      norm.includes('xai app') ||
+      norm.includes('cach dung') ||
+      norm.includes('quy trinh') ||
+      norm.includes('bat dau') ||
+      norm.includes('chuc nang') ||
+      norm.includes('tinh nang') ||
+      norm.includes('lam gi') ||
+      norm.includes('van hanh') ||
+      norm.includes('app nay') ||
+      norm.includes('ung dung')
+    ) {
+      suggestedAction = {
+        label: 'Mở Checklist Vận hành & Nhiệm vụ',
+        type: 'NAVIGATE',
+        route: 'tasks',
+      };
+      guideHint =
+        'Quy trình vận hành 3 bước dành cho chủ quán:\n' +
+        '1. Đăng suất bán cuối ngày (mục "Suất bán" - tạo túi bất ngờ giảm tối thiểu 40% giá niêm yết).\n' +
+        '2. Quét mã QR nhận đơn khi giao món (mục "Quét QR" trên app hoặc nhập mã PIN 6 số của khách).\n' +
+        '3. Đóng ca & kiểm kê cuối ngày (mục "Nhiệm vụ").\n' +
+        'Ngoài ra bạn có thể theo dõi doanh thu hàng ngày tại mục "Báo cáo" và nhận giải ngân định kỳ tại mục "Đối soát".';
+    } else if (
+      norm.includes('quet ma') ||
+      norm.includes('quet qr') ||
+      norm.includes('xac nhan') ||
+      norm.includes('ma pin') ||
+      norm.includes('giao mon') ||
+      norm.includes('khach den lay') ||
+      norm.includes('nhan don') ||
+      norm.includes('tra mon')
+    ) {
+      suggestedAction = {
+        label: 'Mở Quét mã QR nhận đơn',
+        type: 'NAVIGATE',
+        route: 'verify',
+      };
+      guideHint =
+        'Hướng dẫn nhân viên quầy: Bấm vào mục "Quét QR" trên thanh điều hướng để quét camera vé QR của khách hoặc nhập mã PIN 6 số dự phòng để hoàn tất giao món.';
+    } else if (
+      norm.includes('dang mon') ||
+      norm.includes('tui bat ngo') ||
+      norm.includes('suat cuu') ||
+      norm.includes('surprise bag') ||
+      norm.includes('mo ban') ||
+      norm.includes('them suat') ||
+      norm.includes('tao mon') ||
+      norm.includes('tao suat')
+    ) {
+      suggestedAction = {
+        label: 'Đi đến Đăng suất bán',
+        type: 'NAVIGATE',
+        route: 'offers',
+      };
+      guideHint =
+        'Hướng dẫn quản lý: Vào mục "Suất bán" (hoặc Túi bất ngờ) để tạo gói giải cứu cuối ngày với giá tối thiểu bằng giá sàn (40% giá gốc) và cài đặt khung giờ nhận hàng.';
+    } else if (
+      norm.includes('nhiem vu') ||
+      norm.includes('checklist') ||
+      norm.includes('dong ca') ||
+      norm.includes('cuoi ngay') ||
+      norm.includes('viec can lam')
+    ) {
+      suggestedAction = {
+        label: 'Mở Nhiệm vụ & Checklist đóng ca',
+        type: 'NAVIGATE',
+        route: 'tasks',
+      };
+      guideHint =
+        'Hướng dẫn đóng ca: Mở màn hình "Nhiệm vụ" để tích chọn checklist dọn quầy và kiểm kê lượng tồn thực tế giúp hệ thống đối soát chính xác.';
+    } else if (
+      norm.includes('doanh thu') ||
+      norm.includes('bao cao') ||
+      norm.includes('ban duoc bao nhieu') ||
+      norm.includes('tuan nay the nao') ||
+      norm.includes('thong ke') ||
+      norm.includes('tien ban')
+    ) {
+      suggestedAction = {
+        label: 'Xem Báo cáo Doanh thu',
+        type: 'NAVIGATE',
+        route: 'reports',
+      };
+      guideHint =
+        'Theo dõi hiệu quả: Bạn hãy mở mục "Báo cáo" để xem chi tiết biểu đồ doanh thu, số đơn đã nhận và số suất ăn giải cứu thành công.';
+    } else if (
+      norm.includes('doi soat') ||
+      norm.includes('sao ke') ||
+      norm.includes('rut tien') ||
+      norm.includes('chu ky') ||
+      norm.includes('thanh toan tuan') ||
+      norm.includes('tien ve') ||
+      norm.includes('nhan tien')
+    ) {
+      suggestedAction = {
+        label: 'Mở Đối soát & Sao kê tuần',
+        type: 'NAVIGATE',
+        route: 'reconciliation',
+      };
+      guideHint =
+        'Quy trình đối soát: Hệ thống chốt sao kê tự động vào thứ Hai hàng tuần và giải ngân về tài khoản ngân hàng của quán sau khi khấu trừ phí nền tảng.';
+    } else if (
+      norm.includes('khieu nai') ||
+      norm.includes('khach phan anh') ||
+      norm.includes('den bu') ||
+      norm.includes('hong do') ||
+      norm.includes('khach che')
+    ) {
+      suggestedAction = {
+        label: 'Mở Quản lý Khiếu nại khách hàng',
+        type: 'NAVIGATE',
+        route: 'complaints',
+      };
+      guideHint =
+        'Xử lý khiếu nại: Quán có 48 giờ để xem ảnh thực tế và phản hồi khách (chấp nhận hoàn tiền, từ chối kèm lý do hoặc tặng voucher xin lỗi).';
+    } else if (
+      norm.includes('hop dong') ||
+      norm.includes('phap ly') ||
+      norm.includes('ngan hang') ||
+      norm.includes('tai khoan thu huong') ||
+      norm.includes('an toan thuc pham')
+    ) {
+      suggestedAction = {
+        label: 'Xem Hồ sơ pháp lý & Hợp đồng',
+        type: 'NAVIGATE',
+        route: 'store-legal',
+      };
+      guideHint =
+        'Hồ sơ pháp lý: Mở mục "Hồ sơ pháp lý" để xem hợp đồng điện tử đã ký, giấy chứng nhận VSATTP và tài khoản thụ hưởng thanh toán.';
+    } else if (
+      norm.includes('nhan vien') ||
+      norm.includes('phan quyen') ||
+      norm.includes('them thu ngan') ||
+      norm.includes('quan ly nhan su')
+    ) {
+      suggestedAction = {
+        label: 'Mở Quản lý Nhân viên',
+        type: 'NAVIGATE',
+        route: 'staff',
+      };
+      guideHint =
+        'Phân quyền: Chủ quán (Owner) có thể mời nhân viên và gán quyền Counter (chỉ quét QR giao món) hoặc Manager (đăng món và xem báo cáo).';
+    } else if (
+      norm.includes('ho tro') ||
+      norm.includes('lien he') ||
+      norm.includes('ky thuat') ||
+      norm.includes('bao loi')
+    ) {
+      suggestedAction = {
+        label: 'Gửi yêu cầu Hỗ trợ kỹ thuật',
+        type: 'NAVIGATE',
+        route: 'support',
+      };
+      guideHint =
+        'Hỗ trợ kỹ thuật: Bạn có thể gửi yêu cầu hỗ trợ hoặc gọi hotline kỹ thuật SurplusIQ để được trợ giúp 24/7.';
+    }
+
+    // 5. Trả lời dựa trên số liệu hệ thống tính & hướng dẫn nghiệp vụ
     const facts = this.factsText(await this.weeklyStats(storeId));
-    const fallbackReply = `Hiện trợ lý AI chưa trả lời được câu hỏi này. Số liệu hệ thống đang có của cửa hàng:\n${facts}`;
+    const fallbackReply = guideHint
+      ? `${guideHint}\n\nBạn có thể bấm nút bên dưới để mở nhanh tính năng này nhé!`
+      : `Dạ chào bạn, tôi là Trợ lý vận hành SurplusIQ dành cho chủ quán! Tôi có thể hướng dẫn bạn cách đăng suất bán, quét mã QR nhận đơn, xem báo cáo doanh thu, đối soát tuần hay xử lý khiếu nại. Bạn muốn tìm hiểu chức năng nào trước ạ?\n\nSố liệu hiện tại của quán:\n${facts}`;
+
     const transcript = history
       .map((m) => `${m.sender === AiMessageSender.USER ? 'Chủ quán' : 'Trợ lý'}: ${m.content}`)
       .join('\n');
 
+    const actionPrompt = suggestedAction
+      ? `\nNút hành động hỗ trợ trên app: "${suggestedAction.label}". Hãy trả lời súc tích 2-3 câu hướng dẫn thao tác và nhắc người dùng có thể bấm nút bên dưới để mở nhanh tính năng.`
+      : '';
+
+    const systemKnowledge = `
+Kiến thức nghiệp vụ nền tảng SurplusIQ dành cho Chủ quán/Quản lý:
+- Bước 1 (Đăng suất bán): Vào mục "Suất bán" để tạo túi bất ngờ hoặc giảm giá món cuối ngày (giá tối thiểu 40% giá niêm yết theo quy định giá sàn, chọn khung giờ nhận hàng trước giờ đóng cửa).
+- Bước 2 (Quét mã giao món): Khách xuất trình vé QR trên app. Nhân viên vào mục "Quét QR" để quét camera hoặc nhập mã PIN 6 số dự phòng để hoàn tất đơn.
+- Bước 3 (Checklist đóng ca): Vào mục "Nhiệm vụ" để kiểm kê lượng món đã cứu, dọn quầy và chốt ca.
+- Theo dõi Doanh thu & Đối soát: Vào mục "Báo cáo" để xem biểu đồ bán hàng; hệ thống tự động chốt sao kê và giải ngân định kỳ về tài khoản ngân hàng của quán tại mục "Đối soát".
+- Nhân sự & Phân quyền: Vào mục "Nhân viên" để thêm nhân viên quầy (Counter) hoặc quản lý (Manager).
+- Xử lý khiếu nại: Vào mục "Khiếu nại" để phản hồi yêu cầu của khách hàng trong 48 giờ.
+`;
+
     const geminiResult = await this.callGemini(
-      `Bạn là trợ lý vận hành của nền tảng giải cứu thực phẩm SurplusIQ cho chủ cửa hàng F&B tại Việt Nam. Trả lời ngắn gọn bằng tiếng Việt. ` +
-        `Chỉ dùng các số liệu dưới đây, tuyệt đối không bịa thêm số. Nếu câu hỏi cần dữ liệu không có trong đó, nói rõ là chưa có dữ liệu đó.\n` +
-        `Số liệu hệ thống:\n${facts}\n${transcript ? `Hội thoại trước:\n${transcript}\n` : ''}Câu hỏi: "${dto.message}"`,
+      `Bạn là trợ lý vận hành AI chuyên nghiệp của nền tảng giải cứu thực phẩm SurplusIQ dành riêng cho Chủ cửa hàng và Quản lý quán ăn/nhà hàng tại Việt Nam.
+Hãy trả lời ân cần, súc tích (3-5 câu), thực tế bằng tiếng Việt.
+${systemKnowledge}
+Số liệu kinh doanh thực tế của cửa hàng tuần qua:
+${facts}
+${guideHint ? `Hướng dẫn nghiệp vụ trọng tâm:\n${guideHint}\n` : ''}
+${transcript ? `Lịch sử trao đổi gần nhất:\n${transcript}\n` : ''}
+${actionPrompt}
+
+Lưu ý:
+- Nếu người dùng hỏi về số liệu doanh thu/đơn hàng: chỉ dùng số liệu hệ thống ở trên, tuyệt đối không bịa số.
+- Nếu người dùng hỏi về cách sử dụng app, quy trình vận hành, hướng dẫn thao tác, quyền lợi, cách đăng món hoặc quét QR: hãy giải thích rõ ràng theo Kiến thức nghiệp vụ nền tảng và nhắc người dùng bấm nút hành động bên dưới (nếu có).
+
+Câu hỏi của chủ quán: "${dto.message}"`,
       fallbackReply,
       process.env.GEMINI_CHAT_MODEL,
     );
     const assistantReply = geminiResult.text;
 
-    // 5. Lưu tin nhắn trợ lý
+    // 6. Lưu tin nhắn trợ lý
     const assistantMessage = this.messageRepo.create({
       conversationId: conversation.id,
       sender: AiMessageSender.ASSISTANT,
@@ -377,7 +582,7 @@ export class AiGatewayService {
     });
     await this.messageRepo.save(assistantMessage);
 
-    // 6. Ghi log kiểm toán AI
+    // 7. Ghi log kiểm toán AI
     const aiLog = this.logRepo.create({
       userId,
       storeId,
@@ -389,7 +594,7 @@ export class AiGatewayService {
     });
     const savedLog = await this.logRepo.save(aiLog);
 
-    // 7. Khấu trừ quota
+    // 8. Khấu trừ quota
     await this.quotaService.consume({
       storeId,
       userId,
@@ -402,6 +607,7 @@ export class AiGatewayService {
       conversationId: conversation.id,
       reply: assistantReply,
       logId: savedLog.id,
+      suggestedAction: suggestedAction || undefined,
     };
   }
 
@@ -793,20 +999,21 @@ export class AiGatewayService {
     });
     await this.messageRepo.save(userMessage);
 
-    const msgLower = dto.message.toLowerCase();
+    const norm = normalizeText(dto.message);
     let fallbackReply: string;
+    let suggestedAction: AiSuggestedActionDto | null = null;
 
     const isOrderQuery =
-      msgLower.includes('đơn hàng') ||
-      msgLower.includes('đơn của tôi') ||
-      msgLower.includes('nhận hàng') ||
-      msgLower.includes('quét mã') ||
-      msgLower.includes('lấy bánh') ||
-      msgLower.includes('lấy món') ||
-      msgLower.includes('ở đâu') ||
-      msgLower.includes('mấy giờ') ||
-      msgLower.includes('bao giờ') ||
-      msgLower.includes('tình trạng');
+      norm.includes('don hang') ||
+      norm.includes('don cua toi') ||
+      norm.includes('nhan hang') ||
+      norm.includes('quet ma') ||
+      norm.includes('lay banh') ||
+      norm.includes('lay mon') ||
+      norm.includes('o dau') ||
+      norm.includes('may gio') ||
+      norm.includes('bao gio') ||
+      norm.includes('tinh trang');
 
     if (isOrderQuery) {
       // Truy vấn đơn hàng thật của khách hàng (R1-083, R1-088)
@@ -824,11 +1031,23 @@ export class AiGatewayService {
       if (!activeOrder) {
         fallbackReply =
           'Để nhận hàng tại quán, bạn chỉ cần mở ứng dụng SurplusIQ, vào mục "Đơn hàng" để lấy vé mã QR và đưa nhân viên quầy quét khi đến khung giờ nhận (hoặc đọc mã PIN 6 số dự phòng). Hiện bạn chưa có đơn hàng nào đang chờ nhận trên SurplusIQ. Bạn có muốn mình gợi ý vài suất Cứu Món ngon giá tốt quanh khu vực của bạn tối nay không?';
+        suggestedAction = {
+          label: 'Xem Hướng dẫn Nhận hàng (FAQ)',
+          type: 'DOCS_DEEP_LINK',
+          route: 'help_center',
+          targetParam: 'NHAN_HANG',
+        };
       } else {
         const store = await this.storeRepo.findOne({ where: { id: activeOrder.storeId } });
         const storeName = store?.name || 'Cửa hàng';
         const storeAddress = store?.address || '';
         const nowMs = Date.now();
+
+        suggestedAction = {
+          label: 'Mở Danh sách Đơn hàng của tôi',
+          type: 'NAVIGATE',
+          route: 'my_orders',
+        };
 
         if (activeOrder.status === OrderStatus.PENDING_PAYMENT) {
           fallbackReply = `Đơn hàng #${activeOrder.code} tại quán "${storeName}" của bạn hiện ĐANG CHỜ THANH TOÁN (thời gian giữ suất 10 phút theo BR-017). Vui lòng hoàn tất quét mã VietQR trong app để khóa giá và nhận Vé QR lấy món nhé!`;
@@ -857,16 +1076,101 @@ export class AiGatewayService {
         }
       }
     } else if (
-      msgLower.includes('hoàn tiền') ||
-      msgLower.includes('hủy đơn') ||
-      msgLower.includes('đổi')
+      norm.includes('hoan tien') ||
+      norm.includes('huy don') ||
+      norm.includes('doi mon') ||
+      norm.includes('khieu nai') ||
+      norm.includes('do hong') ||
+      norm.includes('chat luong') ||
+      norm.includes('hong do')
     ) {
       fallbackReply =
         'Theo chính sách chống lãng phí, đơn hàng đã thanh toán không thể tự hủy. Tuy nhiên, nếu món ăn nhận được không đúng mô tả hoặc chất lượng có vấn đề, bạn có thể gửi khiếu nại kèm ảnh chụp trong 24 giờ kể từ khi nhận để được hoàn tiền 100% (BR-071).';
+      suggestedAction = {
+        label: 'Xem Quy trình Khiếu nại 24h',
+        type: 'DOCS_DEEP_LINK',
+        route: 'help_center',
+        targetParam: 'KHIEU_NAI',
+      };
     } else if (
-      msgLower.includes('bảo quản') ||
-      msgLower.includes('để qua đêm') ||
-      msgLower.includes('hâm')
+      norm.includes('thanh toan') ||
+      norm.includes('vietqr') ||
+      norm.includes('chuyen khoan') ||
+      norm.includes('giu suat') ||
+      norm.includes('10 phut')
+    ) {
+      fallbackReply =
+        'Hệ thống giữ suất trong đúng 10 phút để bạn quét mã VietQR. Nếu chuyển khoản muộn hơn 10 phút, hệ thống tự động phát hiện và hoàn tiền 100% về tài khoản của bạn (VC-07, R1-047).';
+      suggestedAction = {
+        label: 'Xem Quy định Thanh toán & Hoàn tiền',
+        type: 'DOCS_DEEP_LINK',
+        route: 'help_center',
+        targetParam: 'THANH_TOAN',
+      };
+    } else if (
+      norm.includes('gia san') ||
+      norm.includes('no-show') ||
+      norm.includes('bung hang') ||
+      norm.includes('khoa tai khoan') ||
+      norm.includes('chinh sach') ||
+      norm.includes('quy dinh')
+    ) {
+      fallbackReply =
+        'Tất cả các món giảm giá trên SurplusIQ đều có giá bán tối thiểu bằng giá sàn (40% giá gốc). Nếu đặt đơn nhưng không đến nhận quá 3 lần trong vòng 30 ngày, tài khoản sẽ bị tạm ngưng đặt hàng 7 ngày theo quy tắc chống lãng phí (BR-020).';
+      suggestedAction = {
+        label: 'Xem Quy định & Chính sách',
+        type: 'DOCS_DEEP_LINK',
+        route: 'help_center',
+        targetParam: 'QUY_DINH',
+      };
+    } else if (
+      norm.includes('xu') ||
+      norm.includes('diem thuong') ||
+      norm.includes('doi qua') ||
+      norm.includes('rewards')
+    ) {
+      fallbackReply =
+        'Mỗi đơn hàng giải cứu thực phẩm thành công giúp bạn tích lũy Xu thưởng và mở khóa Huy hiệu Xanh. Bạn có thể dùng Xu đổi mã giảm giá hoặc quà tặng hấp dẫn trong Ví Xu SurplusIQ!';
+      suggestedAction = {
+        label: 'Mở Ví Xu & Quà thưởng',
+        type: 'NAVIGATE',
+        route: 'rewards',
+      };
+    } else if (
+      norm.includes('quy') ||
+      norm.includes('cuu tro') ||
+      norm.includes('rescue pool') ||
+      norm.includes('tu thien') ||
+      norm.includes('chia se')
+    ) {
+      fallbackReply =
+        'Quỹ Giải Cứu Thực Phẩm (Rescue Pool) kết nối thực phẩm dôi dư từ nhà hàng với các tổ chức thiện nguyện và hoàn cảnh khó khăn. Bạn có thể theo dõi và chung tay đóng góp suất ăn trực tiếp trên app.';
+      suggestedAction = {
+        label: 'Xem Quỹ Giải Cứu Thực Phẩm',
+        type: 'NAVIGATE',
+        route: 'rescue_pools',
+      };
+    } else if (
+      norm.includes('huong dan') ||
+      norm.includes('cach dung') ||
+      norm.includes('su dung app') ||
+      norm.includes('dung app') ||
+      norm.includes('faq') ||
+      norm.includes('ung dung')
+    ) {
+      fallbackReply =
+        'Chào bạn! Để sử dụng SurplusIQ, bạn chỉ cần: 1) Duyệt món ngon quanh bạn trên Bản đồ; 2) Đặt và quét VietQR giữ suất trong 10 phút; 3) Đến quán đúng khung giờ mở Vé QR đưa nhân viên quét lấy món. Để xem toàn bộ cẩm nang chi tiết, bạn mở Trung tâm trợ giúp nhé!';
+      suggestedAction = {
+        label: 'Mở Trung tâm trợ giúp (FAQ)',
+        type: 'DOCS_DEEP_LINK',
+        route: 'help_center',
+      };
+    } else if (
+      norm.includes('bao quan') ||
+      norm.includes('de qua dem') ||
+      norm.includes('ham') ||
+      norm.includes('nuong lai') ||
+      norm.includes('lo vi song')
     ) {
       fallbackReply =
         'Các món cứu thực phẩm được chuẩn bị tươi mới trong ngày. Bạn nên dùng ngay hoặc bọc kín trong màng bọc thực phẩm để ngăn mát tủ lạnh (dùng trong 24-48 giờ). Khi ăn hãy nướng lại bằng nồi chiên không dầu 160°C trong 3 phút là bánh sẽ giòn ngon như mới!';
@@ -895,8 +1199,12 @@ export class AiGatewayService {
       }
     }
 
+    const actionPrompt = suggestedAction
+      ? `\nNút hành động hỗ trợ trên ứng dụng: "${suggestedAction.label}". Hãy trả lời súc tích (2-3 câu) hướng dẫn khách hàng và nhắc khách có thể bấm nút bên dưới để mở trực tiếp màn hình/tài liệu tương ứng.`
+      : '';
+
     const geminiCustomer = await this.callGemini(
-      `Bạn là trợ lý SaveBite AI của ứng dụng giải cứu thực phẩm SurplusIQ dành cho khách hàng Việt Nam. ${contextHistoryPrompt}Dữ liệu nghiệp vụ hệ thống: "${fallbackReply}". Hãy trả lời câu hỏi của khách hàng "${dto.message}" một cách thân thiện, hữu ích và ngắn gọn bằng tiếng Việt.`,
+      `Bạn là trợ lý SaveBite AI của ứng dụng giải cứu thực phẩm SurplusIQ dành cho khách hàng Việt Nam. ${contextHistoryPrompt}Dữ liệu nghiệp vụ hệ thống: "${fallbackReply}". ${actionPrompt}\nHãy trả lời câu hỏi của khách hàng "${dto.message}" một cách thân thiện, hữu ích và ngắn gọn bằng tiếng Việt.`,
       fallbackReply,
       process.env.GEMINI_CHAT_MODEL,
     );
@@ -939,6 +1247,7 @@ export class AiGatewayService {
       logId: savedLog.id,
       remainingQuota: after.remaining,
       quotaLimit: after.limit,
+      suggestedAction: suggestedAction || undefined,
     };
   }
 

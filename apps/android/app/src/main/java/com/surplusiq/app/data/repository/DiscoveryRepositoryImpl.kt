@@ -635,6 +635,10 @@ class DiscoveryRepositoryImpl @Inject constructor(
         java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDate()
     }.getOrNull()
 
+    private fun offsetDateTime(iso: String?) = runCatching {
+        java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault())
+    }.getOrNull()
+
     /** Hôm nay / Ngày mai / dd/MM theo mốc giờ kết thúc nhận; không có mốc thì coi như hôm nay (suất đang mở). */
     private fun dayLabel(iso: String?): String {
         val d = localDate(iso) ?: return "Hôm nay"
@@ -650,6 +654,12 @@ class DiscoveryRepositoryImpl @Inject constructor(
 
     /** "Hôm nay 19:00 - 21:30" từ mốc giờ ISO của backend (giờ máy); rỗng nếu thiếu dữ liệu. */
     private fun pickupWindowText(start: String?, end: String?): String {
+        val endZoned = offsetDateTime(end)
+        val now = java.time.ZonedDateTime.now()
+        if (endZoned != null && now.isAfter(endZoned)) {
+            return "Đã hết giờ nhận"
+        }
+
         fun hhmm(iso: String?) = runCatching {
             java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
         }.getOrNull()
