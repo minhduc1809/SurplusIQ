@@ -36,7 +36,8 @@ class AiRepositoryImpl @Inject constructor(
                         reply = body.reply,
                         conversationId = body.conversationId ?: conversationId,
                         recommendedDeals = recommended,
-                        remainingQuota = body.remainingQuota
+                        remainingQuota = body.remainingQuota,
+                        suggestedAction = body.suggestedAction
                     )
                 )
             } else {

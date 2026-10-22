@@ -34,6 +34,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.OpenInNew
+import com.surplusiq.app.data.remote.dto.AiSuggestedActionDto
 import com.surplusiq.app.domain.model.Deal
 import com.surplusiq.app.ui.components.DealCard
 import com.surplusiq.app.ui.theme.ForestGreenDark
@@ -46,7 +48,8 @@ import com.surplusiq.app.ui.viewmodel.AiUiState
 data class ChatMessage(
     val sender: String, // "user" or "ai"
     val text: String,
-    val recommendedDeals: List<Deal> = emptyList()
+    val recommendedDeals: List<Deal> = emptyList(),
+    val action: AiSuggestedActionDto? = null
 )
 
 /** Nhóm câu hỏi gợi ý: chỉ là mẫu câu hỏi, câu trả lời luôn lấy từ dữ liệu thật qua trợ lý. */
@@ -81,6 +84,7 @@ fun SaveBiteAiSheet(
     onOpenHistory: () -> Unit,
     onNewChat: () -> Unit,
     onDealClick: (Deal) -> Unit,
+    onActionClick: (AiSuggestedActionDto) -> Unit = {},
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -210,7 +214,12 @@ fun SaveBiteAiSheet(
             ) {
                 itemsIndexed(state.messages) { _, msg ->
                     val isAi = msg.sender.equals("ai", ignoreCase = true)
-                    MessageRow(msg = msg, isAi = isAi, onDealClick = onDealClick)
+                    MessageRow(
+                        msg = msg,
+                        isAi = isAi,
+                        onDealClick = onDealClick,
+                        onActionClick = onActionClick
+                    )
                 }
                 if (state.isChatLoading) {
                     item { TypingIndicator() }
@@ -328,7 +337,12 @@ private fun SuggestionChip(text: String, enabled: Boolean, onClick: () -> Unit) 
 }
 
 @Composable
-private fun MessageRow(msg: ChatMessage, isAi: Boolean, onDealClick: (Deal) -> Unit) {
+private fun MessageRow(
+    msg: ChatMessage,
+    isAi: Boolean,
+    onDealClick: (Deal) -> Unit,
+    onActionClick: (AiSuggestedActionDto) -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isAi) Alignment.Start else Alignment.End
@@ -362,6 +376,36 @@ private fun MessageRow(msg: ChatMessage, isAi: Boolean, onDealClick: (Deal) -> U
                     color = if (isAi) TextPrimary else Color.White,
                     lineHeight = 20.sp
                 )
+            }
+        }
+        if (isAi && msg.action != null) {
+            Spacer(Modifier.height(8.dp))
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = ForestGreenPrimary,
+                shadowElevation = 2.dp,
+                modifier = Modifier
+                    .padding(start = 36.dp)
+                    .clickable { onActionClick(msg.action) }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.OpenInNew,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = msg.action.label,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
         if (msg.recommendedDeals.isNotEmpty()) {

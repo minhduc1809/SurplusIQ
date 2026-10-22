@@ -269,3 +269,38 @@ export class MemorySettingDto {
   @IsBoolean()
   rememberContext: boolean;
 }
+
+export class AiSuggestedActionDto {
+  @ApiProperty({
+    description: 'Nhãn hiển thị trên nút bấm hành động',
+    example: 'Xem Hướng dẫn Nhận hàng (FAQ)',
+  })
+  @IsNotEmpty()
+  @IsString()
+  label: string;
+
+  @ApiProperty({
+    description: 'Loại điều hướng',
+    example: 'NAVIGATE',
+    enum: ['NAVIGATE', 'DOCS_DEEP_LINK'],
+  })
+  @IsNotEmpty()
+  @IsString()
+  type: 'NAVIGATE' | 'DOCS_DEEP_LINK';
+
+  @ApiProperty({
+    description: 'Tên route màn hình đích trên ứng dụng',
+    example: 'help_center',
+  })
+  @IsNotEmpty()
+  @IsString()
+  route: string;
+
+  @ApiPropertyOptional({
+    description: 'Tham số bổ sung (vd: danh mục FAQ)',
+    example: 'NHAN_HANG',
+  })
+  @IsOptional()
+  @IsString()
+  targetParam?: string;
+}

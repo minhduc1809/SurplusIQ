@@ -329,7 +329,16 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
                 )
             }
             // Trợ lý AI (S66-S70, S72)
-            composable("ai") { AiScreen(repository, isOwner = session.getPermission() == "OWNER", onOpenQuotas = { open("quotas") }, onUpgrade = { open("subscription") }, onBack = back) }
+            composable("ai") {
+                AiScreen(
+                    repository,
+                    isOwner = session.getPermission() == "OWNER",
+                    onOpenQuotas = { open("quotas") },
+                    onUpgrade = { open("subscription") },
+                    onNavigate = { open(it) },
+                    onBack = back
+                )
+            }
 
             // Khách của cửa hàng (S56-S58)
             composable("customers") { CustomersScreen(repository, canEditNote = session.getPermission() != "COUNTER", isOwner = session.getPermission() == "OWNER", onUpgrade = { open("subscription") }, onBack = back) }
