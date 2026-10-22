@@ -79,15 +79,19 @@ data class ActiveOrder(
     val status: OrderStatus,
     val qrToken: String,
     val fallbackPin: String,
-    val pickupWindow: String
+    val pickupWindow: String,
+    val storePhone: String? = null,
+    val pickupEndMillis: Long = 0L
 )
 
 enum class OrderStatus {
     PENDING_PAYMENT,
     PAID_WAITING_PICKUP,
     PICKED_UP,
-    EXPIRED,
-    CANCELLED
+    HOLD_EXPIRED,
+    PICKUP_EXPIRED,
+    CANCELLED,
+    REFUNDED
 }
 
 /** Thông tin giao dịch VietQR/giả lập thật từ backend (R1-041). */

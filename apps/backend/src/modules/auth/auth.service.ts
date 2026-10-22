@@ -105,10 +105,16 @@ export class AuthService {
       });
     }
 
-    const existing = await this.userRepo.findOne({
-      where: [{ phone: dto.phone }, ...(dto.email ? [{ email: dto.email }] : [])],
-    });
-    if (existing) {
+    const email = dto.email.trim();
+    const found = await this.userRepo.find({ where: [{ phone: dto.phone }, { email }] });
+    // Tài khoản khách chưa xác minh OTP (bỏ dở lúc đăng ký) được đăng ký lại đè lên, không bị chặn mãi
+    const stale =
+      found.length === 1 &&
+      found[0].role === UserRole.CUSTOMER &&
+      found[0].status === UserStatus.PENDING_VERIFY
+        ? found[0]
+        : null;
+    if (found.length > 0 && !stale) {
       throw new ConflictException({
         code: AUTH_ERRORS.USER_EXISTS,
         message: 'Số điện thoại hoặc Email đã được đăng ký tài khoản',
@@ -119,32 +125,46 @@ export class AuthService {
     const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
     const otpHash = CryptoUtil.sha256(otp);
 
-    return this.dataSource.transaction(async (manager) => {
-      const user = manager.create(UserEntity, {
-        phone: dto.phone,
-        email: dto.email || null,
-        passwordHash,
-        role: UserRole.CUSTOMER,
-        status: UserStatus.PENDING_VERIFY,
-      });
-      await manager.save(user);
+    const registered = await this.dataSource.transaction(async (manager) => {
+      let user: UserEntity;
+      if (stale) {
+        stale.phone = dto.phone;
+        stale.email = email;
+        stale.passwordHash = passwordHash;
+        user = await manager.save(stale);
+        await manager.update(
+          CustomerProfileEntity,
+          { userId: user.id },
+          { fullName: dto.fullName },
+        );
+      } else {
+        user = await manager.save(
+          manager.create(UserEntity, {
+            phone: dto.phone,
+            email,
+            passwordHash,
+            role: UserRole.CUSTOMER,
+            status: UserStatus.PENDING_VERIFY,
+          }),
+        );
+        await manager.save(
+          manager.create(CustomerProfileEntity, { userId: user.id, fullName: dto.fullName }),
+        );
+      }
 
-      const profile = manager.create(CustomerProfileEntity, {
-        userId: user.id,
-        fullName: dto.fullName,
-      });
-      await manager.save(profile);
-
-      const consent = manager.create(ConsentEntity, {
-        userId: user.id,
-        type: ConsentType.TERMS,
-        version: '1.0',
-        granted: true,
-      });
-      await manager.save(consent);
+      if (!stale) {
+        await manager.save(
+          manager.create(ConsentEntity, {
+            userId: user.id,
+            type: ConsentType.TERMS,
+            version: '1.0',
+            granted: true,
+          }),
+        );
+      }
 
       const otpEntity = manager.create(OtpCodeEntity, {
-        target: dto.phone,
+        target: dto.email.trim(),
         deviceId: dto.deviceId,
         purpose: OtpPurpose.VERIFY,
         codeHash: otpHash,
@@ -152,14 +172,21 @@ export class AuthService {
       });
       await manager.save(otpEntity);
 
-      this.logger.log(`[SMS OTP SIMULATION] Gửi OTP ${otp} tới số ${dto.phone}`);
-
-      return {
-        userId: user.id,
-        message: 'Đăng ký thành công, vui lòng nhập mã OTP để kích hoạt tài khoản',
-        otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
-      };
+      return { userId: user.id };
     });
+
+    // Gửi sau khi đã lưu tài khoản; gửi lỗi thì khách vẫn bấm "Gửi lại mã"
+    const sent = (await this.mail?.sendOtp(dto.email.trim(), OtpPurpose.VERIFY, otp)) ?? false;
+    if (!sent) this.logger.log(`[OTP VERIFY SIMULATION] Mã ${otp} gửi tới ${dto.email.trim()}`);
+    return {
+      userId: registered.userId,
+      target: dto.email.trim(),
+      emailSent: sent,
+      message: sent
+        ? 'Đăng ký thành công, mã OTP đã gửi về email của bạn'
+        : 'Đăng ký thành công, chưa gửi được email thật nên dùng mã thử nghiệm',
+      otpPreview: !sent && process.env.NODE_ENV !== 'production' ? otp : undefined,
+    };
   }
 
   /**
@@ -689,38 +716,13 @@ export class AuthService {
    * Gửi lại mã OTP có giới hạn tần suất 3 lần/giờ (BR-002)
    */
   async resendOtp(dto: ResendOtpDto) {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentOtpsCount = await this.otpRepo.count({
-      where: {
-        target: dto.target,
-        purpose: dto.purpose,
-        createdAt: MoreThan(oneHourAgo),
-      },
-    });
-
-    if (recentOtpsCount >= AUTH_CONSTANTS.OTP_RESEND_MAX_HOURS) {
-      throw new BadRequestException({
-        code: AUTH_ERRORS.OTP_RATE_LIMITED,
-        message: 'Đã vượt quá giới hạn 3 lần gửi lại OTP trong 1 giờ (BR-002)',
-      });
+    // Tài khoản cũ đăng ký bằng số điện thoại: mã vẫn gửi về email đã lưu (nếu có)
+    let mailTo: string | undefined;
+    if (!dto.target.includes('@')) {
+      const user = await this.userRepo.findOne({ where: { phone: dto.target } });
+      mailTo = user?.email ?? undefined;
     }
-
-    const otp = CryptoUtil.generateOtp(AUTH_CONSTANTS.OTP_LENGTH);
-    const otpEntity = this.otpRepo.create({
-      target: dto.target,
-      purpose: dto.purpose,
-      codeHash: CryptoUtil.sha256(otp),
-      expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
-    });
-    await this.otpRepo.save(otpEntity);
-
-    this.logger.log(`[RESEND OTP SIMULATION] Gửi lại OTP ${otp} tới ${dto.target}`);
-
-    return {
-      success: true,
-      message: 'Đã gửi lại mã OTP thành công',
-      otpPreview: process.env.NODE_ENV !== 'production' ? otp : undefined,
-    };
+    return this.issueOtp(dto.target, dto.purpose, mailTo);
   }
 
   /**
@@ -904,7 +906,7 @@ export class AuthService {
   }
 
   /** Tạo và "gửi" OTP tới [target] (giới hạn 3 lần/giờ); môi trường dev trả kèm mã để thử. */
-  private async issueOtp(target: string, purpose: OtpPurpose) {
+  private async issueOtp(target: string, purpose: OtpPurpose, mailTo?: string) {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recent = await this.otpRepo.count({
       where: { target, purpose, createdAt: MoreThan(oneHourAgo) },
@@ -924,9 +926,8 @@ export class AuthService {
         expiresAt: new Date(Date.now() + AUTH_CONSTANTS.OTP_TTL_MINUTES * 60 * 1000),
       }),
     );
-    const sent = target.includes('@')
-      ? ((await this.mail?.sendOtp(target, purpose, otp)) ?? false)
-      : false;
+    const to = mailTo ?? (target.includes('@') ? target : undefined);
+    const sent = to ? ((await this.mail?.sendOtp(to, purpose, otp)) ?? false) : false;
     if (!sent) this.logger.log(`[OTP ${purpose} SIMULATION] Mã ${otp} gửi tới ${target}`);
     return {
       success: true,

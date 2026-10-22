@@ -22,7 +22,7 @@ enum class NavTab(
     val unselectedIcon: ImageVector
 ) {
     DISCOVER("Khám phá", Icons.Filled.Explore, Icons.Outlined.Explore),
-    BROWSE("Deal", Icons.Filled.ShoppingBag, Icons.Outlined.ShoppingBag),
+    BROWSE("Suất", Icons.Filled.ShoppingBag, Icons.Outlined.ShoppingBag),
     FAVOURITES("Yêu thích", Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder),
     ME("Tôi", Icons.Filled.Person, Icons.Outlined.PersonOutline)
 }

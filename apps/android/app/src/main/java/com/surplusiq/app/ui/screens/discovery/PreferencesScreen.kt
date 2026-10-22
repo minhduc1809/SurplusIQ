@@ -71,7 +71,7 @@ fun PreferencesScreen(
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = "Quay lại"
                         )
                     }
                 },

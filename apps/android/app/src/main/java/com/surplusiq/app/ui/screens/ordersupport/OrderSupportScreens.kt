@@ -1,6 +1,10 @@
 package com.surplusiq.app.ui.screens.ordersupport
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,7 +30,13 @@ import com.surplusiq.app.ui.components.LoadStateContent
 import com.surplusiq.app.ui.components.SectionCard
 import com.surplusiq.app.ui.components.StatusChip
 import com.surplusiq.app.ui.theme.CoralRed
+import com.surplusiq.app.ui.theme.DividerColor
 import com.surplusiq.app.ui.theme.ForestGreenPrimary
+import com.surplusiq.app.ui.theme.LilacWash
+import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SkyBlueLight
+import com.surplusiq.app.ui.theme.SkyBluePrimary
+import com.surplusiq.app.ui.theme.SurfaceSubtle
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
@@ -79,7 +89,7 @@ fun OrderTrackingScreen(
             onRetry = onLoad
         ) {
             if (t == null) return@LoadStateContent
-            Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.padding(padding).fillMaxSize().wrapContentWidth(androidx.compose.ui.Alignment.CenterHorizontally).widthIn(max = 640.dp).fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 SectionCard {
                     Text("Đơn ${t.code}", fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     t.store?.let { Text(it.name, fontSize = 13.sp, color = TextSecondary) }
@@ -148,7 +158,8 @@ fun OrderTrackingScreen(
     }
 }
 
-/** KX11 Trò chuyện theo đơn: làm mới 6 giây một lần. */
+/** KX11 Trò chuyện theo đơn: làm mới 6 giây một lần để nhận tin cửa hàng vừa gửi. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderChatScreen(
     state: OrderSupportUiState,
@@ -162,50 +173,226 @@ fun OrderChatScreen(
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(state.message) { state.message?.let { snackbar.showSnackbar(it); onConsumeMessage() } }
     val chat = state.chat
+    val tracking = state.tracking
     val listState = rememberLazyListState()
-    LaunchedEffect(chat?.messages?.size) { if (chat != null && chat.messages.isNotEmpty()) listState.animateScrollToItem(chat.messages.lastIndex) }
+    LaunchedEffect(chat?.messages?.size) {
+        if (chat != null && chat.messages.isNotEmpty()) listState.animateScrollToItem(chat.messages.lastIndex)
+    }
     var input by remember { mutableStateOf("") }
+    val storeName = chat?.storeName?.takeIf { it.isNotBlank() }
+        ?: tracking?.store?.name ?: "Cửa hàng"
+    val storeInitials = storeName.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
+    val quickReplies = listOf(
+        "\u2764\uFE0F Cảm ơn quán ạ!", "\uD83D\uDE97 Tôi đang đến rồi", "\u23F0 Còn bao lâu nữa?",
+        "\uD83D\uDCE6 Đơn đã sẵn sàng chưa?", "\uD83D\uDEAA Lối vào ở đâu?"
+    )
 
     Scaffold(
-        topBar = { BackTopBar("Nhắn cho cửa hàng", onBackClick) },
         snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            Box(Modifier.background(MaterialTheme.colorScheme.surface).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
-            if (chat?.isOpen != false) Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = input, onValueChange = { input = it.take(500) },
-                    placeholder = { Text("Nhập tin nhắn…") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(24.dp), maxLines = 3
-                )
-                Spacer(Modifier.width(8.dp))
-                IconButton(
-                    onClick = { onSend(input.trim()); input = "" },
-                    enabled = input.isNotBlank() && !state.isBusy,
-                    modifier = Modifier.size(48.dp).clip(CircleShape).background(if (input.isNotBlank()) ForestGreenPrimary else Color(0xFFD1D5DB))
-                ) { Icon(Icons.Default.Send, contentDescription = "Gửi", tint = Color.White) }
-            } else Text("Trò chuyện đã đóng sau 24 giờ kể từ khi đơn kết thúc.", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(16.dp))
-        }
-        }
-    ) { padding ->
-        LoadStateContent(
-            isLoading = chat == null && state.chatError == null,
-            errorMessage = if (chat == null) state.chatError else null,
-            isEmpty = chat == null || chat.messages.isEmpty(),
-            emptyIcon = Icons.Default.Chat,
-            emptyTitle = "Chưa có tin nhắn",
-            emptyMessage = "Hỏi cửa hàng về món, giờ nhận hoặc lối vào. Tin nhắn chỉ dành cho đơn này.",
-            modifier = Modifier.padding(padding),
-            onRetry = onLoad
-        ) {
-            LazyColumn(Modifier.padding(padding), state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(chat?.messages.orEmpty(), key = { it.id }) { m ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.fromMe) Arrangement.End else Arrangement.Start) {
-                        Column(
-                            Modifier.widthIn(max = 280.dp).clip(RoundedCornerShape(16.dp))
-                                .background(if (m.fromMe) ForestGreenPrimary else Color(0xFFF3F4F6)).padding(horizontal = 12.dp, vertical = 8.dp)
+        topBar = {
+            Surface(shadowElevation = 2.dp, color = MaterialTheme.colorScheme.surface) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = TextPrimary)
+                    }
+                    // Avatar chữ viết tắt
+                    Box(Modifier.size(42.dp)) {
+                        Box(
+                            Modifier.size(42.dp).clip(CircleShape)
+                                .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(SkyBluePrimary, SkyBlueLight))),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(m.body, color = if (m.fromMe) Color.White else TextPrimary, fontSize = 14.sp)
-                            Text(formatDateTime(m.createdAt), color = if (m.fromMe) Color.White.copy(alpha = 0.8f) else TextMuted, fontSize = 10.sp)
+                            Text(storeInitials.ifBlank { "CH" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
+                        Box(
+                            Modifier.size(12.dp).align(Alignment.BottomEnd).clip(CircleShape)
+                                .background(Color(0xFF22C55E)).border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(storeName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                Modifier.clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFEE4D2D).copy(alpha = 0.12f))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) { Text("Mall", fontSize = 10.sp, color = Color(0xFFEE4D2D), fontWeight = FontWeight.Bold) }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF22C55E)))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Online \u2022 Thường trả lời trong vài phút", fontSize = 11.sp, color = TextSecondary)
+                        }
+                    }
+                    IconButton(onClick = {}) { Icon(Icons.Default.Call, contentDescription = "Gọi", tint = TextSecondary) }
+                    IconButton(onClick = {}) { Icon(Icons.Default.MoreVert, contentDescription = "Thêm", tint = TextSecondary) }
+                }
+            }
+        },
+        containerColor = Color(0xFFF5F0EC)
+    ) { padding ->
+        Column(
+            Modifier.padding(padding).fillMaxSize()
+                .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 640.dp).fillMaxWidth()
+        ) {
+            // ── Banner thông tin đơn ──────────────────────────────────────────
+            chat?.let { c ->
+                Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 1.dp) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.clip(RoundedCornerShape(4.dp)).background(SkyBlueContainer)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text("SurplusIQ", fontSize = 10.sp, color = SkyBluePrimary, fontWeight = FontWeight.Bold) }
+                            Spacer(Modifier.width(6.dp))
+                            Text("Đơn #${c.orderCode}", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                            val statusLabel = tracking?.status?.let { friendlyStatus(it) } ?: "Đang chuẩn bị"
+                            Box(
+                                Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xFFDCFCE7))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF16A34A)))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(statusLabel, fontSize = 11.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                        tracking?.store?.let { store ->
+                            Spacer(Modifier.height(2.dp))
+                            Text("${store.name}", fontSize = 12.sp, color = TextSecondary, maxLines = 1)
+                            Text(store.address.orEmpty(), fontSize = 11.sp, color = TextMuted, maxLines = 1)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(
+                                onClick = {},
+                                modifier = Modifier.weight(1f).height(38.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
+                            ) { Text("Chi tiết đơn", fontSize = 13.sp, color = TextPrimary) }
+                            Button(
+                                onClick = { onSend("\uD83D\uDCCB Đơn #${c.orderCode} của tôi đã sẵn sàng chưa ạ?") },
+                                modifier = Modifier.weight(1f).height(38.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SkyBluePrimary)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Gửi đơn vào chat", fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Danh sách tin nhắn ────────────────────────────────────────────
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    chat == null && state.chatError == null ->
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = SkyBluePrimary) }
+                    chat == null -> Column(
+                        Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(state.chatError.orEmpty(), color = TextSecondary, fontSize = 14.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = onLoad, colors = ButtonDefaults.buttonColors(containerColor = SkyBluePrimary), shape = RoundedCornerShape(12.dp)) { Text("Thử lại") }
+                    }
+                    else -> LazyColumn(
+                        modifier = Modifier.fillMaxSize(), state = listState,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Ngăn cách ngày
+                        item {
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Box(
+                                    Modifier.clip(RoundedCornerShape(20.dp))
+                                        .background(Color(0xFF000000).copy(alpha = 0.07f))
+                                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                                ) { Text("Hôm nay", fontSize = 11.sp, color = TextSecondary) }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        // Thẻ chào mừng tự động
+                        item {
+                            WelcomeCard(storeName = storeName, onSuggestion = { onSend(it) })
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        items(chat.messages, key = { it.id }) { m ->
+                            ChatBubble(
+                                body = m.body, fromMe = m.fromMe,
+                                timestamp = formatDateTime(m.createdAt),
+                                read = m.readAt != null, storeInitials = storeInitials
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Quick-reply chips (ngay trên input) ──────────────────────────
+            if (chat?.isOpen != false && chat != null) {
+                Surface(color = MaterialTheme.colorScheme.surface) {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        items(quickReplies) { qr ->
+                            Box(
+                                Modifier.clip(RoundedCornerShape(20.dp))
+                                    .border(1.dp, DividerColor, RoundedCornerShape(20.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .clickable { onSend(qr) }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) { Text(qr, fontSize = 12.sp, color = TextPrimary) }
+                        }
+                    }
+                }
+            }
+
+            // ── Input bar ─────────────────────────────────────────────────────
+            if (chat?.isOpen != false) {
+                Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 6.dp) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        IconButton(onClick = {}, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Add, contentDescription = "Thêm", tint = TextSecondary) }
+                        IconButton(onClick = {}, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Image, contentDescription = "Ảnh", tint = TextSecondary) }
+                        TextField(
+                            value = input, onValueChange = { input = it.take(500) },
+                            placeholder = { Text("Nhập tin nhắn...", color = TextMuted, fontSize = 14.sp) },
+                            modifier = Modifier.weight(1f).clip(RoundedCornerShape(22.dp)), maxLines = 4,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = SurfaceSubtle, unfocusedContainerColor = SurfaceSubtle,
+                                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                                cursorColor = SkyBluePrimary
+                            )
+                        )
+                        IconButton(onClick = {}, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.EmojiEmotions, contentDescription = "Emoji", tint = TextSecondary) }
+                        val canSend = input.isNotBlank() && !state.isBusy
+                        Box(
+                            modifier = Modifier.size(40.dp).clip(CircleShape).background(SkyBluePrimary)
+                                .clickable(enabled = canSend) { onSend(input.trim()); input = "" },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (state.isBusy) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                            else Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Gửi", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            } else {
+                Surface(color = MaterialTheme.colorScheme.surface) {
+                    Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Trò chuyện đã đóng sau 24 giờ kể từ khi đơn kết thúc.", color = TextSecondary, fontSize = 12.sp)
                     }
                 }
             }
@@ -213,12 +400,108 @@ fun OrderChatScreen(
     }
 }
 
+/** Thẻ chào mừng tự động từ cửa hàng, hiển thị ở đầu thread. */
+@Composable
+private fun WelcomeCard(storeName: String, onSuggestion: (String) -> Unit) {
+    val suggestions = listOf(
+        "Đơn của tôi đã sẵn sàng chưa?",
+        "Tôi đến nhận lúc mấy giờ được?",
+        "Lối vào cửa hàng ở đâu?",
+        "Có thể giữ hàng thêm không?"
+    )
+    val icons = listOf(Icons.Default.CheckCircle, Icons.Default.Schedule, Icons.Default.Place, Icons.Default.Inventory2)
+    Surface(
+        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface, shadowElevation = 1.dp
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(SkyBlueContainer),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Default.Storefront, contentDescription = null, tint = SkyBluePrimary, modifier = Modifier.size(20.dp)) }
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text("Chào mừng bạn đến với $storeName! \uD83C\uDF89", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextPrimary)
+                    Text("Tin nhắn tự động từ cửa hàng", fontSize = 11.sp, color = TextMuted)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Cảm ơn quý khách đã đặt hàng! $storeName đã tiếp nhận suất ăn của bạn. Để được phản hồi ngay tức thì, quý khách vui lòng chọn câu hỏi gợi ý bên dưới nhé:",
+                fontSize = 13.sp, color = TextPrimary, lineHeight = 19.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            suggestions.forEachIndexed { index, s ->
+                if (index > 0) HorizontalDivider(color = DividerColor, thickness = 0.5.dp)
+                Row(
+                    Modifier.fillMaxWidth().clickable { onSuggestion(s) }.padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(icons[index], contentDescription = null, tint = SkyBluePrimary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(s, fontSize = 13.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+/** Single chat bubble with tail shape. */
+@Composable
+private fun ChatBubble(body: String, fromMe: Boolean, timestamp: String, read: Boolean, storeInitials: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = if (fromMe) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        if (!fromMe) {
+            Box(
+                Modifier.size(30.dp).clip(CircleShape)
+                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(SkyBluePrimary, SkyBlueLight))),
+                contentAlignment = Alignment.Center
+            ) { Text(storeInitials.ifBlank { "CH" }, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.width(6.dp))
+        }
+        Column(
+            modifier = Modifier.widthIn(max = 280.dp),
+            horizontalAlignment = if (fromMe) Alignment.End else Alignment.Start
+        ) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(
+                        topStart = 18.dp, topEnd = 18.dp,
+                        bottomStart = if (fromMe) 18.dp else 4.dp,
+                        bottomEnd = if (fromMe) 4.dp else 18.dp
+                    ))
+                    .background(
+                        if (fromMe) androidx.compose.ui.graphics.Brush.linearGradient(listOf(SkyBluePrimary, SkyBlueLight))
+                        else androidx.compose.ui.graphics.Brush.linearGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
+                    )
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) { Text(body, color = if (fromMe) Color.White else TextPrimary, fontSize = 14.sp, lineHeight = 20.sp) }
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(timestamp, color = TextMuted, fontSize = 10.sp)
+                if (fromMe) Text(
+                    if (read) "\u2022 Đã nhận \u2713" else "\u2022 Đã gửi",
+                    color = if (read) SkyBluePrimary else TextMuted, fontSize = 10.sp
+                )
+            }
+        }
+        if (fromMe) Spacer(Modifier.width(4.dp))
+    }
+}
+
+private data class IncidentType(val key: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+
 private val INCIDENT_TYPES = listOf(
-    "STORE_CLOSED" to "Cửa hàng đóng cửa",
-    "NOT_READY" to "Món chưa sẵn sàng",
-    "WRONG_ITEM" to "Sai món",
-    "LONG_WAIT" to "Chờ quá lâu",
-    "OTHER" to "Sự cố khác"
+    IncidentType("STORE_CLOSED", "Cửa hàng đóng cửa", Icons.Default.Storefront),
+    IncidentType("NOT_READY", "Món chưa sẵn sàng", Icons.Default.Schedule),
+    IncidentType("WRONG_ITEM", "Sai món", Icons.Default.Inventory2),
+    IncidentType("LONG_WAIT", "Chờ quá lâu", Icons.Default.AccessTime),
+    IncidentType("OTHER", "Sự cố khác", Icons.Default.MoreHoriz)
 )
 
 /** KX03 Báo sự cố khi đến nhận. */
@@ -238,24 +521,51 @@ fun ReportIncidentScreen(
     var type by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf("") }
 
-    Scaffold(topBar = { BackTopBar("Báo sự cố khi nhận hàng", onBackClick) }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
-        Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(
-                "Nếu cửa hàng đóng cửa hoặc món chưa sẵn sàng, bạn sẽ không bị tính là không đến nhận trong lúc chờ xử lý. " +
-                    "Cửa hàng không phản hồi trong 2 giờ thì hệ thống hoàn tiền cho bạn.",
-                fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp
-            )
-            Text("Bạn gặp vấn đề gì?", fontWeight = FontWeight.SemiBold)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                INCIDENT_TYPES.forEach { (key, label) -> FilterChip(selected = type == key, onClick = { type = key }, label = { Text(label) }) }
+    Scaffold(
+        topBar = { BackTopBar("Báo sự cố", onBackClick) },
+        snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
+                Button(
+                    onClick = { type?.let { onSubmit(it, note) } },
+                    enabled = type != null && !state.isBusy,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                    modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(16.dp).height(52.dp)
+                ) { Text("Gửi báo sự cố", fontWeight = FontWeight.Bold) }
             }
-            OutlinedTextField(value = note, onValueChange = { note = it.take(500) }, label = { Text("Mô tả thêm (không bắt buộc)") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-            Button(
-                onClick = { type?.let { onSubmit(it, note) } },
-                enabled = type != null && !state.isBusy,
-                colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) { Text("Gửi báo sự cố") }
+        }
+    ) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Bạn gặp vấn đề gì khi đến nhận?", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = TextPrimary)
+            Text("Cửa hàng không phản hồi trong 2 giờ, hệ thống hoàn tiền cho bạn.", fontSize = 13.sp, color = TextSecondary)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 2) {
+                INCIDENT_TYPES.forEach { t ->
+                    val selected = type == t.key
+                    Row(
+                        Modifier.weight(1f).heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp))
+                            .background(if (selected) com.surplusiq.app.ui.theme.SkyBlueContainer else com.surplusiq.app.ui.theme.SurfaceSubtle)
+                            .border(if (selected) 1.5.dp else 1.dp, if (selected) ForestGreenPrimary else com.surplusiq.app.ui.theme.DividerColor, RoundedCornerShape(16.dp))
+                            .clickable { type = t.key }.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(Modifier.size(36.dp).clip(CircleShape).background(if (selected) ForestGreenPrimary else Color.White), contentAlignment = Alignment.Center) {
+                            Icon(t.icon, contentDescription = null, tint = if (selected) Color.White else TextSecondary, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(t.label, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = TextPrimary)
+                    }
+                }
+            }
+            TextField(
+                value = note, onValueChange = { note = it.take(500) },
+                placeholder = { Text("Mô tả thêm (không bắt buộc)") },
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)), minLines = 3,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = com.surplusiq.app.ui.theme.SurfaceSubtle, unfocusedContainerColor = com.surplusiq.app.ui.theme.SurfaceSubtle,
+                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
+                )
+            )
 
             if (state.incidents.isNotEmpty()) {
                 Text("Các sự cố đã báo", fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -263,7 +573,7 @@ fun ReportIncidentScreen(
                     SectionCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(i.typeLabel, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            StatusChip(friendlyStatus(i.status), if (i.status == "RESOLVED") ForestGreenPrimary else TextSecondary)
+                            StatusChip(friendlyStatus(i.status), if (i.status == "RESOLVED") TextPrimary else TextSecondary)
                         }
                         i.note?.let { Text(it, fontSize = 12.sp, color = TextSecondary) }
                         i.storeResponse?.let { Text("Cửa hàng: $it", fontSize = 12.sp, color = TextPrimary) }
@@ -305,7 +615,7 @@ fun SwapOrderScreen(
             modifier = Modifier.padding(padding),
             onRetry = onLoad
         ) {
-            LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(Modifier.padding(padding).fillMaxSize().wrapContentWidth(androidx.compose.ui.Alignment.CenterHorizontally).widthIn(max = 640.dp).fillMaxWidth().navigationBarsPadding(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Text(swap?.note.orEmpty(), fontSize = 12.sp, color = TextSecondary) }
                 items(swap?.options.orEmpty(), key = { it.offerId }) { o ->
                     SectionCard {

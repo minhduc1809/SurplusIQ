@@ -26,7 +26,8 @@ import javax.inject.Singleton
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val authApiService: AuthApiService,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val locationRepository: com.surplusiq.app.domain.repository.LocationRepository
 ) : AuthRepository {
 
     override suspend fun login(phone: String, password: String, otpCode: String?): Result<LoginOutcome> {
@@ -52,6 +53,7 @@ class AuthRepositoryImpl @Inject constructor(
                         phone = phone,
                         fullName = body.user?.fullName ?: ""
                     )
+                    locationRepository.bindUser(body.user?.id ?: "")
                     Result.success(LoginOutcome.Success)
                 }
                 else -> Result.failure(
@@ -85,6 +87,7 @@ class AuthRepositoryImpl @Inject constructor(
                     phone = body.user?.phone ?: "",
                     fullName = body.user?.fullName ?: ""
                 )
+                locationRepository.bindUser(body.user?.id ?: "")
                 Result.success(true)
             } else {
                 Result.failure(
@@ -135,6 +138,7 @@ class AuthRepositoryImpl @Inject constructor(
                 VerifyOtpRequest(target = phone, code = otp, purpose = "VERIFY")
             )
             if (response.isSuccessful) {
+                locationRepository.resetLocation()
                 Result.success(true)
             } else {
                 Result.failure(
@@ -255,6 +259,7 @@ class AuthRepositoryImpl @Inject constructor(
             }
         }
         sessionManager.clearSession()
+        locationRepository.resetLocation()
         return Result.success(true)
     }
 

@@ -180,7 +180,7 @@ fun DealMapScreen(
             if (sortedPins.isEmpty()) item {
                 Text(
                     if (selectedCategory != null) "Không có quán nào bán nhóm \"${selectedCategory?.label}\" trong khu vực này."
-                    else "Chưa có cửa hàng nào có deal đang mở trong bán kính này.",
+                    else "Chưa có cửa hàng nào có suất đang mở trong bán kính này.",
                     fontSize = 13.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(16.dp)
@@ -361,7 +361,7 @@ private fun MapBanner(message: String, modifier: Modifier = Modifier, actionLabe
     SqCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = modifier.fillMaxWidth().padding(8.dp)
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {

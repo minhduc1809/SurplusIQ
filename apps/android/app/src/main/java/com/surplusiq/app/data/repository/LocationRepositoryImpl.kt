@@ -71,6 +71,17 @@ class LocationRepositoryImpl @Inject constructor(
         _location.value = readPersisted()
     }
 
+    override fun bindUser(userId: String) {
+        if (userId.isBlank() || prefs.getString(KEY_USER, null) == userId) return
+        prefs.edit().clear().putString(KEY_USER, userId).apply()
+        _location.value = readPersisted()
+    }
+
+    override fun resetLocation() {
+        prefs.edit().clear().apply()
+        _location.value = readPersisted()
+    }
+
     private fun readPersisted() = LocationSettings(
         latitude = prefs.getString(KEY_LAT, null)?.toDoubleOrNull(),
         longitude = prefs.getString(KEY_LNG, null)?.toDoubleOrNull(),
@@ -179,6 +190,7 @@ class LocationRepositoryImpl @Inject constructor(
 
     private companion object {
         const val KEY_CONFIGURED = "key_location_configured"
+        const val KEY_USER = "key_location_user"
         const val KEY_LAT = "key_location_lat"
         const val KEY_LNG = "key_location_lng"
         const val KEY_RADIUS = "key_location_radius_km"

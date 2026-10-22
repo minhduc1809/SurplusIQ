@@ -15,7 +15,7 @@ import javax.inject.Inject
 
 data class AuthUiState(
     val phone: String = "",
-    /** Email khi đăng ký (không bắt buộc, dùng cùng số điện thoại). */
+    /** Email khi đăng ký (bắt buộc): mã OTP xác minh được gửi về đây. */
     val email: String = "",
     val password: String = "",
     val fullName: String = "",
@@ -184,11 +184,11 @@ class AuthViewModel @Inject constructor(
 
     fun register() {
         val state = _uiState.value
-        if (state.phone.isBlank() || state.password.isBlank() || state.fullName.isBlank()) {
-            _uiState.value = state.copy(errorMessage = "Vui lòng điền đầy đủ thông tin Họ tên, SĐT và Mật khẩu")
+        if (state.phone.isBlank() || state.email.isBlank() || state.password.isBlank() || state.fullName.isBlank()) {
+            _uiState.value = state.copy(errorMessage = "Vui lòng điền đầy đủ Họ tên, SĐT, Email và Mật khẩu")
             return
         }
-        if (state.email.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email.trim()).matches()) {
+        if (state.email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email.trim()).matches()) {
             _uiState.value = state.copy(errorMessage = "Email không đúng định dạng.")
             return
         }
@@ -199,7 +199,7 @@ class AuthViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val result = authRepository.register(state.phone.trim(), state.password, state.fullName.trim(), state.email.trim().ifBlank { null })
+            val result = authRepository.register(state.phone.trim(), state.password, state.fullName.trim(), state.email.trim())
             result.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
@@ -228,7 +228,7 @@ class AuthViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val result = authRepository.verifyOtp(state.phone.trim(), state.otp.trim())
+            val result = authRepository.verifyOtp(state.email.trim(), state.otp.trim())
             result.fold(
                 onSuccess = {
                     otpTimerJob?.cancel()
@@ -255,7 +255,7 @@ class AuthViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val result = authRepository.resendOtp(state.phone.trim())
+            val result = authRepository.resendOtp(state.email.trim())
             result.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(

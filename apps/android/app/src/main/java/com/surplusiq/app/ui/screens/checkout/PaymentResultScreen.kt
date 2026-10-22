@@ -120,13 +120,13 @@ fun PaymentResultContent(
                 TextButton(onClick = onBackToQr) { Text("Xem lại mã VietQR", color = TextSecondary) }
             }
             PaymentResult.HoldExpired -> {
-                PrimaryButton("Xem deal khác", null, onBrowseDeals)
+                PrimaryButton("Xem suất khác", null, onBrowseDeals)
                 TextButton(onClick = onRecheck, enabled = !isChecking) {
                     Text(if (isChecking) "Đang kiểm tra…" else "Tôi đã chuyển tiền, kiểm tra lại", color = TextSecondary)
                 }
             }
             is PaymentResult.LatePayment -> {
-                PrimaryButton("Xem deal khác", null, onBrowseDeals)
+                PrimaryButton("Xem suất khác", null, onBrowseDeals)
                 Text(
                     "Theo dõi khoản hoàn trong Lịch sử thanh toán và hoàn tiền.",
                     fontSize = 12.sp,

@@ -88,8 +88,7 @@ fun OrderHoldCheckoutScreen(
         )
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
+            modifier = Modifier.fillMaxSize().wrapContentWidth(androidx.compose.ui.Alignment.CenterHorizontally).widthIn(max = 640.dp).fillMaxWidth().navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {

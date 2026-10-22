@@ -164,7 +164,7 @@ fun LocationSettingsScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Tìm deal quanh bạn", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+                    Text("Tìm suất quanh bạn", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -204,7 +204,7 @@ fun LocationSettingsScreen(
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            state.selected?.address ?: state.location.label ?: "Chưa chọn - đang hiện deal mọi khu vực",
+                            state.selected?.address ?: state.location.label ?: "Chưa chọn - đang hiện suất mọi khu vực",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = TextPrimary,
@@ -288,7 +288,7 @@ fun LocationSettingsScreen(
                 ProfileMenuItem(
                     icon = Icons.Default.PushPin,
                     title = "Ghim vị trí tạm trên bản đồ",
-                    subtitle = "Kéo bản đồ để xem deal ở nơi khác",
+                    subtitle = "Kéo bản đồ để xem suất ở nơi khác",
                     onClick = onOpenPinLocation
                 )
             }

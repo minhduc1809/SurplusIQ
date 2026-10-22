@@ -47,7 +47,7 @@ internal fun alertSummary(criteria: DealAlertCriteria): String = listOfNotNull(
     if (criteria.timeFrom != null && criteria.timeTo != null) "${criteria.timeFrom}-${criteria.timeTo}" else null,
     criteria.radiusKm?.let { "trong ${formatRadius(it)}" },
     criteria.notifyAt?.let { "báo lúc $it" }
-).joinToString(" · ").ifBlank { "Mọi deal" }
+).joinToString(" · ").ifBlank { "Mọi suất" }
 
 /** K20 Tạo hoặc sửa cảnh báo deal (R1-031, R1-032). */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -180,7 +180,7 @@ fun DealAlertEditScreen(
                     }
                 }
                 if (storeQuery.isNotBlank() && !state.isSearchingStores && state.storeOptions.isEmpty()) {
-                    Text("Không thấy cửa hàng đang có deal khớp tên này.", fontSize = 12.sp, color = TextMuted, modifier = Modifier.padding(top = 6.dp))
+                    Text("Không thấy cửa hàng đang có suất khớp tên này.", fontSize = 12.sp, color = TextMuted, modifier = Modifier.padding(top = 6.dp))
                 }
             }
 

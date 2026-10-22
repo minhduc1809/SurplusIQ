@@ -139,8 +139,21 @@ export class DiscoveryService {
 
     // 5. Tìm kiếm từ khóa (tên món hoặc tên quán) (R1-022)
     if (query.search && query.search.trim()) {
-      const keyword = `%${query.search.trim()}%`;
-      qb.andWhere('(i.name ILIKE :keyword OR s.name ILIKE :keyword)', { keyword });
+      // Gõ không dấu ("pho") thì không phân biệt dấu và cho gõ sai nhẹ (>= 5 ký tự); gõ có dấu ("phở") thì khớp đúng dấu,
+      // nếu không "phở" sẽ ra cả "Phố", "Phê". Chỉ tìm theo tên món và tên quán.
+      const kw = query.search.trim();
+      const hasMarks =
+        kw.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd') !== kw.normalize('NFC');
+      if (hasMarks) {
+        qb.andWhere('(i.name ILIKE :keyword OR s.name ILIKE :keyword)', { keyword: `%${kw}%` });
+      } else {
+        qb.andWhere(
+          `(unaccent(i.name) ILIKE unaccent(:keyword) OR unaccent(s.name) ILIKE unaccent(:keyword)
+            OR (length(:kw) >= 5 AND word_similarity(unaccent(lower(:kw)), unaccent(lower(i.name))) > 0.6)
+            OR (length(:kw) >= 5 AND word_similarity(unaccent(lower(:kw)), unaccent(lower(s.name))) > 0.6))`,
+          { keyword: `%${kw}%`, kw },
+        );
+      }
     }
 
     // 6. Sắp xếp kết quả (R1-024)
@@ -949,6 +962,9 @@ export class DiscoveryService {
         viewedAt: r.viewedAt,
         title: item?.name || 'Suất cứu món',
         storeName: store?.name || '',
+        imageUrl: item?.imageUrl ?? null,
+        pickupStart: offer?.pickupStart ?? null,
+        pickupEnd: offer?.pickupEnd ?? null,
         currentPrice: offer?.currentPrice || 0,
         originalPrice: offer?.originalPrice || 0,
         status: offer ? offer.status : 'EXPIRED',

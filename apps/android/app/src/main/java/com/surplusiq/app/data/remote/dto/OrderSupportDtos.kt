@@ -67,11 +67,13 @@ data class ChatMessageDto(
     @SerializedName("id") val id: String,
     @SerializedName("fromMe") val fromMe: Boolean,
     @SerializedName("body") val body: String,
-    @SerializedName("createdAt") val createdAt: String? = null
+    @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("readAt") val readAt: String? = null
 )
 
 data class ChatThreadDto(
     @SerializedName("orderCode") val orderCode: String,
+    @SerializedName("storeName") val storeName: String? = null,
     @SerializedName("isOpen") val isOpen: Boolean = true,
     @SerializedName("messages") val messages: List<ChatMessageDto> = emptyList()
 )

@@ -140,7 +140,7 @@ fun RefundBankAccountScreen(
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        "Tiền hoàn sẽ được chuyển tự động vào tài khoản này theo chuẩn VietQR 24/7 khi đơn hàng bị hủy hoặc được duyệt khiếu nại hoàn tiền.",
+                                        "Tiền hoàn được chuyển vào tài khoản này khi đơn bị hủy.",
                                         fontSize = 12.sp,
                                         color = TextSecondary,
                                         lineHeight = 16.sp

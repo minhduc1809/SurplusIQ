@@ -112,7 +112,7 @@ private fun VoucherCard(item: PromotionWalletItemDto) {
         SqCard(
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(modifier = Modifier.height(IntrinsicSize.Min)) {

@@ -74,7 +74,7 @@ class MyOrdersViewModel @Inject constructor(
                         it.status == OrderStatus.PENDING_PAYMENT || it.status == OrderStatus.PAID_WAITING_PICKUP
                     }
                     val past = allOrders.filter {
-                        it.status == OrderStatus.PICKED_UP || it.status == OrderStatus.CANCELLED || it.status == OrderStatus.EXPIRED
+                        it.status != OrderStatus.PENDING_PAYMENT && it.status != OrderStatus.PAID_WAITING_PICKUP
                     }
                     _uiState.value = _uiState.value.copy(
                         activeOrders = active,

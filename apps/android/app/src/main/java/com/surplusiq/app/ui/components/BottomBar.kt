@@ -46,7 +46,7 @@ fun SqBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(16.dp, shape, ambientColor = Color(0x333B2A22), spotColor = Color(0x333B2A22))
+                .shadow(10.dp, shape, ambientColor = Color(0x1F3B2A22), spotColor = Color(0x1F3B2A22))
                 .clip(shape)
                 .background(Color.White)
                 .navigationBarsPadding()

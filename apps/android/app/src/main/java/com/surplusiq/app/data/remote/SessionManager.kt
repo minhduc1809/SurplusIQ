@@ -68,13 +68,11 @@ class SessionManager @Inject constructor(
 
     fun getDeviceId(): String = prefs.getString(KEY_DEVICE_ID, "android-device-emulator") ?: "android-device-emulator"
 
+    /** Địa chỉ máy chủ luôn theo bản build hiện tại; không giữ địa chỉ cũ của lần cài trước (vd. 127.0.0.1 khi cắm USB). */
     fun getBaseUrl(): String {
-        val current = prefs.getString(KEY_BASE_URL, null)
-        if (current == null || current.contains(":3000")) {
-            setBaseUrl(DEFAULT_BASE_URL)
-            return DEFAULT_BASE_URL
-        }
-        return current
+        val normalized = if (DEFAULT_BASE_URL.endsWith("/")) DEFAULT_BASE_URL else "$DEFAULT_BASE_URL/"
+        if (prefs.getString(KEY_BASE_URL, null) != normalized) setBaseUrl(normalized)
+        return normalized
     }
 
     fun setBaseUrl(url: String) {

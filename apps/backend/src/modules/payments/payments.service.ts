@@ -146,7 +146,7 @@ export class PaymentsService {
     const transferSyntax = `${PAYMENTS_CONSTANTS.VIETQR.SYNTAX_PREFIX}${order.code}`;
     const qrUrl = `https://img.vietqr.io/image/${PAYMENTS_CONSTANTS.VIETQR.BANK_BIN}-${
       PAYMENTS_CONSTANTS.VIETQR.ACCOUNT_NO
-    }-compact2.png?amount=${order.totalAmount}&addInfo=${transferSyntax}&accountName=${encodeURIComponent(
+    }-${PAYMENTS_CONSTANTS.VIETQR.TEMPLATE}.png?amount=${order.totalAmount}&addInfo=${transferSyntax}&accountName=${encodeURIComponent(
       PAYMENTS_CONSTANTS.VIETQR.ACCOUNT_NAME,
     )}`;
 

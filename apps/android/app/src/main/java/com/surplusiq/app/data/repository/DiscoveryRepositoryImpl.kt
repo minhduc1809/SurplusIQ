@@ -118,14 +118,22 @@ class DiscoveryRepositoryImpl @Inject constructor(
 
     override suspend fun toggleFavorite(dealId: String, storeId: String, currentStatus: Boolean): Result<Boolean> {
         val newStatus = !currentStatus
-        favoriteOverrides[storeId] = newStatus
-        if (newStatus) {
-            try { profileApiService.addFavorite(storeId) } catch (_: Exception) {}
-        } else {
-            try { profileApiService.removeFavorite(storeId) } catch (_: Exception) {}
+        // Chỉ ghi nhận thành công khi máy chủ trả mã 2xx; trước đây lỗi mạng hoặc lỗi máy chủ bị bỏ qua nên tim chỉ lưu giả trên máy.
+        return apiCall("Không thể cập nhật cửa hàng yêu thích", {
+            if (newStatus) profileApiService.addFavorite(storeId) else profileApiService.removeFavorite(storeId)
+        }) {
+            favoriteOverrides[storeId] = newStatus
+            newStatus
         }
-        return Result.success(newStatus)
     }
+
+    override suspend fun getFavoriteStoreIds(): Result<Set<String>> =
+        apiCall("Không thể tải cửa hàng yêu thích", { profileApiService.getFavorites() }) { list ->
+            val ids = list.map { it.storeId }.toSet()
+            favoriteOverrides.keys.toList().forEach { if (it !in ids) favoriteOverrides[it] = false }
+            ids.forEach { favoriteOverrides[it] = true }
+            ids
+        }
 
     private fun applyLocalFilters(
         deals: List<Deal>,
@@ -137,13 +145,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
 
         // 1. Text Search Filter
         if (!search.isNullOrBlank()) {
-            val q = search.trim().lowercase()
             result = result.filter {
-                it.title.lowercase().contains(q) ||
-                it.storeName.lowercase().contains(q) ||
-                it.category.label.lowercase().contains(q) ||
-                it.whatYouCouldGet.lowercase().contains(q) ||
-                it.storeAddress.lowercase().contains(q)
+                com.surplusiq.app.domain.util.FuzzySearch.matches(search, it.title, it.storeName, it.category.label, it.whatYouCouldGet, it.storeAddress)
             }
         }
 
@@ -202,7 +205,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!.data.map { mapRadarItemToRadarDeal(it) })
             } else {
-                Result.failure(Exception("Không thể tải Rescue Radar (${response.code()})"))
+                Result.failure(Exception("Không thể tải Radar cứu món (${response.code()})"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -281,7 +284,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
                     )
                 )
             } else {
-                Result.failure(Exception("Không thể tải hồ sơ TrustPass (${response.code()})"))
+                Result.failure(Exception("Không thể tải hồ sơ minh bạch (${response.code()})"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -311,7 +314,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
             if (response.isSuccessful && body != null) {
                 Result.success(body.baskets.map { mapBasketCandidate(it) })
             } else {
-                Result.failure(Exception("Không thể gợi ý giỏ Rescue Basket (${response.code()})"))
+                Result.failure(Exception("Không thể gợi ý giỏ giỏ cứu món (${response.code()})"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -418,6 +421,9 @@ class DiscoveryRepositoryImpl @Inject constructor(
                     id = it.offerId,
                     storeName = it.storeName,
                     title = it.title,
+                    imageUrl = it.imageUrl,
+                    pickupStart = it.pickupStart,
+                    pickupEnd = it.pickupEnd,
                     originalPrice = it.originalPrice,
                     currentPrice = it.currentPrice,
                     discountPercent = if (it.originalPrice > 0) ((1 - it.currentPrice / it.originalPrice) * 100).roundToInt() else 0,

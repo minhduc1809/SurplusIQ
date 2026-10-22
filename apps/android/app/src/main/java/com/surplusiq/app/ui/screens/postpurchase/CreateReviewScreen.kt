@@ -74,7 +74,7 @@ fun CreateReviewScreen(
                 IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
+                        contentDescription = "Quay lại"
                     )
                 }
             },
@@ -300,7 +300,7 @@ fun CreateReviewScreen(
             },
             text = {
                 Text(
-                    text = "Đánh giá của bạn giúp cộng đồng Cứu Món lựa chọn dễ dàng hơn và giúp cửa hàng ngày càng nâng cao chất lượng dịch vụ.",
+                    text = "Đánh giá giúp cộng đồng chọn món dễ hơn.",
                     fontSize = 14.sp
                 )
             },

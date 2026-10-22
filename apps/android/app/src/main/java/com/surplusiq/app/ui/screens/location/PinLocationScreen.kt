@@ -145,7 +145,7 @@ fun PinLocationScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        Text("Xem deal tại đây", fontWeight = FontWeight.Bold)
+                        Text("Xem suất tại đây", fontWeight = FontWeight.Bold)
                     }
                 }
             }

@@ -57,7 +57,7 @@ class RewardsViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     errorMessage = balanceResult.exceptionOrNull()?.localizedMessage
-                        ?: "Không thể tải Rescue Rewards"
+                        ?: "Không thể tải điểm thưởng"
                 )
             }
         }

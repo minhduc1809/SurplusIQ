@@ -63,8 +63,8 @@ val ONBOARDING_SLIDES = listOf(
     ),
     OnboardingSlide(
         badge = "TÌM KIẾM THÔNG MINH",
-        title = "Radar Quét Deal Quanh Bạn",
-        description = "Tự động gợi ý các deal ngon trong bán kính bạn chọn quanh vị trí của bạn. Bật thông báo để không bao giờ bỏ lỡ món yêu thích từ tiệm quen.",
+        title = "Radar Quét Suất Quanh Bạn",
+        description = "Tự động gợi ý các suất ngon trong bán kính bạn chọn quanh vị trí của bạn. Bật thông báo để không bao giờ bỏ lỡ món yêu thích từ tiệm quen.",
         icon = Icons.Default.NearMe,
         themeColor = Color(0xFF0288D1),
         gradientColors = listOf(Color(0xFF01579B), Color(0xFF4FC3F7))

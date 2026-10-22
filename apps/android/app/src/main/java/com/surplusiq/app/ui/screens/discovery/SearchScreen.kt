@@ -136,32 +136,27 @@ fun SearchScreen(
                         searchResults = if (matchedDeals.isNotEmpty()) {
                             matchedDeals
                         } else {
-                            allDeals.filter {
-                                it.title.contains(q, ignoreCase = true) ||
-                                it.storeName.contains(q, ignoreCase = true) ||
-                                it.whatYouCouldGet.contains(q, ignoreCase = true)
-                            }
+                            allDeals.filter { com.surplusiq.app.domain.util.FuzzySearch.matches(q, it.title, it.storeName, it.whatYouCouldGet, it.category.label) }
                         }
                     } else {
-                        errorMessage = "SaveBite AI không thể xử lý yêu cầu lúc này (${response.code()})"
+                        errorMessage = "Trợ lý Cứu Món không thể xử lý yêu cầu lúc này (${response.code()})"
                         // Fallback sang local filter
-                        searchResults = allDeals.filter {
-                            it.title.contains(q, ignoreCase = true) ||
-                            it.storeName.contains(q, ignoreCase = true)
-                        }
+                        searchResults = allDeals.filter { com.surplusiq.app.domain.util.FuzzySearch.matches(q, it.title, it.storeName, it.whatYouCouldGet, it.category.label) }
                     }
                 } catch (e: Exception) {
                     errorMessage = e.localizedMessage ?: "Lỗi kết nối khi tìm kiếm AI"
-                    searchResults = allDeals.filter {
-                        it.title.contains(q, ignoreCase = true) ||
-                        it.storeName.contains(q, ignoreCase = true)
-                    }
+                    searchResults = allDeals.filter { com.surplusiq.app.domain.util.FuzzySearch.matches(q, it.title, it.storeName, it.whatYouCouldGet, it.category.label) }
                 } finally {
                     isLoading = false
                 }
             } else {
                 // Tìm kiếm tiêu chuẩn qua Repository hoặc local deals
-                if (discoveryRepository != null) {
+                if (allDeals.isNotEmpty()) {
+                    searchResults = allDeals.filter {
+                        com.surplusiq.app.domain.util.FuzzySearch.matches(q, it.title, it.storeName, it.whatYouCouldGet, it.category.label)
+                    }
+                    isLoading = false
+                } else if (discoveryRepository != null) {
                     val res = discoveryRepository.getNearbyDeals(
                         latitude = userLatitude,
                         longitude = userLongitude,
@@ -174,19 +169,12 @@ fun SearchScreen(
                         },
                         onFailure = { err ->
                             // Fallback local filter
-                            searchResults = allDeals.filter {
-                                it.title.contains(q, ignoreCase = true) ||
-                                it.storeName.contains(q, ignoreCase = true)
-                            }
+                            searchResults = allDeals.filter { com.surplusiq.app.domain.util.FuzzySearch.matches(q, it.title, it.storeName, it.whatYouCouldGet, it.category.label) }
                             isLoading = false
                         }
                     )
                 } else {
-                    searchResults = allDeals.filter {
-                        it.title.contains(q, ignoreCase = true) ||
-                        it.storeName.contains(q, ignoreCase = true) ||
-                        it.whatYouCouldGet.contains(q, ignoreCase = true)
-                    }
+                    searchResults = allDeals.filter { com.surplusiq.app.domain.util.FuzzySearch.matches(q, it.title, it.storeName, it.whatYouCouldGet, it.category.label) }
                     isLoading = false
                 }
             }
@@ -296,7 +284,7 @@ fun SearchScreen(
             FilterChip(
                 selected = isAiMode,
                 onClick = { isAiMode = true },
-                label = { Text("SaveBite AI Assistant", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                label = { Text("Trợ lý Cứu Món", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
                 leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp)) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = LilacWash,
@@ -323,7 +311,7 @@ fun SearchScreen(
                         )
                         Spacer(modifier = Modifier.height(14.dp))
                         Text(
-                            text = if (isAiMode) "SaveBite AI đang quét danh sách món phù hợp..." else "Đang tìm kiếm deal cứu hộ...",
+                            text = if (isAiMode) "Trợ lý Cứu Món đang quét danh sách món phù hợp..." else "Đang tìm kiếm suất cứu hộ...",
                             fontSize = 13.sp,
                             color = TextSecondary
                         )
@@ -359,7 +347,7 @@ fun SearchScreen(
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text(
-                                            text = "Gợi ý thông minh từ SaveBite AI",
+                                            text = "Gợi ý thông minh từ Trợ lý Cứu Món",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             color = Color(0xFF513F9E)
@@ -421,7 +409,7 @@ fun SearchScreen(
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = "Hãy thử từ khóa ngắn hơn hoặc bật chế độ SaveBite AI để tìm theo ý muốn.",
+                                        text = "Hãy thử từ khóa ngắn hơn hoặc bật chế độ Trợ lý Cứu Món để tìm theo ý muốn.",
                                         color = TextSecondary,
                                         fontSize = 13.sp,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -584,7 +572,7 @@ fun SearchScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        text = "Thử tìm kiếm với SaveBite AI",
+                                        text = "Thử tìm kiếm với Trợ lý Cứu Món",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
                                         color = Color(0xFF513F9E)

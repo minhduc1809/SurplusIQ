@@ -86,7 +86,7 @@ class RescuePoolRepositoryImpl @Inject constructor(
         }.getOrNull()
         return parsed ?: when (code) {
             401 -> "Phiên đăng nhập đã hết. Đăng nhập lại để tiếp tục."
-            404 -> "Không tìm thấy đợt Rescue Pool."
+            404 -> "Không tìm thấy đợt Mua chung theo đợt."
             in 500..599 -> "Hệ thống đang gặp sự cố. Vui lòng thử lại sau."
             else -> "Không thể hoàn tất yêu cầu ($code)."
         }
@@ -95,7 +95,7 @@ class RescuePoolRepositoryImpl @Inject constructor(
     private fun RescuePoolDto.toDomain() = RescuePool(
         id = id,
         storeName = storeName ?: "Cửa hàng",
-        title = poolTitle ?: "Đợt Rescue Pool",
+        title = poolTitle ?: "Đợt Mua chung theo đợt",
         targetCategory = targetCategory ?: "",
         serviceArea = serviceArea ?: "",
         registrationOpenAt = registrationOpenAt,

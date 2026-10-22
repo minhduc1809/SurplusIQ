@@ -54,6 +54,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.compose.material:material-icons-extended")
+    // Bộ icon Feather (nét mảnh, hiện đại) cho màn nhắn tin; các màn khác vẫn dùng Material Icons.
+    implementation("br.com.devsrsouza.compose.icons:feather:1.1.1")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

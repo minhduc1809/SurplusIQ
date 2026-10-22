@@ -1,6 +1,8 @@
 package com.surplusiq.app.ui.navigation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -168,7 +170,7 @@ sealed class AppDestination {
     object ForYou : AppDestination()
     // KX03, KX05, KX11, KX12, KX18: hỗ trợ đơn hàng
     data class OrderTracking(val order: ActiveOrder) : AppDestination()
-    data class OrderChat(val order: ActiveOrder) : AppDestination()
+    data class OrderChat(val order: ActiveOrder, val fromDetail: Boolean = false) : AppDestination()
     data class ReportIncident(val order: ActiveOrder) : AppDestination()
     data class SwapOrder(val order: ActiveOrder) : AppDestination()
     object Gifts : AppDestination()
@@ -269,8 +271,11 @@ fun SurplusAppRoot(
     // K06: lần đầu vào app (đăng nhập hoặc khách) mà chưa thiết lập vị trí -> màn quyền vị trí & bán kính.
     LaunchedEffect(authState.isLoggedIn, authState.isGuestMode) {
         if ((authState.isLoggedIn || authState.isGuestMode) && !placesViewModel.isLocationConfigured()) {
-            placesViewModel.startSelection()
-            currentDestination = AppDestination.LocationSettings
+            val restored = authState.isLoggedIn && placesViewModel.restoreFromSavedPlaces()
+            if (!restored) {
+                placesViewModel.startSelection()
+                currentDestination = AppDestination.LocationSettings
+            }
         }
     }
 
@@ -317,9 +322,10 @@ fun SurplusAppRoot(
                                     authViewModel.loginWithGoogle(idToken)
                                 } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
                                     // Người dùng tự đóng hộp thoại Google: không báo lỗi.
-                                } catch (e: GetCredentialException) {
+                                } catch (e: Exception) {
+                                    android.util.Log.e("GoogleSignIn", "Lỗi đăng nhập Google: ${e.javaClass.simpleName}: ${e.message}", e)
                                     authViewModel.onGoogleSignInFailed(
-                                        "Không đăng nhập được bằng Google. Vui lòng thử lại hoặc dùng số điện thoại."
+                                        "Không đăng nhập được bằng Google (${e.javaClass.simpleName}). Vui lòng thử lại hoặc dùng số điện thoại."
                                     )
                                 }
                             }
@@ -373,9 +379,10 @@ fun SurplusAppRoot(
                                     authViewModel.loginWithGoogle(idToken)
                                 } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
                                     // Người dùng tự đóng hộp thoại Google: không báo lỗi.
-                                } catch (e: GetCredentialException) {
+                                } catch (e: Exception) {
+                                    android.util.Log.e("GoogleSignIn", "Lỗi đăng nhập Google: ${e.javaClass.simpleName}: ${e.message}", e)
                                     authViewModel.onGoogleSignInFailed(
-                                        "Không đăng nhập được bằng Google. Vui lòng thử lại hoặc dùng số điện thoại."
+                                        "Không đăng nhập được bằng Google (${e.javaClass.simpleName}). Vui lòng thử lại hoặc dùng số điện thoại."
                                     )
                                 }
                             }
@@ -400,6 +407,10 @@ fun SurplusAppRoot(
         return
     }
 
+    // Màn con tự chừa thanh điều hướng và bàn phím một lần ở đây (windowInsetsPadding đã tiêu thụ inset nên màn nào tự thêm cũng không bị cộng đôi).
+    // Tab chính để Scaffold lo, màn chi tiết deal có ảnh tràn lên đỉnh và tự xử lý inset.
+    val insetAware = currentDestination !is AppDestination.MainTabs && currentDestination !is AppDestination.DealDetail
+    Box(Modifier.fillMaxSize().then(if (insetAware) Modifier.navigationBarsPadding().imePadding() else Modifier)) {
     when (val dest = currentDestination) {
         is AppDestination.DealDetail -> {
             // K17: ghi lịch sử xem + biết deal đã lưu chưa (chỉ khi đã đăng nhập; khách không có danh sách).
@@ -412,7 +423,9 @@ fun SurplusAppRoot(
             val isSaved = dest.deal.id in savedDealsState.savedIds
             LaunchedEffect(dest.deal.id) {
                 discoveryViewModel.loadBackInStockStatus(dest.deal.id)
+                if (authState.isLoggedIn) discoveryViewModel.loadFavoriteIds()
             }
+            val storeIsFavorite = if (discoveryState.favoriteIdsLoaded) dest.deal.storeId in discoveryState.favoriteStoreIds else dest.deal.isFavorite
             DealDetailScreen(
                 deal = dest.deal,
                 onBackClick = { currentDestination = dest.back },
@@ -440,7 +453,11 @@ fun SurplusAppRoot(
                 priceHistory = discoveryState.priceHistory,
                 isPriceHistoryLoading = discoveryState.isPriceHistoryLoading,
                 priceHistoryError = discoveryState.priceHistoryError,
-                onLoadPriceHistory = { discoveryViewModel.loadPriceHistory(dest.deal.id) }
+                onLoadPriceHistory = { discoveryViewModel.loadPriceHistory(dest.deal.id) },
+                isFavorite = storeIsFavorite,
+                onToggleFavorite = { discoveryViewModel.toggleFavorite(dest.deal) },
+                favoriteMessage = discoveryState.favoriteMessage,
+                onFavoriteMessageShown = { discoveryViewModel.consumeFavoriteMessage() }
             )
         }
 
@@ -491,6 +508,8 @@ fun SurplusAppRoot(
             OrderDetailScreen(
                 order = dest.order,
                 onBackClick = { currentDestination = AppDestination.MyOrders },
+                onOpenHelp = { interactionsViewModel.loadHelpCenterFaq(); currentDestination = AppDestination.HelpCenter },
+                onOpenChat = { o -> orderSupportViewModel.clear(); currentDestination = AppDestination.OrderChat(o, fromDetail = true) },
                 onOpenPickupPass = { order -> currentDestination = AppDestination.PickupPass(order) },
                 onResumePayment = { order -> currentDestination = AppDestination.CheckoutHold(order.deal) },
                 ordersState = myOrdersState,
@@ -554,7 +573,7 @@ fun SurplusAppRoot(
                 orderId = dest.order.id,
                 onLoad = { orderSupportViewModel.loadChat(dest.order.id) },
                 onSend = { orderSupportViewModel.sendChat(dest.order.id, it) },
-                onBackClick = { currentDestination = AppDestination.OrderTracking(dest.order) },
+                onBackClick = { currentDestination = if (dest.fromDetail) AppDestination.OrderDetail(dest.order) else AppDestination.OrderTracking(dest.order) },
                 onConsumeMessage = { orderSupportViewModel.consumeMessage() }
             )
         }
@@ -1111,7 +1130,12 @@ fun SurplusAppRoot(
                 isLoading = savedDealsState.isCompareLoading,
                 errorMessage = savedDealsState.compareError,
                 onRetry = { savedDealsViewModel.compare(dest.dealIds) },
-                onBackClick = { currentDestination = AppDestination.SavedDeals }
+                onBackClick = { currentDestination = AppDestination.SavedDeals },
+                onChoose = { picked ->
+                    (savedDealsState.savedDeals + savedDealsState.viewHistory).firstOrNull { it.offerId == picked.id }?.deal?.let {
+                        currentDestination = AppDestination.DealDetail(it, back = AppDestination.CompareDeals(dest.dealIds))
+                    }
+                }
             )
         }
 
@@ -1264,6 +1288,8 @@ fun SurplusAppRoot(
                                     currentDestination = AppDestination.DealDetail(deal)
                                 },
                                 onFavoriteToggle = { discoveryViewModel.toggleFavorite(it) },
+                                searchResults = discoveryState.searchResults,
+                                onSearchQueryChanged = { discoveryViewModel.searchDeals(it) },
                                 onOpenPreferences = {
                                     currentDestination = AppDestination.Preferences
                                 },
@@ -1488,5 +1514,6 @@ fun SurplusAppRoot(
                 }
             }
         }
+    }
     }
 }

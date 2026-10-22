@@ -244,7 +244,7 @@ fun PastelTile(
     Column(
         modifier = modifier
             .heightIn(min = 148.dp)
-            .shadow(4.dp, shape, ambientColor = SqWarmShadow, spotColor = SqWarmShadow)
+            .shadow(2.dp, shape, ambientColor = SqWarmShadow, spotColor = SqWarmShadow)
             .clip(shape)
             .background(tone.bg)
             .tilePattern(tone)
@@ -278,7 +278,7 @@ fun ActionBanner(title: String, subtitle: String, icon: ImageVector, onClick: ()
     val shape = RoundedCornerShape(24.dp)
     Row(
         modifier = modifier.fillMaxWidth()
-            .shadow(4.dp, shape, ambientColor = SqWarmShadow, spotColor = SqWarmShadow)
+            .shadow(2.dp, shape, ambientColor = SqWarmShadow, spotColor = SqWarmShadow)
             .clip(shape)
             .background(Brush.horizontalGradient(listOf(SqCoral.copy(alpha = 0.35f), SqCoralWash)))
             .border(1.dp, SqCoral.copy(alpha = 0.25f), shape)

@@ -66,7 +66,7 @@ fun DealCard(
             .clickable { onDealClick(deal) },
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column {
             Box(Modifier.fillMaxWidth().height(190.dp)) {

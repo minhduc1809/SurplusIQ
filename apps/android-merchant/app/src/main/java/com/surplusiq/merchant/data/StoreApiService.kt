@@ -308,6 +308,12 @@ interface StoreApiService {
     @GET("store/orders/{id}")
     suspend fun getOrder(@Path("id") id: String): Response<OrderDto>
 
+    @GET("store/orders/{id}/messages")
+    suspend fun getOrderChat(@Path("id") id: String): Response<OrderChatThread>
+
+    @POST("store/orders/{id}/messages")
+    suspend fun sendOrderChat(@Path("id") id: String, @Body request: SendOrderChatRequest): Response<Any>
+
     @POST("store/orders/{id}/cancel")
     suspend fun cancelOrder(@Path("id") id: String, @Body request: CancelOrderRequest): Response<OrderDto>
 

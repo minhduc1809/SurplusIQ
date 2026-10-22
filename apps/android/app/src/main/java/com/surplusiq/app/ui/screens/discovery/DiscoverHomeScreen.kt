@@ -99,6 +99,8 @@ fun DiscoverHomeScreen(
     errorMessage: String? = null,
     onRetry: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
+    searchResults: List<com.surplusiq.app.domain.model.Deal>? = null,
+    onSearchQueryChanged: (String) -> Unit = {},
     currentSortBy: String? = null,
     currentMinDiscount: Int? = null,
     onApplyFilterSort: (sortBy: String?, minDiscount: Int?) -> Unit = { _, _ -> },
@@ -109,12 +111,14 @@ fun DiscoverHomeScreen(
     var isMapView by remember { mutableStateOf(false) }
     var showFilterSortSheet by remember { mutableStateOf(false) }
     var category by remember { mutableStateOf<DealCategory?>(null) }
-    val shown = remember(deals, searchQuery, category) {
+    val shown = remember(deals, searchQuery, category, searchResults) {
         val q = searchQuery.trim()
-        deals.filter { d ->
-            (category == null || d.category == category) &&
-                (q.isEmpty() || d.title.contains(q, ignoreCase = true) || d.storeName.contains(q, ignoreCase = true))
+        // Khớp ngay trên danh sách đã tải, cộng kết quả tìm trên máy chủ (toàn bộ suất quanh vị trí)
+        val local = deals.filter { d ->
+            q.isEmpty() || com.surplusiq.app.domain.util.FuzzySearch.matches(q, d.title, d.storeName)
         }
+        val merged = if (q.isEmpty()) local else (local + searchResults.orEmpty()).distinctBy { it.id }
+        merged.filter { category == null || it.category == category }
     }
     // Số quán đang mở và mức giảm cao nhất lấy từ chính danh sách suất đang hiển thị
     val openStores = remember(deals) { deals.map { it.storeId }.distinct().size }
@@ -213,15 +217,19 @@ fun DiscoverHomeScreen(
                     .clip(RoundedCornerShape(18.dp))
                     .background(MaterialTheme.colorScheme.surface)
                     .border(1.dp, DividerColor, RoundedCornerShape(18.dp))
-                    .clickable { onOpenSearch() }
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Search, contentDescription = "Tìm kiếm", tint = ForestGreenPrimary, modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = "Mở tìm kiếm nâng cao",
+                    tint = ForestGreenPrimary,
+                    modifier = Modifier.size(20.dp).clickable { onOpenSearch() }
+                )
                 Spacer(Modifier.width(8.dp))
                 BasicTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = { searchQuery = it; onSearchQueryChanged(it) },
                     singleLine = true,
                     textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary),
                     cursorBrush = SolidColor(ForestGreenPrimary),
@@ -234,7 +242,7 @@ fun DiscoverHomeScreen(
                 if (searchQuery.isNotEmpty()) {
                     Icon(
                         Icons.Default.Close, contentDescription = "Xóa tìm kiếm", tint = TextMuted,
-                        modifier = Modifier.size(18.dp).clickable { searchQuery = "" }
+                        modifier = Modifier.size(18.dp).clickable { searchQuery = ""; onSearchQueryChanged("") }
                     )
                 }
             }
@@ -324,7 +332,7 @@ fun DiscoverHomeScreen(
                                 errorMessage = errorMessage,
                                 isEmpty = true,
                                 emptyIcon = Icons.Default.LocationOn,
-                                emptyTitle = "Chưa có deal quanh đây",
+                                emptyTitle = "Chưa có suất quanh đây",
                                 emptyMessage = if (location.hasCoordinates) "Thử tăng bán kính hoặc chọn vị trí khác." else "Hiện chưa có suất cứu món nào đang mở bán.",
                                 onRetry = onRetry
                             ) {}
@@ -375,13 +383,13 @@ fun DiscoverHomeScreen(
                         }
                     }
                     if (shown.isEmpty()) item {
-                        Text("Không có suất nào khớp bộ lọc.", fontSize = 14.sp, color = TextSecondary, modifier = side.padding(vertical = 24.dp))
+                        Text(if (searchQuery.isNotBlank()) "Không tìm thấy món hoặc quán nào khớp \"${searchQuery.trim()}\"." else "Không có suất nào khớp bộ lọc.", fontSize = 14.sp, color = TextSecondary, modifier = side.padding(vertical = 24.dp))
                     }
                     if (shown.isNotEmpty()) item {
                         Box(side) {
                             SectionHeader(
-                                title = "Dành cho bạn",
-                                subtitle = "Suất cứu món nóng hổi gần vị trí của bạn nhất",
+                                title = if (searchQuery.isNotBlank()) "Kết quả cho \"${searchQuery.trim()}\" (${shown.size})" else "Dành cho bạn",
+                                subtitle = if (searchQuery.isNotBlank()) "Theo tên món hoặc tên quán" else "Suất cứu món nóng hổi gần vị trí của bạn nhất",
                                 onSeeAllClick = onSeeAllForYou
                             )
                         }

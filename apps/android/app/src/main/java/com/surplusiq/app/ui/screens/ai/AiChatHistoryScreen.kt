@@ -270,7 +270,7 @@ fun AiChatHistoryScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Các câu hỏi và tư vấn món ăn cùng SaveBite AI sẽ được lưu trữ tại đây.",
+                                text = "Các câu hỏi và tư vấn món ăn cùng Trợ lý Cứu Món sẽ được lưu trữ tại đây.",
                                 fontSize = 12.sp,
                                 color = TextSecondary,
                                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -335,7 +335,7 @@ private fun ConversationItemCard(
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) ForestGreenPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier

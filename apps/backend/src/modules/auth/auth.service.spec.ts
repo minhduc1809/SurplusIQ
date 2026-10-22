@@ -182,6 +182,7 @@ describe('AuthService', () => {
             return dto;
           },
           save: (entity: unknown) => Promise.resolve(entity),
+          update: () => Promise.resolve({ affected: 1 }),
         };
         return cb(manager);
       }),
@@ -246,25 +247,85 @@ describe('AuthService', () => {
 
   describe('Customer Registration (R1-001)', () => {
     it('should register customer, profile and dispatch OTP', async () => {
-      mockUserRepo.findOne.mockResolvedValue(null);
+      mockUserRepo.find.mockResolvedValue([]);
 
       const result = await service.registerCustomer({
         phone: '0901234567',
+        email: 'khach@example.com',
         fullName: 'Nguyễn Văn A',
         password: 'Password123@',
         deviceId: 'device-test-1',
       });
 
       expect(result.userId).toBeDefined();
+      expect(result.target).toBe('khach@example.com');
       expect(mockDataSource.transaction).toHaveBeenCalled();
     });
 
-    it('should throw ConflictException if phone/email already registered', async () => {
-      mockUserRepo.findOne.mockResolvedValue({ id: 'existing-id' });
+    it('cho đăng ký lại đè lên tài khoản khách chưa xác minh OTP', async () => {
+      mockUserRepo.find.mockResolvedValue([
+        {
+          id: 'old-id',
+          phone: '0901234567',
+          role: UserRole.CUSTOMER,
+          status: UserStatus.PENDING_VERIFY,
+        },
+      ]);
+
+      const result = await service.registerCustomer({
+        phone: '0901234567',
+        email: 'khach@example.com',
+        fullName: 'Nguyễn Văn A',
+        password: 'Password123@',
+        deviceId: 'device-test-1',
+      });
+
+      expect(result.userId).toBe('old-id');
+      expect(result.target).toBe('khach@example.com');
+    });
+
+    it('vẫn chặn khi số điện thoại và email thuộc hai tài khoản khác nhau', async () => {
+      mockUserRepo.find.mockResolvedValue([
+        { id: 'a', role: UserRole.CUSTOMER, status: UserStatus.PENDING_VERIFY },
+        { id: 'b', role: UserRole.CUSTOMER, status: UserStatus.PENDING_VERIFY },
+      ]);
 
       await expect(
         service.registerCustomer({
           phone: '0901234567',
+          email: 'khach@example.com',
+          fullName: 'A',
+          password: 'Password123@',
+          deviceId: 'device-test-1',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('bắt buộc có email hợp lệ để nhận OTP', async () => {
+      const { validate } = await import('class-validator');
+      const { CustomerRegisterDto } = await import('./dto/customer-register.dto');
+      const base = { phone: '0901234567', fullName: 'A', password: 'Password123@', deviceId: 'd1' };
+      const missing = await validate(Object.assign(new CustomerRegisterDto(), base));
+      const invalid = await validate(
+        Object.assign(new CustomerRegisterDto(), { ...base, email: 'sai' }),
+      );
+      const ok = await validate(
+        Object.assign(new CustomerRegisterDto(), { ...base, email: 'a@b.vn' }),
+      );
+      expect(missing.some((e) => e.property === 'email')).toBe(true);
+      expect(invalid.some((e) => e.property === 'email')).toBe(true);
+      expect(ok.some((e) => e.property === 'email')).toBe(false);
+    });
+
+    it('should throw ConflictException if phone/email already registered', async () => {
+      mockUserRepo.find.mockResolvedValue([
+        { id: 'existing-id', role: UserRole.CUSTOMER, status: UserStatus.ACTIVE },
+      ]);
+
+      await expect(
+        service.registerCustomer({
+          phone: '0901234567',
+          email: 'khach@example.com',
           fullName: 'Nguyễn Văn A',
           password: 'Password123@',
           deviceId: 'device-test-1',
@@ -274,11 +335,12 @@ describe('AuthService', () => {
 
     it('should block registration when device already registered 5 times in 1 hour', async () => {
       mockOtpRepo.count.mockResolvedValue(5);
-      mockUserRepo.findOne.mockResolvedValue(null);
+      mockUserRepo.find.mockResolvedValue([]);
 
       await expect(
         service.registerCustomer({
           phone: '0901234567',
+          email: 'khach@example.com',
           fullName: 'Nguyễn Văn A',
           password: 'Password123@',
           deviceId: 'device-test-1',

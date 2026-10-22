@@ -51,13 +51,13 @@ fun OrderLockStatusScreen(
     onBackClick: () -> Unit,
     onRetry: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), horizontalAlignment = Alignment.CenterHorizontally) {
         BackTopBar("Trạng thái khóa đặt", onBackClick)
         when {
             isLoading || (lock == null && errorMessage == null) -> LoadingState()
             errorMessage != null -> ErrorState(errorMessage, onRetry)
             lock != null -> Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                modifier = Modifier.widthIn(max = 640.dp).fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 SectionCard {

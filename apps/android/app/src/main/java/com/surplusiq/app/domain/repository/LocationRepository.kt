@@ -19,6 +19,12 @@ interface LocationRepository {
     /** Bỏ ghim tạm, quay về vị trí đã lưu. */
     fun clearTemporaryLocation()
 
+    /** Xóa vị trí đã lưu trên máy (đăng xuất hoặc tạo tài khoản mới) để người dùng sau phải chọn lại vị trí. */
+    fun resetLocation()
+
+    /** Gắn vị trí đã lưu với một tài khoản: đổi sang tài khoản khác thì xóa vị trí của tài khoản trước. */
+    fun bindUser(userId: String)
+
     /** Vị trí hiện tại của thiết bị (cần quyền ACCESS_*_LOCATION đã cấp). */
     suspend fun getCurrentDeviceLocation(): Result<AddressSuggestion>
 

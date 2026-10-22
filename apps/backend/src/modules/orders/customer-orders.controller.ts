@@ -73,6 +73,15 @@ export class CustomerOrdersController {
     return this.ordersService.getCustomerActiveOrders(user?.userId);
   }
 
+  @Get('history')
+  @ApiOperation({
+    summary: 'Lịch sử đơn hàng đã kết thúc của khách (đã nhận, hết hạn, hủy, hoàn tiền)',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách đơn đã kết thúc' })
+  async getOrderHistory(@CurrentUser() user: RequestUser) {
+    return this.ordersService.getCustomerOrderHistory(user?.userId);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Xem chi tiết đơn hàng phía khách hàng (R1-046)',
