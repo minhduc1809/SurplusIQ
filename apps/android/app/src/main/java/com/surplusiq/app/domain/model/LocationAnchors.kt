@@ -16,7 +16,7 @@ object LocationAnchors {
     /** Viện Khoa học Kỹ thuật Bưu điện (122 Hoàng Quốc Việt). Toạ độ lấy từ một lần đo GPS sai số 8m tại chỗ, không phải tâm seed. */
     val ALL = listOf(
         LocationAnchor(
-            address = "122 Hoàng Quốc Việt, Nghĩa Đô, Hà Nội",
+            address = "Số 122 Hoàng Quốc Việt, Phường Nghĩa Đô, Thành phố Hà Nội",
             latitude = 21.04732,
             longitude = 105.79216,
             radiusMeters = 500f

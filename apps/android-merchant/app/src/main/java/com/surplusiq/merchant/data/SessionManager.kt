@@ -45,7 +45,8 @@ class SessionManager(context: Context) {
     /** id cần cho header x-user-id (đổi mật khẩu); permission: OWNER | MANAGER | COUNTER. */
     fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
 
-    fun getPermission(): String? = prefs.getString(KEY_PERMISSION, null)
+    // Hệ thống chỉ còn vai trò chủ cửa hàng: mọi tài khoản cửa hàng đều là OWNER.
+    fun getPermission(): String? = if (prefs.getString(KEY_PERMISSION, null) == null) null else "OWNER"
 
     fun saveLogin(res: LoginResponse) {
         prefs.edit()

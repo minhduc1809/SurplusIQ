@@ -142,6 +142,7 @@ class LocationRepositoryImpl @Inject constructor(
 
     @Suppress("DEPRECATION")
     override suspend fun reverseGeocode(latitude: Double, longitude: Double): String? = withContext(Dispatchers.IO) {
+        LocationAnchors.nearest(latitude, longitude)?.let { return@withContext it.address }
         if (!Geocoder.isPresent()) return@withContext null
         try {
             geocoder().getFromLocation(latitude, longitude, 1)?.firstOrNull()?.getAddressLine(0)
