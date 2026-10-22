@@ -24,9 +24,9 @@ class StoreRepository(private val api: StoreApiService) {
     suspend fun changePassword(userId: String, currentPassword: String, newPassword: String) =
         runCatchingCall { api.changePassword(userId, ChangePasswordRequest(currentPassword, newPassword)) }
 
-    suspend fun acceptInvite(token: String) = runCatchingCall { api.acceptInvite(AcceptInviteRequest(token)) }
 
     suspend fun getReportsOverview(start: String, end: String) = runCatchingCall { api.getReportsOverview(start, end) }
+    suspend fun getFinanceSummary(start: String, end: String) = runCatchingCall { api.getFinanceSummary(start, end) }
     suspend fun getRescueTimeline() = runCatchingCall { api.getRescueTimeline() }
     suspend fun refreshRescueTimeline() = runCatchingCall { api.refreshRescueTimeline() }
     suspend fun getRescueLot(lotId: String) = runCatchingCall { api.getRescueLot(lotId) }
@@ -332,16 +332,6 @@ class StoreRepository(private val api: StoreApiService) {
     suspend fun getFrequentNoShow() = runCatchingCall { api.getFrequentNoShow() }
 
     suspend fun getFavoritesCount() = runCatchingCall { api.getFavoritesCount() }
-
-    suspend fun getStaff() = runCatchingCall { api.getStaff() }
-
-    suspend fun inviteStaff(fullName: String, email: String, permission: String) =
-        runCatchingCall { api.inviteStaff(InviteStaffRequest(fullName, email, permission)) }
-
-    suspend fun updateStaff(id: String, permission: String, status: String?, reason: String? = null) =
-        runCatchingCall { api.updateStaff(id, UpdateStaffRequest(permission, status, reason)) }
-
-    suspend fun removeStaff(id: String) = runCatchingCall { api.removeStaff(id) }
 
     // --- Gói dịch vụ ---
 

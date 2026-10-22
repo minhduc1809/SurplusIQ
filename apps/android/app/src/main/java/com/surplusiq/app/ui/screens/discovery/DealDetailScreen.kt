@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.discovery
 
 import androidx.compose.animation.AnimatedVisibility
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -297,7 +298,7 @@ fun DealDetailScreen(
                 // Cảnh báo dị ứng cá nhân hóa theo hồ sơ người dùng (K58 / K13)
                 if (matchedAllergens.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(10.dp))
-                    Card(
+                    SqCard(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = CoralRedLight),
@@ -489,7 +490,7 @@ fun DealDetailScreen(
                 }
 
                 AnimatedVisibility(visible = showTrustpass) {
-                    Card(
+                    SqCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp),
@@ -590,7 +591,7 @@ fun DealDetailScreen(
                 }
 
                 AnimatedVisibility(visible = showAiTips) {
-                    Card(
+                    SqCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp),
@@ -635,7 +636,7 @@ fun DealDetailScreen(
                 )
 
                 // KX07: Lịch sử và Biến động giá cứu món (Minh bạch)
-                Card(
+                SqCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
@@ -757,7 +758,7 @@ fun DealDetailScreen(
                 .align(Alignment.TopCenter)
                 .padding(top = 70.dp, start = 20.dp, end = 20.dp)
         ) {
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -849,7 +850,7 @@ fun DealDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Card(
+                            SqCard(
                                 modifier = Modifier.weight(1f),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                                 shape = RoundedCornerShape(10.dp)
@@ -865,7 +866,7 @@ fun DealDetailScreen(
                                     )
                                 }
                             }
-                            Card(
+                            SqCard(
                                 modifier = Modifier.weight(1f),
                                 colors = CardDefaults.cardColors(containerColor = PrimaryOrange.copy(alpha = 0.12f)),
                                 shape = RoundedCornerShape(10.dp)

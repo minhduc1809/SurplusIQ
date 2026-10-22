@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.rewards
 
 import androidx.compose.foundation.Canvas
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -127,7 +128,7 @@ private fun RedeemSheet(state: RewardsUiState, onRedeem: (String) -> Unit) {
                     fontSize = 13.sp, color = TextSecondary
                 )
                 catalog.items.forEach { item ->
-                    Card(shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    SqCard(shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(item.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)

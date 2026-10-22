@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.postpurchase
 
 import android.net.Uri
+import com.surplusiq.app.ui.components.SqCard
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -133,7 +134,7 @@ fun CreateComplaintScreen(
                 .padding(20.dp)
         ) {
             // Rule Banner: 24h & 48h limit (BR-026 & R1-061)
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = CoralRed.copy(alpha = 0.08f)),
                 border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.3f)),
@@ -171,7 +172,7 @@ fun CreateComplaintScreen(
             Spacer(modifier = Modifier.height(18.dp))
 
             // Order Target Card
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()

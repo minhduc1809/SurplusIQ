@@ -1,5 +1,13 @@
 import { getJwtSecret } from '../../common/config/jwt-secret';
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import {
@@ -65,6 +73,7 @@ export class PaymentsService {
     private readonly offerRepo: Repository<OfferEntity>,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -440,7 +449,39 @@ export class PaymentsService {
         `Số tiền thanh toán [${m.received}] không khớp chính xác đơn giá chốt [${m.expected}] (BR-016). Đã đưa vào đối soát thủ công.`,
       );
     }
+    await this.notifyPaymentResult(result);
     return result;
+  }
+
+  /** Báo cho khách và cửa hàng sau khi thanh toán được ghi nhận (hoặc hoàn tiền do đến muộn). */
+  private async notifyPaymentResult(result: PaymentConfirmationResult) {
+    if (!this.notifications || result.idempotent || !result.orderId) return;
+    const order = await this.orderRepo.findOne({ where: { id: result.orderId } });
+    if (!order) return;
+    if (result.latePaymentRefunded) {
+      await this.notifications.notifyQuietly({
+        userId: order.customerId,
+        type: NotificationType.ORDER,
+        title: 'Đã hoàn tiền thanh toán muộn',
+        body: `Đơn ${order.code} đã hết hạn giữ suất nên tiền được hoàn 100%.`,
+        data: { orderId: order.id, kind: 'PAYMENT_LATE_REFUNDED' },
+      });
+    } else if (result.orderStatus === OrderStatus.PAID) {
+      await this.notifications.notifyQuietly({
+        userId: order.customerId,
+        type: NotificationType.ORDER,
+        title: 'Thanh toán thành công',
+        body: `Đơn ${order.code} đã thanh toán. Mở vé nhận hàng để đến lấy đúng khung giờ.`,
+        data: { orderId: order.id, kind: 'PAYMENT_CONFIRMED' },
+      });
+      await this.notifications.notifyQuietly({
+        storeId: order.storeId,
+        type: NotificationType.ORDER,
+        title: 'Đơn mới đã thanh toán',
+        body: `Đơn ${order.code} (${order.quantity} suất) đã thanh toán. Hãy chuẩn bị hàng.`,
+        data: { orderId: order.id, kind: 'ORDER_PAID' },
+      });
+    }
   }
 
   /**

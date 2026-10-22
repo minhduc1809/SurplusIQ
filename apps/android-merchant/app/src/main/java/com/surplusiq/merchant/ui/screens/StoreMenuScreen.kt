@@ -49,10 +49,6 @@ private val GROUPS = listOf(
     "Hỗ trợ" to listOf(
         Triple("support", "Yêu cầu hỗ trợ", "Gửi và trao đổi với bộ phận hỗ trợ nền tảng"),
     ),
-    "Nhân viên" to listOf(
-        Triple("staff", "Nhân viên", "Mời, đổi quyền, khóa hoặc gỡ (chủ cửa hàng)"),
-        Triple("staff-activity", "Hoạt động của nhân viên", "Quét QR, đổi giá, hủy suất, điều chỉnh tồn"),
-    ),
     "Khách hàng" to listOf(
         Triple("customers", "Khách của cửa hàng", "Khách đã mua, phân nhóm, lượt yêu thích (ẩn danh)"),
         Triple("complaints", "Khiếu nại", "Xử lý trong hạn, hoàn tiền hoặc từ chối"),

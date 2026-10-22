@@ -100,7 +100,7 @@ fun LoginScreen(
             upperLabel = true,
             value = state.phone,
             onValueChange = onPhoneChange,
-            placeholder = "Nhập số điện thoại hoặc email của bạn",
+            placeholder = "Nhập số điện thoại hoặc email",
             keyboardType = KeyboardType.Email,
             leadingIcon = { Icon(Icons.Outlined.PersonOutline, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp)) }
         )

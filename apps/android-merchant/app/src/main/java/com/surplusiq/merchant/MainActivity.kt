@@ -136,19 +136,12 @@ class MainActivity : ComponentActivity() {
                             onBackClick = { authScreen = "login" },
                             onRegistered = { authEmail = it; authScreen = "verify" }
                         )
-                        "activate" -> ActivateStaffScreen(
-                            repository = repository,
-                            session = session,
-                            onBackClick = { authScreen = "login" },
-                            onActivated = { isLoggedIn = true }
-                        )
                         else -> LoginScreen(
                             repository = repository,
                             session = session,
                             onLoginSuccess = { isLoggedIn = true },
                             onForgotPasswordClick = { authScreen = "forgot" },
-                            onRegisterClick = { authScreen = "register" },
-                            onActivateClick = { authScreen = "activate" }
+                            onRegisterClick = { authScreen = "register" }
                         )
                     }
                 }
@@ -334,9 +327,6 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
             // Khách của cửa hàng (S56-S58)
             composable("customers") { CustomersScreen(repository, canEditNote = session.getPermission() != "COUNTER", isOwner = session.getPermission() == "OWNER", onUpgrade = { open("subscription") }, onBack = back) }
 
-            // Nhân viên (S63-S65)
-            composable("staff") { StaffScreen(repository, onBack = back) }
-            composable("staff-activity") { StaffActivityScreen(repository, onBack = back) }
 
             // Ưu đãi và chiến dịch (S59-S62)
             composable("promotions") { PromotionsScreen(repository, onBack = back) }

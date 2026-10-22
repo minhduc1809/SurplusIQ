@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.location
 
 import com.surplusiq.app.domain.model.DefaultMapCenter
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,7 +107,7 @@ fun PinLocationScreen(
             }
 
             // Bottom Card chỉnh bán kính và xác nhận xem deal
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),

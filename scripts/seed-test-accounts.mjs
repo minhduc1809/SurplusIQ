@@ -232,7 +232,7 @@ if ((Array.isArray(places.body) ? places.body : (places.body?.data ?? [])).lengt
   must(
     await call('POST', '/customer/saved-places', {
       token: kh,
-      body: { label: 'Công ty', latitude: 21.0458, longitude: 105.795, radiusKm: 1 },
+      body: { label: 'Công ty', latitude: 21.04732, longitude: 105.79216, radiusKm: 1 },
     }),
     'địa điểm Công ty',
   );

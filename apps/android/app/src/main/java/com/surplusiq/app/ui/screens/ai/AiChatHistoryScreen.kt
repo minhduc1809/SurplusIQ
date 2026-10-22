@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.ai
 
 import androidx.compose.foundation.clickable
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -155,7 +156,7 @@ fun AiChatHistoryScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             // Card Cài đặt Ghi nhớ Ngữ cảnh (R1-091, K51)
-            Card(
+            SqCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 14.dp),
@@ -221,7 +222,7 @@ fun AiChatHistoryScreen(
                 }
 
                 state.conversationsError != null -> {
-                    Card(
+                    SqCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 16.dp),
@@ -325,7 +326,7 @@ private fun ConversationItemCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    SqCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))

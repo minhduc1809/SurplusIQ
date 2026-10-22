@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.basket
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -162,7 +163,7 @@ fun RescueBasketScreen(
             }
 
             // Ngân sách + số người
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()
@@ -307,7 +308,7 @@ private fun BasketCard(
     isSelected: Boolean,
     onPick: () -> Unit
 ) {
-    Card(
+    SqCard(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp),

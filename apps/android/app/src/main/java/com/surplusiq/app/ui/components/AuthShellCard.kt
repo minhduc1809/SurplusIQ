@@ -240,7 +240,7 @@ fun AuthDividerOr(text: String = "HOẶC") {
     }
 }
 
-/** Nút Google viền kem, bo 16dp. Project không có logo Google nhiều màu nên dùng chữ "G" làm biểu tượng. */
+/** Nút Google viền kem, bo 16dp. Dùng icon Google chuẩn nhiều màu (ic_google). */
 @Composable
 fun AuthGoogleButton(text: String, onClick: () -> Unit) {
     Row(
@@ -254,7 +254,11 @@ fun AuthGoogleButton(text: String, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "G", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF4285F4))
+        Image(
+            painter = painterResource(id = R.drawable.ic_google),
+            contentDescription = "Google",
+            modifier = Modifier.size(22.dp)
+        )
         Spacer(modifier = Modifier.width(10.dp))
         Text(text = text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
     }

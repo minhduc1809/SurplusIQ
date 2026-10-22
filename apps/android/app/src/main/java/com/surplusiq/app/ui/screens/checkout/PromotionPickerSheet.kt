@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.checkout
 
 import androidx.compose.foundation.clickable
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -176,7 +177,7 @@ private fun PromotionOptionRow(
 ) {
     val promo = item.promotion
     val enabled = reason == null
-    Card(
+    SqCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) ForestGreenPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)

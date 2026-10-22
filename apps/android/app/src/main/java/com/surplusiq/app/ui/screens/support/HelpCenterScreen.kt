@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.support
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -99,7 +100,7 @@ private fun FaqCategorySection(category: FaqCategoryDto) {
 @Composable
 private fun FaqEntryRow(faq: FaqEntryDto) {
     var expanded by remember { mutableStateOf(false) }
-    Card(shape = RoundedCornerShape(10.dp)) {
+    SqCard(shape = RoundedCornerShape(10.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

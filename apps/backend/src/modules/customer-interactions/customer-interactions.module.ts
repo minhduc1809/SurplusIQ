@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomerInteractionsService } from './customer-interactions.service';
 import { CustomerInteractionsController } from './customer-interactions.controller';
@@ -20,6 +21,7 @@ import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
   imports: [
+    NotificationsModule,
     RewardsModule,
     UploadsModule,
     TypeOrmModule.forFeature([

@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.pickup
 
 import android.app.Activity
+import com.surplusiq.app.ui.components.SqCard
 import android.content.ContextWrapper
 import android.view.WindowManager
 import androidx.compose.foundation.Image
@@ -170,7 +171,7 @@ private fun PickupPassContent(
     val qrBitmap = rememberQrBitmap(qrToken)
 
     // Banner tăng sáng (BR-020)
-    Card(
+    SqCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = ForestGreenPrimary.copy(alpha = 0.08f)),
         modifier = Modifier.fillMaxWidth()
@@ -189,7 +190,7 @@ private fun PickupPassContent(
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    Card(
+    SqCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

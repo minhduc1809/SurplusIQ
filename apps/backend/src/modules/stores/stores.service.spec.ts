@@ -266,6 +266,30 @@ describe('StoresService Unit Tests (R2-004..R2-010, R2-050, R2-061..R2-075, R2-0
     });
   });
 
+  describe('getFinanceSummary', () => {
+    it('tính doanh thu gộp, hoa hồng, hoàn tiền, thực nhận, tiền chờ nhận và chuỗi theo ngày', async () => {
+      const created = new Date('2026-10-10T03:00:00.000Z');
+      orderRepo.find.mockResolvedValue([
+        { id: 'o1', totalAmount: 100000, status: OrderStatus.PICKED_UP, createdAt: created },
+        { id: 'o2', totalAmount: 50000, status: OrderStatus.PAID, createdAt: created },
+        { id: 'o3', totalAmount: 20000, status: OrderStatus.CANCELLED, createdAt: created },
+      ]);
+      complaintRepo.find.mockResolvedValue([{ refundAmount: 10000 }]);
+
+      const r = await service.getFinanceSummary('store-1', {
+        startDate: '2026-10-01',
+        endDate: '2026-10-14',
+      });
+
+      expect(r.summary.grossSales).toBe(100000);
+      expect(r.summary.commissionAmount).toBe(10000);
+      expect(r.summary.refundsDeduction).toBe(10000);
+      expect(r.summary.netPayout).toBe(80000);
+      expect(r.summary.pendingPaidAmount).toBe(50000);
+      expect(r.daily).toEqual([{ date: '2026-10-10', grossSales: 100000, orders: 3 }]);
+    });
+  });
+
   describe('statements & export (R2-067, R2-103..105)', () => {
     it('lấy danh sách và chi tiết sao kê kèm xuất PDF/CSV', async () => {
       statementRepo.find.mockResolvedValue([

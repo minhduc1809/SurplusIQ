@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.profile
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -61,7 +62,7 @@ fun PrivacyDataScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                SqCard(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Xuất dữ liệu của tôi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text(
@@ -102,7 +103,7 @@ fun PrivacyDataScreen(
             }
 
             item {
-                Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                SqCard(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Yêu cầu xóa tài khoản", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text(
@@ -204,7 +205,7 @@ fun PrivacyDataScreen(
 
 @Composable
 private fun ConsentRow(consent: ConsentDto) {
-    Card(shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+    SqCard(shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,

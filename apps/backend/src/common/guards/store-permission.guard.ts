@@ -70,31 +70,7 @@ export class StorePermissionGuard implements CanActivate {
     // Gắn thông tin member vào request để các service/controller phía sau tái sử dụng
     request.storeMember = member;
 
-    // Chủ cửa hàng (OWNER) có toàn quyền tối cao trong cửa hàng
-    if (member.permission === StorePermission.OWNER) {
-      return true;
-    }
-
-    // Quản lý (MANAGER) có quyền của MANAGER và COUNTER
-    if (member.permission === StorePermission.MANAGER) {
-      if (
-        requiredPermissions.includes(StorePermission.MANAGER) ||
-        requiredPermissions.includes(StorePermission.COUNTER)
-      ) {
-        return true;
-      }
-    }
-
-    // Nhân viên quầy (COUNTER) chỉ có quyền COUNTER
-    if (member.permission === StorePermission.COUNTER) {
-      if (requiredPermissions.includes(StorePermission.COUNTER)) {
-        return true;
-      }
-    }
-
-    throw new ForbiddenException({
-      code: 'FORBIDDEN_PERMISSION',
-      message: `Thao tác yêu cầu quyền [${requiredPermissions.join(', ')}], vai trò của bạn tại quán là [${member.permission}]`,
-    });
+    // Hệ thống chỉ còn một vai trò: mọi thành viên đang hoạt động đều là chủ cửa hàng (OWNER).
+    return true;
   }
 }

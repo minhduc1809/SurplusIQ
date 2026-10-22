@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.profile
 
 import androidx.compose.foundation.BorderStroke
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -102,6 +103,7 @@ fun DietaryProfileScreen(
             )
         },
         bottomBar = {
+            Box(Modifier.background(MaterialTheme.colorScheme.surface).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
             Surface(
                 color = SurfaceWhite,
                 tonalElevation = 6.dp,
@@ -143,6 +145,7 @@ fun DietaryProfileScreen(
                     }
                 }
             }
+        }
         },
         modifier = modifier
             .fillMaxSize()
@@ -167,7 +170,7 @@ fun DietaryProfileScreen(
             ) {
                 // Khối thông tin cảnh báo an toàn thực phẩm
                 item {
-                    Card(
+                    SqCard(
                         colors = CardDefaults.cardColors(
                             containerColor = Color(0xFFFFF4EC)
                         ),
@@ -411,7 +414,7 @@ fun DietaryProfileScreen(
                 // 3. ĐỒNG Ý LƯU TRỮ DỮ LIỆU SỨC KHỎE
                 item {
                     Spacer(Modifier.height(8.dp))
-                    Card(
+                    SqCard(
                         colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, DividerColor),

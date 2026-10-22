@@ -170,6 +170,7 @@ fun OrderChatScreen(
         topBar = { BackTopBar("Nhắn cho cửa hàng", onBackClick) },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
+            Box(Modifier.background(MaterialTheme.colorScheme.surface).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
             if (chat?.isOpen != false) Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = input, onValueChange = { input = it.take(500) },
@@ -182,6 +183,7 @@ fun OrderChatScreen(
                     modifier = Modifier.size(48.dp).clip(CircleShape).background(if (input.isNotBlank()) ForestGreenPrimary else Color(0xFFD1D5DB))
                 ) { Icon(Icons.Default.Send, contentDescription = "Gửi", tint = Color.White) }
             } else Text("Trò chuyện đã đóng sau 24 giờ kể từ khi đơn kết thúc.", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(16.dp))
+        }
         }
     ) { padding ->
         LoadStateContent(

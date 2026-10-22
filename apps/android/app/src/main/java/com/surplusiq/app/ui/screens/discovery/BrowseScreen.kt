@@ -77,137 +77,111 @@ fun BrowseScreen(
             )
         )
 
-        // Rescue Radar (CM-C05): "Gần nhất" (dữ liệu discover) vs "Khả năng nhận cao" (xếp hạng radar)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            SegmentedChip(
-                text = "Gần nhất",
-                selected = !showRadar,
-                onClick = { showRadar = false },
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            SegmentedChip(
-                text = "Khả năng nhận cao",
-                selected = showRadar,
-                onClick = {
-                    showRadar = true
-                    onLoadRadar()
-                },
-                modifier = Modifier.weight(1f)
+        // Toàn bộ nội dung bên dưới thanh tiêu đề cuộn cùng nhau (không cố định bố cục)
+        if (showRadar && showRadarSettings) {
+            RadarSettingsSheet(
+                settings = radarSettings,
+                locationLabel = locationLabel,
+                onDismiss = { showRadarSettings = false },
+                onOpenLocation = { showRadarSettings = false; onOpenLocation() },
+                onApply = { onApplyRadarSettings(it); showRadarSettings = false }
             )
         }
-
-        if (showRadar) {
-            TextButton(
-                onClick = { showRadarSettings = true },
-                modifier = Modifier.padding(horizontal = 8.dp)
-            ) {
-                Icon(Icons.Default.Tune, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Thiết lập Radar", color = ForestGreenPrimary, fontWeight = FontWeight.SemiBold)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Rescue Radar (CM-C05): "Gần nhất" (dữ liệu discover) vs "Khả năng nhận cao" (xếp hạng radar)
+            item {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedChip(
+                        text = "Gần nhất",
+                        selected = !showRadar,
+                        onClick = { showRadar = false },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SegmentedChip(
+                        text = "Khả năng nhận cao",
+                        selected = showRadar,
+                        onClick = {
+                            showRadar = true
+                            onLoadRadar()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
-            if (showRadarSettings) {
-                RadarSettingsSheet(
-                    settings = radarSettings,
-                    locationLabel = locationLabel,
-                    onDismiss = { showRadarSettings = false },
-                    onOpenLocation = { showRadarSettings = false; onOpenLocation() },
-                    onApply = { onApplyRadarSettings(it); showRadarSettings = false }
-                )
-            }
-            when {
-                isRadarLoading -> {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = ForestGreenPrimary)
+            if (showRadar) {
+                item {
+                    TextButton(onClick = { showRadarSettings = true }) {
+                        Icon(Icons.Default.Tune, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Thiết lập Radar", color = ForestGreenPrimary, fontWeight = FontWeight.SemiBold)
                     }
                 }
-                radarErrorMessage != null -> {
-                    Text(
-                        text = radarErrorMessage,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                radarDeals.isEmpty() -> {
-                    Text(
-                        text = "Chưa có deal nào xếp hạng theo Rescue Radar.",
-                        modifier = Modifier.padding(16.dp),
-                        color = TextSecondary
-                    )
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(radarDeals) { radarDeal ->
-                            Column {
-                                DealCard(
-                                    deal = radarDeal.deal,
-                                    onDealClick = onDealClick,
-                                    onFavoriteToggle = onFavoriteToggle
+                when {
+                    isRadarLoading -> item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = ForestGreenPrimary)
+                        }
+                    }
+                    radarErrorMessage != null -> item {
+                        Text(text = radarErrorMessage, color = MaterialTheme.colorScheme.error)
+                    }
+                    radarDeals.isEmpty() -> item {
+                        Text(text = "Chưa có deal nào xếp hạng theo Rescue Radar.", color = TextSecondary)
+                    }
+                    else -> items(radarDeals) { radarDeal ->
+                        Column {
+                            DealCard(
+                                deal = radarDeal.deal,
+                                onDealClick = onDealClick,
+                                onFavoriteToggle = onFavoriteToggle
+                            )
+                            radarDeal.rankingReasons.forEach { reason ->
+                                Text(
+                                    text = "• $reason",
+                                    fontSize = 11.sp,
+                                    color = TextMuted,
+                                    modifier = Modifier.padding(start = 4.dp, top = 2.dp)
                                 )
-                                radarDeal.rankingReasons.forEach { reason ->
-                                    Text(
-                                        text = "• $reason",
-                                        fontSize = 11.sp,
-                                        color = TextMuted,
-                                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
-                                    )
-                                }
                             }
                         }
                     }
                 }
-            }
-        } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Recommendation Banner matching Image 2 Screen 3
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .border(1.dp, ForestGreenPrimary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.StarOutline,
-                            contentDescription = "Recommendation",
-                            tint = ForestGreenPrimary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Suất cứu món phù hợp với bạn.",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = ForestGreenPrimary
-                        )
+            } else {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, ForestGreenPrimary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                            .background(Color.White)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.StarOutline,
+                                contentDescription = "Recommendation",
+                                tint = ForestGreenPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Suất cứu món phù hợp với bạn.",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ForestGreenPrimary
+                            )
+                        }
                     }
                 }
+                items(deals) { deal ->
+                    DealCard(deal = deal, onDealClick = onDealClick, onFavoriteToggle = onFavoriteToggle)
+                }
             }
-
-            // Deal Items List matching Image 2 Screen 3
-            items(deals) { deal ->
-                DealCard(
-                    deal = deal,
-                    onDealClick = onDealClick,
-                    onFavoriteToggle = onFavoriteToggle
-                )
-            }
-        }
         }
     }
 }

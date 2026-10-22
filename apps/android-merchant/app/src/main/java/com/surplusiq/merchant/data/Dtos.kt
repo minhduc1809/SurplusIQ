@@ -43,6 +43,20 @@ data class DailyOverviewDto(
 )
 
 /** GET store/reports/overview - chỉ lấy doanh thu; OWNER/MANAGER mới gọi được. */
+/** GET store/reports/finance: thống kê tài chính theo khoảng ngày (chủ cửa hàng). */
+data class FinanceSummaryDto(val summary: FinanceTotals, val daily: List<FinanceDay> = emptyList(), val explanation: String? = null)
+data class FinanceTotals(
+    val grossSales: Long,
+    val commissionRate: Double,
+    val commissionAmount: Long,
+    val refundsDeduction: Long,
+    val netPayout: Long,
+    val pendingPaidAmount: Long,
+    val soldOrders: Int,
+    val averageOrderValue: Long
+)
+data class FinanceDay(val date: String, val grossSales: Long, val orders: Int)
+
 data class ReportsOverviewDto(val summary: ReportsSummary, val recovery: ReportsRecovery, val waste: ReportsWaste)
 data class ReportsSummary(
     val totalOrders: Int,
@@ -141,31 +155,6 @@ data class CustomerDetailDto(
 )
 
 data class FavoritesCountResponse(val favoriteCount: Int, val newPerWeek: List<Int> = emptyList())
-
-// --- Nhân viên (store-staff.controller.ts, store/staff) ---
-
-data class StaffUser(val fullName: String? = null, val email: String? = null, val phone: String? = null)
-
-/** StoreMember. permission: OWNER | MANAGER | COUNTER. status: INVITED | ACTIVE | LOCKED. */
-data class StaffMemberDto(
-    val id: String,
-    val userId: String,
-    val permission: String,
-    val status: String,
-    val lastActiveAt: String? = null,
-    val user: StaffUser? = null
-)
-
-data class PendingInviteDto(val id: String, val fullName: String? = null, val email: String, val permission: String, val expiresAt: String)
-
-data class StaffListResponse(val members: List<StaffMemberDto>, val pendingInvites: List<PendingInviteDto> = emptyList())
-
-data class InviteStaffRequest(val fullName: String, val email: String, val permission: String)
-
-/** invitationToken chỉ trả một lần; backend không tự gửi email nên chủ phải chuyển token cho nhân viên. */
-data class InviteStaffResponse(val message: String?, val invitationToken: String, val expiresAt: String)
-
-data class UpdateStaffRequest(val permission: String, val status: String? = null, val reason: String? = null)
 
 // --- Ưu đãi và chiến dịch (marketing.controller.ts, store/marketing/*) ---
 
@@ -731,17 +720,6 @@ data class ChangePasswordRequest(val currentPassword: String, val newPassword: S
 
 /** Dạng trả về chung {success, message} của các endpoint hành động. */
 data class MessageResponse(val success: Boolean, val message: String?)
-
-// --- Nhân viên: chấp nhận lời mời (store-staff.controller.ts) ---
-
-data class AcceptInviteRequest(val token: String)
-
-data class AcceptInviteResponse(
-    val success: Boolean,
-    val message: String,
-    val storeId: String,
-    val permission: String
-)
 
 // --- Việc cần làm hôm nay (stores.service.ts getTodayTasks) ---
 

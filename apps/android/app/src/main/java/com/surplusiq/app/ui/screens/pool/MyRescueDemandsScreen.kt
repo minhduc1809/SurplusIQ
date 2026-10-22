@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.pool
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -386,7 +387,7 @@ private fun WaitingDemandCard(
         else 0f
     }
 
-    Card(
+    SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = ForestGreenPrimary.copy(alpha = 0.06f)
@@ -554,7 +555,7 @@ private fun OrderedDemandCard(
     val unitPrice = offer?.proposedPrice ?: reg.budgetMax ?: 0
     val totalEstimated = unitPrice * reg.requestedQuantity
 
-    Card(
+    SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface

@@ -43,9 +43,11 @@ import { RescueTimelineService } from '../rescue-timeline/rescue-timeline.servic
 import { RescuePoolService } from '../rescue-pool/rescue-pool.service';
 import { RescueBridgeService } from '../rescue-bridge/rescue-bridge.service';
 import { MarketingService } from '../marketing/marketing.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('JobsService (All 12 Background Jobs)', () => {
   let service: JobsService;
+  let notifications: { notifyQuietly: jest.Mock; hasKind: jest.Mock };
   let orderRepo: jest.Mocked<Repository<OrderEntity>>;
   let offerRepo: jest.Mocked<Repository<OfferEntity>>;
   let offerEventRepo: jest.Mocked<Repository<OfferEventEntity>>;
@@ -153,9 +155,15 @@ describe('JobsService (All 12 Background Jobs)', () => {
     } as any;
     settingsService = { invalidateStoreSettingsCache: jest.fn().mockResolvedValue(undefined) };
 
+    notifications = {
+      notifyQuietly: jest.fn().mockResolvedValue(undefined),
+      hasKind: jest.fn().mockResolvedValue(false),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         JobsService,
+        { provide: NotificationsService, useValue: notifications },
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepo },
         { provide: getRepositoryToken(OfferEntity), useValue: offerRepo },
         { provide: getRepositoryToken(OfferEventEntity), useValue: offerEventRepo },
@@ -465,22 +473,39 @@ describe('JobsService (All 12 Background Jobs)', () => {
   });
 
   describe('sendPickupReminders', () => {
-    it('đánh dấu nhắc nhở khi sắp tới giờ lấy hàng (30 phút)', async () => {
-      const now = new Date('2026-10-14T15:00:00Z');
-      const order = {
+    const now = new Date('2026-10-14T15:00:00Z');
+    const makeOrder = () =>
+      ({
         id: mockOrderId,
+        customerId: 'cus-1',
+        code: 'SQ0001',
         status: OrderStatus.PAID,
         offerId: mockOfferId,
         pickupSlot: new Date('2026-10-14T15:20:00Z'),
         arrivingNotifiedAt: null,
-      } as OrderEntity;
+      }) as OrderEntity;
 
+    it('tạo thông báo nhắc khi sắp tới giờ lấy hàng (30 phút) và không đụng cờ báo sắp đến', async () => {
+      const order = makeOrder();
       orderRepo.find.mockResolvedValueOnce([order]);
       offerRepo.findOne.mockResolvedValueOnce(null);
 
       const res = await service.sendPickupReminders(now);
+
       expect(res.count).toBe(1);
-      expect(order.arrivingNotifiedAt).toBe(now);
+      expect(notifications.notifyQuietly).toHaveBeenCalledTimes(1);
+      expect(order.arrivingNotifiedAt).toBeNull();
+    });
+
+    it('không nhắc lặp khi đã có thông báo nhắc cho đơn', async () => {
+      orderRepo.find.mockResolvedValueOnce([makeOrder()]);
+      offerRepo.findOne.mockResolvedValueOnce(null);
+      notifications.hasKind.mockResolvedValueOnce(true);
+
+      const res = await service.sendPickupReminders(now);
+
+      expect(res.count).toBe(0);
+      expect(notifications.notifyQuietly).not.toHaveBeenCalled();
     });
   });
 

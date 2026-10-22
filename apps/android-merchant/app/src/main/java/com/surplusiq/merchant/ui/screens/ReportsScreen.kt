@@ -24,7 +24,7 @@ import com.surplusiq.merchant.ui.components.*
 import com.surplusiq.merchant.ui.theme.*
 import java.time.LocalDate
 
-private val TABS = listOf("overview" to "Tổng quan", "items" to "Theo món", "hours" to "Theo giờ", "pricing" to "Hiệu quả giá", "compare" to "So sánh kỳ")
+private val TABS = listOf("overview" to "Tổng quan", "finance" to "Tài chính", "items" to "Theo món", "hours" to "Theo giờ", "pricing" to "Hiệu quả giá", "compare" to "So sánh kỳ")
 private val RANGES = listOf(7 to "7 ngày", 30 to "30 ngày", 90 to "90 ngày")
 
 /** Backend lọc createdAt ≤ endDate lúc 00:00, nên lấy ngày mai để tính cả đơn hôm nay. */
@@ -59,6 +59,7 @@ fun ReportsScreen(repository: StoreRepository, onUpgrade: () -> Unit, onBack: ()
         when {
             basic == null -> FullScreenLoading()
             tab == "overview" -> OverviewTab(repository, days)
+            tab == "finance" -> FinanceTab(repository, days)
             tab == "items" -> ItemsTab(repository, days)
             tab == "hours" -> if (basic == true) ProLockCard("Báo cáo theo giờ", onUpgrade) else HoursTab(repository, days)
             tab == "pricing" -> if (basic == true) ProLockCard("Báo cáo hiệu quả giá", onUpgrade) else PricingTab(repository)
@@ -124,6 +125,36 @@ private fun OverviewTab(repository: StoreRepository, days: Int) {
             SectionTitle("Chất lượng")
             InfoRow("Đánh giá trung bình", if (s.ratingCount > 0) "%.1f ★ (${s.ratingCount})".format(s.ratingAvg) else "Chưa có")
             InfoRow("Khiếu nại trong kỳ", "${s.complaintsCount}")
+        }
+    }
+}
+
+@Composable
+private fun FinanceTab(repository: StoreRepository, days: Int) {
+    Loaded(rememberLoad(days) { val (s, e) = rangeOf(days); repository.getFinanceSummary(s, e) }) { r ->
+        val s = r.summary
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricCard("Doanh thu gộp", currency(s.grossSales), SqCoral, Modifier.weight(1f))
+            MetricCard("Thực nhận ước tính", currency(s.netPayout), SqMint, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        SqCard {
+            SectionTitle("Chi tiết")
+            InfoRow("Đơn đã tính doanh thu", "${s.soldOrders}")
+            InfoRow("Giá trị trung bình mỗi đơn", currency(s.averageOrderValue))
+            InfoRow("Hoa hồng nền tảng (${(s.commissionRate * 100).toInt()}%)", "- " + currency(s.commissionAmount))
+            InfoRow("Hoàn tiền khiếu nại", "- " + currency(s.refundsDeduction))
+            InfoRow("Đã thu, chờ khách nhận hàng", currency(s.pendingPaidAmount))
+        }
+        r.explanation?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, fontSize = 12.sp, color = SqInkSoft)
+        }
+        Spacer(Modifier.height(10.dp))
+        SqCard {
+            SectionTitle("Doanh thu theo ngày")
+            if (r.daily.isEmpty()) Text("Chưa có đơn trong kỳ này.", fontSize = 13.sp, color = SqInkSoft)
+            r.daily.forEach { d -> InfoRow(d.date.takeLast(5).split("-").reversed().joinToString("/"), currency(d.grossSales) + " · ${d.orders} đơn") }
         }
     }
 }

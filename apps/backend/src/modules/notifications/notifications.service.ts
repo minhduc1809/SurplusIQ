@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { CampaignDeliveryEntity } from '../../entities/marketing/campaign-delivery.entity';
@@ -11,6 +11,8 @@ import { QueryNotificationsDto, UpdateNotificationSettingsDto } from './dto/noti
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectRepository(NotificationEntity)
     private readonly notificationRepo: Repository<NotificationEntity>,
@@ -36,6 +38,28 @@ export class NotificationsService {
       isRead: false,
     });
     return this.notificationRepo.save(notif);
+  }
+
+  /** Tạo thông báo nhưng không bao giờ ném lỗi: lỗi gửi không được làm hỏng nghiệp vụ gốc. */
+  async notifyQuietly(
+    params: Parameters<NotificationsService['createNotification']>[0],
+  ): Promise<void> {
+    try {
+      await this.createNotification(params);
+    } catch (e: unknown) {
+      this.logger.warn(`[NOTIFY_FAILED] ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** Đã có thông báo loại `kind` cho đơn này chưa (dùng để chống gửi lặp, vd. nhắc giờ nhận). */
+  async hasKind(userId: string, kind: string, orderId: string): Promise<boolean> {
+    const count = await this.notificationRepo
+      .createQueryBuilder('n')
+      .where('n.userId = :userId', { userId })
+      .andWhere("n.data ->> 'kind' = :kind", { kind })
+      .andWhere("n.data ->> 'orderId' = :orderId", { orderId })
+      .getCount();
+    return count > 0;
   }
 
   async getCustomerNotifications(userId: string, query: QueryNotificationsDto) {

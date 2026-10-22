@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.postpurchase
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -96,7 +97,7 @@ fun ComplaintListScreen(
 @Composable
 private fun ComplaintCard(complaint: ComplaintResponse, onClick: () -> Unit) {
     val (label, color) = complaintStatusLabel(complaint.status)
-    Card(
+    SqCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),

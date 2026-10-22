@@ -24,8 +24,7 @@ fun LoginScreen(
     session: SessionManager,
     onLoginSuccess: () -> Unit,
     onForgotPasswordClick: () -> Unit = {},
-    onRegisterClick: () -> Unit = {},
-    onActivateClick: () -> Unit = {}
+    onRegisterClick: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -101,12 +100,6 @@ fun LoginScreen(
         AuthGradientButton(text = "Đăng nhập", enabled = email.isNotBlank() && password.isNotBlank(), loading = isLoading, withArrow = true, onClick = ::doLogin)
 
         AuthDivider("HOẶC")
-
-        OutlinedButton(
-            onClick = onActivateClick,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().height(54.dp)
-        ) { Text("Tôi có mã mời nhân viên", color = SqInk, fontWeight = FontWeight.SemiBold) }
 
         Spacer(modifier = Modifier.height(18.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {

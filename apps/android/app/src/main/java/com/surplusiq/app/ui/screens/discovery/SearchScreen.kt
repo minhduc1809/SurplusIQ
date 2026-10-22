@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.discovery
 
 import android.content.Context
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -340,7 +341,7 @@ fun SearchScreen(
                     // Thẻ AI Explanation nếu có
                     if (aiExplanation != null) {
                         item {
-                            Card(
+                            SqCard(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = LilacWash),
                                 modifier = Modifier.fillMaxWidth()
@@ -552,7 +553,7 @@ fun SearchScreen(
                     item {
                         Spacer(modifier = Modifier.height(24.dp))
                         // Gợi ý tính năng AI
-                        Card(
+                        SqCard(
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = LilacWash.copy(alpha = 0.7f)),
                             modifier = Modifier

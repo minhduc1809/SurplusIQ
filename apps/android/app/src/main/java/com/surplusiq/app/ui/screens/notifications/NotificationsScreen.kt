@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.notifications
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -117,7 +118,7 @@ fun NotificationsScreen(
 
 @Composable
 private fun NotificationRow(notification: AppNotification, onClick: () -> Unit) {
-    Card(
+    SqCard(
         modifier = Modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp)
     ) {

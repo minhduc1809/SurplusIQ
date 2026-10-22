@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.rewards
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -108,7 +109,7 @@ private fun VoucherCard(item: PromotionWalletItemDto) {
     val reason = promotionIneligibleReason(item)
     val usable = reason == null
     Box(modifier = Modifier.fillMaxWidth().alpha(if (usable) 1f else 0.6f)) {
-        Card(
+        SqCard(
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),

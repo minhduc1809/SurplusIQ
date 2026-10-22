@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StoresService } from './stores.service';
 import { StoreStaffService } from './store-staff.service';
 import { StoreOperationsController } from './store-operations.controller';
-import { StoreStaffController } from './store-staff.controller';
 import { StoreEntity } from '../../entities/stores/store.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { StaffInviteEntity } from '../../entities/stores/staff-invite.entity';
@@ -48,7 +47,7 @@ import { AuditModule } from '../audit/audit.module';
     SubscriptionsModule,
     AuditModule,
   ],
-  controllers: [StoreOperationsController, StoreStaffController],
+  controllers: [StoreOperationsController],
   providers: [StoresService, StoreStaffService],
   exports: [StoresService, StoreStaffService],
 })

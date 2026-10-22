@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { OrdersService } from './orders.service';
 import { CustomerOrdersController } from './customer-orders.controller';
@@ -17,6 +18,7 @@ import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
+    NotificationsModule,
     TypeOrmModule.forFeature([
       OrderEntity,
       OfferEntity,

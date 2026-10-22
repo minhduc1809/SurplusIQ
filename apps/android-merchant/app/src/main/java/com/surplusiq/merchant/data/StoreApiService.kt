@@ -42,14 +42,14 @@ interface StoreApiService {
         @Body request: ChangePasswordRequest
     ): Response<MessageResponse>
 
-    @POST("store/staff/accept-invite")
-    suspend fun acceptInvite(@Body request: AcceptInviteRequest): Response<AcceptInviteResponse>
-
     @GET("store/daily-overview")
     suspend fun getDailyOverview(): Response<DailyOverviewDto>
 
     @GET("store/reports/overview")
     suspend fun getReportsOverview(@Query("startDate") startDate: String, @Query("endDate") endDate: String): Response<ReportsOverviewDto>
+
+    @GET("store/reports/finance")
+    suspend fun getFinanceSummary(@Query("startDate") startDate: String, @Query("endDate") endDate: String): Response<FinanceSummaryDto>
 
     @GET("store/rescue-timeline")
     suspend fun getRescueTimeline(): Response<RescueTimelineResponse>
@@ -535,18 +535,6 @@ interface StoreApiService {
 
     @GET("store/favorites-count")
     suspend fun getFavoritesCount(): Response<FavoritesCountResponse>
-
-    @GET("store/staff")
-    suspend fun getStaff(): Response<StaffListResponse>
-
-    @POST("store/staff/invitations")
-    suspend fun inviteStaff(@Body request: InviteStaffRequest): Response<InviteStaffResponse>
-
-    @PATCH("store/staff/{id}")
-    suspend fun updateStaff(@Path("id") id: String, @Body request: UpdateStaffRequest): Response<StaffMemberDto>
-
-    @DELETE("store/staff/{id}")
-    suspend fun removeStaff(@Path("id") id: String): Response<MessageResponse>
 
     // --- Gói dịch vụ (subscriptions.controller.ts) ---
 

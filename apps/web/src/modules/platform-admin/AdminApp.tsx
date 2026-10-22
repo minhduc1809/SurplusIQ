@@ -24,6 +24,7 @@ import { AdminProtectedRoute } from './pages/auth/AdminProtectedRoute';
 import { AdminLoginPage } from './pages/auth/AdminLoginPage';
 
 import { OrdersPage } from './pages/orders/OrdersPage';
+import { ContractReviewPanel } from './pages/merchants/ContractReviewPanel';
 import { PaymentOpsPanel } from './pages/payments/PaymentOpsPanel';
 
 import { DisputesPage } from './pages/disputes/DisputesPage';
@@ -359,7 +360,18 @@ function renderAdminPage(pathname: string): ReactNode {
   }
 
   if (currentPath === ADMIN_ROUTES.merchants)
-    return <SnapshotPage key="merchants" module="merchants" liveContent={<MerchantsPage />} />;
+    return (
+      <SnapshotPage
+        key="merchants"
+        module="merchants"
+        liveContent={
+          <>
+            <MerchantsPage />
+            <ContractReviewPanel />
+          </>
+        }
+      />
+    );
   if (currentPath === ADMIN_ROUTES.settlement)
     return (
       <SnapshotPage

@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notifications/notification.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
@@ -189,6 +191,7 @@ export class JobsService {
     private readonly marketingService: MarketingService,
     private readonly dataSource: DataSource,
     private readonly settingsService: SettingsService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -251,6 +254,13 @@ export class JobsService {
           },
         });
 
+        await this.notifications?.notifyQuietly({
+          userId: lockedOrder.customerId,
+          type: NotificationType.ORDER,
+          title: 'Đơn hết hạn giữ suất',
+          body: `Đơn ${lockedOrder.code} đã quá 10 phút chưa thanh toán nên suất được nhả. Bạn có thể đặt lại.`,
+          data: { orderId: lockedOrder.id, kind: 'HOLD_EXPIRED' },
+        });
         releasedOrderIds.push(lockedOrder.id);
       });
     }
@@ -378,6 +388,13 @@ export class JobsService {
             },
           });
 
+          await this.notifications?.notifyQuietly({
+            userId: lockedOrder.customerId,
+            type: NotificationType.ORDER,
+            title: 'Đơn quá hạn nhận hàng',
+            body: `Đơn ${lockedOrder.code} đã quá hạn nhận hàng. Nhiều lần không đến nhận có thể bị khóa đặt hàng tạm thời.`,
+            data: { orderId: lockedOrder.id, kind: 'PICKUP_EXPIRED' },
+          });
           expiredOrderIds.push(lockedOrder.id);
         });
       }
@@ -535,6 +552,19 @@ export class JobsService {
           },
         });
 
+        if (order) {
+          await this.notifications?.notifyQuietly({
+            userId: order.customerId,
+            type: NotificationType.COMPLAINT,
+            title: 'Khiếu nại được tự động chấp nhận',
+            body: `Cửa hàng không phản hồi khiếu nại đơn ${order.code} đúng hạn nên bạn được hoàn ${refundAmount.toLocaleString('vi-VN')}đ.`,
+            data: {
+              orderId: order.id,
+              complaintId: lockedComplaint.id,
+              kind: 'COMPLAINT_AUTO_ACCEPTED',
+            },
+          });
+        }
         acceptedIds.push(lockedComplaint.id);
       });
     }
@@ -638,6 +668,13 @@ export class JobsService {
         await this.statementLineRepo.save(line);
       }
 
+      await this.notifications?.notifyQuietly({
+        storeId: store.id,
+        type: NotificationType.SYSTEM,
+        title: 'Sao kê tuần đã chốt',
+        body: `Sao kê tuần ${startStr} đến ${endStr} đã được chốt. Thực nhận: ${statementData.netPayout.toLocaleString('vi-VN')}đ.`,
+        data: { statementId: saved.id, kind: 'STATEMENT_CLOSED' },
+      });
       closedStoreIds.push(store.id);
     }
 
@@ -956,6 +993,13 @@ export class JobsService {
           });
           const saved = await this.proposalRepo.save(proposal);
           proposalIds.push(saved.id);
+          await this.notifications?.notifyQuietly({
+            storeId: offer.storeId,
+            type: NotificationType.PRICE_PROPOSAL,
+            title: 'Có đề xuất giảm giá chờ duyệt',
+            body: `Đề xuất giảm giá từ ${oldPrice.toLocaleString('vi-VN')}đ xuống ${dynamicResult.proposedPrice.toLocaleString('vi-VN')}đ. Duyệt trong 15 phút.`,
+            data: { proposalId: saved.id, offerId: offer.id, kind: 'PRICE_PROPOSAL' },
+          });
         }
       }
     }
@@ -971,6 +1015,10 @@ export class JobsService {
    * Tác vụ 10 (1 phút): Gửi nhắc nhở lấy hàng trước 30 phút (R1-075)
    */
   async sendPickupReminders(now: Date = new Date()) {
+    const remindedIds: string[] = [];
+    // Không có dịch vụ thông báo thì không có cách chống gửi lặp, nên không làm gì.
+    if (!this.notifications) return { count: 0, orderIds: remindedIds };
+
     const paidOrders = await this.orderRepo.find({
       where: {
         status: OrderStatus.PAID,
@@ -978,11 +1026,8 @@ export class JobsService {
     });
 
     const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000);
-    const remindedIds: string[] = [];
 
     for (const order of paidOrders) {
-      if (order.arrivingNotifiedAt) continue;
-
       const offer = await this.offerRepo.findOne({ where: { id: order.offerId } });
       const pickupTime = offer
         ? new Date(offer.pickupStart)
@@ -991,8 +1036,16 @@ export class JobsService {
           : null;
 
       if (pickupTime && pickupTime <= thirtyMinutesFromNow && pickupTime > now) {
-        order.arrivingNotifiedAt = now;
-        await this.orderRepo.save(order);
+        // Chống gửi lặp bằng chính thông báo đã tạo; không đụng tới cờ "báo sắp đến" của khách.
+        if (await this.notifications.hasKind(order.customerId, 'PICKUP_REMINDER', order.id))
+          continue;
+        await this.notifications.notifyQuietly({
+          userId: order.customerId,
+          type: NotificationType.PICKUP_REMINDER,
+          title: 'Sắp đến giờ nhận hàng',
+          body: `Đơn ${order.code} bắt đầu nhận hàng lúc ${pickupTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}. Mở vé nhận hàng khi đến quầy.`,
+          data: { orderId: order.id, kind: 'PICKUP_REMINDER' },
+        });
         remindedIds.push(order.id);
       }
     }

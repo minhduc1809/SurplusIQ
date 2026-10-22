@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.postpurchase
 
 import androidx.compose.animation.AnimatedVisibility
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -90,7 +91,7 @@ fun CreateReviewScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Order Summary Card
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()
@@ -217,7 +218,7 @@ fun CreateReviewScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Policy Notice
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(10.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()

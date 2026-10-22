@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.profile
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,7 +107,7 @@ fun NotificationSettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Banner thông tin R1-010
-                Card(
+                SqCard(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = ForestGreenPrimary.copy(alpha = 0.08f)
@@ -143,7 +144,7 @@ fun NotificationSettingsScreen(
                 }
 
                 // Nhóm cài đặt chính
-                Card(
+                SqCard(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier.fillMaxWidth()

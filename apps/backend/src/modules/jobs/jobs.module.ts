@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JobsService } from './jobs.service';
 import { JobsController } from './jobs.controller';
@@ -36,6 +37,7 @@ import { RescueBridgeModule } from '../rescue-bridge/rescue-bridge.module';
 
 @Module({
   imports: [
+    NotificationsModule,
     RewardsModule,
     RescueTimelineModule,
     RescuePoolModule,

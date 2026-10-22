@@ -7,7 +7,14 @@ import { ItemsPage } from './pages/Items';
 import { OffersPage } from './pages/Offers';
 import { OrdersPage } from './pages/Orders';
 import { PickupVerifyPage } from './pages/PickupVerify';
-import { ComingSoonPage } from './pages/ComingSoon';
+import { V2Embed } from './pages/V2Embed';
+import { FinanceV2Page } from './modules/merchant-v2/pages/growth/FinanceV2Page';
+import { ReportsV2Page } from './modules/merchant-v2/pages/growth/ReportsV2Page';
+import { MarketingV2Page } from './modules/merchant-v2/pages/growth/MarketingV2Page';
+import { CustomersV2Page } from './modules/merchant-v2/pages/growth/CustomersV2Page';
+import { SettingsV2Page } from './modules/merchant-v2/pages/settings/SettingsV2Page';
+import { ForecastV2Page } from './modules/merchant-v2/pages/growth/ForecastV2Page';
+import { AiV2Page } from './modules/merchant-v2/pages/growth/AiV2Page';
 import { RescueTimelinePage } from './pages/RescueTimeline';
 import { RescuePoolPage } from './pages/RescuePool';
 import { RescueBridgePage, RescueBridgeRespondPage } from './pages/RescueBridge';
@@ -38,13 +45,62 @@ export default function App() {
             <Route path="/rescue-lab" element={<RescueLabPage />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/verify" element={<PickupVerifyPage />} />
-            <Route path="/reports" element={<ComingSoonPage title="Báo cáo & tác động" />} />
-            <Route path="/forecast" element={<ComingSoonPage title="Dự báo & giá Pro" />} />
-            <Route path="/marketing" element={<ComingSoonPage title="Ưu đãi & chiến dịch" />} />
-            <Route path="/customers" element={<ComingSoonPage title="Khách hàng" />} />
-            <Route path="/staff" element={<ComingSoonPage title="Nhân viên" />} />
-            <Route path="/ai" element={<ComingSoonPage title="Trợ lý AI" />} />
-            <Route path="/settings" element={<ComingSoonPage title="Cài đặt cửa hàng" />} />
+            <Route
+              path="/finance"
+              element={
+                <V2Embed>
+                  <FinanceV2Page />
+                </V2Embed>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <V2Embed>
+                  <ReportsV2Page />
+                </V2Embed>
+              }
+            />
+            <Route
+              path="/forecast"
+              element={
+                <V2Embed>
+                  <ForecastV2Page />
+                </V2Embed>
+              }
+            />
+            <Route
+              path="/marketing"
+              element={
+                <V2Embed>
+                  <MarketingV2Page />
+                </V2Embed>
+              }
+            />
+            <Route
+              path="/customers"
+              element={
+                <V2Embed>
+                  <CustomersV2Page />
+                </V2Embed>
+              }
+            />
+            <Route
+              path="/ai"
+              element={
+                <V2Embed>
+                  <AiV2Page />
+                </V2Embed>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <V2Embed>
+                  <SettingsV2Page />
+                </V2Embed>
+              }
+            />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
