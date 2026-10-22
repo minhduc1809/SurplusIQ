@@ -60,7 +60,7 @@ fun DealCard(
     val scarce = deal.remainingStock <= 3 || deal.isUrgent
     val saving = (deal.originalPrice - deal.discountPrice).coerceAtLeast(0)
 
-    Card(
+    SqCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onDealClick(deal) },

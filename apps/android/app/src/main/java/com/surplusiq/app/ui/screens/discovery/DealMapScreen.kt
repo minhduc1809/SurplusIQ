@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.discovery
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -71,6 +72,7 @@ fun DealMapScreen(
     onLocateMe: () -> Unit = {},
     onLocatePermissionDenied: () -> Unit = {},
     storePanel: (@Composable (pin: MapPin, onClose: () -> Unit) -> Unit)? = null,
+    header: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val requestLocation = rememberLocationPermissionRequest(onGranted = onLocateMe, onDenied = onLocatePermissionDenied)
@@ -104,28 +106,8 @@ fun DealMapScreen(
     // Tải lại ghim khi vị trí hoặc bán kính đổi (vd. vừa bấm định vị)
     LaunchedEffect(location.latitude, location.longitude, location.radiusKm) { onLoad() }
 
-    Column(modifier.fillMaxSize()) {
-        // ---- Bộ lọc nhóm món nằm trên bản đồ ----
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            MapCategoryChip("Tất cả", Icons.Default.Apps, ForestGreenPrimary, pins.size, selectedCategory == null) { selectedCategory = null }
-            DealCategory.values().filter { (countByCategory[it] ?: 0) > 0 || it == selectedCategory }.forEach { c ->
-                MapCategoryChip(c.label, c.icon(), c.accent(), countByCategory[c] ?: 0, selectedCategory == c) {
-                    selectedCategory = if (selectedCategory == c) null else c
-                }
-            }
-        }
-
-        // ---- Khung bản đồ cố định ----
-        Box(
-            Modifier
-                .weight(if (focus != null) 0.30f else 0.38f)
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .clip(RoundedCornerShape(20.dp))
-        ) {
+    val mapBox: @Composable (Modifier) -> Unit = { boxModifier ->
+        Box(boxModifier.padding(horizontal = 12.dp).clip(RoundedCornerShape(20.dp))) {
             OsmMapView(
                 centerLatitude = centerLat,
                 centerLongitude = centerLng,
@@ -147,7 +129,7 @@ fun DealMapScreen(
                 onClick = requestLocation,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = ForestGreenDark,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 112.dp)
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp)
             ) {
                 if (isLocating) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = ForestGreenPrimary)
@@ -156,42 +138,61 @@ fun DealMapScreen(
                 }
             }
         }
+    }
 
-        // ---- Vùng dưới: danh sách quán hoặc thông tin quán đang chọn ----
-        Box(Modifier.weight(if (focus != null) 0.70f else 0.62f).fillMaxWidth()) {
-            if (focus != null && storePanel != null) {
-                storePanel(focus) { selectedPin = null }
-            } else {
-                Column(Modifier.fillMaxSize()) {
-                    StoreListHeader(count = sortedPins.size, bestDiscount = shownPins.maxOfOrNull { it.maxDiscountPercent } ?: 0, hint = sort.hint)
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        MapSort.values().forEach { m -> SortChip(m.label, sort == m) { sort = m } }
-                    }
-                    if (sortedPins.isEmpty()) {
-                        Text(
-                            if (selectedCategory != null) "Không có quán nào bán nhóm \"${selectedCategory?.label}\" trong khu vực này."
-                            else "Chưa có cửa hàng nào có deal đang mở trong bán kính này.",
-                            fontSize = 13.sp,
-                            color = TextSecondary,
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                    LazyColumn(
-                        Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(sortedPins, key = { it.storeId }) { pin ->
-                            StoreCard(
-                                pin = pin,
-                                onVisit = { if (storePanel != null) selectedPin = pin else onOpenStore(pin.storeId) },
-                                onDirections = { NavigationUtil.openMapOrCopyAddress(context, pin.storeAddress, pin.storeName, pin.latitude, pin.longitude) }
-                            )
+    if (focus != null && storePanel != null) {
+        // Đang xem một quán: bản đồ thu nhỏ phía trên, thông tin quán tự cuộn bên dưới
+        Column(modifier.fillMaxSize()) {
+            mapBox(Modifier.weight(0.30f).fillMaxWidth())
+            Box(Modifier.weight(0.70f).fillMaxWidth()) { storePanel(focus) { selectedPin = null } }
+        }
+    } else {
+        // Cả trang (đầu trang, nhóm món, bản đồ, danh sách quán) cuộn cùng nhau
+        LazyColumn(
+            modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item { header() }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    MapCategoryChip("Tất cả", Icons.Default.Apps, ForestGreenPrimary, pins.size, selectedCategory == null) { selectedCategory = null }
+                    DealCategory.values().filter { (countByCategory[it] ?: 0) > 0 || it == selectedCategory }.forEach { c ->
+                        MapCategoryChip(c.label, c.icon(), c.accent(), countByCategory[c] ?: 0, selectedCategory == c) {
+                            selectedCategory = if (selectedCategory == c) null else c
                         }
                     }
+                }
+            }
+            item { mapBox(Modifier.fillMaxWidth().height(320.dp)) }
+            item { StoreListHeader(count = sortedPins.size, bestDiscount = shownPins.maxOfOrNull { it.maxDiscountPercent } ?: 0, hint = sort.hint) }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    MapSort.values().forEach { m -> SortChip(m.label, sort == m) { sort = m } }
+                }
+            }
+            if (sortedPins.isEmpty()) item {
+                Text(
+                    if (selectedCategory != null) "Không có quán nào bán nhóm \"${selectedCategory?.label}\" trong khu vực này."
+                    else "Chưa có cửa hàng nào có deal đang mở trong bán kính này.",
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+            items(sortedPins, key = { it.storeId }) { pin ->
+                Box(Modifier.padding(horizontal = 12.dp)) {
+                    StoreCard(
+                        pin = pin,
+                        onVisit = { if (storePanel != null) selectedPin = pin else onOpenStore(pin.storeId) },
+                        onDirections = { NavigationUtil.openMapOrCopyAddress(context, pin.storeAddress, pin.storeName, pin.latitude, pin.longitude) }
+                    )
                 }
             }
         }
@@ -357,7 +358,7 @@ private fun MapCategoryChip(label: String, icon: ImageVector, accent: Color, cou
 
 @Composable
 private fun MapBanner(message: String, modifier: Modifier = Modifier, actionLabel: String? = null, onAction: () -> Unit = {}) {
-    Card(
+    SqCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),

@@ -121,13 +121,10 @@ fun DiscoverHomeScreen(
     val maxDiscount = remember(deals) { deals.maxOfOrNull { it.discountPercent } ?: 0 }
     val urgentDeals = remember(shown) { shown.filter { it.isUrgent } }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+    val header: @Composable () -> Unit = {
+    Column(Modifier.fillMaxWidth()) {
         // Hàng 1: logo + tên màn, chuông, avatar (ẩn ở chế độ bản đồ để dành chỗ)
-        if (!isMapView) Row(
+        Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -194,7 +191,7 @@ fun DiscoverHomeScreen(
         }
 
         // K08: đang xem deal ở vị trí ghim tạm
-        if (location.isTemporary && !isMapView) {
+        if (location.isTemporary) {
             AssistChip(
                 onClick = onClearTemporaryLocation,
                 label = { Text("Đang xem ở vị trí khác", fontSize = 12.sp) },
@@ -230,7 +227,7 @@ fun DiscoverHomeScreen(
                     cursorBrush = SolidColor(ForestGreenPrimary),
                     modifier = Modifier.weight(1f),
                     decorationBox = { inner ->
-                        if (searchQuery.isEmpty()) Text("Tìm món ngon, tiệm bánh...", fontSize = 14.sp, color = TextMuted)
+                        if (searchQuery.isEmpty()) Text("Tìm món ngon, tiệm ...", fontSize = 13.sp, color = TextMuted)
                         inner()
                     }
                 )
@@ -289,6 +286,10 @@ fun DiscoverHomeScreen(
             )
         }
 
+    }
+    }
+
+    Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (isMapView) {
             DealMapScreen(
                 pins = mapPins,
@@ -303,25 +304,35 @@ fun DiscoverHomeScreen(
                 onLocateMe = onLocateMe,
                 onLocatePermissionDenied = onLocatePermissionDenied,
                 storePanel = storePanel,
+                header = header,
                 modifier = Modifier.weight(1f).fillMaxWidth()
             )
         } else {
-            LoadStateContent(
-                isLoading = isLoading,
-                errorMessage = errorMessage,
-                isEmpty = deals.isEmpty(),
-                emptyIcon = Icons.Default.LocationOn,
-                emptyTitle = "Chưa có deal quanh đây",
-                emptyMessage = if (location.hasCoordinates) "Thử tăng bán kính hoặc chọn vị trí khác." else "Hiện chưa có suất cứu món nào đang mở bán.",
-                onRetry = onRetry
+            val side = Modifier.padding(horizontal = 16.dp)
+            // Cả trang (đầu trang, bộ lọc, danh sách) cuộn cùng nhau; trạng thái tải/lỗi/rỗng chỉ thay phần danh sách.
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
+                item { header() }
+                if (deals.isEmpty()) {
                     item {
-                        Column {
+                        Box(Modifier.fillMaxWidth().height(360.dp)) {
+                            LoadStateContent(
+                                isLoading = isLoading,
+                                errorMessage = errorMessage,
+                                isEmpty = true,
+                                emptyIcon = Icons.Default.LocationOn,
+                                emptyTitle = "Chưa có deal quanh đây",
+                                emptyMessage = if (location.hasCoordinates) "Thử tăng bán kính hoặc chọn vị trí khác." else "Hiện chưa có suất cứu món nào đang mở bán.",
+                                onRetry = onRetry
+                            ) {}
+                        }
+                    }
+                } else {
+                    item {
+                        Column(side) {
                             Text(
                                 text = buildAnnotatedString {
                                     append("Hôm nay bạn muốn ")
@@ -344,7 +355,10 @@ fun DiscoverHomeScreen(
                         }
                     }
                     item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
                             item { CategoryTile("Tất cả", Icons.Default.Apps, category == null) { category = null } }
                             items(DealCategory.values().toList()) { c ->
                                 CategoryTile(c.label, c.icon(), category == c) { category = if (category == c) null else c }
@@ -352,24 +366,28 @@ fun DiscoverHomeScreen(
                         }
                     }
                     if (urgentDeals.isNotEmpty()) item {
-                        GoldenHourBanner(
-                            count = urgentDeals.size,
-                            maxDiscount = urgentDeals.maxOf { it.discountPercent },
-                            onClick = onSeeAllClick
-                        )
+                        Box(side) {
+                            GoldenHourBanner(
+                                count = urgentDeals.size,
+                                maxDiscount = urgentDeals.maxOf { it.discountPercent },
+                                onClick = onSeeAllClick
+                            )
+                        }
                     }
                     if (shown.isEmpty()) item {
-                        Text("Không có suất nào khớp bộ lọc.", fontSize = 14.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 24.dp))
+                        Text("Không có suất nào khớp bộ lọc.", fontSize = 14.sp, color = TextSecondary, modifier = side.padding(vertical = 24.dp))
                     }
                     if (shown.isNotEmpty()) item {
-                        SectionHeader(
-                            title = "Dành cho bạn",
-                            subtitle = "Suất cứu món nóng hổi gần vị trí của bạn nhất",
-                            onSeeAllClick = onSeeAllForYou
-                        )
+                        Box(side) {
+                            SectionHeader(
+                                title = "Dành cho bạn",
+                                subtitle = "Suất cứu món nóng hổi gần vị trí của bạn nhất",
+                                onSeeAllClick = onSeeAllForYou
+                            )
+                        }
                     }
                     items(shown, key = { it.id }) { deal ->
-                        DealCard(deal = deal, onDealClick = onDealClick, onFavoriteToggle = onFavoriteToggle)
+                        Box(side) { DealCard(deal = deal, onDealClick = onDealClick, onFavoriteToggle = onFavoriteToggle) }
                     }
                 }
             }

@@ -1,6 +1,8 @@
 package com.surplusiq.app.ui.screens.profile
 
+import com.surplusiq.app.ui.screens.notifications.NotificationBellIcon
 import androidx.compose.foundation.Image
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -121,7 +123,7 @@ fun ProfileScreen(
         }
 
         // Thẻ hồ sơ
-        Card(
+        SqCard(
             modifier = Modifier.fillMaxWidth().clickable { onOpenEditProfile() },
             shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -195,7 +197,7 @@ fun ProfileScreen(
         }
 
         // Thành tích sống xanh
-        Card(
+        SqCard(
             modifier = Modifier.fillMaxWidth().clickable { onOpenImpact() },
             shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -324,12 +326,8 @@ private fun ProfileHeader(initial: String, unread: Int, onBell: () -> Unit, onAv
             Text("SURPLUSIQ", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenDark, letterSpacing = 0.8.sp)
             Text("Hồ sơ của tôi", fontSize = 12.sp, color = TextSecondary)
         }
-        BadgedBox(badge = { if (unread > 0) Badge { Text(if (unread > 9) "9+" else "$unread") } }) {
-            IconButton(onClick = onBell, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Default.Notifications, contentDescription = "Thông báo", tint = TextPrimary)
-            }
-        }
-        Spacer(Modifier.width(6.dp))
+        NotificationBellIcon(unreadCount = unread, onClick = onBell)
+        Spacer(Modifier.width(14.dp))
         Box(
             Modifier.size(38.dp).clip(CircleShape).background(ForestGreenPrimary).clickable(onClick = onAvatar),
             contentAlignment = Alignment.Center
@@ -377,7 +375,7 @@ private fun StatTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    SqCard(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -447,7 +445,7 @@ private fun FeatureRow(
 
 @Composable
 private fun MenuGroup(content: @Composable ColumnScope.() -> Unit) {
-    Card(
+    SqCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)

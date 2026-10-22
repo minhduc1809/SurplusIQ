@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.orders
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -142,7 +143,7 @@ fun OrderCardItem(
     onResumePayment: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    SqCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onCardClick() },

@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.orders
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -134,7 +135,7 @@ fun OrderDetailScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // Order Code & Status Header Card
-            Card(
+            SqCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -158,7 +159,7 @@ fun OrderDetailScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Store Info Card
-            Card(
+            SqCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -186,7 +187,7 @@ fun OrderDetailScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Invoice Breakdown Card
-            Card(
+            SqCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -591,7 +592,7 @@ private fun ProxyPickupCodeSection(
     onCreateClick: () -> Unit,
     onRevokeClick: () -> Unit
 ) {
-    Card(
+    SqCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.basket
 
 import androidx.compose.animation.AnimatedVisibility
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -176,7 +177,7 @@ fun BasketCheckoutScreen(
             // Trường hợp ĐÃ HOLD THÀNH CÔNG
             if (checkoutResult != null) {
                 item {
-                    Card(
+                    SqCard(
                         colors = CardDefaults.cardColors(
                             containerColor = ForestGreenPrimary.copy(alpha = 0.1f)
                         ),
@@ -238,7 +239,7 @@ fun BasketCheckoutScreen(
                 }
 
                 item {
-                    Card(shape = RoundedCornerShape(12.dp)) {
+                    SqCard(shape = RoundedCornerShape(12.dp)) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
                                 text = "Mã đơn hàng giữ chỗ (${checkoutResult.orderIds.size} đơn)",
@@ -286,7 +287,7 @@ fun BasketCheckoutScreen(
                 // Trường hợp CHƯA CHECKOUT
                 if (checkoutError != null) {
                     item {
-                        Card(
+                        SqCard(
                             colors = CardDefaults.cardColors(
                                 containerColor = CoralRed.copy(alpha = 0.1f)
                             ),
@@ -324,7 +325,7 @@ fun BasketCheckoutScreen(
                 }
 
                 item {
-                    Card(shape = RoundedCornerShape(12.dp)) {
+                    SqCard(shape = RoundedCornerShape(12.dp)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -356,7 +357,7 @@ fun BasketCheckoutScreen(
                 }
 
                 item {
-                    Card(shape = RoundedCornerShape(12.dp)) {
+                    SqCard(shape = RoundedCornerShape(12.dp)) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
                                 text = "Món trong giỏ (${items.sumOf { it.quantity }})",
@@ -397,7 +398,7 @@ fun BasketCheckoutScreen(
                 }
 
                 item {
-                    Card(shape = RoundedCornerShape(12.dp)) {
+                    SqCard(shape = RoundedCornerShape(12.dp)) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
                                 text = "Thông tin nhận hàng",

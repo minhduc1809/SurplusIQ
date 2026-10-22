@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.basket
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -162,7 +163,7 @@ fun BasketDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    Card(
+                    SqCard(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ),
@@ -306,7 +307,7 @@ private fun BasketItemCard(
     onRemove: () -> Unit,
     onSubstitute: () -> Unit
 ) {
-    Card(
+    SqCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -455,7 +456,7 @@ private fun SubstituteItemRow(
         }
     }
 
-    Card(
+    SqCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onSelect() },

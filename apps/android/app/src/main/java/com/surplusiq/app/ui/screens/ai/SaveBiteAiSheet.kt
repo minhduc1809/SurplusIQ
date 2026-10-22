@@ -1,5 +1,10 @@
 package com.surplusiq.app.ui.screens.ai
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.filled.HealthAndSafety
@@ -142,10 +147,15 @@ fun SaveBiteAiSheet(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
-        // Thanh nhập luôn nằm sát bàn phím; Scaffold đã chừa chỗ thanh hệ thống nên không tự chồng thêm imePadding
+        // Thanh nhập chừa chỗ thanh điều hướng hệ thống hoặc bàn phím (lấy cái lớn hơn, không cộng dồn)
         bottomBar = {
             Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 6.dp) {
-                Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp)) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
+                        .padding(top = 8.dp, bottom = 8.dp)
+                ) {
                     if (!isFreshChat) {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 16.dp),

@@ -97,6 +97,7 @@ fun DealAlertEditScreen(
             )
         },
         bottomBar = {
+            Box(Modifier.background(MaterialTheme.colorScheme.surface).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
             Column(Modifier.padding(16.dp)) {
                 Row(
                     Modifier
@@ -120,6 +121,7 @@ fun DealAlertEditScreen(
                     Text(if (state.isSaving) "Đang lưu..." else "Lưu cảnh báo", fontWeight = FontWeight.Bold)
                 }
             }
+        }
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->

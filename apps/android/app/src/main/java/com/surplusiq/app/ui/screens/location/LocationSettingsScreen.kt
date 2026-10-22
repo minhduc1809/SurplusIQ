@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.location
 
 import androidx.compose.foundation.background
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,23 +94,6 @@ fun LocationSettingsScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
-        bottomBar = {
-            Surface(shadowElevation = 8.dp, color = MaterialTheme.colorScheme.surface) {
-                Button(
-                    onClick = { onApply(radiusKm) },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .height(52.dp)
-                ) {
-                    Text("Áp dụng vị trí & Khám phá", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
-                }
-            }
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
@@ -192,7 +176,7 @@ fun LocationSettingsScreen(
             }
 
             // Vị trí sẽ dùng
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()
@@ -272,7 +256,7 @@ fun LocationSettingsScreen(
             }
 
             // Bán kính
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()
@@ -289,7 +273,7 @@ fun LocationSettingsScreen(
             }
 
             // Lối tắt
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()
@@ -308,7 +292,18 @@ fun LocationSettingsScreen(
                     onClick = onOpenPinLocation
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            // Nút áp dụng nằm cuối trang, cuộn cùng nội dung; chừa chỗ thanh điều hướng
+            Button(
+                onClick = { onApply(radiusKm) },
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Text("Áp dụng vị trí & Khám phá", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBars).height(8.dp))
         }
     }
 }

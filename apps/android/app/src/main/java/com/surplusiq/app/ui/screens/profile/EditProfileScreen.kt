@@ -1,6 +1,7 @@
 package com.surplusiq.app.ui.screens.profile
 
 import android.net.Uri
+import com.surplusiq.app.ui.components.SqCard
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -211,7 +212,7 @@ fun EditProfileScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Form Fields
-            Card(
+            SqCard(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()

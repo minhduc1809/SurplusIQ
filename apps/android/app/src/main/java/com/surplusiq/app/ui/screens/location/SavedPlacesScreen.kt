@@ -1,6 +1,8 @@
 package com.surplusiq.app.ui.screens.location
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -73,6 +75,7 @@ fun SavedPlacesScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
+            Box(Modifier.background(MaterialTheme.colorScheme.surface).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
             Column(Modifier.padding(16.dp)) {
                 if (isFull) {
                     Text(
@@ -94,6 +97,7 @@ fun SavedPlacesScreen(
                     Text("Thêm địa điểm", fontWeight = FontWeight.Bold)
                 }
             }
+        }
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
@@ -156,7 +160,7 @@ private fun SavedPlaceCard(place: SavedPlace, defaultRadiusKm: Double, onClick: 
         "làm" in label || "công ty" in label || "văn phòng" in label || "work" in label -> Icons.Default.Work
         else -> Icons.Default.Place
     }
-    Card(
+    SqCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
