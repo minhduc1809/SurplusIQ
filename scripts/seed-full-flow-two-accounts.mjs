@@ -142,16 +142,27 @@ await q(
 );
 
 const existContract = (await q('SELECT id FROM store_contracts WHERE store_id=$1', [STORE_A]))[0];
+const contractNote =
+  'Bản scan trang 3 bị mờ chữ ký giáp lai đại diện hộ kinh doanh. Vui lòng ký đóng dấu lại trang 3 và tải lên bản mới để hoàn tất phê duyệt hợp đồng KYC.';
 if (!existContract) {
   await q(
     `INSERT INTO store_contracts (id, store_id, status, file_path, file_name, mime_type, size_bytes, uploaded_by, review_note, reviewed_at, created_at)
-     VALUES ($1, $2, 'APPROVED', 'contracts/${STORE_A}/hop-dong-com-tho-anh-nguyen-official.pdf', 'hop-dong-com-tho-anh-nguyen-official.pdf', 'application/pdf', 1845000, $3, 'Hợp đồng đầy đủ chữ ký hợp lệ và đối soát minh bạch.', NOW(), NOW())`,
-    [randomUUID(), STORE_A, owner.id],
+     VALUES ($1, $2, 'NEED_MORE_INFO', 'contracts/${STORE_A}/hop-dong-com-tho-anh-nguyen-official.pdf', 'hop-dong-com-tho-anh-nguyen-official.pdf', 'application/pdf', 1845000, $3, $4, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 day')`,
+    [randomUUID(), STORE_A, owner.id, contractNote],
   );
 } else {
-  await q(`UPDATE store_contracts SET status='APPROVED' WHERE store_id=$1`, [STORE_A]);
+  await q(
+    `UPDATE store_contracts 
+     SET status='NEED_MORE_INFO', 
+         review_note=$1, 
+         reviewed_at=NOW() - INTERVAL '2 hours' 
+     WHERE store_id=$2`,
+    [contractNote, STORE_A],
+  );
 }
-console.log('✓ Hồ sơ pháp lý & Hợp đồng KYC scan (APPROVED)');
+console.log(
+  '✓ Hồ sơ pháp lý & Hợp đồng KYC scan (NEED_MORE_INFO - Sẵn sàng gửi hồ sơ & kiểm tra duyệt)',
+);
 
 // 5. Gói dịch vụ PRO & Hóa đơn thanh toán
 await q(
