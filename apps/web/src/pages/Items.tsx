@@ -1,4 +1,5 @@
 import { useState, type ReactNode, type CSSProperties, type FormEvent } from 'react';
+import { categoryLabel } from '../lib/categories';
 import { Search, Plus, ShieldCheck } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { useApiData } from '../lib/useApiData';
@@ -107,7 +108,7 @@ export function ItemsPage() {
             overflowX: 'auto',
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="sq-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--sq-surface-soft)' }}>
                 <Th>Món</Th>
@@ -138,7 +139,7 @@ export function ItemsPage() {
                   </td>
                   <td style={cellStyle}>
                     <span className="sq-body" style={{ color: 'var(--sq-ink-soft)' }}>
-                      {item.category}
+                      {categoryLabel(item.category)}
                     </span>
                   </td>
                   <td style={{ ...cellStyle, textAlign: 'right' }} className="sq-tabular">

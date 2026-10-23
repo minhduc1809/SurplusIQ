@@ -79,7 +79,7 @@ export function ForecastV2Page() {
         onRetry={reload}
       >
         <TableContainer component={Card}>
-          <Table>
+          <Table className="sq-table">
             <TableHead>
               <TableRow>
                 <TableCell>Món</TableCell>

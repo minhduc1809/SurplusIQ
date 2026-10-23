@@ -73,7 +73,7 @@ export function OffersPage() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {[
           { value: '', label: 'Tất cả' },
           { value: 'OPEN', label: 'Đang mở' },
@@ -91,6 +91,7 @@ export function OffersPage() {
               color: status === f.value ? 'var(--sq-coral-deep)' : 'var(--sq-ink-soft)',
               fontSize: 13,
               fontWeight: 650,
+              whiteSpace: 'nowrap',
               cursor: 'pointer',
             }}
           >
@@ -116,7 +117,7 @@ export function OffersPage() {
             overflowX: 'auto',
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="sq-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--sq-surface-soft)' }}>
                 <Th>Khung nhận</Th>

@@ -139,3 +139,50 @@
     transition: none;
   }
 }
+
+/* Bảng dữ liệu trên màn hẹp: mỗi dòng thành một thẻ, nhãn cột lấy từ data-label (AppShell tự gắn). */
+@media (max-width: 640px) {
+  .sq-table {
+    min-width: 0 !important;
+  }
+  .sq-table thead {
+    display: none;
+  }
+  .sq-table,
+  .sq-table tbody,
+  .sq-table tr {
+    display: block;
+    width: 100%;
+  }
+  .sq-table tr {
+    padding: 10px 16px;
+    border-top: 1px solid var(--sq-line);
+  }
+  .sq-table td {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 4px 0 !important;
+    border: 0 !important;
+    text-align: right !important;
+    white-space: normal !important;
+  }
+  .sq-table td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    color: var(--sq-ink-muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+  }
+  /* Ô đầu là tiêu đề dòng (có thể nhiều đoạn): xếp dọc, không kèm nhãn. */
+  .sq-table td:first-child {
+    display: block !important;
+    text-align: left !important;
+    padding-bottom: 8px !important;
+  }
+  .sq-table td:first-child::before {
+    display: none;
+  }
+}

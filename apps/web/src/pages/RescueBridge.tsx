@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { categoryLabel } from '../lib/categories';
 import { useParams } from 'react-router-dom';
 import { ArrowLeft, Copy, Plus, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/api';
@@ -190,7 +191,7 @@ export function RescueBridgePage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sq-space-5)' }}>
       <h1 className="sq-h1" style={{ margin: 0 }}>
-        Rescue Bridge
+        Cầu nối từ thiện
       </h1>
       <div role="tablist" style={{ display: 'flex', gap: 8 }}>
         <button
@@ -239,7 +240,10 @@ function TransferList({ onSelect }: { onSelect: (id: string) => void }) {
       )}
       {state.status === 'success' && (
         <div style={card}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table
+            className="sq-table"
+            style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}
+          >
             <thead>
               <tr style={{ background: 'var(--sq-surface-soft)' }}>
                 <Th>Nhóm món</Th>
@@ -256,7 +260,7 @@ function TransferList({ onSelect }: { onSelect: (id: string) => void }) {
                   onClick={() => onSelect(t.id)}
                   style={{ borderTop: '1px solid var(--sq-line)', cursor: 'pointer' }}
                 >
-                  <td style={cell}>{t.foodCategory}</td>
+                  <td style={cell}>{categoryLabel(t.foodCategory)}</td>
                   <td style={cell}>{t.recipientOrgName ?? '—'}</td>
                   <td style={cell} className="sq-tabular">
                     {dt(t.handoverDeadline)}
@@ -1360,7 +1364,7 @@ const card: CSSProperties = {
   background: 'var(--sq-surface)',
   border: '1px solid var(--sq-line)',
   borderRadius: 'var(--sq-radius-lg)',
-  overflow: 'hidden',
+  overflowX: 'auto',
 };
 const cell: CSSProperties = {
   padding: '14px 16px',
