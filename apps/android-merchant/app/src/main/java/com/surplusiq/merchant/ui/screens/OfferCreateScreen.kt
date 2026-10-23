@@ -57,7 +57,11 @@ fun OfferCreateScreen(repository: StoreRepository, presetItemId: String?, onCrea
         forecasts = repository.getForecasts(today.toString()).getOrNull().orEmpty().associateBy { it.itemId }
         repository.getStoreProfile().getOrNull()?.settings?.let { s ->
             if (start.isEmpty()) start = s.defaultPickupStart.take(5)
-            if (end.isEmpty()) end = s.defaultPickupEnd.take(5)
+            if (end.isEmpty()) {
+                // Khung mặc định của quán có thể dài hơn mức tối đa 3 giờ của một suất: cắt về đúng 3 giờ để không vướng lỗi ngay từ đầu.
+                val d = s.defaultPickupEnd.take(5)
+                end = runCatching { if (java.time.Duration.between(java.time.LocalTime.parse(start), java.time.LocalTime.parse(d)).toMinutes() > 180) java.time.LocalTime.parse(start).plusHours(3).toString() else d }.getOrDefault(d)
+            }
         }
         isLoading = false
     }
@@ -102,6 +106,7 @@ fun OfferCreateScreen(repository: StoreRepository, presetItemId: String?, onCrea
                     SqDropdown("Món", items.map { it.id to it.name }, itemId, placeholder = "Chọn món…", searchable = true) {
                         itemId = it
                         price = ""
+                        formError = null
                     }
                     if (item != null) {
                         Spacer(modifier = Modifier.height(8.dp))
@@ -110,6 +115,7 @@ fun OfferCreateScreen(repository: StoreRepository, presetItemId: String?, onCrea
                     Spacer(modifier = Modifier.height(12.dp))
                     SqField("Số lượng suất", quantity, keyboardType = KeyboardType.Number, hint = "1–500 suất") {
                         quantity = it.filter(Char::isDigit).take(3)
+                        formError = null
                     }
                     if (recommended != null) {
                         Spacer(modifier = Modifier.height(8.dp))
@@ -119,7 +125,7 @@ fun OfferCreateScreen(repository: StoreRepository, presetItemId: String?, onCrea
                     SqField(
                         "Giá bán (đ)", price, keyboardType = KeyboardType.Number,
                         hint = if (priceValue != null && original > 0) "Giảm ${discountPercent(original, priceValue)}% · bội số 500đ" else "Bội số 500đ, từ giá sàn đến giá gốc"
-                    ) { price = it.filter(Char::isDigit).take(7) }
+                    ) { price = it.filter(Char::isDigit).take(7); formError = null }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -127,9 +133,9 @@ fun OfferCreateScreen(repository: StoreRepository, presetItemId: String?, onCrea
                     SectionTitle("Khung nhận hôm nay")
                     Spacer(modifier = Modifier.height(10.dp))
                     Row {
-                        SqField("Từ", start, modifier = Modifier.weight(1f), placeholder = "18:00") { start = it.take(5) }
+                        SqField("Từ", start, modifier = Modifier.weight(1f), placeholder = "18:00") { start = it.take(5); formError = null }
                         Spacer(modifier = Modifier.width(10.dp))
-                        SqField("Đến", end, modifier = Modifier.weight(1f), placeholder = "20:00") { end = it.take(5) }
+                        SqField("Đến", end, modifier = Modifier.weight(1f), placeholder = "20:00") { end = it.take(5); formError = null }
                     }
                     Text("Tối đa 3 giờ.", fontSize = 11.sp, color = SqInkMuted, modifier = Modifier.padding(top = 4.dp))
                     Spacer(modifier = Modifier.height(12.dp))

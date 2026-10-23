@@ -2,8 +2,12 @@ package com.surplusiq.merchant.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -36,7 +40,8 @@ fun UsageQuotasScreen(repository: StoreRepository, onUpgrade: () -> Unit, onBack
 
     LaunchedEffect(Unit) { load() }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(20.dp)) {
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+    Column(modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize().padding(20.dp)) {
         ScreenHeader("Hạn mức sử dụng", onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -44,10 +49,15 @@ fun UsageQuotasScreen(repository: StoreRepository, onUpgrade: () -> Unit, onBack
             isLoading -> FullScreenLoading()
             error != null -> ErrorState(message = error!!, onRetry = ::load)
             quotas.isNullOrEmpty() -> EmptyState("Chưa có hạn mức", "Không có dữ liệu hạn mức cho gói hiện tại.")
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            else -> LazyVerticalGrid(
+                columns = GridCells.Adaptive(340.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 items(quotas!!) { q -> QuotaCard(q, onUpgrade) }
             }
         }
+    }
     }
 }
 
@@ -56,21 +66,21 @@ private fun QuotaCard(q: QuotaDto, onUpgrade: () -> Unit) {
     val ratio = if (q.limit > 0) q.used.toFloat() / q.limit else 0f
     val color = when {
         q.isExceeded || ratio >= 1f -> SqError
-        ratio >= 0.8f -> SqCoral
-        else -> SqMint
+        ratio >= 0.8f -> SqCoralDeep
+        else -> SqCoral
     }
     SqCard {
         Text(q.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SqInk)
         Spacer(modifier = Modifier.height(8.dp))
         LinearProgressIndicator(
             progress = { ratio.coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().height(8.dp),
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
             color = color,
-            trackColor = SqSurfaceSoft
+            trackColor = SqCoralWash
         )
         Spacer(modifier = Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Text("Đã dùng ${q.used}/${q.limit} · còn ${q.remaining}", fontSize = 12.sp, color = color)
+            Text("Đã dùng ${q.used}/${q.limit} · còn ${q.remaining}", fontSize = 12.sp, color = color, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(end = 8.dp))
             Text(
                 when (q.period) {
                     "PER_REQUEST" -> "Áp dụng mỗi lần"

@@ -90,7 +90,8 @@ fun AiScreen(
         add(Triple("config", "Cài đặt trợ lý", Icons.Default.Settings))
     }
     if (tab != "chat") {
-        Column(Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp).padding(top = 20.dp)) {
+        Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.widthIn(max = 760.dp).fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
             ScreenHeader(pages.first { it.first == tab }.second, { tab = "chat" })
             Spacer(Modifier.height(8.dp))
             when (tab) {
@@ -103,9 +104,11 @@ fun AiScreen(
                 else -> LogsTab(repository)
             }
         }
+        }
         return
     }
-    Column(Modifier.fillMaxSize().background(SqCanvas)) {
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+    Column(Modifier.widthIn(max = 760.dp).fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = SqInk) }
             AiAvatar(36.dp)
@@ -117,6 +120,7 @@ fun AiScreen(
             IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Tuỳ chọn", tint = SqInk) }
         }
         ChatTab(repository, chat, conversationId, { conversationId = it }, onOpenQuotas, onNavigate)
+    }
     }
     if (menu) ModalBottomSheet(onDismissRequest = { menu = false }, containerColor = Color.White) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
@@ -344,9 +348,9 @@ private fun WeekTab(repository: StoreRepository) {
             Spacer(Modifier.height(10.dp))
             SqCard { Text(d.summary, fontSize = 14.sp, color = SqInk) }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("Doanh thu", currency(d.totalRevenue), SqCoral, Modifier.weight(1f))
-                MetricCard("Thực phẩm cứu", "%.1f kg".format(d.foodSavedKg), SqMint, Modifier.weight(1f))
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard("Doanh thu", currency(d.totalRevenue), SqCoral, Modifier.weight(1f).fillMaxHeight())
+                MetricCard("Thực phẩm cứu", "%.1f kg".format(d.foodSavedKg), SqCoral, Modifier.weight(1f).fillMaxHeight())
             }
             Spacer(Modifier.height(8.dp))
             SqCard {
@@ -412,6 +416,7 @@ private fun WhyDialog(repository: StoreRepository, date: String, onDismiss: () -
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun ConfigTab(repository: StoreRepository, isOwner: Boolean) {
     var cfg by remember { mutableStateOf<AiConfigDto?>(null) }
@@ -445,7 +450,10 @@ private fun ConfigTab(repository: StoreRepository, isOwner: Boolean) {
                 Spacer(Modifier.height(10.dp))
                 SqCard {
                     SectionTitle("Giọng điệu mặc định khi soạn phản hồi")
-                    ChipRow(listOf("FRIENDLY" to "Thân thiện", "FORMAL" to "Trang trọng", "APOLOGETIC" to "Xin lỗi"), c.defaultTone) { if (isOwner) cfg = c.copy(defaultTone = it) }
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("FRIENDLY" to "Thân thiện", "FORMAL" to "Trang trọng", "APOLOGETIC" to "Xin lỗi").forEach { (k, l) -> SqChip(l, c.defaultTone == k) { if (isOwner) cfg = c.copy(defaultTone = k) } }
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
                 InlineError(error)
@@ -485,7 +493,7 @@ private fun CardsTab(repository: StoreRepository) {
                         Text(c.reasonText, fontSize = 13.sp, color = SqInk, modifier = Modifier.padding(top = 2.dp))
                         c.expectedOutcome?.let { Text("Kỳ vọng: $it", fontSize = 12.sp, color = SqInkSoft) }
                         if (!watching) Row {
-                            TextButton(onClick = { scope.launch { actionError = null; repository.applyActionCard(c.id).fold(onSuccess = { retry++ }, onFailure = { actionError = it.message }) } }, contentPadding = PaddingValues(0.dp)) { Text("Chấp nhận", color = SqMintDeep) }
+                            TextButton(onClick = { scope.launch { actionError = null; repository.applyActionCard(c.id).fold(onSuccess = { retry++ }, onFailure = { actionError = it.message }) } }, contentPadding = PaddingValues(0.dp)) { Text("Chấp nhận", color = SqCoralDeep) }
                             Spacer(Modifier.width(16.dp))
                             TextButton(onClick = { scope.launch { actionError = null; repository.dismissActionCard(c.id).fold(onSuccess = { retry++ }, onFailure = { actionError = it.message }) } }, contentPadding = PaddingValues(0.dp)) { Text("Bỏ qua", color = SqInkSoft) }
                         } else Text("Chấp nhận không tự đổi giá hay tồn kho; hãy thực hiện ở màn tương ứng.", fontSize = 11.sp, color = SqInkMuted)

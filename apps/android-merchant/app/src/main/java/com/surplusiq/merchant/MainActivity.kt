@@ -54,6 +54,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -230,14 +231,24 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
                         }
                     },
                     actions = {
-                        IconButton(
-                            onClick = { open("notifications") },
-                            modifier = Modifier.padding(end = 8.dp).size(44.dp).border(1.dp, SqLine, CircleShape).background(SqSurface, CircleShape)
-                        ) {
-                            BadgedBox(badge = {
-                                if (unreadCount > 0) Badge(containerColor = SqCoral) { Text(if (unreadCount > 99) "99+" else "$unreadCount") }
-                            }) {
+                        // Huy hiệu nằm trong vùng đệm của hộp nên không bị cắt ở mép màn hình.
+                        Box(Modifier.padding(end = 14.dp, top = 6.dp)) {
+                            IconButton(
+                                onClick = { open("notifications") },
+                                modifier = Modifier.size(44.dp).border(1.dp, SqLine, CircleShape).background(SqSurface, CircleShape)
+                            ) {
                                 Icon(Icons.Outlined.Notifications, contentDescription = "Thông báo, $unreadCount chưa đọc", tint = SqInkSoft)
+                            }
+                            if (unreadCount > 0) {
+                                Text(
+                                    if (unreadCount > 99) "99+" else "$unreadCount",
+                                    color = androidx.compose.ui.graphics.Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-4).dp)
+                                        .clip(CircleShape).background(SqCoral).padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
                             }
                         }
                     },
@@ -259,7 +270,9 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
         bottomBar = {
             val backStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = backStackEntry?.destination
-            SqBottomBar(
+            // Màn trò chuyện cần toàn bộ chiều cao cho ô nhập; thanh điều hướng dưới ẩn đi ở các màn này.
+            val hideBottom = currentRoute?.route.let { it == "ai" || it?.endsWith("/chat") == true }
+            if (!hideBottom) SqBottomBar(
                 items = TABS.filter { it.route != "verify" }.map { BottomBarItem(it.route, it.label, it.selectedIcon, it.icon) },
                 selectedKey = TABS.firstOrNull { tab -> currentRoute?.hierarchy?.any { tabOf(it.route) == tab.route } == true }?.route,
                 onSelect = { open(it, tab = true) },

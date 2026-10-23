@@ -54,18 +54,15 @@ fun SubscriptionRenewScreen(repository: StoreRepository, onBack: () -> Unit) {
 
     LaunchedEffect(Unit) { load() }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(20.dp)) {
-        ScreenHeader("Gia hạn gói Chuyên nghiệp", onBack)
-        Spacer(modifier = Modifier.height(12.dp))
-
+    PlanFrame("Gia hạn gói", onBack) {
         when {
             isLoading -> FullScreenLoading()
             error != null -> ErrorState(message = error!!, onRetry = ::load)
             renewed != null -> Column(
-                modifier = Modifier.fillMaxWidth().background(SqMintWash, RoundedCornerShape(20.dp)).padding(24.dp),
+                modifier = Modifier.fillMaxWidth().background(SqCoralWash, RoundedCornerShape(24.dp)).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Gia hạn thành công", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = SqMintDeep)
+                Text("Gia hạn thành công", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = SqCoralDeep)
                 Spacer(modifier = Modifier.height(6.dp))
                 Text("Gói Chuyên nghiệp có hiệu lực đến ${shortDate(renewed!!.periodEnd)}.", fontSize = 14.sp, color = SqInkSoft)
             }
@@ -93,7 +90,7 @@ fun SubscriptionRenewScreen(repository: StoreRepository, onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                         Text("Hiệu lực mới đến", fontSize = 13.sp, color = SqInkSoft)
-                        Text(shortDate(newEnd.toString()), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SqMintDeep)
+                        Text(shortDate(newEnd.toString()), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SqCoralDeep)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(

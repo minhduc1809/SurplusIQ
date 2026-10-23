@@ -54,7 +54,8 @@ fun PickupScheduleScreen(repository: StoreRepository, onOpenOrder: (String) -> U
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 720.dp) / 2).coerceAtLeast(0.dp)
+    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(horizontal = sidePad).padding(20.dp)) {
         ScreenHeader("Lịch hẹn nhận hàng", onBack) {
             IconButton(onClick = { reloadKey++ }) { Icon(Icons.Default.Refresh, contentDescription = "Làm mới", tint = SqInkSoft) }
         }

@@ -78,10 +78,10 @@ fun ItemDetailScreen(repository: StoreRepository, itemId: String, onNavigate: (S
 
                 // "Đã bỏ" = tồn còn lại của suất đã đóng; backend chưa trả sẵn nên cộng từ lịch sử đã tải.
                 val wasted = offers.filter { o -> o.status == "CLOSED" }.sumOf { o -> o.remainingQuantity }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MetricCard("Suất đã tạo", "${it.stats?.totalOffersCreated ?: offersTotal}", SqLilac, Modifier.weight(1f))
-                    MetricCard("Đã bán", "${it.stats?.totalSold ?: 0}", SqMint, Modifier.weight(1f))
-                    MetricCard("Đã bỏ", "$wasted", SqCoral, Modifier.weight(1f))
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MetricCard("Suất đã tạo", "${it.stats?.totalOffersCreated ?: offersTotal}", SqLilac, Modifier.weight(1f).fillMaxHeight())
+                    MetricCard("Đã bán", "${it.stats?.totalSold ?: 0}", SqMint, Modifier.weight(1f).fillMaxHeight())
+                    MetricCard("Đã bỏ", "$wasted", SqCoral, Modifier.weight(1f).fillMaxHeight())
                 }
                 if (offersTotal > offers.size) {
                     Text("Số đã bỏ tính trên $HISTORY_LIMIT suất gần nhất.", fontSize = 11.sp, color = SqInkMuted, modifier = Modifier.padding(top = 6.dp))

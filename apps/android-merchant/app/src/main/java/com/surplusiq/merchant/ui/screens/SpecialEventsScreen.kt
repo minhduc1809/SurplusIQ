@@ -53,6 +53,7 @@ private fun impactLabel(factor: Double) = when {
  * S34 - Sự kiện đặc biệt (GET/POST/DELETE store/special-events).
  * Backend không có cột ghi chú và không có API sửa -> chỉ tạo / xóa.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SpecialEventsScreen(repository: StoreRepository, onBack: () -> Unit) {
     var events by remember { mutableStateOf<List<SpecialEventDto>?>(null) }
@@ -89,13 +90,10 @@ fun SpecialEventsScreen(repository: StoreRepository, onBack: () -> Unit) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
-        ScreenHeader("Sự kiện đặc biệt", onBack)
-        Spacer(modifier = Modifier.height(12.dp))
-        when {
-            error != null -> ErrorState(error!!) { reloadKey++ }
-            events == null -> FullScreenLoading()
-            else -> {
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+    BoxWithConstraints(Modifier.widthIn(max = 1100.dp).fillMaxSize()) {
+        val wide = maxWidth >= 840.dp
+        val formPart: @Composable ColumnScope.() -> Unit = {
                 EventCalendar(month, events!!, onMonth = { month = it }, onPick = { date = it.toString() })
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -106,13 +104,13 @@ fun SpecialEventsScreen(repository: StoreRepository, onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text("Loại", fontSize = 12.sp, color = SqInkSoft)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         EVENT_TYPES.forEach { (code, label, _) -> SqChip(label, type == code) { type = code } }
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                     Text("Mức ảnh hưởng", fontSize = 12.sp, color = SqInkSoft)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         IMPACTS.forEach { (f, label) ->
                             SqChip(label, type != "CLOSURE" && impact == f, enabled = type != "CLOSURE") { impact = f }
                         }
@@ -122,7 +120,8 @@ fun SpecialEventsScreen(repository: StoreRepository, onBack: () -> Unit) {
                     PrimaryButton("Thêm sự kiện", loading = saving, onClick = ::create)
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+        }
+        val listPart: @Composable ColumnScope.() -> Unit = {
                 SectionTitle("Sự kiện sắp tới")
                 Spacer(modifier = Modifier.height(8.dp))
                 val upcoming = events!!.filter { it.date >= LocalDate.now().toString() }
@@ -146,8 +145,26 @@ fun SpecialEventsScreen(repository: StoreRepository, onBack: () -> Unit) {
                         }
                     }
                 }
+        }
+        Column(Modifier.fillMaxSize().padding(20.dp)) {
+            ScreenHeader("Sự kiện đặc biệt", onBack)
+            Spacer(modifier = Modifier.height(12.dp))
+            when {
+                error != null -> ErrorState(error!!) { reloadKey++ }
+                events == null -> FullScreenLoading()
+                wide -> Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { formPart() }
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { listPart() }
+                }
+                else -> Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    formPart()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    listPart()
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
         }
+    }
     }
 
     toDelete?.let { e ->

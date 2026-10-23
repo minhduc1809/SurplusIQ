@@ -92,13 +92,14 @@ fun PickupVerifyScreen(repository: StoreRepository) {
         if (lastByCamera) scan()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 720.dp) / 2).coerceAtLeast(0.dp)
+    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(horizontal = sidePad).padding(20.dp)) {
         Text(text = "Quét QR nhận hàng", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
         Spacer(modifier = Modifier.height(20.dp))
 
         when {
             result != null -> ResultCard(
-                icon = Icons.Default.CheckCircle, tint = SqMintDeep, title = "Hợp lệ - đã giao hàng", subtitle = result!!.message,
+                icon = Icons.Default.CheckCircle, tint = SqCoralDeep, title = "Hợp lệ - đã giao hàng", subtitle = result!!.message,
                 actionText = if (lastByCamera) "Quét đơn tiếp theo" else "Xong", onAction = ::next
             ) {
                 val r = result!!

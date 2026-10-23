@@ -6,12 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -84,7 +86,8 @@ private fun PoolList(repository: StoreRepository, onBack: () -> Unit, onSelect: 
     }
     LaunchedEffect(Unit) { load() }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp)) {
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+    Column(modifier = Modifier.widthIn(max = 1100.dp).fillMaxSize().padding(horizontal = 20.dp)) {
         ScreenHeader("Mua chung theo đợt", onBack) {
             IconButton(onClick = { creating = true }, modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).background(SqCoral)) {
                 Icon(Icons.Default.Add, contentDescription = "Tạo đợt", tint = Color.White)
@@ -96,14 +99,19 @@ private fun PoolList(repository: StoreRepository, onBack: () -> Unit, onSelect: 
             error != null -> ErrorState(error!!, ::load)
             list == null -> FullScreenLoading()
             list.isEmpty() -> EmptyState("Chưa có đợt nào", "Tạo đợt gom nhu cầu để biết khách cần gì trước khi đăng món.")
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-                items(list) { p ->
-                    SqCard(modifier = Modifier.clickable { onSelect(p.id) }) {
+            else -> androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(340.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 96.dp)
+            ) {
+                gridItems(list) { p ->
+                    SqCard(modifier = Modifier.fillMaxWidth().clickable { onSelect(p.id) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(p.poolTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SqInk)
                                 Text("${p.targetCategory} · ${p.serviceArea}", fontSize = 12.sp, color = SqInkSoft)
                             }
+                            Spacer(Modifier.width(8.dp))
                             PoolBadge(p.poolStatus)
                         }
                         Spacer(Modifier.height(8.dp))
@@ -116,20 +124,22 @@ private fun PoolList(repository: StoreRepository, onBack: () -> Unit, onSelect: 
             }
         }
     }
+    }
 
     if (creating) {
         ModalBottomSheet(
             onDismissRequest = { creating = false }, containerColor = SqSurface,
+            sheetMaxWidth = 640.dp,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
-            CreatePoolForm(repository, onCreated = { id -> creating = false; load(); onSelect(id) })
+            CreatePoolForm(repository, onClose = { creating = false }, onCreated = { id -> creating = false; load(); onSelect(id) })
         }
     }
 }
 
 /** Đủ trường bắt buộc BR-B02-03/04 mới cho gửi; backend kiểm tra lại toàn bộ. */
 @Composable
-private fun CreatePoolForm(repository: StoreRepository, onCreated: (String) -> Unit) {
+private fun CreatePoolForm(repository: StoreRepository, onClose: () -> Unit, onCreated: (String) -> Unit) {
     var title by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var area by remember { mutableStateOf("") }
@@ -157,7 +167,7 @@ private fun CreatePoolForm(repository: StoreRepository, onCreated: (String) -> U
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Tạo đợt gom nhu cầu", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
+        SheetHeader("Tạo đợt gom nhu cầu", onClose)
         SqField("Tên đợt", title) { title = it }
         SqField("Nhóm món (trùng nhóm món trong danh mục)", category) { category = it }
         SqField("Khu vực phục vụ", area) { area = it }
@@ -219,7 +229,8 @@ private fun PoolDetailView(repository: StoreRepository, id: String, onBack: () -
     }
     LaunchedEffect(id) { refresh() }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp)) {
+    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 800.dp) / 2).coerceAtLeast(0.dp)
+    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = sidePad + 20.dp)) {
         ScreenHeader("Chi tiết đợt", onBack)
         val p = pool
         when {
@@ -316,8 +327,9 @@ private fun PoolDetailView(repository: StoreRepository, id: String, onBack: () -
         if (current != null && modal == PoolModal.OFFER) {
             ModalBottomSheet(
                 onDismissRequest = { modal = null }, containerColor = SqSurface,
+                sheetMaxWidth = 640.dp,
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            ) { SupplyOfferForm(repository, current) { modal = null; refresh() } }
+            ) { SupplyOfferForm(repository, current, onClose = { modal = null }) { modal = null; refresh() } }
         }
         val m = modal
         if (m == PoolModal.CANCEL || m == PoolModal.INSUFFICIENT || m == PoolModal.CLOSE_REGISTRATION) {
@@ -384,7 +396,7 @@ internal fun ReasonDialog(title: String, hint: String, onDismiss: () -> Unit, on
 }
 
 @Composable
-private fun SupplyOfferForm(repository: StoreRepository, pool: RescuePoolDetail, onDone: () -> Unit) {
+private fun SupplyOfferForm(repository: StoreRepository, pool: RescuePoolDetail, onClose: () -> Unit, onDone: () -> Unit) {
     var offers by remember { mutableStateOf<List<OfferDto>>(emptyList()) }
     var offerId by remember { mutableStateOf(pool.linkedOfferId ?: "") }
     var qty by remember { mutableStateOf(pool.offeredQuantity?.toString() ?: "") }
@@ -403,7 +415,7 @@ private fun SupplyOfferForm(repository: StoreRepository, pool: RescuePoolDetail,
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(if (isRevision) "Sửa đề nghị cung ứng" else "Công bố đề nghị cung ứng", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
+        SheetHeader(if (isRevision) "Sửa đề nghị cung ứng" else "Công bố đề nghị cung ứng", onClose)
         if (isRevision) {
             InfoBanner("Công bố lại sẽ tạo phiên bản ${pool.offerVersion + 1}. Mọi khách chưa đặt phải xem và xác nhận lại điều kiện mới; đơn đã tạo giữ nguyên.")
         }
@@ -438,5 +450,14 @@ private fun SupplyOfferForm(repository: StoreRepository, pool: RescuePoolDetail,
                 busy = false
             }
         })
+    }
+}
+
+/** Tiêu đề bảng trượt kèm nút đóng: bảng mở kín màn hình nên cần một lối thoát nhìn thấy được. */
+@Composable
+private fun SheetHeader(title: String, onClose: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.weight(1f))
+        IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Đóng", tint = SqInkSoft) }
     }
 }

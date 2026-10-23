@@ -108,9 +108,9 @@ fun ReconciliationScreen(repository: StoreRepository, onOpen: (String) -> Unit, 
                 )
                 Spacer(Modifier.height(14.dp))
                 c.orderSummary?.let {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        MetricCard("Đơn đã nhận", "${it.pickedUpCount}", SqMint, Modifier.weight(1f))
-                        MetricCard("Khách không đến", "${it.noShowCount}", SqCoral, Modifier.weight(1f))
+                    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MetricCard("Đơn đã nhận", "${it.pickedUpCount}", SqMint, Modifier.weight(1f).fillMaxHeight())
+                        MetricCard("Khách không đến", "${it.noShowCount}", SqCoral, Modifier.weight(1f).fillMaxHeight())
                     }
                     Spacer(Modifier.height(14.dp))
                 }
@@ -248,9 +248,9 @@ fun ImpactScreen(repository: StoreRepository, onBack: () -> Unit) {
             error != null -> ErrorState(error!!) { reloadKey++ }
             d == null -> FullScreenLoading()
             else -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MetricCard("Suất cứu được", "${d.metrics.totalRescuedMeals}", SqMint, Modifier.weight(1f))
-                    MetricCard("Thực phẩm", "%.1f kg".format(d.metrics.estimatedFoodSavedKg), SqCoral, Modifier.weight(1f))
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MetricCard("Suất cứu được", "${d.metrics.totalRescuedMeals}", SqMint, Modifier.weight(1f).fillMaxHeight())
+                    MetricCard("Thực phẩm", "%.1f kg".format(d.metrics.estimatedFoodSavedKg), SqCoral, Modifier.weight(1f).fillMaxHeight())
                 }
                 Spacer(Modifier.height(10.dp))
                 SqCard {
