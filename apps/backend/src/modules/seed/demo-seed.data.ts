@@ -200,8 +200,8 @@ export function buildDemoSeed(options: DemoSeedOptions) {
     E.StoreSettingsEntity,
     stores.map((s) => ({
       storeId: s.id,
-      defaultPickupStart: '19:00:00',
-      defaultPickupEnd: '21:30:00',
+      defaultPickupStart: '21:30:00',
+      defaultPickupEnd: '23:30:00',
       floorRatio: 0.4,
       pricingMode: E.PricingMode.MANUAL,
       taskReminders: { closingChecklist: true },
