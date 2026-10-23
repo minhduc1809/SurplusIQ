@@ -64,3 +64,11 @@ export class ReviewContractDto {
   @MaxLength(1000)
   note?: string;
 }
+
+export class RemindStoreDto {
+  @ApiPropertyOptional({ description: 'Tin nhắn nhắc nhở tùy chỉnh' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  message?: string;
+}

@@ -25,7 +25,23 @@ describe('StoreLegalService', () => {
     save: jest.fn((x) => x),
     find: jest.fn(),
   };
-  const service = new StoreLegalService(profileRepo as never, contractRepo as never);
+
+  const storeRepo = {
+    count: jest.fn().mockResolvedValue(10),
+    findOne: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
+    save: jest.fn((x) => x),
+  };
+  const notificationsService = {
+    createNotification: jest.fn(),
+    notifyQuietly: jest.fn(),
+  };
+  const service = new StoreLegalService(
+    profileRepo as never,
+    contractRepo as never,
+    storeRepo as never,
+    notificationsService as never,
+  );
   const pdf = { buffer: Buffer.from('%PDF-1.7 hợp đồng'), size: 20, originalname: 'hd.pdf' };
 
   beforeEach(() => jest.clearAllMocks());

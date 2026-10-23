@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -11,6 +12,9 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { StoreLegalProfileEntity } from '../../entities/stores/store-legal-profile.entity';
 import { ContractStatus, StoreContractEntity } from '../../entities/stores/store-contract.entity';
+import { StoreEntity, StoreStatus } from '../../entities/stores/store.entity';
+import { NotificationType } from '../../entities/notifications/notification.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ReviewContractDto, UpsertLegalProfileDto } from './dto/store-legal.dto';
 
 export const MAX_CONTRACT_BYTES = 10 * 1024 * 1024;
@@ -46,6 +50,10 @@ export class StoreLegalService {
     private readonly profileRepo: Repository<StoreLegalProfileEntity>,
     @InjectRepository(StoreContractEntity)
     private readonly contractRepo: Repository<StoreContractEntity>,
+    @InjectRepository(StoreEntity)
+    private readonly storeRepo: Repository<StoreEntity>,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   private toContractView(c: StoreContractEntity | null) {
@@ -149,6 +157,33 @@ export class StoreLegalService {
 
   // --- Admin ---
 
+  async getAdminOverview() {
+    const [totalStores, activeStores, pendingKycStores, suspendedStores] = await Promise.all([
+      this.storeRepo.count(),
+      this.storeRepo.count({ where: { status: StoreStatus.ACTIVE } }),
+      this.storeRepo.count({ where: { status: StoreStatus.PENDING_VERIFY } }),
+      this.storeRepo.count({ where: { status: StoreStatus.SUSPENDED } }),
+    ]);
+
+    const [pendingReview, needMoreInfo, approved, rejected] = await Promise.all([
+      this.contractRepo.count({ where: { status: ContractStatus.PENDING_REVIEW } }),
+      this.contractRepo.count({ where: { status: ContractStatus.NEED_MORE_INFO } }),
+      this.contractRepo.count({ where: { status: ContractStatus.APPROVED } }),
+      this.contractRepo.count({ where: { status: ContractStatus.REJECTED } }),
+    ]);
+
+    return {
+      totalStores,
+      activeStores,
+      pendingKycStores,
+      suspendedStores,
+      pendingReviewContracts: pendingReview,
+      needMoreInfoContracts: needMoreInfo,
+      approvedContracts: approved,
+      rejectedContracts: rejected,
+    };
+  }
+
   async listForAdmin(status?: ContractStatus) {
     const rows = await this.contractRepo.find({
       where: status ? { status } : {},
@@ -199,6 +234,110 @@ export class StoreLegalService {
     c.reviewNote = note || null;
     c.reviewedBy = adminId;
     c.reviewedAt = new Date();
-    return this.toContractView(await this.contractRepo.save(c));
+    const saved = await this.contractRepo.save(c);
+
+    // Tự động kích hoạt cửa hàng nếu hợp đồng được duyệt và cửa hàng đang chờ duyệt
+    const store = await this.storeRepo.findOne({ where: { id: c.storeId } });
+    if (
+      dto.decision === ContractStatus.APPROVED &&
+      store &&
+      store.status === StoreStatus.PENDING_VERIFY
+    ) {
+      store.status = StoreStatus.ACTIVE;
+      await this.storeRepo.save(store);
+    }
+
+    // Gửi thông báo đến cửa hàng và chủ quán
+    if (this.notificationsService && store) {
+      let title = 'Cập nhật trạng thái hợp đồng';
+      let body = 'Hồ sơ hợp đồng của cửa hàng đã được thẩm định.';
+      let kind = 'KYC_STATUS_UPDATED';
+
+      if (dto.decision === ContractStatus.APPROVED) {
+        title = 'Hợp đồng hợp tác đã được phê duyệt';
+        body = `Chúc mừng! Hồ sơ kinh doanh và hợp đồng của cửa hàng "${store.name}" đã được phê duyệt. Cửa hàng đã được kích hoạt thành công trên SurplusIQ.`;
+        kind = 'KYC_APPROVED';
+      } else if (dto.decision === ContractStatus.NEED_MORE_INFO) {
+        title = 'Yêu cầu bổ sung hồ sơ hợp đồng';
+        body = `Ban quản trị yêu cầu bổ sung thông tin hợp đồng: "${note}". Vui lòng cập nhật sớm để được kích hoạt.`;
+        kind = 'KYC_NEED_MORE_INFO';
+      } else if (dto.decision === ContractStatus.REJECTED) {
+        title = 'Hồ sơ hợp đồng bị từ chối';
+        body = `Hồ sơ hợp đồng chưa đạt yêu cầu: "${note}". Vui lòng kiểm tra và gửi lại bản scan hợp lệ.`;
+        kind = 'KYC_REJECTED';
+      }
+
+      await this.notificationsService.notifyQuietly({
+        storeId: store.id,
+        userId: store.ownerUserId,
+        type: NotificationType.SYSTEM,
+        title,
+        body,
+        data: { kind, contractId: c.id, storeId: store.id, decision: dto.decision, note },
+      });
+    }
+
+    return this.toContractView(saved);
+  }
+
+  async remindStore(storeId: string, customMessage?: string) {
+    const store = await this.storeRepo.findOne({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('Không tìm thấy cửa hàng.');
+
+    const contract = await this.contractRepo.findOne({
+      where: { storeId },
+      order: { createdAt: 'DESC' },
+    });
+
+    const defaultMsg =
+      contract?.status === ContractStatus.NEED_MORE_INFO
+        ? `Hồ sơ hợp đồng của cửa hàng "${store.name}" đang cần bổ sung thông tin: "${contract.reviewNote || ''}". Vui lòng cập nhật sớm để hoàn tất thủ tục mở bán.`
+        : `Cửa hàng "${store.name}" chưa hoàn tất hồ sơ pháp lý & hợp đồng kinh doanh. Vui lòng tải lên bản scan hợp đồng đã ký trên hệ thống để được kích hoạt mở bán.`;
+
+    const body = customMessage?.trim() || defaultMsg;
+
+    if (this.notificationsService) {
+      await this.notificationsService.createNotification({
+        storeId: store.id,
+        userId: store.ownerUserId,
+        type: NotificationType.SYSTEM,
+        title: 'Nhắc nhở: Hoàn tất hồ sơ & hợp đồng kinh doanh',
+        body,
+        data: { kind: 'KYC_REMINDER', storeId: store.id, contractId: contract?.id },
+      });
+    }
+
+    return {
+      success: true,
+      storeId: store.id,
+      storeName: store.name,
+      message: body,
+      sentAt: new Date().toISOString(),
+    };
+  }
+
+  async remindAllPending(customMessage?: string) {
+    const pendingStores = await this.storeRepo.find({
+      where: { status: StoreStatus.PENDING_VERIFY },
+    });
+
+    const remindedStores: Array<{ storeId: string; storeName: string }> = [];
+
+    for (const s of pendingStores) {
+      try {
+        await this.remindStore(s.id, customMessage);
+        remindedStores.push({ storeId: s.id, storeName: s.name });
+      } catch {
+        // bỏ qua lỗi từng quán
+      }
+    }
+
+    return {
+      success: true,
+      remindedCount: remindedStores.length,
+      totalPending: pendingStores.length,
+      stores: remindedStores,
+      sentAt: new Date().toISOString(),
+    };
   }
 }
