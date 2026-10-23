@@ -49,7 +49,8 @@ const PAGES: Record<string, (nav: Navigate) => ReactNode> = {
   [R.customers]: () => <CustomersV2Page />,
   [R.forecast]: () => <ForecastV2Page />,
   [R.ai]: () => <AiV2Page />,
-  [R.settings]: () => <SettingsV2Page />,
+  [R.settings]: () => <SettingsV2Page defaultTab={0} />,
+  [R.legal]: () => <SettingsV2Page defaultTab={1} />,
 };
 
 const COMING_SOON: Record<string, string> = {};

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { ReactNode } from 'react';
 
@@ -9,11 +9,13 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Divider,
   Grid,
   InputAdornment,
   LinearProgress,
   MenuItem,
+  Pagination,
   Stack,
   Tab,
   Table,
@@ -28,6 +30,7 @@ import {
 } from '@mui/material';
 
 import {
+  ArrowClockwise,
   ChartBar,
   ClockCountdown,
   CurrencyDollar,
@@ -44,7 +47,13 @@ import { AdminDrawer } from '../../components/Drawer/AdminDrawer';
 
 import { AdminStatCard } from '../../components/StatCard/AdminStatCard';
 
-import { saveAdminRecord } from '../../api/admin-management.api';
+import {
+  getAdminCollection,
+  getAdminMetricsOverview,
+  saveAdminRecord,
+  type AdminMetricsOverview,
+  type AdminCollectionResponse,
+} from '../../api/admin-management.api';
 
 import { useOptionalAdminSnapshot } from '../../snapshot/AdminSnapshotProvider';
 
@@ -1210,18 +1219,50 @@ function QuotasTab({ selectedPlan, onSelectQuota }: QuotasTabProps) {
 // =====================================================
 
 function InvoicesTab() {
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [collectionData, setCollectionData] = useState<AdminCollectionResponse | null>(null);
+
+  const fetchInvoices = () => {
+    setLoading(true);
+    getAdminCollection('invoices', {
+      page,
+      limit: 10,
+    })
+      .then((res) => {
+        setCollectionData(res);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải danh sách hóa đơn:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchInvoices();
+  }, [page]);
+
+  const invoices = collectionData?.items || [];
+
   return (
     <Stack spacing={3}>
-      <SectionHeading
-        title="Hóa đơn thuê bao"
-        description={'Theo dõi phí đăng ký Pro và lịch sử hóa đơn.'}
-        icon={<Receipt size={25} weight="duotone" />}
-      />
-
-      <Alert severity="info" variant="outlined">
-        Backend có GET /store/subscription/invoices và endpoint xuất PDF, nhưng chỉ dành cho OWNER
-        của cửa hàng. Chưa có endpoint ADMIN để xem hóa đơn toàn sàn.
-      </Alert>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <SectionHeading
+          title="Hóa đơn thuê bao"
+          description={'Theo dõi phí đăng ký Pro và lịch sử hóa đơn thực tế của các cửa hàng.'}
+          icon={<Receipt size={25} weight="duotone" />}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<ArrowClockwise size={16} />}
+          onClick={fetchInvoices}
+        >
+          Tải lại
+        </Button>
+      </Stack>
 
       <TableContainer
         sx={{
@@ -1233,50 +1274,98 @@ function InvoicesTab() {
         <Table sx={{ minWidth: 730 }}>
           <TableHead>
             <TableRow>
-              <TableCell>Mã hóa đơn</TableCell>
               <TableCell>Cửa hàng</TableCell>
               <TableCell>Kỳ dịch vụ</TableCell>
               <TableCell align="right">Số tiền</TableCell>
               <TableCell>Trạng thái</TableCell>
-              <TableCell align="right">PDF</TableCell>
+              <TableCell>Thời gian lập</TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={6} align="center" sx={{ py: 7 }}>
-                <Stack
-                  sx={{
-                    alignItems: 'center',
-                  }}
-                  spacing={1.5}
-                >
-                  <ShieldWarning size={34} color="#F79009" weight="duotone" />
-
-                  <Typography sx={{ fontWeight: 700, fontSize: 13 }}>
-                    Chưa hỗ trợ API hóa đơn Admin
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={28} />
+                </TableCell>
+              </TableRow>
+            ) : invoices.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                    Chưa có hóa đơn thuê bao nào.
                   </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              invoices.map((row: any) => (
+                <TableRow key={String(row.id)} hover>
+                  <TableCell>
+                    <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
+                      {row.store_name || row.store_id || '—'}
+                    </Typography>
+                  </TableCell>
 
-                  <Typography
-                    color="text.secondary"
-                    sx={{
-                      fontSize: 12,
-                      maxWidth: 410,
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    Chưa thể đọc hoặc xuất hóa đơn của toàn bộ cửa hàng bằng tài khoản Super Admin.
-                  </Typography>
-                </Stack>
-              </TableCell>
-            </TableRow>
+                  <TableCell>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                      {row.period_start
+                        ? `${new Date(String(row.period_start)).toLocaleDateString('vi-VN')} - ${new Date(String(row.period_end)).toLocaleDateString('vi-VN')}`
+                        : '—'}
+                    </Typography>
+                  </TableCell>
+
+                  <TableCell align="right">
+                    <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'primary.main' }}>
+                      {Number(row.amount || 0).toLocaleString('vi-VN')} ₫
+                    </Typography>
+                  </TableCell>
+
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={row.status === 'PAID' ? 'Đã thanh toán' : String(row.status)}
+                      color={row.status === 'PAID' ? 'success' : 'warning'}
+                      variant="filled"
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                      {row.created_at
+                        ? new Date(String(row.created_at)).toLocaleDateString('vi-VN', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Button disabled variant="outlined" sx={{ alignSelf: 'flex-end' }}>
-        Xuất báo cáo hóa đơn
-      </Button>
+      {/* ======================================
+          PHÂN TRANG
+          ====================================== */}
+      {collectionData && collectionData.totalPages > 1 && (
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            Hiển thị {invoices.length} trên tổng số {collectionData.total} hóa đơn
+          </Typography>
+          <Pagination
+            count={collectionData.totalPages}
+            page={page}
+            onChange={(_, val) => setPage(val)}
+            color="primary"
+            size="small"
+          />
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -1485,6 +1574,29 @@ export function SubscriptionsPage() {
 
   const [selectedQuota, setSelectedQuota] = useState<QuotaDefinition | null>(null);
 
+  // ---------------------------------------------------
+  // KPI Metrics thực tế từ Backend
+  // ---------------------------------------------------
+  const [metrics, setMetrics] = useState<AdminMetricsOverview['subscriptions'] | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
+
+  useEffect(() => {
+    let mounted = true;
+    getAdminMetricsOverview()
+      .then((data) => {
+        if (mounted) {
+          setMetrics(data.subscriptions);
+          setLoadingMetrics(false);
+        }
+      })
+      .catch(() => {
+        if (mounted) setLoadingMetrics(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <Stack spacing={3} className="admin-page-enter">
       {/* ======================================
@@ -1528,13 +1640,6 @@ export function SubscriptionsPage() {
             Quản lý gói SaaS, hạn mức sử dụng, hóa đơn và vòng đời subscription.
           </Typography>
         </Box>
-
-        <Chip
-          label="Chờ API Admin"
-          icon={<ShieldWarning size={17} />}
-          variant="outlined"
-          color="warning"
-        />
       </Stack>
 
       {/* ======================================
@@ -1545,48 +1650,53 @@ export function SubscriptionsPage() {
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tổng cửa hàng dùng Pro"
+            value={metrics ? metrics.proStores.toLocaleString('vi-VN') : '—'}
             icon={<Storefront size={26} weight="duotone" />}
             tone="primary"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Gói Pro hoạt động"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Cửa hàng đang dùng thử"
+            value={metrics ? metrics.trialStores.toLocaleString('vi-VN') : '—'}
             icon={<ClockCountdown size={26} weight="duotone" />}
             tone="warning"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Gói Trial đang trải nghiệm"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Subscription đang hoạt động"
+            value={metrics ? metrics.activeSubscriptions.toLocaleString('vi-VN') : '—'}
             icon={<UsersThree size={26} weight="duotone" />}
             tone="success"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Tổng thuê bao active"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Doanh thu thuê bao"
+            value={
+              metrics ? `${Number(metrics.subscriptionRevenue).toLocaleString('vi-VN')} ₫` : '—'
+            }
             icon={<CurrencyDollar size={26} weight="duotone" />}
-            status="unsupported"
+            tone="primary"
+            loading={loadingMetrics}
+            status="ready"
+            description="Tổng doanh số các gói"
           />
         </Grid>
       </Grid>
-
-      {/* ======================================
-          LƯU Ý PHẠM VI
-          ====================================== */}
-
-      <Alert severity="info" variant="outlined">
-        Các KPI toàn sàn chưa có API Admin phù hợp. Các bảng quota bên dưới lấy từ cấu hình mặc định
-        của Backend, không phải dữ liệu sử dụng thời gian thực hoặc cấu hình ghi đè trong cơ sở dữ
-        liệu.
-      </Alert>
 
       {/* ======================================
           SO SÁNH CÁC GÓI

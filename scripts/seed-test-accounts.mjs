@@ -4,6 +4,7 @@
 // Chạy lại nhiều lần an toàn: chỉ tạo phần còn thiếu. Mật khẩu mọi tài khoản: Surplus@1.
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
 const { Client } = require('pg');
@@ -168,15 +169,25 @@ const openA = offersA.filter((o) => o.status === 'OPEN').length;
 const byTitle = {};
 if (openA < 4) {
   for (const [name, category, original, price] of MENU_A) {
-    const item = must(
-      await call('POST', '/store/items', {
-        token: owner,
-        body: { name, category, originalPrice: original, standardShelfLifeHours: 12 },
-      }),
-      'tạo món ' + name,
-    );
-    const offer = must(
-      await call('POST', '/store/offers', {
+    let item;
+    const itemRes = await call('POST', '/store/items', {
+      token: owner,
+      body: { name, category, originalPrice: original, standardShelfLifeHours: 12 },
+    });
+    if (itemRes.status < 300) {
+      item = itemRes.body;
+    } else {
+      const existing = (
+        await q('SELECT id, original_price FROM items WHERE store_id = $1 AND name = $2', [
+          STORE_A,
+          name,
+        ])
+      )[0];
+      item = existing;
+    }
+
+    if (item) {
+      const offerRes = await call('POST', '/store/offers', {
         token: owner,
         body: {
           itemId: item.id,
@@ -186,10 +197,11 @@ if (openA < 4) {
           pickupStart: iso(-10 * 60_000),
           pickupEnd: iso(8 * 3600_000),
         },
-      }),
-      'tạo suất ' + name,
-    );
-    byTitle[name] = offer;
+      });
+      if (offerRes.status < 300) {
+        byTitle[name] = offerRes.body;
+      }
+    }
   }
 }
 // Món tạo qua API chưa có ảnh: dùng ảnh của một món tương tự đã có trong dữ liệu 50 quán (cùng nguồn ảnh thật)
@@ -458,7 +470,11 @@ await q(
    where status = 'OPEN'`,
 );
 
+// Nạp dữ liệu hồ sơ pháp lý và hợp đồng scan KYC cho Admin duyệt
+spawnSync('node scripts/seed-kyc-contracts.mjs', { stdio: 'inherit', shell: true });
+
 // ---------- 4. Tóm tắt ----------
+
 const rows = await q(
   `select u.email, u.role, coalesce(m.permission::text,'-') perm, coalesce(s.name,'-') store, coalesce(sub.plan::text,'-') plan,
           (select count(*) from orders o where o.customer_id=u.id)::int orders

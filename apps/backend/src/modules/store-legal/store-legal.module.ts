@@ -4,6 +4,7 @@ import { StoreLegalProfileEntity } from '../../entities/stores/store-legal-profi
 import { StoreContractEntity } from '../../entities/stores/store-contract.entity';
 import { StoreMemberEntity } from '../../entities/stores/store-member.entity';
 import { StoreEntity } from '../../entities/stores/store.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { StoreLegalService } from './store-legal.service';
 import { AdminStoreContractsController, StoreLegalController } from './store-legal.controller';
 
@@ -15,8 +16,10 @@ import { AdminStoreContractsController, StoreLegalController } from './store-leg
       StoreMemberEntity,
       StoreEntity,
     ]),
+    NotificationsModule,
   ],
   controllers: [StoreLegalController, AdminStoreContractsController],
   providers: [StoreLegalService],
+  exports: [StoreLegalService],
 })
 export class StoreLegalModule {}

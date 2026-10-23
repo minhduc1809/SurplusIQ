@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { ReactNode } from 'react';
 
@@ -9,10 +9,12 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Divider,
   Grid,
   InputAdornment,
   MenuItem,
+  Pagination,
   Stack,
   Tab,
   Table,
@@ -36,7 +38,6 @@ import {
   Info,
   MagnifyingGlass,
   Package,
-  ShieldWarning,
   ShoppingCart,
   Warning,
 } from '@phosphor-icons/react';
@@ -44,6 +45,13 @@ import {
 import { AdminStatCard } from '../../components/StatCard/AdminStatCard';
 
 import { AdminDrawer } from '../../components/Drawer/AdminDrawer';
+
+import {
+  getAdminCollection,
+  getAdminMetricsOverview,
+  type AdminMetricsOverview,
+  type AdminCollectionResponse,
+} from '../../api/admin-management.api';
 
 // =====================================================
 // 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU
@@ -267,82 +275,121 @@ function SectionHeading({ title, description, icon }: SectionHeadingProps) {
  * nhưng chưa được phép gửi request.
  */
 function OrdersListTab() {
+  const [keyword, setKeyword] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [collectionData, setCollectionData] = useState<AdminCollectionResponse | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+
+  const fetchOrders = () => {
+    setLoading(true);
+    getAdminCollection('orders', {
+      page,
+      limit: 10,
+      search: search.trim() || undefined,
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+    })
+      .then((res) => {
+        setCollectionData(res);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải danh sách đơn hàng:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, [page, search, statusFilter]);
+
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPage(1);
+    setSearch(keyword);
+  };
+
+  const orders = collectionData?.items || [];
+
   return (
     <Stack spacing={3}>
       <SectionHeading
         title="Danh sách đơn hàng toàn sàn"
-        description={'Theo dõi và tra cứu các đơn hàng của nền tảng.'}
+        description={'Theo dõi và tra cứu toàn bộ đơn hàng thực tế của nền tảng SurplusIQ.'}
         icon={<ShoppingCart size={25} weight="duotone" />}
       />
-
-      <Alert severity="info" variant="outlined" sx={{ borderRadius: '12px' }}>
-        Chưa có API dành cho Super Admin để lấy danh sách đơn hàng toàn sàn. Các bộ lọc và thao tác
-        xử lý hiện được vô hiệu hóa để không truy cập sai quyền.
-      </Alert>
 
       {/* ======================================
           BỘ LỌC ĐƠN HÀNG
           ====================================== */}
+      <Box component="form" onSubmit={handleSearchSubmit}>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, lg: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Tìm kiếm đơn hàng"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Mã đơn hàng, tên quán, khách hàng..."
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <MagnifyingGlass size={18} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <Button size="small" type="submit" variant="text">
+                      Tìm
+                    </Button>
+                  ),
+                },
+              }}
+            />
+          </Grid>
 
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <TextField
-            fullWidth
-            disabled
-            size="small"
-            label="Tìm kiếm"
-            placeholder="Mã đơn hoặc tên cửa hàng"
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <MagnifyingGlass size={18} />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+            <TextField
+              fullWidth
+              select
+              size="small"
+              label="Trạng thái đơn hàng"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <MenuItem value="all">Tất cả trạng thái</MenuItem>
+              {ORDER_STATUSES.map((item) => (
+                <MenuItem key={item.status} value={item.status}>
+                  {item.label} ({item.status})
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              sx={{ height: 40 }}
+              startIcon={<ArrowClockwise size={18} />}
+              onClick={fetchOrders}
+            >
+              Tải lại
+            </Button>
+          </Grid>
         </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <TextField
-            fullWidth
-            select
-            disabled
-            size="small"
-            label="Trạng thái đơn hàng"
-            defaultValue="all"
-          >
-            <MenuItem value="all">Tất cả trạng thái</MenuItem>
-
-            {ORDER_STATUSES.map((item) => (
-              <MenuItem key={item.status} value={item.status}>
-                {item.label}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <TextField
-            fullWidth
-            disabled
-            size="small"
-            label="Ngày tạo đơn"
-            type="date"
-            slotProps={{
-              inputLabel: {
-                shrink: true,
-              },
-            }}
-          />
-        </Grid>
-      </Grid>
+      </Box>
 
       {/* ======================================
           BẢNG ĐƠN HÀNG
           ====================================== */}
-
       <TableContainer
         sx={{
           border: 1,
@@ -353,7 +400,7 @@ function OrdersListTab() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Mã đơn hàng</TableCell>
+              <TableCell>Mã đơn</TableCell>
               <TableCell>Cửa hàng</TableCell>
               <TableCell>Khách hàng</TableCell>
               <TableCell align="right">Tổng tiền</TableCell>
@@ -364,65 +411,232 @@ function OrdersListTab() {
           </TableHead>
 
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={7} align="center" sx={{ py: 7 }}>
-                <Stack
-                  sx={{
-                    alignItems: 'center',
-                  }}
-                  spacing={1.5}
-                >
-                  <ShieldWarning size={36} weight="duotone" color="#F79009" />
-
-                  <Typography
-                    sx={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                    }}
-                  >
-                    Chưa hỗ trợ truy vấn đơn hàng toàn sàn
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={28} />
+                </TableCell>
+              </TableRow>
+            ) : orders.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                    Không tìm thấy đơn hàng nào phù hợp với bộ lọc.
                   </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              orders.map((row: any) => {
+                const statusMeta = ORDER_STATUSES.find((s) => s.status === row.status);
+                const statusColor = statusMeta?.color || 'default';
 
-                  <Typography
-                    color="text.secondary"
-                    sx={{
-                      fontSize: 12,
-                      lineHeight: 1.8,
-                      maxWidth: 440,
-                    }}
-                  >
-                    Đây không phải danh sách rỗng. Frontend chưa có endpoint ADMIN phù hợp để tải dữ
-                    liệu thực tế.
-                  </Typography>
-                </Stack>
-              </TableCell>
-            </TableRow>
+                return (
+                  <TableRow key={String(row.id)} hover>
+                    <TableCell>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, fontFamily: 'monospace' }}>
+                        {row.code || String(row.id).slice(0, 8)}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+                        {row.store_name || row.store_id || '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                        {row.user_label || row.customer_id || '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'primary.main' }}>
+                        {Number(row.total_amount || 0).toLocaleString('vi-VN')} ₫
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={statusMeta?.label || String(row.status)}
+                        color={statusColor}
+                        variant="filled"
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        {row.created_at
+                          ? new Date(String(row.created_at)).toLocaleDateString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <Button
+                        size="small"
+                        variant="text"
+                        startIcon={<Eye size={16} />}
+                        onClick={() => setSelectedOrder(row)}
+                      >
+                        Chi tiết
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
       {/* ======================================
-          CHỨC NĂNG QUẢN TRỊ CHƯA KÍCH HOẠT
+          PHÂN TRANG
           ====================================== */}
+      {collectionData && collectionData.totalPages > 1 && (
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            Hiển thị {orders.length} trên tổng số {collectionData.total} đơn hàng
+          </Typography>
+          <Pagination
+            count={collectionData.totalPages}
+            page={page}
+            onChange={(_, val) => setPage(val)}
+            color="primary"
+            size="small"
+          />
+        </Stack>
+      )}
 
-      <Stack
-        direction={{
-          xs: 'column',
-          sm: 'row',
-        }}
-        sx={{
-          justifyContent: 'flex-end',
-        }}
-        spacing={1.5}
+      {/* ======================================
+          DRAWER CHI TIẾT ĐƠN HÀNG
+          ====================================== */}
+      <AdminDrawer
+        open={selectedOrder !== null}
+        onClose={() => setSelectedOrder(null)}
+        title={`Đơn hàng ${selectedOrder?.code || ''}`}
+        description="Thông tin chi tiết đơn hàng toàn sàn"
+        overline="ORDER DETAILS"
+        icon={<ShoppingCart size={24} weight="duotone" />}
+        size="md"
+        footer={
+          <Button variant="outlined" color="inherit" onClick={() => setSelectedOrder(null)}>
+            Đóng
+          </Button>
+        }
       >
-        <Button disabled variant="outlined" startIcon={<Eye size={18} />}>
-          Xem chi tiết đơn
-        </Button>
+        {selectedOrder && (
+          <Stack spacing={2.5}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">
+                Trạng thái
+              </Typography>
+              <Chip
+                size="small"
+                label={
+                  ORDER_STATUSES.find((s) => s.status === selectedOrder.status)?.label ||
+                  selectedOrder.status
+                }
+                color={
+                  ORDER_STATUSES.find((s) => s.status === selectedOrder.status)?.color || 'default'
+                }
+              />
+            </Stack>
 
-        <Button disabled variant="outlined" startIcon={<ArrowClockwise size={18} />}>
-          Tải lại danh sách
-        </Button>
-      </Stack>
+            <Divider />
+
+            <Stack spacing={0.5}>
+              <Typography variant="caption" color="text.secondary">
+                Cửa hàng
+              </Typography>
+              <Typography sx={{ fontWeight: 600, fontSize: 14 }}>
+                {selectedOrder.store_name || selectedOrder.store_id}
+              </Typography>
+            </Stack>
+
+            <Divider />
+
+            <Stack spacing={0.5}>
+              <Typography variant="caption" color="text.secondary">
+                Khách hàng
+              </Typography>
+              <Typography sx={{ fontWeight: 600, fontSize: 14 }}>
+                {selectedOrder.user_label || selectedOrder.customer_id}
+              </Typography>
+            </Stack>
+
+            <Divider />
+
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Số lượng
+                </Typography>
+                <Typography sx={{ fontWeight: 600 }}>{selectedOrder.quantity || 1} suất</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Đơn giá
+                </Typography>
+                <Typography sx={{ fontWeight: 600 }}>
+                  {Number(selectedOrder.unit_price || 0).toLocaleString('vi-VN')} ₫
+                </Typography>
+              </Grid>
+            </Grid>
+
+            <Divider />
+
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle2">Tổng thanh toán</Typography>
+              <Typography variant="h6" color="primary.main" sx={{ fontWeight: 750 }}>
+                {Number(selectedOrder.total_amount || 0).toLocaleString('vi-VN')} ₫
+              </Typography>
+            </Stack>
+
+            <Divider />
+
+            <Stack spacing={0.5}>
+              <Typography variant="caption" color="text.secondary">
+                Thời gian tạo đơn
+              </Typography>
+              <Typography sx={{ fontSize: 13 }}>
+                {selectedOrder.created_at
+                  ? new Date(selectedOrder.created_at).toLocaleString('vi-VN')
+                  : '—'}
+              </Typography>
+            </Stack>
+
+            {selectedOrder.paid_at && (
+              <Stack spacing={0.5}>
+                <Typography variant="caption" color="text.secondary">
+                  Thời gian thanh toán
+                </Typography>
+                <Typography sx={{ fontSize: 13, color: 'success.main', fontWeight: 600 }}>
+                  {new Date(selectedOrder.paid_at).toLocaleString('vi-VN')}
+                </Typography>
+              </Stack>
+            )}
+
+            {selectedOrder.picked_up_at && (
+              <Stack spacing={0.5}>
+                <Typography variant="caption" color="text.secondary">
+                  Thời gian nhận hàng
+                </Typography>
+                <Typography sx={{ fontSize: 13, color: 'primary.main', fontWeight: 600 }}>
+                  {new Date(selectedOrder.picked_up_at).toLocaleString('vi-VN')}
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
+        )}
+      </AdminDrawer>
     </Stack>
   );
 }
@@ -913,17 +1127,28 @@ export function OrdersPage() {
   // ---------------------------------------------------
 
   const [activeTab, setActiveTab] = useState<OrdersTab>('orders');
-
-  // ---------------------------------------------------
-  // Trạng thái đang xem trong Drawer
-  // ---------------------------------------------------
-
   const [selectedStatus, setSelectedStatus] = useState<OrderStatusDefinition | null>(null);
+  const [metrics, setMetrics] = useState<AdminMetricsOverview['orders'] | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
 
-  // ---------------------------------------------------
-  // Số lượng trạng thái chỉ phục vụ hiển thị
-  // danh mục enum, không phải thống kê đơn.
-  // ---------------------------------------------------
+  useEffect(() => {
+    let active = true;
+    setLoadingMetrics(true);
+    getAdminMetricsOverview()
+      .then((data) => {
+        if (active) setMetrics(data.orders);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải metrics đơn hàng:', err);
+      })
+      .finally(() => {
+        if (active) setLoadingMetrics(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const statusDefinitions = useMemo(() => ORDER_STATUSES, []);
 
@@ -974,13 +1199,6 @@ export function OrdersPage() {
             Giám sát vận hành đơn hàng và các chức năng kiểm soát toàn sàn.
           </Typography>
         </Box>
-
-        <Chip
-          icon={<ShieldWarning size={17} />}
-          label="Đang chờ API Admin"
-          color="warning"
-          variant="outlined"
-        />
       </Stack>
 
       {/* ======================================
@@ -991,52 +1209,51 @@ export function OrdersPage() {
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tổng đơn hàng"
+            value={metrics ? metrics.total.toLocaleString('vi-VN') : '—'}
             icon={<ShoppingCart size={26} weight="duotone" />}
             tone="primary"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Toàn bộ đơn hàng trên sàn"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Đơn chờ thanh toán"
+            value={metrics ? metrics.pendingPayment.toLocaleString('vi-VN') : '—'}
             icon={<ClockCountdown size={26} weight="duotone" />}
             tone="warning"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Đang trong thời hạn giữ chỗ"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Đơn đã nhận"
+            value={metrics ? metrics.pickedUp.toLocaleString('vi-VN') : '—'}
             icon={<Package size={26} weight="duotone" />}
             tone="success"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Đã hoàn tất nhận hàng tại quầy"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Giá trị đơn hàng"
+            value={metrics ? `${Number(metrics.totalAmount).toLocaleString('vi-VN')} ₫` : '—'}
             icon={<CurrencyDollar size={26} weight="duotone" />}
-            status="unsupported"
+            tone="primary"
+            loading={loadingMetrics}
+            status="ready"
+            description="Tổng GMV toàn hệ thống"
           />
         </Grid>
       </Grid>
-
-      {/* ======================================
-          GHI CHÚ PHẠM VI DỮ LIỆU
-          ====================================== */}
-
-      <Alert
-        severity="info"
-        variant="outlined"
-        icon={<Info size={22} weight="duotone" />}
-        sx={{ borderRadius: '12px' }}
-      >
-        Backend hiện hỗ trợ đơn hàng theo phạm vi Customer và Store. Dashboard Super Admin chưa có
-        API đọc đơn hàng toàn sàn, vì vậy tất cả KPI vẫn ở trạng thái chưa hỗ trợ.
-      </Alert>
 
       {/* ======================================
           TABS ĐIỀU HƯỚNG

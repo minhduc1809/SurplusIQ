@@ -30,7 +30,7 @@ import { UserRole } from '../../entities/auth/user.entity';
 import { StorePermission } from '../../entities/stores/store-member.entity';
 import { ContractStatus } from '../../entities/stores/store-contract.entity';
 import { MAX_CONTRACT_BYTES, StoreLegalService } from './store-legal.service';
-import { ReviewContractDto, UpsertLegalProfileDto } from './dto/store-legal.dto';
+import { RemindStoreDto, ReviewContractDto, UpsertLegalProfileDto } from './dto/store-legal.dto';
 
 function sendFile(res: Response, f: { buffer: Buffer; mimeType: string; fileName: string }) {
   res.setHeader('Content-Type', f.mimeType);
@@ -96,17 +96,38 @@ export class StoreLegalController {
 export class AdminStoreContractsController {
   constructor(private readonly legal: StoreLegalService) {}
 
+  @Get('overview')
+  @ApiOperation({ summary: 'Thống kê tổng quan cửa hàng & hợp đồng KYC' })
+  overview() {
+    return this.legal.getAdminOverview();
+  }
+
+  @Post('remind-pending')
+  @ApiOperation({ summary: 'Gửi thông báo nhắc nhở hàng loạt các cửa hàng chưa hoàn tất KYC' })
+  remindPending(@Body() dto?: RemindStoreDto) {
+    return this.legal.remindAllPending(dto?.message);
+  }
+
+  @Post(':storeId/remind')
+  @ApiOperation({ summary: 'Gửi thông báo nhắc nhở nộp/bổ sung hồ sơ hợp đồng cho một cửa hàng' })
+  remindStore(@Param('storeId', ParseUUIDPipe) storeId: string, @Body() dto?: RemindStoreDto) {
+    return this.legal.remindStore(storeId, dto?.message);
+  }
+
   @Get()
+  @ApiOperation({ summary: 'Danh sách hồ sơ hợp đồng cần thẩm định' })
   list(@Query('status') status?: ContractStatus) {
     return this.legal.listForAdmin(status);
   }
 
   @Get(':id/file')
+  @ApiOperation({ summary: 'Tải hoặc xem trực tiếp tệp hợp đồng đã ký' })
   async file(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
     sendFile(res, await this.legal.getContractFileById(id));
   }
 
   @Patch(':id/review')
+  @ApiOperation({ summary: 'Phê duyệt, từ chối hoặc yêu cầu bổ sung hồ sơ hợp đồng' })
   review(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('userId') adminId: string,

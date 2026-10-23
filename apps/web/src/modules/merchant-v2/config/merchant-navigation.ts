@@ -30,6 +30,7 @@ export const MERCHANT_V2_ROUTES = {
   customers: '/merchant-v2/growth/customers',
   ai: '/merchant-v2/growth/ai',
   settings: '/merchant-v2/settings',
+  legal: '/merchant-v2/settings/legal',
 } as const;
 
 export type MerchantNavIcon =
@@ -150,8 +151,20 @@ export const MERCHANT_V2_NAVIGATION: MerchantNavGroup[] = [
     key: 'settings',
     title: 'Cài đặt',
     icon: 'Settings',
-    href: MERCHANT_V2_ROUTES.settings,
-    items: [],
+    items: [
+      {
+        key: 'settings-store',
+        title: 'Vận hành cửa hàng',
+        href: MERCHANT_V2_ROUTES.settings,
+        icon: 'Settings',
+      },
+      {
+        key: 'settings-legal',
+        title: 'Hồ sơ & Hợp đồng KYC',
+        href: MERCHANT_V2_ROUTES.legal,
+        icon: 'ClipboardList',
+      },
+    ],
   },
 ];
 

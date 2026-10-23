@@ -86,4 +86,8 @@ run(
   'Tài khoản chủ quán kỳ cựu (1-2.5 tháng, lưu lượng cứu món cao, đối soát, khiếu nại, AI cards)',
   'node scripts/seed-veteran-stores.mjs',
 );
+run(
+  'Hồ sơ pháp lý & hợp đồng kinh doanh scan KYC (phục vụ Admin duyệt tay)',
+  'node scripts/seed-kyc-contracts.mjs',
+);
 console.log('\nHoàn tất. Đăng nhập lại trên app (phiên cũ đã mất nếu dùng --reset).');

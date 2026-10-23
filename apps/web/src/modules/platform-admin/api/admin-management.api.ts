@@ -168,3 +168,79 @@ export function saveAdminRecord(
       return Promise.reject(new Error('Tập dữ liệu này chỉ hỗ trợ xem.'));
   }
 }
+
+// =====================================================
+// 5. API TỔNG HỢP CHỈ SỐ METRICS & BỘ SƯU TẬP
+// =====================================================
+
+export interface AdminMetricsOverview {
+  users: {
+    total: number;
+    active: number;
+    locked: number;
+    sessions: number;
+    twoFactorEnabled: number;
+  };
+  orders: {
+    total: number;
+    pendingPayment: number;
+    pickedUp: number;
+    paid: number;
+    totalAmount: number;
+    settledAmount: number;
+  };
+  disputes: {
+    totalComplaints: number;
+    pendingStoreComplaints: number;
+    acceptedComplaints: number;
+    rejectedComplaints: number;
+    totalViolations: number;
+    pendingViolations: number;
+  };
+  settlement: {
+    totalStatements: number;
+    totalGross: number;
+    totalNetPayable: number;
+    totalCommission: number;
+    lockedStatements: number;
+    verifiedChecksums: number;
+  };
+  subscriptions: {
+    totalSubscriptions: number;
+    proStores: number;
+    trialStores: number;
+    activeSubscriptions: number;
+    subscriptionRevenue: number;
+  };
+}
+
+export function getAdminMetricsOverview(): Promise<AdminMetricsOverview> {
+  return adminApi.get<AdminMetricsOverview>('/admin/metrics/overview');
+}
+
+export interface AdminCollectionResponse<T = Record<string, unknown>> {
+  key: string;
+  exportedAt: string;
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  items: T[];
+}
+
+export function getAdminCollection<T = Record<string, unknown>>(
+  key: string,
+  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+): Promise<AdminCollectionResponse<T>> {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.search) query.set('search', params.search);
+  if (params.status && params.status !== 'all' && params.status !== 'ALL') {
+    query.set('status', params.status);
+  }
+  const qStr = query.toString();
+  return adminApi.get<AdminCollectionResponse<T>>(
+    `/admin/collections/${key}${qStr ? `?${qStr}` : ''}`,
+  );
+}

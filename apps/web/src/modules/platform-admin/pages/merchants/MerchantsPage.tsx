@@ -1,17 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { FormEvent } from 'react';
 
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   Grid,
+  IconButton,
   InputAdornment,
+  MenuItem,
+  Pagination,
+  Snackbar,
   Stack,
   Tab,
   Table,
@@ -22,20 +32,29 @@ import {
   TableRow,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 
 import {
   ArrowClockwise,
+  Bell,
+  CheckCircle,
   ClockCountdown,
+  DownloadSimple,
+  Eye,
+  FilePdf,
   MagnifyingGlass,
   MapPin,
   Package,
+  PaperPlaneTilt,
   Phone,
   ShieldCheck,
   ShieldWarning,
   Storefront,
   UsersThree,
+  WarningCircle,
+  XCircle,
 } from '@phosphor-icons/react';
 
 import { AdminDrawer } from '../../components/Drawer/AdminDrawer';
@@ -45,17 +64,68 @@ import { AdminStatCard } from '../../components/StatCard/AdminStatCard';
 import { AdminApiError, adminApi } from '../../api/admin-api.client';
 
 // =====================================================
-// 1. KIỂU DỮ LIỆU THEO BACKEND
+// 1. KIỂU DỮ LIỆU
 // =====================================================
 
-/**
- * Thông tin cửa hàng do API công khai trả về.
- *
- * GET /customer/stores/:id
- *
- * Đây không phải hồ sơ quản trị đầy đủ
- * và không bao gồm trạng thái KYC.
- */
+interface MerchantOverview {
+  totalStores: number;
+  activeStores: number;
+  pendingKycStores: number;
+  suspendedStores: number;
+  pendingReviewContracts: number;
+  needMoreInfoContracts: number;
+  approvedContracts: number;
+  rejectedContracts: number;
+}
+
+interface AdminStoreItem {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  logo_url: string | null;
+  status: 'ACTIVE' | 'PENDING_VERIFY' | 'SUSPENDED';
+  rating_avg: string;
+  rating_count: number;
+  created_at: string;
+  user_label?: string;
+  owner_user_id?: string;
+}
+
+interface AdminStoresResponse {
+  key: string;
+  exportedAt: string;
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  items: AdminStoreItem[];
+}
+
+interface StoreLegalProfile {
+  legalName: string;
+  businessType: 'INDIVIDUAL' | 'HOUSEHOLD' | 'COMPANY';
+  taxCode: string | null;
+  businessLicenseNo: string | null;
+  representativeName: string;
+  representativePhone: string;
+  legalAddress: string;
+}
+
+interface StoreContractItem {
+  id: string;
+  storeId: string;
+  storeName: string | null;
+  status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'NEED_MORE_INFO';
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  legalProfile: StoreLegalProfile | null;
+}
+
 interface PublicStore {
   id: string;
   name: string;
@@ -68,9 +138,6 @@ interface PublicStore {
   reviewsCount: number;
 }
 
-/**
- * Deal đang mở của cửa hàng.
- */
 interface PublicStoreDeal {
   id: string;
   title: string;
@@ -82,9 +149,6 @@ interface PublicStoreDeal {
   pickupEnd: string;
 }
 
-/**
- * Response của DiscoveryService.getStoreDetail().
- */
 interface PublicStoreDetailResponse {
   store: PublicStore;
   activeDeals: PublicStoreDeal[];
@@ -92,121 +156,11 @@ interface PublicStoreDetailResponse {
 
 type MerchantTab = 'list' | 'lookup' | 'kyc';
 
-// =====================================================
-// 2. CẤU HÌNH
-// =====================================================
-
-/**
- * StoreEntity dùng UUID làm khóa chính.
- */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * API này chỉ cho phép xem chi tiết
- * một cửa hàng đang hoạt động.
- */
 const PUBLIC_STORE_ENDPOINT = '/customer/stores';
 
 // =====================================================
-// 3. KIỂM TRA RESPONSE
-// =====================================================
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Kiểm tra dữ liệu thật trước khi hiển thị.
- *
- * Không tự tạo cửa hàng mặc định khi
- * Backend trả response không hợp lệ.
- */
-function parsePublicStoreDetail(payload: unknown): PublicStoreDetailResponse {
-  if (!isRecord(payload) || !isRecord(payload.store) || !Array.isArray(payload.activeDeals)) {
-    throw new AdminApiError(
-      'Dữ liệu cửa hàng không đúng cấu trúc Backend.',
-      502,
-      'INVALID_STORE_RESPONSE',
-    );
-  }
-
-  const store = payload.store;
-
-  const validStore =
-    typeof store.id === 'string' &&
-    typeof store.name === 'string' &&
-    typeof store.address === 'string' &&
-    typeof store.phone === 'string' &&
-    store.status === 'ACTIVE' &&
-    typeof store.averageRating === 'number' &&
-    Number.isFinite(store.averageRating) &&
-    typeof store.reviewsCount === 'number' &&
-    Number.isInteger(store.reviewsCount) &&
-    (store.logoUrl === null || typeof store.logoUrl === 'string') &&
-    (store.openHours === null || isRecord(store.openHours));
-
-  if (!validStore) {
-    throw new AdminApiError('Thông tin cửa hàng không hợp lệ.', 502, 'INVALID_STORE_DATA');
-  }
-
-  const deals: PublicStoreDeal[] = [];
-
-  for (const item of payload.activeDeals) {
-    if (!isRecord(item)) {
-      throw new AdminApiError(
-        'Dữ liệu deal của cửa hàng không hợp lệ.',
-        502,
-        'INVALID_STORE_DEALS',
-      );
-    }
-
-    if (
-      typeof item.id !== 'string' ||
-      typeof item.title !== 'string' ||
-      typeof item.category !== 'string' ||
-      typeof item.currentPrice !== 'number' ||
-      typeof item.originalPrice !== 'number' ||
-      typeof item.discountPercent !== 'number' ||
-      typeof item.remainingQuantity !== 'number' ||
-      typeof item.pickupEnd !== 'string'
-    ) {
-      throw new AdminApiError(
-        'Cấu trúc deal không đúng hợp đồng Backend.',
-        502,
-        'INVALID_STORE_DEALS',
-      );
-    }
-
-    deals.push({
-      id: item.id,
-      title: item.title,
-      category: item.category,
-      originalPrice: item.originalPrice,
-      currentPrice: item.currentPrice,
-      discountPercent: item.discountPercent,
-      remainingQuantity: item.remainingQuantity,
-      pickupEnd: item.pickupEnd,
-    });
-  }
-
-  return {
-    store: {
-      id: store.id as string,
-      name: store.name as string,
-      address: store.address as string,
-      phone: store.phone as string,
-      logoUrl: store.logoUrl as string | null,
-      openHours: store.openHours as Record<string, unknown> | null,
-      status: 'ACTIVE',
-      averageRating: store.averageRating as number,
-      reviewsCount: store.reviewsCount as number,
-    },
-    activeDeals: deals,
-  };
-}
-
-// =====================================================
-// 4. HÀM TIỆN ÍCH
+// 2. HÀM TIỆN ÍCH
 // =====================================================
 
 function formatCurrency(amount: number): string {
@@ -217,12 +171,18 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+}
 
-  if (Number.isNaN(date.getTime())) {
-    return 'Không xác định';
-  }
+function formatDateTime(value?: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Không xác định';
 
   return new Intl.DateTimeFormat('vi-VN', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -231,106 +191,21 @@ function formatDateTime(value: string): string {
   }).format(date);
 }
 
-/**
- * Phân biệt các loại lỗi Backend.
- *
- * HTTP 404 của endpoint công khai có thể
- * nghĩa là cửa hàng không tồn tại hoặc
- * không ở trạng thái ACTIVE.
- */
-function getLookupError(error: unknown): string {
-  if (error instanceof AdminApiError) {
-    if (error.status === 404) {
-      return (
-        'Không tìm thấy cửa hàng qua API công khai. ' +
-        'Cửa hàng có thể không tồn tại hoặc ' +
-        'không ở trạng thái ACTIVE.'
-      );
-    }
-
-    return error.message;
+function getBusinessTypeLabel(type?: string): string {
+  switch (type) {
+    case 'COMPANY':
+      return 'Doanh nghiệp';
+    case 'HOUSEHOLD':
+      return 'Hộ kinh doanh';
+    case 'INDIVIDUAL':
+      return 'Cá nhân';
+    default:
+      return type || 'Chưa khai báo';
   }
-
-  return 'Không thể tải thông tin cửa hàng.';
 }
 
 // =====================================================
-// 5. THÀNH PHẦN HIỂN THỊ CHỨC NĂNG CHƯA CÓ API
-// =====================================================
-
-interface UnavailableSectionProps {
-  title: string;
-  description: string;
-  children?: React.ReactNode;
-}
-
-/**
- * Không hiển thị danh sách rỗng như thể
- * hệ thống thực sự không có cửa hàng.
- *
- * Trạng thái chưa hỗ trợ API cần được
- * phân biệt với trạng thái không có dữ liệu.
- */
-function UnavailableSection({ title, description, children }: UnavailableSectionProps) {
-  return (
-    <Card>
-      <CardContent
-        sx={{
-          p: 3,
-          '&:last-child': { pb: 3 },
-        }}
-      >
-        <Stack spacing={2.5}>
-          <Stack
-            direction="row"
-            spacing={1.5}
-            sx={{
-              alignItems: 'center',
-            }}
-          >
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: '12px',
-                bgcolor: 'action.hover',
-                color: 'warning.main',
-                display: 'grid',
-                placeItems: 'center',
-              }}
-            >
-              <ShieldWarning size={25} weight="duotone" />
-            </Box>
-
-            <Box>
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 700,
-                }}
-              >
-                {title}
-              </Typography>
-
-              <Typography color="text.secondary" sx={{ fontSize: 12, mt: 0.5 }}>
-                Chưa có API Super Admin phù hợp
-              </Typography>
-            </Box>
-          </Stack>
-
-          <Alert severity="info" variant="outlined" sx={{ borderRadius: '12px' }}>
-            {description}
-          </Alert>
-
-          {children}
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
-// =====================================================
-// 6. DRAWER XEM CHI TIẾT CỬA HÀNG
+// 3. DRAWER XEM CHI TIẾT CỬA HÀNG
 // =====================================================
 
 interface StoreDetailDrawerProps {
@@ -339,11 +214,6 @@ interface StoreDetailDrawerProps {
   detail: PublicStoreDetailResponse | null;
 }
 
-/**
- * Drawer chỉ đọc dữ liệu cửa hàng.
- *
- * Không gửi request chỉnh sửa hoặc duyệt KYC.
- */
 function StoreDetailDrawer({ open, onClose, detail }: StoreDetailDrawerProps) {
   const store = detail?.store;
 
@@ -352,17 +222,12 @@ function StoreDetailDrawer({ open, onClose, detail }: StoreDetailDrawerProps) {
       open={open && detail !== null}
       onClose={onClose}
       title={store?.name ?? 'Chi tiết cửa hàng'}
-      description="Thông tin từ API cửa hàng công khai"
+      description="Thông tin chi tiết từ hệ thống"
       overline="MERCHANT DETAILS"
       icon={<Storefront size={25} weight="duotone" />}
       size="lg"
       footer={
-        <Stack
-          direction="row"
-          sx={{
-            justifyContent: 'flex-end',
-          }}
-        >
+        <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
           <Button variant="outlined" color="inherit" onClick={onClose}>
             Đóng
           </Button>
@@ -371,10 +236,6 @@ function StoreDetailDrawer({ open, onClose, detail }: StoreDetailDrawerProps) {
     >
       {detail && (
         <Stack spacing={3}>
-          {/* ==================================
-              TRẠNG THÁI CỬA HÀNG
-              ================================== */}
-
           <Stack
             direction="row"
             sx={{
@@ -384,37 +245,21 @@ function StoreDetailDrawer({ open, onClose, detail }: StoreDetailDrawerProps) {
               gap: 1,
             }}
           >
-            <Typography
-              sx={{
-                fontWeight: 700,
-              }}
-            >
-              Thông tin công khai
-            </Typography>
-
-            <Chip label="ACTIVE" color="success" size="small" variant="outlined" />
+            <Typography sx={{ fontWeight: 700 }}>Thông tin cửa hàng</Typography>
+            <Chip label={store?.status ?? 'ACTIVE'} color="success" size="small" variant="filled" />
           </Stack>
-
-          <Alert severity="info" variant="outlined">
-            Trạng thái ACTIVE không phải là kết quả xác minh KYC. Endpoint này không trả về thông
-            tin KYC.
-          </Alert>
-
-          {/* ==================================
-              THÔNG TIN CƠ BẢN
-              ================================== */}
 
           <Stack spacing={2}>
             <Box>
               <Typography variant="caption" color="text.secondary">
-                Mã cửa hàng
+                Mã định danh cửa hàng (UUID)
               </Typography>
-
               <Typography
                 sx={{
                   mt: 0.5,
                   fontSize: 13,
                   fontWeight: 600,
+                  fontFamily: 'monospace',
                   overflowWrap: 'anywhere',
                 }}
               >
@@ -424,141 +269,51 @@ function StoreDetailDrawer({ open, onClose, detail }: StoreDetailDrawerProps) {
 
             <Divider />
 
-            <Stack
-              direction="row"
-              spacing={1.5}
-              sx={{
-                alignItems: 'flex-start',
-              }}
-            >
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
               <MapPin size={20} color="#667085" />
-
               <Box>
                 <Typography variant="caption" color="text.secondary">
                   Địa chỉ
                 </Typography>
-
-                <Typography
-                  sx={{
-                    mt: 0.5,
-                    fontSize: 13,
-                  }}
-                >
-                  {store?.address}
-                </Typography>
+                <Typography sx={{ mt: 0.5, fontSize: 13 }}>{store?.address}</Typography>
               </Box>
             </Stack>
 
             <Divider />
 
-            <Stack
-              direction="row"
-              spacing={1.5}
-              sx={{
-                alignItems: 'center',
-              }}
-            >
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <Phone size={20} color="#667085" />
-
               <Box>
                 <Typography variant="caption" color="text.secondary">
-                  Số điện thoại cửa hàng
+                  Số điện thoại liên hệ
                 </Typography>
-
-                <Typography
-                  sx={{
-                    mt: 0.5,
-                    fontSize: 13,
-                  }}
-                >
-                  {store?.phone}
-                </Typography>
+                <Typography sx={{ mt: 0.5, fontSize: 13 }}>{store?.phone}</Typography>
               </Box>
             </Stack>
 
             <Divider />
 
-            <Typography
-              sx={{
-                fontSize: 13,
-                color: 'text.secondary',
-              }}
-            >
-              Đánh giá công khai:{' '}
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              Đánh giá trung bình:{' '}
               {store && store.reviewsCount > 0
-                ? `${store.averageRating.toFixed(1)}/5`
+                ? `${store.averageRating.toFixed(1)} ⭐ (${store.reviewsCount} lượt đánh giá)`
                 : 'Chưa có đánh giá'}
-              {store && store.reviewsCount > 0 ? ` (${store.reviewsCount} lượt)` : ''}
             </Typography>
           </Stack>
 
-          {/* ==================================
-              GIỜ HOẠT ĐỘNG
-              ================================== */}
-
           <Divider />
 
-          <Stack spacing={1.5}>
-            <Typography
-              sx={{
-                fontWeight: 700,
-              }}
-            >
-              Giờ hoạt động
-            </Typography>
-
-            {store?.openHours ? (
-              <Box
-                component="pre"
-                sx={{
-                  m: 0,
-                  p: 2,
-                  bgcolor: 'action.hover',
-                  borderRadius: '12px',
-                  fontSize: 12,
-                  whiteSpace: 'pre-wrap',
-                  overflowWrap: 'anywhere',
-                }}
-              >
-                {JSON.stringify(store.openHours, null, 2)}
-              </Box>
-            ) : (
-              <Typography color="text.secondary" sx={{ fontSize: 13 }}>
-                Chưa có thông tin giờ hoạt động.
-              </Typography>
-            )}
-          </Stack>
-
-          {/* ==================================
-              CÁC DEAL ĐANG MỞ
-              ================================== */}
-
-          <Divider />
-
+          {/* Deal đang mở */}
           <Stack spacing={2}>
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{
-                alignItems: 'center',
-              }}
-            >
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <Package size={20} color="#635BFF" />
-
-              <Typography
-                sx={{
-                  fontWeight: 700,
-                }}
-              >
-                Deal đang mở
-              </Typography>
-
+              <Typography sx={{ fontWeight: 700 }}>Deal đang mở bán</Typography>
               <Chip label={detail.activeDeals.length} size="small" />
             </Stack>
 
             {detail.activeDeals.length === 0 ? (
               <Typography color="text.secondary" sx={{ fontSize: 13 }}>
-                Cửa hàng hiện không có deal công khai đang mở.
+                Cửa hàng hiện không có deal cứu thực phẩm đang mở bán.
               </Typography>
             ) : (
               <TableContainer
@@ -571,57 +326,35 @@ function StoreDetailDrawer({ open, onClose, detail }: StoreDetailDrawerProps) {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Món ăn</TableCell>
-                      <TableCell align="right">Giá</TableCell>
-                      <TableCell align="right">Còn</TableCell>
+                      <TableCell>Món ăn / Gói cứu trợ</TableCell>
+                      <TableCell align="right">Giá bán</TableCell>
+                      <TableCell align="right">Còn lại</TableCell>
                     </TableRow>
                   </TableHead>
-
                   <TableBody>
                     {detail.activeDeals.map((deal) => (
                       <TableRow key={deal.id}>
                         <TableCell>
                           <Stack spacing={0.5}>
-                            <Typography
-                              sx={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                              }}
-                            >
+                            <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
                               {deal.title}
                             </Typography>
-
                             <Typography color="text.secondary" sx={{ fontSize: 11 }}>
                               {deal.category}
                             </Typography>
-
-                            <Stack
-                              direction="row"
-                              sx={{
-                                alignItems: 'center',
-                              }}
-                              spacing={0.5}
-                            >
+                            <Stack direction="row" sx={{ alignItems: 'center' }} spacing={0.5}>
                               <ClockCountdown size={13} color="#98A2B3" />
-
                               <Typography color="text.secondary" sx={{ fontSize: 10 }}>
                                 {formatDateTime(deal.pickupEnd)}
                               </Typography>
                             </Stack>
                           </Stack>
                         </TableCell>
-
                         <TableCell align="right">
-                          <Typography
-                            sx={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                            }}
-                          >
+                          <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
                             {formatCurrency(deal.currentPrice)}
                           </Typography>
                         </TableCell>
-
                         <TableCell align="right">{deal.remainingQuantity}</TableCell>
                       </TableRow>
                     ))}
@@ -637,57 +370,148 @@ function StoreDetailDrawer({ open, onClose, detail }: StoreDetailDrawerProps) {
 }
 
 // =====================================================
-// 7. COMPONENT MERCHANTS PAGE
+// 4. COMPONENT CHÍNH MERCHANTS PAGE
 // =====================================================
 
 export function MerchantsPage() {
-  // ---------------------------------------------------
-  // Tab đang được chọn
-  // ---------------------------------------------------
+  const [tab, setTab] = useState<MerchantTab>('list');
 
-  const [tab, setTab] = useState<MerchantTab>('lookup');
+  // --- KPI Overview ---
+  const [overview, setOverview] = useState<MerchantOverview | null>(null);
+  const [loadingOverview, setLoadingOverview] = useState(false);
 
-  // ---------------------------------------------------
-  // Tra cứu cửa hàng bằng UUID
-  // ---------------------------------------------------
+  // --- Tab Danh sách cửa hàng ---
+  const [stores, setStores] = useState<AdminStoreItem[]>([]);
+  const [storesTotal, setStoresTotal] = useState(0);
+  const [storesTotalPages, setStoresTotalPages] = useState(1);
+  const [storesPage, setStoresPage] = useState(1);
+  const [storesSearch, setStoresSearch] = useState('');
+  const [storesStatusFilter, setStoresStatusFilter] = useState('ALL');
+  const [loadingStores, setLoadingStores] = useState(false);
 
-  const [storeId, setStoreId] = useState('');
-
+  // --- Tab Tra cứu ---
+  const [storeIdInput, setStoreIdInput] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
-
   const [lookupError, setLookupError] = useState<string | null>(null);
-
   const [storeDetail, setStoreDetail] = useState<PublicStoreDetailResponse | null>(null);
-
-  // ---------------------------------------------------
-  // Drawer xem chi tiết
-  // ---------------------------------------------------
-
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // ---------------------------------------------------
-  // Điều khiển hủy request đang chạy
-  // ---------------------------------------------------
+  // --- Tab Xác minh KYC ---
+  const [contracts, setContracts] = useState<StoreContractItem[]>([]);
+  const [loadingContracts, setLoadingContracts] = useState(false);
+  const [kycStatusFilter, setKycStatusFilter] = useState<string>('ALL');
+
+  // Dialog Thẩm định hợp đồng
+  const [reviewDialogTarget, setReviewDialogTarget] = useState<StoreContractItem | null>(null);
+  const [reviewDecision, setReviewDecision] = useState<'APPROVED' | 'REJECTED' | 'NEED_MORE_INFO'>(
+    'APPROVED',
+  );
+  const [reviewNote, setReviewNote] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  // Dialog Nhắc nhở KYC
+  const [remindDialogTarget, setRemindDialogTarget] = useState<{
+    storeId: string;
+    storeName: string;
+  } | null>(null);
+  const [remindMessage, setRemindMessage] = useState('');
+  const [submittingRemind, setSubmittingRemind] = useState(false);
+  const [batchReminding, setBatchReminding] = useState(false);
+
+  // Toast thông báo
+  const [toast, setToast] = useState<{
+    message: string;
+    severity: 'success' | 'error' | 'info';
+  } | null>(null);
 
   const requestRef = useRef<AbortController | null>(null);
 
-  /**
-   * Hủy request khi rời khỏi trang.
-   */
   useEffect(() => {
     return () => {
       requestRef.current?.abort();
     };
   }, []);
 
-  // ===================================================
-  // 8. TRA CỨU CỬA HÀNG THỰC TẾ
-  // ===================================================
+  // ---------------------------------------------------
+  // TẢI DỮ LIỆU KPI TỔNG QUAN
+  // ---------------------------------------------------
+  const fetchOverview = useCallback(async () => {
+    setLoadingOverview(true);
+    try {
+      const data = await adminApi.get<MerchantOverview>('/admin/store-contracts/overview');
+      setOverview(data);
+    } catch {
+      // Bỏ qua lỗi ngầm
+    } finally {
+      setLoadingOverview(false);
+    }
+  }, []);
 
+  // ---------------------------------------------------
+  // TẢI DANH SÁCH CỬA HÀNG
+  // ---------------------------------------------------
+  const fetchStores = useCallback(async (page = 1, search = '', status = 'ALL') => {
+    setLoadingStores(true);
+    try {
+      const queryParams: Record<string, string | number> = {
+        page,
+        limit: 15,
+      };
+      if (search.trim()) queryParams.search = search.trim();
+      if (status && status !== 'ALL') queryParams.status = status;
+
+      const res = await adminApi.get<AdminStoresResponse>('/admin/collections/stores', {
+        params: queryParams,
+      });
+
+      setStores(res.items || []);
+      setStoresTotal(res.total || 0);
+      setStoresTotalPages(res.totalPages || 1);
+      setStoresPage(res.page || 1);
+    } catch {
+      setStores([]);
+    } finally {
+      setLoadingStores(false);
+    }
+  }, []);
+
+  // ---------------------------------------------------
+  // TẢI DANH SÁCH HỢP ĐỒNG KYC
+  // ---------------------------------------------------
+  const fetchContracts = useCallback(async (statusFilter = 'ALL') => {
+    setLoadingContracts(true);
+    try {
+      const params: Record<string, string> = {};
+      if (statusFilter !== 'ALL') {
+        params.status = statusFilter;
+      }
+      const data = await adminApi.get<StoreContractItem[]>('/admin/store-contracts', { params });
+      setContracts(data || []);
+    } catch {
+      setContracts([]);
+    } finally {
+      setLoadingContracts(false);
+    }
+  }, []);
+
+  // Tải dữ liệu ban đầu
+  useEffect(() => {
+    void fetchOverview();
+  }, [fetchOverview]);
+
+  useEffect(() => {
+    if (tab === 'list') {
+      void fetchStores(storesPage, storesSearch, storesStatusFilter);
+    } else if (tab === 'kyc') {
+      void fetchContracts(kycStatusFilter);
+    }
+  }, [tab, storesPage, storesStatusFilter, kycStatusFilter, fetchStores, fetchContracts]);
+
+  // ---------------------------------------------------
+  // TRA CỨU CỬA HÀNG BẰNG ID
+  // ---------------------------------------------------
   const lookupStore = async (id: string): Promise<void> => {
     const normalizedId = id.trim();
-
-    // Chặn request không có UUID hợp lệ.
     if (!UUID_PATTERN.test(normalizedId)) {
       setLookupError('Vui lòng nhập mã cửa hàng UUID hợp lệ.');
       setStoreDetail(null);
@@ -695,97 +519,183 @@ export function MerchantsPage() {
       return;
     }
 
-    // Hủy request cũ trước khi bắt đầu request mới.
-    requestRef.current?.abort();
-
-    const controller = new AbortController();
-    requestRef.current = controller;
-
     setLookupLoading(true);
     setLookupError(null);
     setStoreDetail(null);
-    setDrawerOpen(false);
 
     try {
-      /**
-       * Endpoint được xác minh trong Backend:
-       *
-       * GET /customer/stores/:id
-       *
-       * Đây là endpoint public dành cho khách hàng.
-       * Không dùng JWT Admin cho request này.
-       */
-      const response = await adminApi.get<unknown>(
+      const response = await adminApi.get<PublicStoreDetailResponse>(
         `${PUBLIC_STORE_ENDPOINT}/${encodeURIComponent(normalizedId)}`,
-        {
-          auth: false,
-          signal: controller.signal,
-        },
+        { auth: false },
       );
-
-      const parsed = parsePublicStoreDetail(response);
-
-      if (controller.signal.aborted) {
-        return;
-      }
-
-      setStoreDetail(parsed);
+      setStoreDetail(response);
       setDrawerOpen(true);
-    } catch (error) {
-      if (controller.signal.aborted) {
-        return;
+    } catch (err: unknown) {
+      if (err instanceof AdminApiError && err.status === 404) {
+        setLookupError('Không tìm thấy cửa hàng này hoặc cửa hàng chưa ở trạng thái ACTIVE.');
+      } else {
+        setLookupError('Không thể tải thông tin cửa hàng.');
       }
-
-      setLookupError(getLookupError(error));
     } finally {
-      if (requestRef.current === controller) {
-        requestRef.current = null;
-        setLookupLoading(false);
-      }
+      setLookupLoading(false);
     }
   };
 
-  // ===================================================
-  // 9. XỬ LÝ BIỂU MẪU TRA CỨU
-  // ===================================================
-
-  const handleLookupSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    void lookupStore(storeId);
+  const handleLookupSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void lookupStore(storeIdInput);
   };
 
-  const handleStoreIdChange = (nextValue: string) => {
-    requestRef.current?.abort();
-    requestRef.current = null;
+  // ---------------------------------------------------
+  // XỬ LÝ XEM TỆP HỢP ĐỒNG SCAN
+  // ---------------------------------------------------
+  const handleViewContractFile = async (contractId: string, fileName: string) => {
+    try {
+      // Đọc accessToken từ sessionStorage
+      const rawTokens = sessionStorage.getItem('surplusiq.platform-admin.tokens.v1');
+      let token = '';
+      if (rawTokens) {
+        try {
+          const parsed = JSON.parse(rawTokens) as { accessToken?: string };
+          token = parsed.accessToken || '';
+        } catch {
+          // ignore
+        }
+      }
 
-    setStoreId(nextValue);
-    setLookupLoading(false);
-    setLookupError(null);
-    setStoreDetail(null);
-    setDrawerOpen(false);
+      const baseUrl =
+        import.meta.env.VITE_API_BASE_URL?.trim() ||
+        import.meta.env.VITE_API_URL?.trim() ||
+        'http://localhost:4000';
+
+      const response = await fetch(`${baseUrl}/admin/store-contracts/${contractId}/file`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!response.ok) {
+        throw new Error(`Máy chủ phản hồi mã ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank');
+      setToast({ message: `Đang mở tệp "${fileName}" trong tab mới.`, severity: 'info' });
+    } catch (error) {
+      setToast({
+        message: `Không thể mở tệp hợp đồng: ${error instanceof Error ? error.message : String(error)}`,
+        severity: 'error',
+      });
+    }
   };
 
-  // ===================================================
-  // 10. GIAO DIỆN CHÍNH
-  // ===================================================
+  // ---------------------------------------------------
+  // XỬ LÝ THẨM ĐỊNH HỢP ĐỒNG (Duyệt / Từ chối / Bổ sung)
+  // ---------------------------------------------------
+  const handleSubmitReview = async () => {
+    if (!reviewDialogTarget) return;
+
+    if (reviewDecision !== 'APPROVED' && !reviewNote.trim()) {
+      setToast({
+        message: 'Vui lòng nhập lý do từ chối hoặc yêu cầu bổ sung.',
+        severity: 'error',
+      });
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      await adminApi.patch(`/admin/store-contracts/${reviewDialogTarget.id}/review`, {
+        decision: reviewDecision,
+        note: reviewNote.trim() || undefined,
+      });
+
+      const actionText =
+        reviewDecision === 'APPROVED'
+          ? 'Đã duyệt hợp đồng và kích hoạt cửa hàng thành công'
+          : reviewDecision === 'NEED_MORE_INFO'
+            ? 'Đã gửi yêu cầu bổ sung hồ sơ tới chủ cửa hàng'
+            : 'Đã từ chối hồ sơ hợp đồng';
+
+      setToast({
+        message: `${actionText}! Đã tự động gửi thông báo đến chủ cửa hàng.`,
+        severity: 'success',
+      });
+
+      setReviewDialogTarget(null);
+      setReviewNote('');
+      void fetchContracts(kycStatusFilter);
+      void fetchOverview();
+      void fetchStores(storesPage, storesSearch, storesStatusFilter);
+    } catch (err: unknown) {
+      setToast({
+        message: `Xử lý thẩm định thất bại: ${err instanceof Error ? err.message : String(err)}`,
+        severity: 'error',
+      });
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  // ---------------------------------------------------
+  // XỬ LÝ GỬI THÔNG BÁO NHẮC NHỞ KYC
+  // ---------------------------------------------------
+  const handleSubmitRemind = async () => {
+    if (!remindDialogTarget) return;
+
+    setSubmittingRemind(true);
+    try {
+      await adminApi.post(`/admin/store-contracts/${remindDialogTarget.storeId}/remind`, {
+        message: remindMessage.trim() || undefined,
+      });
+
+      setToast({
+        message: `Đã gửi thông báo nhắc nhở hoàn tất hợp đồng tới "${remindDialogTarget.storeName}" thành công!`,
+        severity: 'success',
+      });
+
+      setRemindDialogTarget(null);
+      setRemindMessage('');
+    } catch (err: unknown) {
+      setToast({
+        message: `Không thể gửi thông báo nhắc nhở: ${err instanceof Error ? err.message : String(err)}`,
+        severity: 'error',
+      });
+    } finally {
+      setSubmittingRemind(false);
+    }
+  };
+
+  // Quét và nhắc nhở hàng loạt các quán chưa duyệt
+  const handleBatchRemind = async () => {
+    setBatchReminding(true);
+    try {
+      const res = await adminApi.post<{ remindedCount: number; totalPending: number }>(
+        '/admin/store-contracts/remind-pending',
+      );
+
+      setToast({
+        message: `Đã quét và gửi thông báo nhắc nhở tới ${res.remindedCount} cửa hàng chưa hoàn tất KYC!`,
+        severity: 'success',
+      });
+    } catch (err: unknown) {
+      setToast({
+        message: `Quét nhắc nhở thất bại: ${err instanceof Error ? err.message : String(err)}`,
+        severity: 'error',
+      });
+    } finally {
+      setBatchReminding(false);
+    }
+  };
 
   return (
     <Stack spacing={3} className="admin-page-enter">
       {/* ======================================
           HEADER
           ====================================== */}
-
       <Stack
-        direction={{
-          xs: 'column',
-          md: 'row',
-        }}
+        direction={{ xs: 'column', md: 'row' }}
         sx={{
-          alignItems: {
-            xs: 'flex-start',
-            md: 'center',
-          },
+          alignItems: { xs: 'flex-start', md: 'center' },
           justifyContent: 'space-between',
           gap: 2,
         }}
@@ -794,42 +704,60 @@ export function MerchantsPage() {
           <Typography
             component="h1"
             variant="h4"
-            sx={{
-              fontWeight: 750,
-              letterSpacing: '-0.04em',
-            }}
+            sx={{ fontWeight: 750, letterSpacing: '-0.04em' }}
           >
-            Quản lý cửa hàng
+            Quản lý cửa hàng & Thẩm định KYC
           </Typography>
 
-          <Typography
-            color="text.secondary"
-            sx={{
-              mt: 1,
-              fontSize: 13,
-              lineHeight: 1.8,
-            }}
-          >
-            Quản lý đối tác, hồ sơ cửa hàng và quy trình xác minh KYC.
+          <Typography color="text.secondary" sx={{ mt: 0.5, fontSize: 13, lineHeight: 1.8 }}>
+            Giám sát mạng lưới đối tác, hồ sơ pháp lý và quy trình duyệt hợp đồng kinh doanh.
           </Typography>
         </Box>
 
-        <Button variant="contained" disabled startIcon={<Storefront size={18} />}>
-          Thêm cửa hàng
-        </Button>
+        <Stack direction="row" spacing={1.5}>
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={
+              batchReminding ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <PaperPlaneTilt size={18} />
+              )
+            }
+            disabled={batchReminding}
+            onClick={() => void handleBatchRemind()}
+          >
+            Quét & Nhắc nhở KYC
+          </Button>
+
+          <Button
+            variant="outlined"
+            color="inherit"
+            startIcon={<ArrowClockwise size={18} />}
+            onClick={() => {
+              void fetchOverview();
+              if (tab === 'list') void fetchStores(storesPage, storesSearch, storesStatusFilter);
+              if (tab === 'kyc') void fetchContracts(kycStatusFilter);
+            }}
+          >
+            Làm mới
+          </Button>
+        </Stack>
       </Stack>
 
       {/* ======================================
-          KPI TỔNG QUAN
+          KPI TỔNG QUAN (Real Backend Data)
           ====================================== */}
-
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tổng cửa hàng"
             icon={<Storefront size={26} weight="duotone" />}
             tone="primary"
-            status="unsupported"
+            value={overview?.totalStores ?? null}
+            loading={loadingOverview}
+            description="Toàn bộ cửa hàng trên nền tảng"
           />
         </Grid>
 
@@ -838,7 +766,9 @@ export function MerchantsPage() {
             title="Đang hoạt động"
             icon={<ShieldCheck size={26} weight="duotone" />}
             tone="success"
-            status="unsupported"
+            value={overview?.activeStores ?? null}
+            loading={loadingOverview}
+            description="Cửa hàng đủ điều kiện mở bán deal"
           />
         </Grid>
 
@@ -847,7 +777,9 @@ export function MerchantsPage() {
             title="Chờ xác minh KYC"
             icon={<ShieldWarning size={26} weight="duotone" />}
             tone="warning"
-            status="unsupported"
+            value={overview?.pendingKycStores ?? null}
+            loading={loadingOverview}
+            description={`${overview?.pendingReviewContracts ?? 0} hợp đồng đang chờ duyệt`}
           />
         </Grid>
 
@@ -855,7 +787,10 @@ export function MerchantsPage() {
           <AdminStatCard
             title="Đang bị tạm ngưng"
             icon={<UsersThree size={26} weight="duotone" />}
-            status="unsupported"
+            tone="error"
+            value={overview?.suspendedStores ?? null}
+            loading={loadingOverview}
+            description="Cửa hàng bị tạm khóa hoạt động"
           />
         </Grid>
       </Grid>
@@ -863,7 +798,6 @@ export function MerchantsPage() {
       {/* ======================================
           TABS ĐIỀU HƯỚNG
           ====================================== */}
-
       <Card>
         <Box sx={{ px: 2 }}>
           <Tabs
@@ -873,42 +807,76 @@ export function MerchantsPage() {
             scrollButtons="auto"
             aria-label="Các chức năng quản lý cửa hàng"
           >
-            <Tab value="list" label="Danh sách cửa hàng" />
+            <Tab
+              value="list"
+              label={
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <span>Danh sách cửa hàng</span>
+                  {overview && (
+                    <Chip label={overview.totalStores} size="small" sx={{ height: 20 }} />
+                  )}
+                </Stack>
+              }
+            />
+
+            <Tab
+              value="kyc"
+              label={
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <span>Thẩm định hợp đồng KYC</span>
+                  {overview && overview.pendingReviewContracts > 0 && (
+                    <Chip
+                      label={overview.pendingReviewContracts}
+                      color="warning"
+                      size="small"
+                      sx={{ height: 20, fontWeight: 700 }}
+                    />
+                  )}
+                </Stack>
+              }
+            />
 
             <Tab value="lookup" label="Tra cứu cửa hàng" />
-
-            <Tab value="kyc" label="Xác minh KYC" />
           </Tabs>
         </Box>
 
         <Divider />
 
         {/* ==================================
-            TAB DANH SÁCH CỬA HÀNG
+            TAB 1: DANH SÁCH CỬA HÀNG TOÀN SÀN
             ================================== */}
-
         {tab === 'list' && (
           <Box sx={{ p: 3 }}>
-            <UnavailableSection
-              title="Danh sách cửa hàng toàn sàn"
-              description={
-                'Backend hiện chưa có endpoint Admin phù hợp ' +
-                'để lấy danh sách toàn bộ cửa hàng, ' +
-                'phân trang hoặc lọc theo trạng thái.'
-              }
-            >
+            <Stack spacing={2.5}>
+              {/* Thanh lọc & tìm kiếm */}
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 8 }}>
                   <TextField
                     fullWidth
-                    disabled
                     size="small"
-                    placeholder="Tìm theo tên, email, mã cửa hàng..."
+                    placeholder="Tìm theo tên cửa hàng, địa chỉ, email chủ sở hữu..."
+                    value={storesSearch}
+                    onChange={(e) => setStoresSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        void fetchStores(1, storesSearch, storesStatusFilter);
+                      }
+                    }}
                     slotProps={{
                       input: {
                         startAdornment: (
                           <InputAdornment position="start">
                             <MagnifyingGlass size={18} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Button
+                              size="small"
+                              onClick={() => void fetchStores(1, storesSearch, storesStatusFilter)}
+                            >
+                              Tìm
+                            </Button>
                           </InputAdornment>
                         ),
                       },
@@ -919,139 +887,576 @@ export function MerchantsPage() {
                 <Grid size={{ xs: 12, md: 4 }}>
                   <TextField
                     fullWidth
-                    disabled
                     select
                     size="small"
-                    label="Trạng thái"
-                    defaultValue="all"
-                    slotProps={{
-                      select: {
-                        native: true,
-                      },
+                    label="Trạng thái cửa hàng"
+                    value={storesStatusFilter}
+                    onChange={(e) => {
+                      setStoresStatusFilter(e.target.value);
+                      void fetchStores(1, storesSearch, e.target.value);
                     }}
                   >
-                    <option value="all">Tất cả trạng thái</option>
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="PENDING_VERIFY">PENDING_VERIFY</option>
-                    <option value="SUSPENDED">SUSPENDED</option>
+                    <MenuItem value="ALL">Tất cả trạng thái</MenuItem>
+                    <MenuItem value="ACTIVE">Đang hoạt động (ACTIVE)</MenuItem>
+                    <MenuItem value="PENDING_VERIFY">Chờ xác minh (PENDING_VERIFY)</MenuItem>
+                    <MenuItem value="SUSPENDED">Đang tạm ngưng (SUSPENDED)</MenuItem>
                   </TextField>
                 </Grid>
               </Grid>
 
+              {/* Bảng dữ liệu cửa hàng */}
               <TableContainer
                 sx={{
                   border: 1,
                   borderColor: 'divider',
                   borderRadius: '12px',
+                  minHeight: 280,
                 }}
               >
-                <Table>
+                <Table size="medium">
                   <TableHead>
-                    <TableRow>
-                      <TableCell>Cửa hàng</TableCell>
-                      <TableCell>Chủ sở hữu</TableCell>
-                      <TableCell>Trạng thái</TableCell>
-                      <TableCell>KYC</TableCell>
-                      <TableCell>Thao tác</TableCell>
+                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell sx={{ fontWeight: 700 }}>Cửa hàng</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Chủ sở hữu</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Đánh giá</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                        Thao tác
+                      </TableCell>
                     </TableRow>
                   </TableHead>
 
                   <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 7 }}>
-                        <Stack
-                          spacing={1}
-                          sx={{
-                            alignItems: 'center',
-                          }}
-                        >
-                          <ShieldWarning size={30} color="#F79009" />
+                    {loadingStores ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                          <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
+                            <CircularProgress size={28} />
+                            <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                              Đang tải dữ liệu cửa hàng...
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ) : stores.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                          <Stack spacing={1} sx={{ alignItems: 'center' }}>
+                            <Storefront size={32} color="#98A2B3" weight="duotone" />
+                            <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
+                              Không tìm thấy cửa hàng nào
+                            </Typography>
+                            <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+                              Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái.
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      stores.map((s) => (
+                        <TableRow key={s.id} hover>
+                          <TableCell>
+                            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                              <Avatar
+                                src={s.logo_url || undefined}
+                                alt={s.name}
+                                variant="rounded"
+                                sx={{ width: 42, height: 42, borderRadius: '10px' }}
+                              >
+                                <Storefront size={22} />
+                              </Avatar>
 
-                          <Typography sx={{ fontWeight: 700, fontSize: 13 }}>
-                            Chưa hỗ trợ tải danh sách
-                          </Typography>
+                              <Box>
+                                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                                  {s.name}
+                                </Typography>
+                                <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                                  {s.address}
+                                </Typography>
+                                <Typography
+                                  color="text.secondary"
+                                  sx={{ fontSize: 10, fontFamily: 'monospace' }}
+                                >
+                                  ID: {s.id}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                          </TableCell>
 
-                          <Typography color="text.secondary" sx={{ fontSize: 12 }}>
-                            Cần API quản trị cửa hàng toàn sàn từ Backend.
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
+                          <TableCell>
+                            <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                              {s.user_label || 'Chưa liên kết'}
+                            </Typography>
+                            <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                              SĐT: {s.phone || 'Chưa cập nhật'}
+                            </Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                              {Number(s.rating_avg) > 0 ? `${s.rating_avg} ⭐` : '—'}
+                            </Typography>
+                            <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                              {s.rating_count} đánh giá
+                            </Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            {s.status === 'ACTIVE' && (
+                              <Chip
+                                label="ĐANG HOẠT ĐỘNG"
+                                color="success"
+                                size="small"
+                                variant="filled"
+                                sx={{ fontSize: 11, fontWeight: 700 }}
+                              />
+                            )}
+                            {s.status === 'PENDING_VERIFY' && (
+                              <Chip
+                                label="CHỜ DUYỆT KYC"
+                                color="warning"
+                                size="small"
+                                variant="filled"
+                                sx={{ fontSize: 11, fontWeight: 700 }}
+                              />
+                            )}
+                            {s.status === 'SUSPENDED' && (
+                              <Chip
+                                label="TẠM NGƯNG"
+                                color="error"
+                                size="small"
+                                variant="filled"
+                                sx={{ fontSize: 11, fontWeight: 700 }}
+                              />
+                            )}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              sx={{ justifyContent: 'flex-end', alignItems: 'center' }}
+                            >
+                              {s.status === 'PENDING_VERIFY' && (
+                                <Tooltip title="Gửi thông báo nhắc nhở nộp/bổ sung hồ sơ KYC">
+                                  <IconButton
+                                    size="small"
+                                    color="warning"
+                                    onClick={() =>
+                                      setRemindDialogTarget({ storeId: s.id, storeName: s.name })
+                                    }
+                                  >
+                                    <Bell size={18} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<Eye size={16} />}
+                                onClick={() => void lookupStore(s.id)}
+                              >
+                                Chi tiết
+                              </Button>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
-            </UnavailableSection>
+
+              {/* Phân trang */}
+              <Stack
+                direction="row"
+                sx={{
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 1,
+                }}
+              >
+                <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+                  Hiển thị {stores.length} / {storesTotal} cửa hàng
+                </Typography>
+
+                <Pagination
+                  count={storesTotalPages}
+                  page={storesPage}
+                  onChange={(_e, p) => void fetchStores(p, storesSearch, storesStatusFilter)}
+                  color="primary"
+                  size="small"
+                />
+              </Stack>
+            </Stack>
           </Box>
         )}
 
         {/* ==================================
-            TAB TRA CỨU CỬA HÀNG
+            TAB 2: THẨM ĐỊNH HỢP ĐỒNG KYC
             ================================== */}
+        {tab === 'kyc' && (
+          <Box sx={{ p: 3 }}>
+            <Stack spacing={2.5}>
+              {/* Header Tab KYC */}
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                sx={{
+                  justifyContent: 'space-between',
+                  alignItems: { xs: 'flex-start', sm: 'center' },
+                  gap: 2,
+                }}
+              >
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Hồ sơ kinh doanh & Hợp đồng đối tác
+                  </Typography>
+                  <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+                    Thẩm định thông tin pháp lý, kiểm tra bản scan hợp đồng và duyệt kích hoạt cửa
+                    hàng.
+                  </Typography>
+                </Box>
 
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                  <TextField
+                    select
+                    size="small"
+                    label="Lọc hợp đồng"
+                    value={kycStatusFilter}
+                    onChange={(e) => {
+                      setKycStatusFilter(e.target.value);
+                      void fetchContracts(e.target.value);
+                    }}
+                    sx={{ minWidth: 180 }}
+                  >
+                    <MenuItem value="ALL">Tất cả hồ sơ</MenuItem>
+                    <MenuItem value="PENDING_REVIEW">Chờ thẩm định (PENDING_REVIEW)</MenuItem>
+                    <MenuItem value="NEED_MORE_INFO">Yêu cầu bổ sung (NEED_MORE_INFO)</MenuItem>
+                    <MenuItem value="APPROVED">Đã phê duyệt (APPROVED)</MenuItem>
+                    <MenuItem value="REJECTED">Đã từ chối (REJECTED)</MenuItem>
+                  </TextField>
+
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={
+                      batchReminding ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : (
+                        <Bell size={18} />
+                      )
+                    }
+                    disabled={batchReminding}
+                    onClick={() => void handleBatchRemind()}
+                  >
+                    Nhắc nhở các quán chờ
+                  </Button>
+                </Stack>
+              </Stack>
+
+              {/* Bảng hồ sơ hợp đồng KYC */}
+              <TableContainer
+                sx={{
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: '12px',
+                  minHeight: 280,
+                }}
+              >
+                <Table size="medium">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell sx={{ fontWeight: 700 }}>Cửa hàng</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Hồ sơ pháp lý</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Bản scan hợp đồng</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Ngày nộp / Trạng thái</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                        Hành động
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+
+                  <TableBody>
+                    {loadingContracts ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                          <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
+                            <CircularProgress size={28} />
+                            <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                              Đang tải danh sách hợp đồng...
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ) : contracts.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                          <Stack spacing={1} sx={{ alignItems: 'center' }}>
+                            <CheckCircle size={32} color="#12B76A" weight="duotone" />
+                            <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
+                              Không có hợp đồng nào trong danh sách
+                            </Typography>
+                            <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+                              Hiện tại không có hồ sơ hợp đồng nào cần xử lý với bộ lọc này.
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      contracts.map((c) => (
+                        <TableRow key={c.id} hover>
+                          <TableCell>
+                            <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                              {c.storeName || 'Cửa hàng không xác định'}
+                            </Typography>
+                            <Typography
+                              color="text.secondary"
+                              sx={{ fontSize: 11, fontFamily: 'monospace' }}
+                            >
+                              Store ID: {c.storeId}
+                            </Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            {c.legalProfile ? (
+                              <Stack spacing={0.3}>
+                                <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                                  {c.legalProfile.legalName}
+                                </Typography>
+                                <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                                  Loại hình: {getBusinessTypeLabel(c.legalProfile.businessType)}
+                                </Typography>
+                                <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                                  MST: {c.legalProfile.taxCode || 'Chưa có'} | GPKD:{' '}
+                                  {c.legalProfile.businessLicenseNo || 'Chưa có'}
+                                </Typography>
+                                <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                                  Đại diện: {c.legalProfile.representativeName} (
+                                  {c.legalProfile.representativePhone})
+                                </Typography>
+                              </Stack>
+                            ) : (
+                              <Typography
+                                color="text.secondary"
+                                sx={{ fontSize: 12, fontStyle: 'italic' }}
+                              >
+                                Chưa cập nhật thông tin pháp lý
+                              </Typography>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            <Stack spacing={0.5}>
+                              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                <FilePdf size={20} color="#D92D20" weight="fill" />
+                                <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                                  {c.fileName}
+                                </Typography>
+                              </Stack>
+
+                              <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                                Dung lượng: {formatBytes(c.sizeBytes)}
+                              </Typography>
+
+                              <Button
+                                size="small"
+                                variant="text"
+                                color="primary"
+                                startIcon={<DownloadSimple size={15} />}
+                                sx={{
+                                  p: 0,
+                                  justifyContent: 'flex-start',
+                                  minWidth: 0,
+                                  fontSize: 11,
+                                }}
+                                onClick={() => void handleViewContractFile(c.id, c.fileName)}
+                              >
+                                Xem / Tải hợp đồng
+                              </Button>
+                            </Stack>
+                          </TableCell>
+
+                          <TableCell>
+                            <Stack spacing={0.8} sx={{ alignItems: 'flex-start' }}>
+                              {c.status === 'PENDING_REVIEW' && (
+                                <Chip
+                                  label="CHỜ THẨM ĐỊNH"
+                                  color="warning"
+                                  size="small"
+                                  variant="filled"
+                                  sx={{ fontSize: 11, fontWeight: 700 }}
+                                />
+                              )}
+                              {c.status === 'NEED_MORE_INFO' && (
+                                <Chip
+                                  label="YÊU CẦU BỔ SUNG"
+                                  color="warning"
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ fontSize: 11, fontWeight: 700 }}
+                                />
+                              )}
+                              {c.status === 'APPROVED' && (
+                                <Chip
+                                  label="ĐÃ PHÊ DUYỆT"
+                                  color="success"
+                                  size="small"
+                                  variant="filled"
+                                  sx={{ fontSize: 11, fontWeight: 700 }}
+                                />
+                              )}
+                              {c.status === 'REJECTED' && (
+                                <Chip
+                                  label="ĐÃ TỪ CHỐI"
+                                  color="error"
+                                  size="small"
+                                  variant="filled"
+                                  sx={{ fontSize: 11, fontWeight: 700 }}
+                                />
+                              )}
+
+                              <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                                Nộp: {formatDateTime(c.createdAt)}
+                              </Typography>
+
+                              {c.reviewNote && (
+                                <Box
+                                  sx={{
+                                    p: 1,
+                                    bgcolor: 'action.hover',
+                                    borderRadius: '8px',
+                                    fontSize: 11,
+                                    maxWidth: 240,
+                                  }}
+                                >
+                                  <Typography
+                                    sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary' }}
+                                  >
+                                    Ghi chú thẩm định:
+                                  </Typography>
+                                  {c.reviewNote}
+                                </Box>
+                              )}
+                            </Stack>
+                          </TableCell>
+
+                          <TableCell align="right">
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              sx={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 0.5 }}
+                            >
+                              {c.status === 'PENDING_REVIEW' ? (
+                                <>
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="success"
+                                    startIcon={<CheckCircle size={16} />}
+                                    onClick={() => {
+                                      setReviewDialogTarget(c);
+                                      setReviewDecision('APPROVED');
+                                      setReviewNote('');
+                                    }}
+                                  >
+                                    Duyệt
+                                  </Button>
+
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="warning"
+                                    startIcon={<WarningCircle size={16} />}
+                                    onClick={() => {
+                                      setReviewDialogTarget(c);
+                                      setReviewDecision('NEED_MORE_INFO');
+                                      setReviewNote('');
+                                    }}
+                                  >
+                                    Bổ sung
+                                  </Button>
+
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="error"
+                                    startIcon={<XCircle size={16} />}
+                                    onClick={() => {
+                                      setReviewDialogTarget(c);
+                                      setReviewDecision('REJECTED');
+                                      setReviewNote('');
+                                    }}
+                                  >
+                                    Từ chối
+                                  </Button>
+                                </>
+                              ) : (
+                                <Tooltip title="Gửi thông báo nhắc nhở hợp đồng">
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="inherit"
+                                    startIcon={<Bell size={16} />}
+                                    onClick={() =>
+                                      setRemindDialogTarget({
+                                        storeId: c.storeId,
+                                        storeName: c.storeName || 'Cửa hàng',
+                                      })
+                                    }
+                                  >
+                                    Nhắc nhở
+                                  </Button>
+                                </Tooltip>
+                              )}
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Stack>
+          </Box>
+        )}
+
+        {/* ==================================
+            TAB 3: TRA CỨU CỬA HÀNG BẰNG ID
+            ================================== */}
         {tab === 'lookup' && (
           <Box sx={{ p: 3 }}>
             <Stack spacing={3}>
               <Box>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 700,
-                  }}
-                >
-                  Tra cứu cửa hàng bằng ID
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Tra cứu cửa hàng bằng UUID
                 </Typography>
-
-                <Typography
-                  color="text.secondary"
-                  sx={{
-                    mt: 1,
-                    fontSize: 13,
-                    lineHeight: 1.8,
-                  }}
-                >
-                  Tra cứu thông tin công khai của một cửa hàng đang hoạt động bằng UUID.
+                <Typography color="text.secondary" sx={{ mt: 0.5, fontSize: 13, lineHeight: 1.8 }}>
+                  Tra cứu chi tiết thông tin công khai và các đợt mở bán thực phẩm của cửa hàng.
                 </Typography>
               </Box>
 
-              <Alert severity="info" variant="outlined">
-                Dữ liệu được lấy trực tiếp từ GET /customer/stores/:id. API này không cung cấp thông
-                tin xác minh KYC hoặc quyền quản trị cửa hàng.
-              </Alert>
-
               <Box component="form" onSubmit={handleLookupSubmit}>
-                <Stack
-                  direction={{
-                    xs: 'column',
-                    md: 'row',
-                  }}
-                  spacing={2}
-                >
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                   <TextField
                     fullWidth
                     size="small"
-                    value={storeId}
-                    onChange={(event) => handleStoreIdChange(event.target.value)}
+                    value={storeIdInput}
+                    onChange={(e) => setStoreIdInput(e.target.value)}
                     label="Mã cửa hàng (UUID)"
                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: 36,
-                      },
-                    }}
+                    slotProps={{ htmlInput: { maxLength: 36 } }}
                   />
 
                   <Button
                     type="submit"
                     variant="contained"
-                    disabled={lookupLoading || !storeId.trim()}
+                    disabled={lookupLoading || !storeIdInput.trim()}
                     startIcon={
                       lookupLoading ? <ArrowClockwise size={18} /> : <MagnifyingGlass size={18} />
                     }
-                    sx={{
-                      minWidth: 140,
-                      flexShrink: 0,
-                      minHeight: 42,
-                    }}
+                    sx={{ minWidth: 140, flexShrink: 0, minHeight: 42 }}
                   >
                     {lookupLoading ? 'Đang tải' : 'Tra cứu'}
                   </Button>
@@ -1059,69 +1464,28 @@ export function MerchantsPage() {
               </Box>
 
               {lookupError && (
-                <Alert
-                  severity="error"
-                  variant="outlined"
-                  action={
-                    UUID_PATTERN.test(storeId.trim()) ? (
-                      <Button
-                        color="inherit"
-                        size="small"
-                        onClick={() => {
-                          void lookupStore(storeId);
-                        }}
-                      >
-                        Thử lại
-                      </Button>
-                    ) : undefined
-                  }
-                >
+                <Alert severity="error" variant="outlined">
                   {lookupError}
                 </Alert>
               )}
 
-              {/* KẾT QUẢ TRA CỨU */}
-
               {storeDetail && (
-                <Card
-                  variant="outlined"
-                  sx={{
-                    borderRadius: '14px',
-                  }}
-                >
+                <Card variant="outlined" sx={{ borderRadius: '14px' }}>
                   <CardContent>
                     <Stack spacing={2}>
                       <Stack
-                        direction={{
-                          xs: 'column',
-                          sm: 'row',
-                        }}
+                        direction={{ xs: 'column', sm: 'row' }}
                         sx={{
                           justifyContent: 'space-between',
-                          alignItems: {
-                            xs: 'flex-start',
-                            sm: 'center',
-                          },
+                          alignItems: { xs: 'flex-start', sm: 'center' },
                           gap: 2,
                         }}
                       >
                         <Box>
-                          <Typography
-                            variant="h6"
-                            sx={{
-                              fontWeight: 700,
-                            }}
-                          >
+                          <Typography variant="h6" sx={{ fontWeight: 700 }}>
                             {storeDetail.store.name}
                           </Typography>
-
-                          <Typography
-                            color="text.secondary"
-                            sx={{
-                              mt: 0.5,
-                              fontSize: 12,
-                            }}
-                          >
+                          <Typography color="text.secondary" sx={{ mt: 0.5, fontSize: 12 }}>
                             {storeDetail.store.address}
                           </Typography>
                         </Box>
@@ -1131,24 +1495,12 @@ export function MerchantsPage() {
 
                       <Divider />
 
-                      <Stack
-                        direction={{
-                          xs: 'column',
-                          sm: 'row',
-                        }}
-                        spacing={2}
-                      >
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <Box sx={{ flex: 1 }}>
                           <Typography color="text.secondary" sx={{ fontSize: 12 }}>
-                            Deal công khai đang mở
+                            Deal cứu thực phẩm đang mở
                           </Typography>
-
-                          <Typography
-                            variant="h6"
-                            sx={{
-                              fontWeight: 700,
-                            }}
-                          >
+                          <Typography variant="h6" sx={{ fontWeight: 700 }}>
                             {storeDetail.activeDeals.length}
                           </Typography>
                         </Box>
@@ -1157,20 +1509,14 @@ export function MerchantsPage() {
                           <Typography color="text.secondary" sx={{ fontSize: 12 }}>
                             Số lượt đánh giá
                           </Typography>
-
-                          <Typography
-                            variant="h6"
-                            sx={{
-                              fontWeight: 700,
-                            }}
-                          >
+                          <Typography variant="h6" sx={{ fontWeight: 700 }}>
                             {storeDetail.store.reviewsCount}
                           </Typography>
                         </Box>
                       </Stack>
 
                       <Button variant="outlined" onClick={() => setDrawerOpen(true)}>
-                        Xem chi tiết cửa hàng
+                        Xem đầy đủ chi tiết cửa hàng
                       </Button>
                     </Stack>
                   </CardContent>
@@ -1189,95 +1535,201 @@ export function MerchantsPage() {
                   }}
                 >
                   <Storefront size={36} color="#98A2B3" weight="duotone" />
-
-                  <Typography
-                    color="text.secondary"
-                    sx={{
-                      mt: 1.5,
-                      fontSize: 13,
-                    }}
-                  >
-                    Nhập mã cửa hàng để bắt đầu tra cứu dữ liệu thực tế.
+                  <Typography color="text.secondary" sx={{ mt: 1.5, fontSize: 13 }}>
+                    Nhập mã cửa hàng (UUID) để tra cứu dữ liệu thời gian thực.
                   </Typography>
                 </Box>
               )}
             </Stack>
           </Box>
         )}
-
-        {/* ==================================
-            TAB XÁC MINH KYC
-            ================================== */}
-
-        {tab === 'kyc' && (
-          <Box sx={{ p: 3 }}>
-            <UnavailableSection
-              title="Quy trình xác minh KYC"
-              description={
-                'Backend chưa có API Admin được xác minh ' +
-                'để liệt kê hồ sơ, đọc chứng từ, ' +
-                'duyệt hoặc từ chối KYC.'
-              }
-            >
-              <Typography
-                sx={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                Các thao tác cần Backend hỗ trợ
-              </Typography>
-
-              <Stack
-                direction={{
-                  xs: 'column',
-                  sm: 'row',
-                }}
-                spacing={1.5}
-                sx={{
-                  flexWrap: 'wrap',
-                }}
-              >
-                <Button disabled variant="contained">
-                  Duyệt KYC
-                </Button>
-
-                <Button disabled variant="outlined" color="error">
-                  Từ chối KYC
-                </Button>
-
-                <Button disabled variant="outlined">
-                  Yêu cầu bổ sung hồ sơ
-                </Button>
-              </Stack>
-
-              <Divider />
-
-              <Typography
-                color="text.secondary"
-                sx={{
-                  fontSize: 13,
-                  lineHeight: 1.85,
-                }}
-              >
-                Khi Backend bổ sung nghiệp vụ KYC, mỗi quyết định cần gắn với tài khoản Admin thực
-                hiện, lý do xử lý và bản ghi audit. Không được suy ra trạng thái KYC từ trạng thái
-                ACTIVE của cửa hàng.
-              </Typography>
-            </UnavailableSection>
-          </Box>
-        )}
       </Card>
+
+      {/* ======================================
+          DIALOG THẨM ĐỊNH HỢP ĐỒNG KYC
+          ====================================== */}
+      <Dialog
+        open={reviewDialogTarget !== null}
+        onClose={() => !submittingReview && setReviewDialogTarget(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {reviewDecision === 'APPROVED' && 'Phê duyệt hồ sơ hợp đồng'}
+          {reviewDecision === 'NEED_MORE_INFO' && 'Yêu cầu bổ sung hồ sơ hợp đồng'}
+          {reviewDecision === 'REJECTED' && 'Từ chối hồ sơ hợp đồng'}
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert
+              severity={
+                reviewDecision === 'APPROVED'
+                  ? 'success'
+                  : reviewDecision === 'NEED_MORE_INFO'
+                    ? 'warning'
+                    : 'error'
+              }
+              variant="outlined"
+            >
+              Cửa hàng: <strong>{reviewDialogTarget?.storeName}</strong>
+              <br />
+              Tệp: <strong>{reviewDialogTarget?.fileName}</strong>
+            </Alert>
+
+            {reviewDecision === 'APPROVED' ? (
+              <Typography sx={{ fontSize: 13, lineHeight: 1.7 }}>
+                Khi bạn bấm <strong>Phê duyệt</strong>, hệ thống sẽ:
+                <br />• Đánh dấu hợp đồng đối tác ở trạng thái <strong>ĐÃ DUYỆT (APPROVED)</strong>.
+                <br />• Tự động kích hoạt trạng thái cửa hàng thành <strong>ACTIVE</strong> nếu đang
+                chờ duyệt.
+                <br />• Gửi thông báo chúc mừng kích hoạt tài khoản thành công đến chủ quán.
+              </Typography>
+            ) : (
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                required
+                label={
+                  reviewDecision === 'NEED_MORE_INFO'
+                    ? 'Lý do yêu cầu bổ sung (Gửi đến chủ quán)'
+                    : 'Lý do từ chối hồ sơ hợp đồng'
+                }
+                placeholder={
+                  reviewDecision === 'NEED_MORE_INFO'
+                    ? 'Ví dụ: Bản scan trang 2 bị mờ hoặc thiếu dấu giáp lai, vui lòng tải lại bản scan rõ nét trong vòng 48h...'
+                    : 'Ví dụ: Giấy phép kinh doanh không trùng khớp với người đại diện...'
+                }
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+              />
+            )}
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button
+            variant="outlined"
+            color="inherit"
+            disabled={submittingReview}
+            onClick={() => setReviewDialogTarget(null)}
+          >
+            Hủy
+          </Button>
+
+          <Button
+            variant="contained"
+            color={
+              reviewDecision === 'APPROVED'
+                ? 'success'
+                : reviewDecision === 'NEED_MORE_INFO'
+                  ? 'warning'
+                  : 'error'
+            }
+            disabled={submittingReview}
+            onClick={() => void handleSubmitReview()}
+          >
+            {submittingReview ? (
+              <CircularProgress size={20} color="inherit" />
+            ) : reviewDecision === 'APPROVED' ? (
+              'Xác nhận Phê duyệt'
+            ) : reviewDecision === 'NEED_MORE_INFO' ? (
+              'Gửi yêu cầu bổ sung'
+            ) : (
+              'Xác nhận Từ chối'
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ======================================
+          DIALOG NHẮC NHỞ KYC CỬA HÀNG
+          ====================================== */}
+      <Dialog
+        open={remindDialogTarget !== null}
+        onClose={() => !submittingRemind && setRemindDialogTarget(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Gửi thông báo nhắc nhở nộp hồ sơ KYC</DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography sx={{ fontSize: 13 }}>
+              Gửi thông báo trực tiếp đến tài khoản chủ sở hữu cửa hàng{' '}
+              <strong>"{remindDialogTarget?.storeName}"</strong>.
+            </Typography>
+
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Nội dung thông báo (Để trống để dùng tin nhắn mặc định)"
+              placeholder="Cửa hàng của bạn chưa hoàn tất xác minh KYC và hợp đồng hợp tác. Vui lòng tải lên bản scan hợp đồng đã ký trên hệ thống để được kích hoạt mở bán..."
+              value={remindMessage}
+              onChange={(e) => setRemindMessage(e.target.value)}
+            />
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button
+            variant="outlined"
+            color="inherit"
+            disabled={submittingRemind}
+            onClick={() => setRemindDialogTarget(null)}
+          >
+            Hủy
+          </Button>
+
+          <Button
+            variant="contained"
+            color="primary"
+            disabled={submittingRemind}
+            startIcon={
+              submittingRemind ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <PaperPlaneTilt size={16} />
+              )
+            }
+            onClick={() => void handleSubmitRemind()}
+          >
+            Gửi nhắc nhở
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ======================================
           DRAWER CHI TIẾT
           ====================================== */}
-
       <StoreDetailDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         detail={storeDetail}
       />
+
+      {/* ======================================
+          TOAST THÔNG BÁO
+          ====================================== */}
+      <Snackbar
+        open={toast !== null}
+        autoHideDuration={4500}
+        onClose={() => setToast(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        {toast ? (
+          <Alert
+            onClose={() => setToast(null)}
+            severity={toast.severity}
+            variant="filled"
+            sx={{ width: '100%', boxShadow: 3 }}
+          >
+            {toast.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </Stack>
   );
 }
