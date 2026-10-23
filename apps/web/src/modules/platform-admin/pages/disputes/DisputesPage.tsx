@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { ReactNode } from 'react';
 
@@ -9,9 +9,12 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Divider,
   Grid,
+  InputAdornment,
   MenuItem,
+  Pagination,
   Stack,
   Tab,
   Table,
@@ -26,18 +29,28 @@ import {
 } from '@mui/material';
 
 import {
+  ArrowClockwise,
   ClockCountdown,
+  Eye,
   FileText,
   Flag,
   Gavel,
+  MagnifyingGlass,
   ShieldCheck,
   ShieldWarning,
-  WarningCircle,
 } from '@phosphor-icons/react';
 
 import { AdminDrawer } from '../../components/Drawer/AdminDrawer';
 
 import { AdminStatCard } from '../../components/StatCard/AdminStatCard';
+
+import {
+  getAdminCollection,
+  getAdminMetricsOverview,
+  saveAdminRecord,
+  type AdminMetricsOverview,
+  type AdminCollectionResponse,
+} from '../../api/admin-management.api';
 
 // =====================================================
 // 1. CÁC KIỂU DỮ LIỆU THEO BACKEND
@@ -246,60 +259,6 @@ function SectionHeader({ title, description, icon }: SectionHeaderProps) {
 }
 
 // =====================================================
-// 5. TRẠNG THÁI CHƯA CÓ API ADMIN
-// =====================================================
-
-interface UnsupportedDataProps {
-  title: string;
-  description: string;
-  colSpan: number;
-}
-
-/**
- * Không giả lập một bảng không có bản ghi.
- *
- * Khác biệt quan trọng:
- * - Không có dữ liệu: API trả danh sách rỗng.
- * - Chưa hỗ trợ: Không có API quản trị để gọi.
- */
-function UnsupportedData({ title, description, colSpan }: UnsupportedDataProps) {
-  return (
-    <TableRow>
-      <TableCell colSpan={colSpan} align="center" sx={{ py: 7 }}>
-        <Stack
-          sx={{
-            alignItems: 'center',
-          }}
-          spacing={1.5}
-        >
-          <ShieldWarning size={36} color="#F79009" weight="duotone" />
-
-          <Typography
-            sx={{
-              fontSize: 14,
-              fontWeight: 700,
-            }}
-          >
-            {title}
-          </Typography>
-
-          <Typography
-            color="text.secondary"
-            sx={{
-              maxWidth: 460,
-              fontSize: 12,
-              lineHeight: 1.8,
-            }}
-          >
-            {description}
-          </Typography>
-        </Stack>
-      </TableCell>
-    </TableRow>
-  );
-}
-
-// =====================================================
 // 6. DRAWER THAM CHIẾU TRẠNG THÁI
 // =====================================================
 
@@ -425,66 +384,145 @@ function ComplaintStatusDrawer({ selected, onClose }: ComplaintStatusDrawerProps
 // =====================================================
 
 function ComplaintsTab() {
+  const [keyword, setKeyword] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [collectionData, setCollectionData] = useState<AdminCollectionResponse | null>(null);
+  const [selectedComplaint, setSelectedComplaint] = useState<any | null>(null);
+  const [decision, setDecision] = useState<'ACCEPT' | 'REJECT'>('ACCEPT');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const fetchComplaints = () => {
+    setLoading(true);
+    getAdminCollection('complaints', {
+      page,
+      limit: 10,
+      search: search.trim() || undefined,
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+    })
+      .then((res) => {
+        setCollectionData(res);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải danh sách khiếu nại:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchComplaints();
+  }, [page, search, statusFilter]);
+
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPage(1);
+    setSearch(keyword);
+  };
+
+  const handleResolve = async () => {
+    if (!selectedComplaint) return;
+    setSubmitting(true);
+    setErrorMsg('');
+    try {
+      await saveAdminRecord('complaints', selectedComplaint, {
+        decision,
+        refundAmount: decision === 'ACCEPT' ? refundAmount : '',
+        reason,
+      });
+      setSelectedComplaint(null);
+      fetchComplaints();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Lỗi khi giải quyết khiếu nại.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const complaints = collectionData?.items || [];
+
   return (
     <Stack spacing={3}>
       <SectionHeader
         title="Danh sách khiếu nại toàn sàn"
-        description={'Theo dõi yêu cầu của khách hàng, ' + 'hạn phản hồi và quyết định xử lý.'}
+        description={'Theo dõi yêu cầu của khách hàng, hạn phản hồi và quyết định xử lý thực tế.'}
         icon={<FileText size={25} weight="duotone" />}
       />
 
-      <Alert severity="info" variant="outlined">
-        Backend đang hỗ trợ đọc khiếu nại theo tài khoản CUSTOMER hoặc theo cửa hàng STORE_USER.
-        Chưa có API cho ADMIN đọc toàn bộ khiếu nại của nền tảng.
-      </Alert>
-
       {/* ======================================
-          BỘ LỌC CHỜ API ADMIN
+          BỘ LỌC TÌM KIẾM
           ====================================== */}
+      <Box component="form" onSubmit={handleSearchSubmit}>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, lg: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Tìm kiếm khiếu nại"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Mã đơn hàng, tên quán, khách hàng, lý do..."
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <MagnifyingGlass size={18} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <Button size="small" type="submit" variant="text">
+                      Tìm
+                    </Button>
+                  ),
+                },
+              }}
+            />
+          </Grid>
 
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <TextField
-            fullWidth
-            disabled
-            size="small"
-            label="Tìm kiếm"
-            placeholder="Mã khiếu nại hoặc mã đơn hàng"
-          />
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+            <TextField
+              fullWidth
+              select
+              size="small"
+              label="Trạng thái khiếu nại"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <MenuItem value="all">Tất cả trạng thái</MenuItem>
+              {COMPLAINT_STATUSES.map((item) => (
+                <MenuItem key={item.status} value={item.status}>
+                  {item.label} ({item.status})
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              sx={{ height: 40 }}
+              startIcon={<ArrowClockwise size={18} />}
+              onClick={fetchComplaints}
+            >
+              Tải lại
+            </Button>
+          </Grid>
         </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <TextField fullWidth select disabled size="small" label="Trạng thái" defaultValue="all">
-            <MenuItem value="all">Tất cả trạng thái</MenuItem>
-
-            {COMPLAINT_STATUSES.map((item) => (
-              <MenuItem key={item.status} value={item.status}>
-                {item.label}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <TextField
-            fullWidth
-            disabled
-            size="small"
-            type="date"
-            label="Ngày tạo"
-            slotProps={{
-              inputLabel: {
-                shrink: true,
-              },
-            }}
-          />
-        </Grid>
-      </Grid>
+      </Box>
 
       {/* ======================================
           BẢNG KHIẾU NẠI TOÀN SÀN
           ====================================== */}
-
       <TableContainer
         sx={{
           border: 1,
@@ -495,48 +533,280 @@ function ComplaintsTab() {
         <Table sx={{ minWidth: 850 }}>
           <TableHead>
             <TableRow>
-              <TableCell>Mã khiếu nại</TableCell>
               <TableCell>Đơn hàng</TableCell>
               <TableCell>Cửa hàng</TableCell>
-              <TableCell>Danh mục</TableCell>
+              <TableCell>Khách hàng</TableCell>
+              <TableCell>Lý do / Nội dung</TableCell>
               <TableCell>Trạng thái</TableCell>
-              <TableCell>Hạn phản hồi</TableCell>
+              <TableCell>Thời gian</TableCell>
               <TableCell align="right">Thao tác</TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
-            <UnsupportedData
-              colSpan={7}
-              title="Chưa hỗ trợ danh sách khiếu nại Admin"
-              description={
-                'Chưa có endpoint cho phép đọc ' +
-                'khiếu nại toàn sàn. Đây không phải ' +
-                'kết quả truy vấn không có bản ghi.'
-              }
-            />
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={28} />
+                </TableCell>
+              </TableRow>
+            ) : complaints.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                    Không có khiếu nại nào phù hợp.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              complaints.map((row: any) => {
+                const meta = COMPLAINT_STATUSES.find((s) => s.status === row.status);
+                const color = meta?.color || 'default';
+
+                return (
+                  <TableRow key={String(row.id)} hover>
+                    <TableCell>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, fontFamily: 'monospace' }}>
+                        {row.order_code || (row.order_id ? String(row.order_id).slice(0, 8) : '—')}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+                        {row.store_name || row.store_id || '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                        {row.user_label || row.customer_id || '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell sx={{ maxWidth: 220 }}>
+                      <Typography
+                        sx={{
+                          fontSize: 12,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {row.description || row.category || 'Khiếu nại suất ăn'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={meta?.label || String(row.status)}
+                        color={color}
+                        variant="filled"
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        {row.created_at
+                          ? new Date(String(row.created_at)).toLocaleDateString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <Button
+                        size="small"
+                        variant={row.status === 'PENDING_STORE' ? 'contained' : 'outlined'}
+                        color={row.status === 'PENDING_STORE' ? 'warning' : 'inherit'}
+                        startIcon={
+                          row.status === 'PENDING_STORE' ? <Gavel size={16} /> : <Eye size={16} />
+                        }
+                        onClick={() => {
+                          setSelectedComplaint(row);
+                          setDecision('ACCEPT');
+                          setRefundAmount(String(row.refund_amount || 50000));
+                          setReason('');
+                          setErrorMsg('');
+                        }}
+                      >
+                        {row.status === 'PENDING_STORE' ? 'Trọng tài' : 'Xem'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Stack
-        direction={{
-          xs: 'column',
-          sm: 'row',
-        }}
-        spacing={1.5}
-        sx={{
-          justifyContent: 'flex-end',
-        }}
-      >
-        <Button disabled variant="outlined">
-          Xem hồ sơ & bằng chứng
-        </Button>
+      {/* ======================================
+          PHÂN TRANG
+          ====================================== */}
+      {collectionData && collectionData.totalPages > 1 && (
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            Hiển thị {complaints.length} trên tổng số {collectionData.total} khiếu nại
+          </Typography>
+          <Pagination
+            count={collectionData.totalPages}
+            page={page}
+            onChange={(_, val) => setPage(val)}
+            color="primary"
+            size="small"
+          />
+        </Stack>
+      )}
 
-        <Button disabled variant="contained">
-          Ra quyết định
-        </Button>
-      </Stack>
+      {/* ======================================
+          DRAWER GIẢI QUYẾT KHIẾU NẠI
+          ====================================== */}
+      <AdminDrawer
+        open={selectedComplaint !== null}
+        onClose={() => setSelectedComplaint(null)}
+        title={
+          selectedComplaint?.status === 'PENDING_STORE'
+            ? 'Trọng tài khiếu nại'
+            : 'Chi tiết khiếu nại'
+        }
+        description={`Khiếu nại cho đơn ${selectedComplaint?.order_code || ''}`}
+        overline="COMPLAINT ARBITRATION"
+        icon={<Gavel size={24} weight="duotone" />}
+        size="md"
+        footer={
+          <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
+            <Button variant="outlined" color="inherit" onClick={() => setSelectedComplaint(null)}>
+              Đóng
+            </Button>
+            {selectedComplaint?.status === 'PENDING_STORE' && (
+              <Button
+                variant="contained"
+                color={decision === 'ACCEPT' ? 'success' : 'error'}
+                disabled={submitting}
+                onClick={handleResolve}
+              >
+                {submitting ? 'Đang xử lý...' : 'Xác nhận quyết định'}
+              </Button>
+            )}
+          </Stack>
+        }
+      >
+        {selectedComplaint && (
+          <Stack spacing={2.5}>
+            {errorMsg && <Alert severity="error">{errorMsg}</Alert>}
+
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">
+                Trạng thái hiện tại
+              </Typography>
+              <Chip
+                size="small"
+                label={
+                  COMPLAINT_STATUSES.find((s) => s.status === selectedComplaint.status)?.label ||
+                  selectedComplaint.status
+                }
+                color={
+                  COMPLAINT_STATUSES.find((s) => s.status === selectedComplaint.status)?.color ||
+                  'default'
+                }
+              />
+            </Stack>
+
+            <Divider />
+
+            <Stack spacing={0.5}>
+              <Typography variant="caption" color="text.secondary">
+                Cửa hàng bị khiếu nại
+              </Typography>
+              <Typography sx={{ fontWeight: 600 }}>
+                {selectedComplaint.store_name || selectedComplaint.store_id}
+              </Typography>
+            </Stack>
+
+            <Divider />
+
+            <Stack spacing={0.5}>
+              <Typography variant="caption" color="text.secondary">
+                Khách hàng
+              </Typography>
+              <Typography sx={{ fontWeight: 600 }}>
+                {selectedComplaint.user_label || selectedComplaint.customer_id}
+              </Typography>
+            </Stack>
+
+            <Divider />
+
+            <Stack spacing={0.5}>
+              <Typography variant="caption" color="text.secondary">
+                Nội dung khiếu nại
+              </Typography>
+              <Typography sx={{ fontSize: 13, lineHeight: 1.8 }}>
+                {selectedComplaint.description ||
+                  'Khách hàng gửi khiếu nại không hài lòng về đơn hàng.'}
+              </Typography>
+            </Stack>
+
+            {selectedComplaint.status === 'PENDING_STORE' && (
+              <>
+                <Divider />
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Quyết định của Quản trị viên
+                </Typography>
+
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 6 }}>
+                    <Button
+                      fullWidth
+                      variant={decision === 'ACCEPT' ? 'contained' : 'outlined'}
+                      color="success"
+                      onClick={() => setDecision('ACCEPT')}
+                    >
+                      Chấp nhận khiếu nại
+                    </Button>
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <Button
+                      fullWidth
+                      variant={decision === 'REJECT' ? 'contained' : 'outlined'}
+                      color="error"
+                      onClick={() => setDecision('REJECT')}
+                    >
+                      Bác bỏ khiếu nại
+                    </Button>
+                  </Grid>
+                </Grid>
+
+                {decision === 'ACCEPT' ? (
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Số tiền hoàn (VND)"
+                    type="number"
+                    value={refundAmount}
+                    onChange={(e) => setRefundAmount(e.target.value)}
+                    helperText="Số tiền sẽ được ghi nhận hoàn lại cho khách hàng"
+                  />
+                ) : (
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    size="small"
+                    label="Lý do từ chối"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Nêu rõ lý do từ chối yêu cầu khiếu nại..."
+                  />
+                )}
+              </>
+            )}
+          </Stack>
+        )}
+      </AdminDrawer>
     </Stack>
   );
 }
@@ -546,23 +816,46 @@ function ComplaintsTab() {
 // =====================================================
 
 function ViolationsTab() {
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [collectionData, setCollectionData] = useState<AdminCollectionResponse | null>(null);
+
+  const fetchViolations = () => {
+    setLoading(true);
+    getAdminCollection('violations', {
+      page,
+      limit: 10,
+    })
+      .then((res) => {
+        setCollectionData(res);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải danh sách báo cáo vi phạm:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchViolations();
+  }, [page]);
+
+  const violations = collectionData?.items || [];
+
   return (
     <Stack spacing={3}>
       <SectionHeader
         title="Báo cáo vi phạm"
-        description={'Theo dõi báo cáo liên quan đến ' + 'cửa hàng, deal và đánh giá.'}
+        description={
+          'Theo dõi và quản lý các báo cáo vi phạm liên quan đến cửa hàng, deal và đánh giá.'
+        }
         icon={<Flag size={25} weight="duotone" />}
       />
-
-      <Alert severity="warning" variant="outlined">
-        API POST /customer/reports chỉ dành cho CUSTOMER gửi báo cáo vi phạm. Hiện chưa có API ADMIN
-        phù hợp để xem toàn bộ báo cáo hoặc cập nhật trạng thái xử lý.
-      </Alert>
 
       {/* ======================================
           CÁC ĐỐI TƯỢNG BỊ BÁO CÁO
           ====================================== */}
-
       <Grid container spacing={2}>
         {VIOLATION_TARGETS.map((item) => (
           <Grid key={item.value} size={{ xs: 12, md: 4 }}>
@@ -599,7 +892,7 @@ function ViolationsTab() {
                       fontSize: 12,
                     }}
                   >
-                    Loại đối tượng được khai báo trong CreateViolationReportDto.
+                    Loại đối tượng được khách hàng hoặc người dùng báo cáo vi phạm.
                   </Typography>
                 </Stack>
               </CardContent>
@@ -609,68 +902,21 @@ function ViolationsTab() {
       </Grid>
 
       {/* ======================================
-          DANH MỤC TRẠNG THÁI VI PHẠM
+          DANH SÁCH VI PHẠM THỰC TẾ
           ====================================== */}
-
-      <Typography
-        variant="h6"
-        sx={{
-          fontWeight: 700,
-        }}
-      >
-        Các trạng thái báo cáo
-      </Typography>
-
-      <Grid container spacing={2}>
-        {VIOLATION_STATUSES.map((item) => (
-          <Grid key={item.status} size={{ xs: 12, md: 4 }}>
-            <Card
-              variant="outlined"
-              sx={{
-                height: '100%',
-              }}
-            >
-              <CardContent>
-                <Stack spacing={1.5}>
-                  <Chip
-                    label={item.label}
-                    color={item.color}
-                    variant="outlined"
-                    size="small"
-                    sx={{
-                      alignSelf: 'flex-start',
-                    }}
-                  />
-
-                  <Typography
-                    component="code"
-                    sx={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {item.status}
-                  </Typography>
-
-                  <Typography
-                    color="text.secondary"
-                    sx={{
-                      fontSize: 12,
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    {item.description}
-                  </Typography>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* ======================================
-          DANH SÁCH VI PHẠM
-          ====================================== */}
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Danh sách báo cáo vi phạm toàn sàn
+        </Typography>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<ArrowClockwise size={16} />}
+          onClick={fetchViolations}
+        >
+          Tải lại
+        </Button>
+      </Stack>
 
       <TableContainer
         sx={{
@@ -682,27 +928,102 @@ function ViolationsTab() {
         <Table sx={{ minWidth: 700 }}>
           <TableHead>
             <TableRow>
-              <TableCell>Mã báo cáo</TableCell>
-              <TableCell>Đối tượng</TableCell>
+              <TableCell>Người báo cáo</TableCell>
+              <TableCell>Đối tượng vi phạm</TableCell>
               <TableCell>Lý do</TableCell>
               <TableCell>Trạng thái</TableCell>
-              <TableCell>Ngày tạo</TableCell>
+              <TableCell>Thời gian</TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
-            <UnsupportedData
-              colSpan={5}
-              title="Chưa có API quản trị báo cáo vi phạm"
-              description={
-                'Frontend không thể lấy các báo cáo ' +
-                'vi phạm toàn sàn bằng endpoint ' +
-                'dành cho khách hàng.'
-              }
-            />
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={28} />
+                </TableCell>
+              </TableRow>
+            ) : violations.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                    Chưa có báo cáo vi phạm nào.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              violations.map((row: any) => {
+                const statusMeta = VIOLATION_STATUSES.find((s) => s.status === row.status);
+                const color = statusMeta?.color || 'default';
+
+                return (
+                  <TableRow key={String(row.id)} hover>
+                    <TableCell>
+                      <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+                        {row.user_label || row.reporter_id || '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={row.target_type || 'STORE'}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </TableCell>
+
+                    <TableCell sx={{ maxWidth: 350 }}>
+                      <Typography sx={{ fontSize: 13 }}>{row.reason || '—'}</Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={statusMeta?.label || String(row.status)}
+                        color={color}
+                        variant="filled"
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        {row.created_at
+                          ? new Date(String(row.created_at)).toLocaleDateString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '—'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* ======================================
+          PHÂN TRANG
+          ====================================== */}
+      {collectionData && collectionData.totalPages > 1 && (
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            Hiển thị {violations.length} trên tổng số {collectionData.total} báo cáo
+          </Typography>
+          <Pagination
+            count={collectionData.totalPages}
+            page={page}
+            onChange={(_, val) => setPage(val)}
+            color="primary"
+            size="small"
+          />
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -888,17 +1209,29 @@ function WorkflowTab() {
 // =====================================================
 
 export function DisputesPage() {
-  // ---------------------------------------------------
-  // Tab đang được chọn
-  // ---------------------------------------------------
-
   const [activeTab, setActiveTab] = useState<DisputesTab>('complaints');
-
-  // ---------------------------------------------------
-  // Trạng thái tham chiếu đang xem
-  // ---------------------------------------------------
-
   const [selectedStatus, setSelectedStatus] = useState<ComplaintStatusInfo | null>(null);
+  const [metrics, setMetrics] = useState<AdminMetricsOverview['disputes'] | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingMetrics(true);
+    getAdminMetricsOverview()
+      .then((data) => {
+        if (active) setMetrics(data.disputes);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải metrics khiếu nại:', err);
+      })
+      .finally(() => {
+        if (active) setLoadingMetrics(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <Stack spacing={3} className="admin-page-enter">
@@ -943,72 +1276,61 @@ export function DisputesPage() {
             Quản lý tranh chấp, báo cáo vi phạm và quy trình xử lý của nền tảng.
           </Typography>
         </Box>
-
-        <Chip
-          size="small"
-          color="warning"
-          variant="outlined"
-          icon={<WarningCircle size={17} />}
-          label="Chờ API Admin"
-        />
       </Stack>
 
       {/* ======================================
-          KPI CHƯA CÓ API TỔNG HỢP
+          CÁC CHỈ SỐ QUẢN TRỊ
           ====================================== */}
 
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tổng khiếu nại"
+            value={metrics ? metrics.totalComplaints.toLocaleString('vi-VN') : '—'}
             icon={<FileText size={26} weight="duotone" />}
             tone="primary"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Toàn bộ khiếu nại đơn hàng"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Chờ cửa hàng xử lý"
+            value={metrics ? metrics.pendingStoreComplaints.toLocaleString('vi-VN') : '—'}
             icon={<ClockCountdown size={26} weight="duotone" />}
             tone="warning"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Đang trong thời hạn phản hồi"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Khiếu nại đã chấp nhận"
+            value={metrics ? metrics.acceptedComplaints.toLocaleString('vi-VN') : '—'}
             icon={<ShieldCheck size={26} weight="duotone" />}
             tone="success"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Đã đồng ý bồi hoàn"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Báo cáo vi phạm chờ xử lý"
+            value={metrics ? metrics.pendingViolations.toLocaleString('vi-VN') : '—'}
             icon={<Flag size={26} weight="duotone" />}
             tone="warning"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Báo cáo vi phạm chưa duyệt"
           />
         </Grid>
       </Grid>
-
-      {/* ======================================
-          THÔNG BÁO PHẠM VI DỮ LIỆU
-          ====================================== */}
-
-      <Alert
-        severity="info"
-        variant="outlined"
-        sx={{
-          borderRadius: '12px',
-        }}
-      >
-        Dashboard hiện chỉ hiển thị thông tin nghiệp vụ được xác minh từ mã nguồn Backend. Không có
-        số lượng khiếu nại, khoản hoàn tiền hoặc báo cáo vi phạm nào được giả lập.
-      </Alert>
 
       {/* ======================================
           CÁC TRẠNG THÁI KHIẾU NẠI

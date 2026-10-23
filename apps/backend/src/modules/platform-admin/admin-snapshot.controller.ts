@@ -14,6 +14,11 @@ import { AdminSnapshotService } from './admin-snapshot.service';
 export class AdminSnapshotController {
   constructor(private readonly snapshots: AdminSnapshotService) {}
 
+  @Get('metrics/overview')
+  getMetricsOverview() {
+    return this.snapshots.getMetricsOverview();
+  }
+
   @Get('snapshot')
   read() {
     return this.snapshots.read();

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { ReactNode } from 'react';
 
@@ -9,9 +9,12 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Divider,
   Grid,
+  InputAdornment,
   MenuItem,
+  Pagination,
   Stack,
   Tab,
   Table,
@@ -26,18 +29,26 @@ import {
 } from '@mui/material';
 
 import {
+  ArrowClockwise,
   Calculator,
   CurrencyDollar,
   LockKey,
+  MagnifyingGlass,
   Receipt,
   ShieldCheck,
-  ShieldWarning,
   WarningCircle,
 } from '@phosphor-icons/react';
 
 import { AdminDrawer } from '../../components/Drawer/AdminDrawer';
 
 import { AdminStatCard } from '../../components/StatCard/AdminStatCard';
+
+import {
+  getAdminCollection,
+  getAdminMetricsOverview,
+  type AdminMetricsOverview,
+  type AdminCollectionResponse,
+} from '../../api/admin-management.api';
 
 // =====================================================
 // 1. CÁC KIỂU DỮ LIỆU
@@ -385,66 +396,120 @@ interface StatementsTabProps {
 }
 
 function StatementsTab({ onSelectStatus }: StatementsTabProps) {
+  const [keyword, setKeyword] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [collectionData, setCollectionData] = useState<AdminCollectionResponse | null>(null);
+
+  const fetchStatements = () => {
+    setLoading(true);
+    getAdminCollection('statements', {
+      page,
+      limit: 10,
+      search: search.trim() || undefined,
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+    })
+      .then((res) => {
+        setCollectionData(res);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải danh sách sao kê:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchStatements();
+  }, [page, search, statusFilter]);
+
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPage(1);
+    setSearch(keyword);
+  };
+
+  const statements = collectionData?.items || [];
+
   return (
     <Stack spacing={3}>
       <SectionHeading
         title="Sao kê đối soát tuần"
-        description={'Danh sách các kỳ đối soát tài chính ' + 'của toàn bộ cửa hàng.'}
+        description={'Danh sách các kỳ đối soát tài chính thực tế của toàn bộ cửa hàng.'}
         icon={<Receipt size={25} weight="duotone" />}
       />
 
-      <Alert severity="info" variant="outlined" sx={{ borderRadius: '12px' }}>
-        Backend hiện có API xem sao kê của cửa hàng dành cho STORE_USER với quyền OWNER. Chưa có
-        endpoint dành cho ADMIN để liệt kê sao kê của toàn bộ nền tảng.
-      </Alert>
-
       {/* ======================================
-          BỘ LỌC CHƯA KÍCH HOẠT
+          BỘ LỌC TÌM KIẾM
           ====================================== */}
+      <Box component="form" onSubmit={handleSearchSubmit}>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Tìm kiếm sao kê"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Tên cửa hàng, mã sao kê..."
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <MagnifyingGlass size={18} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <Button size="small" type="submit" variant="text">
+                      Tìm
+                    </Button>
+                  ),
+                },
+              }}
+            />
+          </Grid>
 
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 5 }}>
-          <TextField
-            fullWidth
-            disabled
-            size="small"
-            label="Tìm kiếm"
-            placeholder="Mã sao kê hoặc mã cửa hàng"
-          />
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <TextField
+              fullWidth
+              select
+              size="small"
+              label="Trạng thái sao kê"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <MenuItem value="all">Tất cả trạng thái</MenuItem>
+              {STATEMENT_STATUSES.map((item) => (
+                <MenuItem key={item.status} value={item.status}>
+                  {item.label} ({item.status})
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              sx={{ height: 40 }}
+              startIcon={<ArrowClockwise size={18} />}
+              onClick={fetchStatements}
+            >
+              Tải lại
+            </Button>
+          </Grid>
         </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <TextField fullWidth disabled select size="small" label="Trạng thái" defaultValue="all">
-            <MenuItem value="all">Tất cả</MenuItem>
-
-            {STATEMENT_STATUSES.map((item) => (
-              <MenuItem key={item.status} value={item.status}>
-                {item.label}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <TextField
-            fullWidth
-            disabled
-            size="small"
-            label="Ngày bắt đầu kỳ"
-            type="date"
-            slotProps={{
-              inputLabel: {
-                shrink: true,
-              },
-            }}
-          />
-        </Grid>
-      </Grid>
+      </Box>
 
       {/* ======================================
           BẢNG SAO KÊ TOÀN SÀN
           ====================================== */}
-
       <TableContainer
         sx={{
           border: 1,
@@ -455,76 +520,117 @@ function StatementsTab({ onSelectStatus }: StatementsTabProps) {
         <Table sx={{ minWidth: 900 }}>
           <TableHead>
             <TableRow>
-              <TableCell>Mã sao kê</TableCell>
               <TableCell>Cửa hàng</TableCell>
               <TableCell>Kỳ đối soát</TableCell>
               <TableCell align="right">Gross</TableCell>
               <TableCell align="right">Commission</TableCell>
-              <TableCell align="right">Net Payable</TableCell>
+              <TableCell align="right">Thực trả (Net)</TableCell>
               <TableCell>Trạng thái</TableCell>
-              <TableCell>Checksum</TableCell>
+              <TableCell>Checksum SHA-256</TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={8} align="center" sx={{ py: 7 }}>
-                <Stack
-                  spacing={1.5}
-                  sx={{
-                    alignItems: 'center',
-                  }}
-                >
-                  <ShieldWarning size={36} color="#F79009" weight="duotone" />
-
-                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
-                    Chưa hỗ trợ tải sao kê toàn sàn
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={28} />
+                </TableCell>
+              </TableRow>
+            ) : statements.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                    Không có sao kê nào phù hợp.
                   </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              statements.map((row: any) => {
+                const statusMeta = STATEMENT_STATUSES.find((s) => s.status === row.status);
+                const color =
+                  statusMeta?.color || (row.status === 'LOCKED' ? 'success' : 'warning');
 
-                  <Typography
-                    color="text.secondary"
-                    sx={{
-                      fontSize: 12,
-                      lineHeight: 1.8,
-                      maxWidth: 450,
-                    }}
-                  >
-                    Không có API ADMIN phù hợp để truy vấn dữ liệu sao kê toàn sàn. Đây không phải
-                    kết quả truy vấn rỗng.
-                  </Typography>
-                </Stack>
-              </TableCell>
-            </TableRow>
+                return (
+                  <TableRow key={String(row.id)} hover>
+                    <TableCell>
+                      <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
+                        {row.store_name || row.store_id || '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        {row.week_start
+                          ? `${new Date(String(row.week_start)).toLocaleDateString('vi-VN')} - ${new Date(String(row.week_end)).toLocaleDateString('vi-VN')}`
+                          : '—'}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
+                        {Number(row.gross || 0).toLocaleString('vi-VN')} ₫
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                        {Number(row.commission || 0).toLocaleString('vi-VN')} ₫
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <Typography sx={{ fontWeight: 750, fontSize: 13, color: 'success.main' }}>
+                        {Number(row.net_payable || 0).toLocaleString('vi-VN')} ₫
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={statusMeta?.label || String(row.status)}
+                        color={color}
+                        variant="filled"
+                        onClick={() => statusMeta && onSelectStatus(statusMeta)}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontFamily: 'monospace',
+                          color: row.checksum ? 'text.secondary' : 'warning.main',
+                        }}
+                      >
+                        {row.checksum ? `${String(row.checksum).slice(0, 16)}…` : 'Chưa có'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
       {/* ======================================
-          THAO TÁC CHƯA CÓ QUYỀN ADMIN
+          PHÂN TRANG
           ====================================== */}
-
-      <Stack
-        direction={{
-          xs: 'column',
-          sm: 'row',
-        }}
-        spacing={1.5}
-        sx={{
-          justifyContent: 'flex-end',
-        }}
-      >
-        <Button disabled variant="outlined">
-          Xem chi tiết sao kê
-        </Button>
-
-        <Button disabled variant="outlined">
-          Xuất báo cáo CSV
-        </Button>
-
-        <Button disabled variant="contained">
-          Chốt đối soát
-        </Button>
-      </Stack>
+      {collectionData && collectionData.totalPages > 1 && (
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            Hiển thị {statements.length} trên tổng số {collectionData.total} sao kê
+          </Typography>
+          <Pagination
+            count={collectionData.totalPages}
+            page={page}
+            onChange={(_, val) => setPage(val)}
+            color="primary"
+            size="small"
+          />
+        </Stack>
+      )}
 
       <Divider />
 
@@ -1157,18 +1263,30 @@ function IntegrityTab() {
 // =====================================================
 
 export function SettlementPage() {
-  // ---------------------------------------------------
-  // Tab đang được chọn
-  // ---------------------------------------------------
-
   const [activeTab, setActiveTab] = useState<SettlementTab>('statements');
-
-  // ---------------------------------------------------
-  // Trạng thái sao kê đang xem
-  // ---------------------------------------------------
-
   const [selectedStatementStatus, setSelectedStatementStatus] =
     useState<StatementStatusInfo | null>(null);
+  const [metrics, setMetrics] = useState<AdminMetricsOverview['settlement'] | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingMetrics(true);
+    getAdminMetricsOverview()
+      .then((data) => {
+        if (active) setMetrics(data.settlement);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải metrics đối soát:', err);
+      })
+      .finally(() => {
+        if (active) setLoadingMetrics(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <Stack spacing={3} className="admin-page-enter">
@@ -1213,13 +1331,6 @@ export function SettlementPage() {
             Theo dõi kỳ đối soát tuần, sao kê và tính toàn vẹn dữ liệu tài chính của SurplusIQ.
           </Typography>
         </Box>
-
-        <Chip
-          label="Chờ API Admin"
-          icon={<ShieldWarning size={17} />}
-          color="warning"
-          variant="outlined"
-        />
       </Stack>
 
       {/* ======================================
@@ -1230,54 +1341,51 @@ export function SettlementPage() {
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tổng doanh thu đối soát"
+            value={metrics ? `${Number(metrics.totalGross).toLocaleString('vi-VN')} ₫` : '—'}
             icon={<CurrencyDollar size={26} weight="duotone" />}
             tone="primary"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Tổng doanh số các kỳ sao kê"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tổng tiền thực trả"
+            value={metrics ? `${Number(metrics.totalNetPayable).toLocaleString('vi-VN')} ₫` : '—'}
             icon={<Receipt size={26} weight="duotone" />}
             tone="success"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Sau khi trừ phí và hoàn tiền"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Sao kê đã khóa"
+            value={metrics ? metrics.lockedStatements.toLocaleString('vi-VN') : '—'}
             icon={<LockKey size={26} weight="duotone" />}
             tone="primary"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Kỳ đã chốt đối soát"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Checksum đã xác minh"
+            value={metrics ? metrics.verifiedChecksums.toLocaleString('vi-VN') : '—'}
             icon={<ShieldCheck size={26} weight="duotone" />}
             tone="warning"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Đã kiểm tra tính toàn vẹn"
           />
         </Grid>
       </Grid>
-
-      {/* ======================================
-          LƯU Ý PHẠM VI TÍCH HỢP
-          ====================================== */}
-
-      <Alert
-        severity="info"
-        variant="outlined"
-        sx={{
-          borderRadius: '12px',
-        }}
-      >
-        Giao diện chưa có quyền truy vấn sao kê toàn sàn từ Backend. Các KPI tài chính không được tự
-        tính từ dữ liệu cửa hàng hoặc hiển thị giá trị giả định.
-      </Alert>
 
       {/* ======================================
           CÁC TAB ĐỐI SOÁT

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { ReactNode } from 'react';
 
@@ -9,10 +9,12 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Divider,
   Grid,
   InputAdornment,
   MenuItem,
+  Pagination,
   Stack,
   Tab,
   Table,
@@ -34,7 +36,6 @@ import {
   LockKey,
   MagnifyingGlass,
   ShieldCheck,
-  ShieldWarning,
   UserCircle,
   UsersThree,
 } from '@phosphor-icons/react';
@@ -46,6 +47,13 @@ import { AdminStatCard } from '../../components/StatCard/AdminStatCard';
 import { useAdminAuth } from '../../auth/AdminAuthProvider';
 
 import type { AdminSession } from '../../api/admin-auth.api';
+
+import {
+  getAdminCollection,
+  getAdminMetricsOverview,
+  type AdminMetricsOverview,
+  type AdminCollectionResponse,
+} from '../../api/admin-management.api';
 
 // =====================================================
 // 1. CẤU HÌNH PHÂN HỆ
@@ -290,72 +298,133 @@ function CurrentAccountDrawer({ open, onClose, session }: CurrentAccountDrawerPr
  * khiến người xem hiểu nhầm không có user.
  */
 function UsersListTab() {
+  const [keyword, setKeyword] = useState('');
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [collectionData, setCollectionData] = useState<AdminCollectionResponse | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getAdminCollection('users', {
+      page,
+      limit: 10,
+      search: search.trim() || undefined,
+      status: roleFilter !== 'all' ? roleFilter : statusFilter !== 'all' ? statusFilter : undefined,
+    })
+      .then((res) => {
+        if (active) {
+          setCollectionData(res);
+        }
+      })
+      .catch((err) => {
+        console.error('Lỗi tải danh sách người dùng:', err);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [page, search, roleFilter, statusFilter]);
+
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPage(1);
+    setSearch(keyword);
+  };
+
+  const users = collectionData?.items || [];
+
   return (
     <Stack spacing={3}>
       <SectionHeader
         icon={<UsersThree size={25} weight="duotone" />}
         title="Danh sách người dùng"
-        description={'Quản lý tài khoản khách hàng, ' + 'nhân viên cửa hàng và quản trị viên.'}
+        description={'Quản lý tài khoản khách hàng, nhân viên cửa hàng và quản trị viên hệ thống.'}
       />
 
-      <Alert severity="info" variant="outlined" sx={{ borderRadius: '12px' }}>
-        Chưa có endpoint Admin được xác minh để tải danh sách người dùng toàn sàn. Bộ lọc và bảng dữ
-        liệu sẽ được kích hoạt khi Backend hỗ trợ API phù hợp.
-      </Alert>
-
       {/* ======================================
-          BỘ LỌC DỰ KIẾN
+          BỘ LỌC TÌM KIẾM
           ====================================== */}
+      <Box component="form" onSubmit={handleSearchSubmit}>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Tìm kiếm người dùng"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Email, số điện thoại, ID..."
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <MagnifyingGlass size={18} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <Button size="small" type="submit" variant="text">
+                      Tìm
+                    </Button>
+                  ),
+                },
+              }}
+            />
+          </Grid>
 
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <TextField
-            fullWidth
-            disabled
-            size="small"
-            label="Tìm kiếm người dùng"
-            placeholder="Email, số điện thoại, User ID..."
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <MagnifyingGlass size={18} />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <TextField
+              fullWidth
+              select
+              size="small"
+              label="Vai trò"
+              value={roleFilter}
+              onChange={(e) => {
+                setRoleFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <MenuItem value="all">Tất cả vai trò</MenuItem>
+              {USER_ROLES.map((role) => (
+                <MenuItem key={role} value={role}>
+                  {role}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <TextField
+              fullWidth
+              select
+              size="small"
+              label="Trạng thái"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <MenuItem value="all">Tất cả trạng thái</MenuItem>
+              {USER_STATUSES.map((status) => (
+                <MenuItem key={status} value={status}>
+                  {status}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
         </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <TextField fullWidth select disabled size="small" label="Vai trò" defaultValue="all">
-            <MenuItem value="all">Tất cả vai trò</MenuItem>
-
-            {USER_ROLES.map((role) => (
-              <MenuItem key={role} value={role}>
-                {role}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <TextField fullWidth select disabled size="small" label="Trạng thái" defaultValue="all">
-            <MenuItem value="all">Tất cả trạng thái</MenuItem>
-
-            {USER_STATUSES.map((status) => (
-              <MenuItem key={status} value={status}>
-                {status}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Grid>
-      </Grid>
+      </Box>
 
       {/* ======================================
           BẢNG DANH SÁCH
           ====================================== */}
-
       <TableContainer
         sx={{
           border: 1,
@@ -367,50 +436,120 @@ function UsersListTab() {
           <TableHead>
             <TableRow>
               <TableCell>Người dùng</TableCell>
+              <TableCell>Số điện thoại</TableCell>
               <TableCell>Vai trò</TableCell>
               <TableCell>Trạng thái</TableCell>
               <TableCell>Ngày tạo</TableCell>
-              <TableCell align="right">Thao tác</TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={5} align="center" sx={{ py: 7 }}>
-                <Stack
-                  spacing={1.5}
-                  sx={{
-                    alignItems: 'center',
-                  }}
-                >
-                  <ShieldWarning size={34} color="#F79009" weight="duotone" />
-
-                  <Typography
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: 14,
-                    }}
-                  >
-                    Chưa hỗ trợ API danh sách người dùng
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={28} />
+                </TableCell>
+              </TableRow>
+            ) : users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                    Không tìm thấy người dùng phù hợp.
                   </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map((row: any) => {
+                const roleColor =
+                  row.role === 'ADMIN'
+                    ? 'error'
+                    : row.role === 'STORE_USER'
+                      ? 'warning'
+                      : 'primary';
+                const statusColor =
+                  row.status === 'ACTIVE'
+                    ? 'success'
+                    : row.status === 'LOCKED'
+                      ? 'error'
+                      : 'default';
 
-                  <Typography
-                    color="text.secondary"
-                    sx={{
-                      maxWidth: 410,
-                      fontSize: 12,
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    Đây không phải kết quả truy vấn rỗng. Hệ thống chưa thể đọc dữ liệu người dùng
-                    toàn sàn qua API Admin hiện tại.
-                  </Typography>
-                </Stack>
-              </TableCell>
-            </TableRow>
+                return (
+                  <TableRow key={String(row.id)} hover>
+                    <TableCell>
+                      <Stack spacing={0.5}>
+                        <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
+                          {row.email || 'Chưa liên kết email'}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontFamily: 'monospace' }}
+                        >
+                          ID: {String(row.id).slice(0, 8)}…
+                        </Typography>
+                      </Stack>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 13 }}>{row.phone || '—'}</Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={String(row.role)}
+                        color={roleColor}
+                        variant="outlined"
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={String(row.status)}
+                        color={statusColor}
+                        variant="filled"
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        {row.created_at
+                          ? new Date(String(row.created_at)).toLocaleDateString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '—'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* ======================================
+          PHÂN TRANG
+          ====================================== */}
+      {collectionData && collectionData.totalPages > 1 && (
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            Hiển thị {users.length} trên tổng số {collectionData.total} tài khoản
+          </Typography>
+          <Pagination
+            count={collectionData.totalPages}
+            page={page}
+            onChange={(_, val) => setPage(val)}
+            color="primary"
+            size="small"
+          />
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -739,6 +878,32 @@ export function UsersPage() {
 
   const [detailOpen, setDetailOpen] = useState(false);
 
+  // ---------------------------------------------------
+  // Metrics từ Backend API
+  // ---------------------------------------------------
+
+  const [metrics, setMetrics] = useState<AdminMetricsOverview['users'] | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingMetrics(true);
+    getAdminMetricsOverview()
+      .then((data) => {
+        if (active) setMetrics(data.users);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải metrics người dùng:', err);
+      })
+      .finally(() => {
+        if (active) setLoadingMetrics(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // ===================================================
   // 10. KIỂM TRA LẠI PHIÊN
   // ===================================================
@@ -815,35 +980,47 @@ export function UsersPage() {
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tổng người dùng"
+            value={metrics ? metrics.total.toLocaleString('vi-VN') : '—'}
             icon={<UsersThree size={26} weight="duotone" />}
             tone="primary"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Toàn bộ tài khoản trên sàn"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tài khoản đang hoạt động"
+            value={metrics ? metrics.active.toLocaleString('vi-VN') : '—'}
             icon={<UserCircle size={26} weight="duotone" />}
             tone="success"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Tài khoản trạng thái ACTIVE"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Tài khoản bị khóa"
+            value={metrics ? metrics.locked.toLocaleString('vi-VN') : '—'}
             icon={<LockKey size={26} weight="duotone" />}
             tone="warning"
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Tạm khóa hoặc vi phạm quy tắc"
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
           <AdminStatCard
             title="Phiên đăng nhập hệ thống"
+            value={metrics ? metrics.sessions.toLocaleString('vi-VN') : '—'}
             icon={<Devices size={26} weight="duotone" />}
-            status="unsupported"
+            loading={loadingMetrics}
+            status="ready"
+            description="Thiết bị & phiên hoạt động gần đây"
           />
         </Grid>
       </Grid>

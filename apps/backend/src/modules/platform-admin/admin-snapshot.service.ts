@@ -123,4 +123,120 @@ export class AdminSnapshotService {
       items: filtered.slice(start, start + limit),
     };
   }
+
+  async getMetricsOverview() {
+    const [usersRes] = await this.dataSource.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'ACTIVE')::int AS active,
+        COUNT(*) FILTER (WHERE status = 'LOCKED' OR (locked_until IS NOT NULL AND locked_until > NOW()))::int AS locked,
+        COUNT(*) FILTER (WHERE two_factor_enabled = true)::int AS "twoFactorEnabled"
+      FROM users
+    `);
+
+    const [sessionsRes] = await this.dataSource.query(`
+      SELECT COUNT(DISTINCT actor_id)::int AS sessions
+      FROM audit_logs
+      WHERE created_at >= NOW() - INTERVAL '7 days'
+    `);
+    const sessionsCount = Math.max(
+      Number(sessionsRes?.sessions || 0),
+      Number(usersRes?.active || 0),
+    );
+
+    const [ordersRes] = await this.dataSource.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'PENDING_PAYMENT')::int AS "pendingPayment",
+        COUNT(*) FILTER (WHERE status = 'PICKED_UP')::int AS "pickedUp",
+        COUNT(*) FILTER (WHERE status = 'PAID')::int AS paid,
+        COALESCE(SUM(total_amount), 0)::bigint AS "totalAmount",
+        COALESCE(SUM(total_amount) FILTER (WHERE status IN ('PAID', 'PICKED_UP')), 0)::bigint AS "settledAmount"
+      FROM orders
+    `);
+
+    const [complaintsRes] = await this.dataSource.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'PENDING_STORE')::int AS "pendingStore",
+        COUNT(*) FILTER (WHERE status = 'ACCEPTED')::int AS accepted,
+        COUNT(*) FILTER (WHERE status = 'REJECTED')::int AS rejected
+      FROM complaints
+    `);
+
+    const [violationsRes] = await this.dataSource.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'PENDING')::int AS pending,
+        COUNT(*) FILTER (WHERE status = 'REVIEWED')::int AS reviewed
+      FROM violation_reports
+    `);
+
+    const [settlementRes] = await this.dataSource.query(`
+      SELECT
+        COUNT(*)::int AS "totalStatements",
+        COALESCE(SUM(gross), 0)::bigint AS "totalGross",
+        COALESCE(SUM(net_payable), 0)::bigint AS "totalNetPayable",
+        COALESCE(SUM(commission), 0)::bigint AS "totalCommission",
+        COUNT(*) FILTER (WHERE status = 'LOCKED')::int AS "lockedStatements",
+        COUNT(*) FILTER (WHERE checksum IS NOT NULL AND checksum != '')::int AS "verifiedChecksums"
+      FROM weekly_statements
+    `);
+
+    const [subscriptionsRes] = await this.dataSource.query(`
+      SELECT
+        COUNT(*)::int AS "totalSubscriptions",
+        COUNT(*) FILTER (WHERE plan = 'PRO')::int AS "proStores",
+        COUNT(*) FILTER (WHERE plan = 'TRIAL')::int AS "trialStores",
+        COUNT(*) FILTER (WHERE status = 'ACTIVE')::int AS "activeSubscriptions"
+      FROM subscriptions
+    `);
+
+    const [invoicesRes] = await this.dataSource.query(`
+      SELECT
+        COALESCE(SUM(amount) FILTER (WHERE status = 'PAID'), 0)::bigint AS "subscriptionRevenue"
+      FROM subscription_invoices
+    `);
+
+    return {
+      users: {
+        total: Number(usersRes.total),
+        active: Number(usersRes.active),
+        locked: Number(usersRes.locked),
+        sessions: sessionsCount,
+        twoFactorEnabled: Number(usersRes.twoFactorEnabled),
+      },
+      orders: {
+        total: Number(ordersRes.total),
+        pendingPayment: Number(ordersRes.pendingPayment),
+        pickedUp: Number(ordersRes.pickedUp),
+        paid: Number(ordersRes.paid),
+        totalAmount: Number(ordersRes.totalAmount),
+        settledAmount: Number(ordersRes.settledAmount),
+      },
+      disputes: {
+        totalComplaints: Number(complaintsRes.total),
+        pendingStoreComplaints: Number(complaintsRes.pendingStore),
+        acceptedComplaints: Number(complaintsRes.accepted),
+        rejectedComplaints: Number(complaintsRes.rejected),
+        totalViolations: Number(violationsRes.total),
+        pendingViolations: Number(violationsRes.pending),
+      },
+      settlement: {
+        totalStatements: Number(settlementRes.totalStatements),
+        totalGross: Number(settlementRes.totalGross),
+        totalNetPayable: Number(settlementRes.totalNetPayable),
+        totalCommission: Number(settlementRes.totalCommission),
+        lockedStatements: Number(settlementRes.lockedStatements),
+        verifiedChecksums: Number(settlementRes.verifiedChecksums),
+      },
+      subscriptions: {
+        totalSubscriptions: Number(subscriptionsRes.totalSubscriptions),
+        proStores: Number(subscriptionsRes.proStores),
+        trialStores: Number(subscriptionsRes.trialStores),
+        activeSubscriptions: Number(subscriptionsRes.activeSubscriptions),
+        subscriptionRevenue: Number(invoicesRes.subscriptionRevenue),
+      },
+    };
+  }
 }
