@@ -766,9 +766,10 @@ const NOTIFS = [
   {
     userId: owner.id,
     storeId: STORE_A,
-    title: 'Khách hàng gửi tin nhắn',
+    title: `Tin nhắn mới từ khách, đơn ${ORDER_READY_CODE}`,
     body: 'Khách hàng Nguyễn Hà My vừa nhắn tin về đơn hàng.',
-    type: 'SYSTEM',
+    type: 'ORDER',
+    data: { orderId: ordReady.id, kind: 'ORDER_MESSAGE' },
   },
   {
     userId: owner.id,
@@ -788,9 +789,17 @@ const NOTIFS = [
 
 for (const n of NOTIFS) {
   await q(
-    `INSERT INTO notifications (id, user_id, store_id, title, body, type, is_read, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, false, NOW() - INTERVAL '15 minutes', NOW())`,
-    [randomUUID(), n.userId, n.storeId, n.title, n.body, n.type],
+    `INSERT INTO notifications (id, user_id, store_id, title, body, type, data, is_read, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, false, NOW() - INTERVAL '15 minutes', NOW())`,
+    [
+      randomUUID(),
+      n.userId,
+      n.storeId,
+      n.title,
+      n.body,
+      n.type,
+      n.data ? JSON.stringify(n.data) : null,
+    ],
   );
 }
 console.log('✓ Hộp thư thông báo cho cả Khách hàng và Chủ quán');

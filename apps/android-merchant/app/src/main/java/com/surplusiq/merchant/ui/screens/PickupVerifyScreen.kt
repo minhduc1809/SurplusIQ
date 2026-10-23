@@ -6,6 +6,7 @@ import com.surplusiq.merchant.ui.theme.SqCoralWash
 import com.surplusiq.merchant.ui.theme.SqCoral
 import com.surplusiq.merchant.ui.theme.SqInk
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -92,84 +93,96 @@ fun PickupVerifyScreen(repository: StoreRepository) {
         if (lastByCamera) scan()
     }
 
-    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 720.dp) / 2).coerceAtLeast(0.dp)
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(horizontal = sidePad).padding(20.dp)) {
-        Text(text = "Quét QR nhận hàng", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
-        Spacer(modifier = Modifier.height(20.dp))
-
-        when {
-            result != null -> ResultCard(
-                icon = Icons.Default.CheckCircle, tint = SqCoralDeep, title = "Hợp lệ - đã giao hàng", subtitle = result!!.message,
-                actionText = if (lastByCamera) "Quét đơn tiếp theo" else "Xong", onAction = ::next
-            ) {
-                val r = result!!
-                InfoRow("Mã đơn", r.orderCode)
-                InfoRow("Món", "${r.itemName} × ${r.quantity}")
-                InfoRow("Khách", r.customerMasked)
-                InfoRow("Tổng tiền", currency(r.totalAmount))
-                r.note?.takeIf { it.isNotBlank() }?.let { InfoRow("Ghi chú", it, SqCoralDeep) }
-            }
-            failure != null -> ResultCard(
-                icon = Icons.Default.ErrorOutline, tint = SqCoralDeep, title = "Không hợp lệ", subtitle = failure!!,
-                actionText = if (lastByCamera) "Quét lại" else "Nhập lại", onAction = ::next
+    // Căn giữa và giới hạn bề rộng cho máy tính bảng; chừa chỗ cuối cho thanh điều hướng nổi.
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+        Column(
+            modifier = Modifier.widthIn(max = 520.dp).fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(20.dp).padding(bottom = 96.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Quét QR nhận hàng", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = SqInk,
+                modifier = Modifier.fillMaxWidth()
             )
-            else -> Column(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(SqSurface).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(Modifier.size(88.dp).clip(CircleShape).background(SqCoralWash), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = SqCoral, modifier = Modifier.size(44.dp))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("Quét mã nhận hàng của khách", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SqInk)
-                Spacer(modifier = Modifier.height(10.dp))
-                listOf("Bấm nút bên dưới để mở camera", "Hướng camera vào mã QR trên điện thoại khách", "Kiểm tra món rồi giao hàng").forEachIndexed { i, step ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(22.dp).clip(CircleShape).background(SqCoralWash), contentAlignment = Alignment.Center) {
-                            Text("${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SqCoralDeep)
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Text(step, fontSize = 13.sp, color = SqInkSoft)
-                    }
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-                PrimaryButton("Mở camera quét QR", loading = isVerifying && lastByCamera, onClick = ::scan)
-                Text(
-                    "Ứng dụng dùng trình quét của Google Play services nên không cần cấp quyền camera riêng. Nếu không quét được, hãy nhập mã dự phòng bên dưới.",
-                    fontSize = 11.sp, color = SqInkMuted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp)
-                )
-                Text(
-                    "Sau mỗi đơn hợp lệ, bấm \"Quét đơn tiếp theo\" để quét liên tục.",
-                    fontSize = 12.sp, color = SqInkMuted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp)
-                )
-                InlineError(scanError)
+            Spacer(modifier = Modifier.height(16.dp))
 
-                HorizontalDivider(color = SqLine, modifier = Modifier.padding(vertical = 20.dp))
-                Text("Hoặc nhập mã dự phòng 6 ký tự / mã nhận hộ 8 ký tự", fontSize = 13.sp, color = SqInkSoft, textAlign = TextAlign.Center)
-                Spacer(modifier = Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(14.dp))
-                        .background(SqSurfaceSoft).border(1.dp, SqLine, RoundedCornerShape(14.dp)),
-                    contentAlignment = Alignment.Center
+            when {
+                result != null -> ResultCard(
+                    icon = Icons.Default.CheckCircle, tint = SqCoralDeep, title = "Đã giao hàng", subtitle = null,
+                    actionText = if (lastByCamera) "Quét đơn tiếp theo" else "Xong", onAction = ::next
                 ) {
-                    BasicTextField(
-                        value = code,
-                        onValueChange = { v -> code = v.uppercase().filter { it.isLetterOrDigit() }.take(8) },
-                        singleLine = true,
-                        textStyle = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, textAlign = TextAlign.Center, letterSpacing = 4.sp),
-                        cursorBrush = SolidColor(SqCoral),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, capitalization = KeyboardCapitalization.Characters),
-                        modifier = Modifier.fillMaxWidth()
+                    val r = result!!
+                    InfoRow("Mã đơn", r.orderCode)
+                    InfoRow("Món", "${r.itemName} × ${r.quantity}")
+                    InfoRow("Khách", r.customerMasked)
+                    InfoRow("Tổng tiền", currency(r.totalAmount))
+                    r.note?.takeIf { it.isNotBlank() }?.let { InfoRow("Ghi chú", it) }
+                }
+                failure != null -> ResultCard(
+                    icon = Icons.Default.ErrorOutline, tint = SqCoralDeep, title = "Không hợp lệ", subtitle = failure,
+                    actionText = if (lastByCamera) "Quét lại" else "Nhập lại", onAction = ::next
+                )
+                else -> Column(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(SqSurface).padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Vùng quét: chạm để mở trình quét; vuông, tự co theo bề rộng.
+                    Box(
+                        modifier = Modifier.fillMaxWidth(0.8f).widthIn(max = 280.dp).aspectRatio(1f)
+                            .clip(RoundedCornerShape(24.dp)).background(SqCoralWash)
+                            .border(1.dp, SqCoral.copy(alpha = 0.35f), RoundedCornerShape(24.dp))
+                            .clickable(enabled = !isVerifying, onClick = ::scan),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (isVerifying && lastByCamera) {
+                                CircularProgressIndicator(color = SqCoral, modifier = Modifier.size(40.dp))
+                                Spacer(Modifier.height(10.dp))
+                                Text("Đang xác thực…", fontSize = 14.sp, color = SqInkSoft)
+                            } else {
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = SqCoral, modifier = Modifier.size(56.dp))
+                                Spacer(Modifier.height(10.dp))
+                                Text("Chạm để quét mã", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SqCoralDeep)
+                            }
+                        }
+                    }
+                    InlineError(scanError)
+
+                    Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        HorizontalDivider(color = SqLine, modifier = Modifier.weight(1f))
+                        Text("  hoặc nhập mã  ", fontSize = 12.sp, color = SqInkMuted)
+                        HorizontalDivider(color = SqLine, modifier = Modifier.weight(1f))
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(14.dp))
+                            .background(SqSurfaceSoft).border(1.dp, SqLine, RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BasicTextField(
+                            value = code,
+                            onValueChange = { v -> code = v.uppercase().filter { it.isLetterOrDigit() }.take(8) },
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, textAlign = TextAlign.Center, letterSpacing = 4.sp),
+                            cursorBrush = SolidColor(SqCoral),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, capitalization = KeyboardCapitalization.Characters),
+                            decorationBox = { inner ->
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (code.isEmpty()) Text("Mã 6 hoặc 8 ký tự", fontSize = 14.sp, color = SqInkMuted)
+                                    inner()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    PrimaryButton(
+                        "Xác nhận mã",
+                        enabled = code.length == 6 || code.length == 8,
+                        loading = isVerifying && !lastByCamera,
+                        color = SqInk,
+                        onClick = ::submitCode
                     )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                PrimaryButton(
-                    "Xác nhận mã",
-                    enabled = code.length == 6 || code.length == 8,
-                    loading = isVerifying && !lastByCamera,
-                    color = SqInk,
-                    onClick = ::submitCode
-                )
             }
         }
     }
@@ -180,21 +193,23 @@ private fun ResultCard(
     icon: ImageVector,
     tint: Color,
     title: String,
-    subtitle: String,
+    subtitle: String?,
     actionText: String,
     onAction: () -> Unit,
     details: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(SqSurface).padding(28.dp),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(SqSurface).padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(12.dp))
         Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = tint)
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(text = subtitle, fontSize = 14.sp, color = SqInkSoft, textAlign = TextAlign.Center)
-        Spacer(modifier = Modifier.height(20.dp))
+        if (!subtitle.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = subtitle, fontSize = 14.sp, color = SqInkSoft, textAlign = TextAlign.Center)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
         details?.let {
             Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(SqSurfaceSoft).padding(14.dp), content = it)
             Spacer(modifier = Modifier.height(20.dp))

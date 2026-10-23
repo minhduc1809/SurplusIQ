@@ -138,7 +138,8 @@ fun StoreLegalScreen(repository: StoreRepository, isOwner: Boolean, onBack: () -
         }
     }
 
-    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+    Column(Modifier.widthIn(max = 720.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).padding(bottom = 96.dp)) {
         ScreenHeader("Hồ sơ kinh doanh và hợp đồng", onBack)
         Spacer(Modifier.height(12.dp))
         val o = overview
@@ -178,7 +179,7 @@ fun StoreLegalScreen(repository: StoreRepository, isOwner: Boolean, onBack: () -
                     Spacer(Modifier.height(10.dp))
                     SqField("Số điện thoại người đại diện", repPhone, enabled = isOwner, keyboardType = KeyboardType.Phone) { repPhone = it.filter { c -> c.isDigit() || c == '+' } }
                     Spacer(Modifier.height(10.dp))
-                    SqField("Địa chỉ kinh doanh", legalAddress, enabled = isOwner) { legalAddress = it }
+                    SqField("Địa chỉ kinh doanh", legalAddress, enabled = isOwner, singleLine = false) { legalAddress = it }
                 }
 
                 if (isOwner) {
@@ -229,6 +230,7 @@ fun StoreLegalScreen(repository: StoreRepository, isOwner: Boolean, onBack: () -
                 InlineSuccess(success)
             }
         }
+    }
     }
 }
 

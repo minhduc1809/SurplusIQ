@@ -160,8 +160,26 @@ fun MetricCard(
             Text(text = label, fontSize = 12.sp, color = SqInkMuted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         Spacer(modifier = Modifier.height(10.dp))
-        Text(text = value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = SqInk, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        FitText(text = value, maxSize = 22, minSize = 13, fontWeight = FontWeight.Bold, color = SqInk)
     }
+}
+
+/** Chữ một dòng tự thu nhỏ cho vừa bề rộng (số tiền dài không bị cắt thành "11.440.00…"). */
+@Composable
+fun FitText(
+    text: String,
+    maxSize: Int,
+    minSize: Int,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight = FontWeight.Normal,
+    color: androidx.compose.ui.graphics.Color = SqInk
+) {
+    var size by remember(text) { mutableIntStateOf(maxSize) }
+    Text(
+        text = text, fontSize = size.sp, fontWeight = fontWeight, color = color, maxLines = 1, softWrap = false,
+        modifier = modifier,
+        onTextLayout = { if (it.hasVisualOverflow && size > minSize) size -= 1 }
+    )
 }
 
 fun currency(n: Long): String = "%,dđ".format(n).replace(",", ".")

@@ -454,9 +454,18 @@ fun ProRoute(repository: StoreRepository, feature: String, onUpgrade: () -> Unit
 /** Dòng nhãn - giá trị trong thẻ chi tiết. */
 @Composable
 fun InfoRow(label: String, value: String, valueColor: Color = SqInk) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text = label, fontSize = 12.sp, color = SqInkMuted, modifier = Modifier.weight(1f))
-        Text(text = value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = valueColor)
+    // Nhãn có bề rộng tối đa cố định, giá trị chiếm phần còn lại và tự xuống dòng: giá trị dài (tên tệp, ghi chú)
+    // không còn ép nhãn về 0 làm chữ xếp dọc từng ký tự.
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(text = label, fontSize = 12.sp, color = SqInkMuted, modifier = Modifier.widthIn(max = 132.dp))
+        Text(
+            text = value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = valueColor,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(1f)
+        )
     }
 }
 

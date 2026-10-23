@@ -47,6 +47,14 @@ private fun localTime(iso: String): String = try {
 }
 
 /** Loại thông báo -> route liên quan. */
+private fun notificationRoute(n: NotificationDto): String? {
+    val orderId = n.data?.get("orderId") as? String
+    // Tin nhắn của khách mở thẳng cuộc trò chuyện của đơn đó; thông báo đơn khác mở chi tiết đơn nếu có mã đơn.
+    if (orderId != null && n.data?.get("kind") == "ORDER_MESSAGE") return "order/$orderId/chat"
+    if (orderId != null && (n.type == "ORDER" || n.type == "PICKUP_REMINDER")) return "order/$orderId"
+    return notificationRoute(n.type)
+}
+
 private fun notificationRoute(type: String): String? = when (type) {
     "ORDER", "PICKUP_REMINDER" -> "orders"
     "PRICE_PROPOSAL" -> "price-proposals"
@@ -85,7 +93,7 @@ fun NotificationsScreen(repository: StoreRepository, canMarkAll: Boolean, onNavi
             items = items?.map { if (it.id == n.id) it.copy(isRead = true) else it }
             scope.launch { repository.markNotificationRead(n.id) }
         }
-        notificationRoute(n.type)?.let(onNavigate)
+        notificationRoute(n)?.let(onNavigate)
     }
 
     LaunchedEffect(Unit) { load() }

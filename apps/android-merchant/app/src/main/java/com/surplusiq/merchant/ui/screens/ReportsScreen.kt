@@ -46,7 +46,9 @@ fun ReportsScreen(repository: StoreRepository, onUpgrade: () -> Unit, onBack: ()
         repository.getSubscription().onSuccess { basic = (it.effectivePlan ?: it.plan) == "BASIC"; if (basic == false) days = 30 }
             .onFailure { basic = true }
     }
-    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+    // Tối đa 840dp để máy tính bảng không kéo giãn thẻ; chừa chỗ cho thanh điều hướng nổi ở cuối.
+    Column(Modifier.widthIn(max = 840.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).padding(bottom = 96.dp)) {
         ScreenHeader("Báo cáo kinh doanh", onBack)
         Spacer(Modifier.height(8.dp))
         ChipRow(TABS, tab) { tab = it }
@@ -65,6 +67,7 @@ fun ReportsScreen(repository: StoreRepository, onUpgrade: () -> Unit, onBack: ()
             tab == "pricing" -> if (basic == true) ProLockCard("Báo cáo hiệu quả giá", onUpgrade) else PricingTab(repository)
             else -> CompareTab(repository)
         }
+    }
     }
 }
 

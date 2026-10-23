@@ -759,7 +759,9 @@ data class NotificationDto(
     val title: String,
     val body: String,
     val isRead: Boolean,
-    val createdAt: String
+    val createdAt: String,
+    /** Dữ liệu đính kèm (vd. orderId, kind) để mở đúng màn liên quan. */
+    val data: Map<String, Any?>? = null
 )
 
 data class NotificationsResponse(
