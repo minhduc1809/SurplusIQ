@@ -249,6 +249,31 @@ function metricsFor(module: SnapshotModule, snapshot: AdminSnapshot): Metric[] {
       .filter((row) => !status || row.status === status)
       .reduce((total, row) => total + number(row, field), 0);
 
+  // Tăng trưởng thật: 30 ngày gần nhất so với 30 ngày liền trước, tính từ created_at của chính dữ liệu.
+  const trend = (key: string, field?: string, status?: string) => {
+    const now = Date.parse(snapshot.exportedAt);
+    const DAY = 86_400_000;
+    let cur = 0;
+    let prev = 0;
+    for (const row of rows[key] ?? []) {
+      if (status && row.status !== status) continue;
+      const age = now - Date.parse(String(row.created_at));
+      const v = field ? number(row, field) : 1;
+      if (age >= 0 && age < 30 * DAY) cur += v;
+      else if (age >= 30 * DAY && age < 60 * DAY) prev += v;
+    }
+    if (prev === 0)
+      return { delta: cur > 0 ? 'Mới 30 ngày qua' : 'Chưa có mới', positive: cur > 0 };
+    const pct = ((cur - prev) / prev) * 100;
+    return { delta: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% / 30 ngày`, positive: pct >= 0 };
+  };
+  const commissionRate = () => {
+    const gross = sum('statements', 'gross');
+    return gross > 0
+      ? `${((sum('statements', 'commission') / gross) * 100).toFixed(1)}% doanh thu`
+      : 'Chưa có sao kê';
+  };
+
   const totalAiTokens = (rows.aiLogs ?? []).reduce(
     (acc, row) => acc + estimateAiRowTokens(row).totalTokens,
     0,
@@ -267,8 +292,7 @@ function metricsFor(module: SnapshotModule, snapshot: AdminSnapshot): Metric[] {
         {
           title: 'Tổng người dùng',
           value: count('users'),
-          delta: '+12.4%',
-          positive: true,
+          ...trend('users'),
         },
         {
           title: 'Tổng đơn hàng',
@@ -279,15 +303,13 @@ function metricsFor(module: SnapshotModule, snapshot: AdminSnapshot): Metric[] {
         {
           title: 'Doanh số đơn đã nhận',
           value: currency.format(sum('orders', 'total_amount', 'PICKED_UP')),
-          delta: '+8.2%',
-          positive: true,
+          ...trend('orders', 'total_amount', 'PICKED_UP'),
           description: 'Chỉ đơn PICKED_UP',
         },
         {
           title: 'Hoa hồng sao kê',
           value: currency.format(sum('statements', 'commission')),
-          delta: '+5.1%',
-          positive: true,
+          ...trend('statements', 'commission'),
           description: 'Tổng các sao kê đã lưu',
         },
         {
@@ -300,7 +322,7 @@ function metricsFor(module: SnapshotModule, snapshot: AdminSnapshot): Metric[] {
       ];
     case 'merchants':
       return [
-        { title: 'Tổng cửa hàng', value: count('stores'), delta: '+4.5%', positive: true },
+        { title: 'Tổng cửa hàng', value: count('stores'), ...trend('stores') },
         {
           title: 'Đang hoạt động',
           value: count('stores', 'status', 'ACTIVE'),
@@ -322,7 +344,7 @@ function metricsFor(module: SnapshotModule, snapshot: AdminSnapshot): Metric[] {
       ];
     case 'users':
       return [
-        { title: 'Tổng người dùng', value: count('users'), delta: '+10.2%', positive: true },
+        { title: 'Tổng người dùng', value: count('users'), ...trend('users') },
         {
           title: 'Khách hàng',
           value: count('users', 'role', 'CUSTOMER'),
@@ -344,7 +366,7 @@ function metricsFor(module: SnapshotModule, snapshot: AdminSnapshot): Metric[] {
       ];
     case 'orders':
       return [
-        { title: 'Tổng đơn hàng', value: count('orders'), delta: '+6.8%', positive: true },
+        { title: 'Tổng đơn hàng', value: count('orders'), ...trend('orders') },
         {
           title: 'Chờ thanh toán',
           value: count('orders', 'status', 'PENDING_PAYMENT'),
@@ -393,13 +415,12 @@ function metricsFor(module: SnapshotModule, snapshot: AdminSnapshot): Metric[] {
         {
           title: 'Doanh thu đối soát',
           value: currency.format(sum('statements', 'gross')),
-          delta: '+7.4%',
-          positive: true,
+          ...trend('statements', 'gross'),
         },
         {
           title: 'Hoa hồng',
           value: currency.format(sum('statements', 'commission')),
-          delta: '10%',
+          delta: commissionRate(),
           positive: true,
         },
         {
@@ -433,8 +454,7 @@ function metricsFor(module: SnapshotModule, snapshot: AdminSnapshot): Metric[] {
         {
           title: 'Doanh thu gói Pro (PAID)',
           value: currency.format(sum('invoices', 'amount', 'PAID')),
-          delta: '+15.0%',
-          positive: true,
+          ...trend('invoices', 'amount', 'PAID'),
           description: 'Tổng hóa đơn thuê bao đã thanh toán',
         },
       ];
@@ -521,10 +541,27 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
     .filter((o) => o.status === 'PICKED_UP')
     .reduce((acc, row) => acc + number(row, 'quantity'), 0);
 
-  const dayLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-  const thisWeekPoints = [140, 210, 185, 290, 240, 320, Math.max(260, orders.length * 10)];
-  const lastWeekPoints = [110, 160, 195, 170, 215, 230, 210];
-  const maxVal = Math.max(...thisWeekPoints, ...lastWeekPoints, 350);
+  // Số đơn tạo mới theo từng ngày: 7 ngày gần nhất và 7 ngày liền trước, tính từ created_at của đơn.
+  const DAY = 86_400_000;
+  const startOfToday = new Date(data.exportedAt);
+  startOfToday.setHours(0, 0, 0, 0);
+  const weekStart = startOfToday.getTime() - 6 * DAY;
+  const dayLabels = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart + i * DAY);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  });
+  const perDay = (from: number) =>
+    Array.from(
+      { length: 7 },
+      (_, i) =>
+        orders.filter((o) => {
+          const t = Date.parse(String(o.created_at));
+          return t >= from + i * DAY && t < from + (i + 1) * DAY;
+        }).length,
+    );
+  const thisWeekPoints = perDay(weekStart);
+  const lastWeekPoints = perDay(weekStart - 7 * DAY);
+  const maxVal = Math.max(...thisWeekPoints, ...lastWeekPoints, 1);
 
   const chartWidth = 640;
   const chartHeight = 190;
@@ -583,7 +620,7 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
                   Biểu đồ hiệu suất
                 </Typography>
                 <Typography sx={{ fontSize: 12.5, color: '#64748B', mt: 0.25 }}>
-                  Biểu đồ tăng trưởng đơn hàng cứu món & lưu lượng xử lý AI trong tuần
+                  Số đơn tạo mới mỗi ngày trong 7 ngày gần nhất
                 </Typography>
               </Box>
 
@@ -591,13 +628,13 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#1F3BB3' }} />
                   <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
-                    Tuần này
+                    7 ngày gần nhất
                   </Typography>
                 </Stack>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#38BDF8' }} />
                   <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
-                    Tuần trước
+                    7 ngày trước đó
                   </Typography>
                 </Stack>
               </Stack>

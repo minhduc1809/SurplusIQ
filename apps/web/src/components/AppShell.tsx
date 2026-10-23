@@ -19,28 +19,122 @@ import {
   Bell,
   LogOut,
   Menu,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import '../styles/app-shell.css';
 
-/** Sidebar merchant web theo rule 7.2 - nhóm menu cố định, top bar có trạng thái cửa hàng. */
-const NAV_ITEMS = [
-  { to: '/today', label: 'Hôm nay', icon: LayoutDashboard },
-  { to: '/offers', label: 'Suất & tồn kho', icon: Package },
-  { to: '/rescue-timeline', label: 'Rescue Timeline', icon: Timer },
-  { to: '/rescue-pool', label: 'Rescue Pool', icon: UsersRound },
-  { to: '/rescue-bridge', label: 'Rescue Bridge', icon: HeartHandshake },
-  { to: '/rescue-lab', label: 'Rescue Lab', icon: FlaskConical },
-  { to: '/orders', label: 'Đơn hàng', icon: ClipboardList },
-  { to: '/items', label: 'Món', icon: UtensilsCrossed },
-  { to: '/reports', label: 'Báo cáo & tác động', icon: BarChart3 },
-  { to: '/finance', label: 'Tài chính', icon: Banknote },
-  { to: '/forecast', label: 'Dự báo & giá Pro', icon: Sparkles },
-  { to: '/marketing', label: 'Ưu đãi & chiến dịch', icon: Tag },
-  { to: '/customers', label: 'Khách hàng', icon: Users },
-  { to: '/ai', label: 'Trợ lý AI', icon: Bot },
-  { to: '/settings', label: 'Cài đặt cửa hàng', icon: Settings },
+type NavItem = { to: string; label: string; icon: typeof Package };
+/** Menu gộp theo nhóm: mục lẻ hiện thẳng, nhóm có tiêu đề bấm để thu gọn / mở rộng. */
+const NAV: ({ item: NavItem } | { title: string; icon: typeof Package; items: NavItem[] })[] = [
+  { item: { to: '/today', label: 'Hôm nay', icon: LayoutDashboard } },
+  {
+    title: 'Bán hàng',
+    icon: ClipboardList,
+    items: [
+      { to: '/offers', label: 'Suất bán & tồn kho', icon: Package },
+      { to: '/orders', label: 'Đơn hàng', icon: ClipboardList },
+      { to: '/items', label: 'Món', icon: UtensilsCrossed },
+    ],
+  },
+  {
+    title: 'Cứu món',
+    icon: HeartHandshake,
+    items: [
+      { to: '/rescue-timeline', label: 'Dòng thời gian cứu món', icon: Timer },
+      { to: '/rescue-pool', label: 'Mua chung theo đợt', icon: UsersRound },
+      { to: '/rescue-bridge', label: 'Cầu nối từ thiện', icon: HeartHandshake },
+      { to: '/rescue-lab', label: 'Phòng mô phỏng', icon: FlaskConical },
+    ],
+  },
+  {
+    title: 'Phân tích & tăng trưởng',
+    icon: BarChart3,
+    items: [
+      { to: '/reports', label: 'Báo cáo & tác động', icon: BarChart3 },
+      { to: '/finance', label: 'Tài chính', icon: Banknote },
+      { to: '/forecast', label: 'Dự báo & giá bán', icon: Sparkles },
+      { to: '/marketing', label: 'Ưu đãi & chiến dịch', icon: Tag },
+      { to: '/customers', label: 'Khách hàng', icon: Users },
+    ],
+  },
+  { item: { to: '/ai', label: 'Trợ lý AI', icon: Bot } },
+  { item: { to: '/settings', label: 'Cài đặt cửa hàng', icon: Settings } },
 ];
+
+const navStyle =
+  (child: boolean) =>
+  ({ isActive }: { isActive: boolean }) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: child ? '8px 14px 8px 28px' : '10px 14px',
+    minHeight: child ? 38 : 42,
+    borderRadius: '0 22px 22px 0',
+    marginRight: 8,
+    boxShadow: isActive ? 'inset 3.5px 0 0 var(--sq-coral)' : 'none',
+    textDecoration: 'none',
+    color: isActive ? 'var(--sq-coral)' : '#334155',
+    background: isActive ? 'var(--sq-coral-wash)' : 'transparent',
+    fontWeight: isActive ? 600 : 500,
+    fontSize: 14,
+    transition: 'background var(--sq-duration-standard)',
+  });
+
+function NavGroup({
+  title,
+  icon: Icon,
+  items,
+}: {
+  title: string;
+  icon: NavItem['icon'];
+  items: NavItem[];
+}) {
+  const { pathname } = useLocation();
+  const hasActive = items.some((i) => pathname === i.to || pathname.startsWith(i.to + '/'));
+  const [open, setOpen] = useState(hasActive);
+  useEffect(() => {
+    if (hasActive) setOpen(true);
+  }, [hasActive]);
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          width: '100%',
+          padding: '10px 14px',
+          minHeight: 42,
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          fontSize: 14,
+          fontWeight: 600,
+          color: hasActive ? 'var(--sq-coral)' : '#334155',
+          textAlign: 'left',
+        }}
+      >
+        <Icon size={20} strokeWidth={1.8} />
+        <span style={{ flex: 1 }}>{title}</span>
+        <ChevronDown
+          size={16}
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }}
+        />
+      </button>
+      {open &&
+        items.map(({ to, label, icon: ChildIcon }) => (
+          <NavLink key={to} to={to} style={navStyle(true)}>
+            <ChildIcon size={17} strokeWidth={1.8} />
+            {label}
+          </NavLink>
+        ))}
+    </div>
+  );
+}
 
 export function AppShell() {
   const { user, logout } = useAuth();
@@ -98,28 +192,16 @@ export function AppShell() {
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              style={({ isActive }) => ({
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '10px 12px',
-                borderRadius: 'var(--sq-radius-md)',
-                textDecoration: 'none',
-                color: isActive ? 'var(--sq-coral-deep)' : 'var(--sq-ink-soft)',
-                background: isActive ? 'var(--sq-coral-wash)' : 'transparent',
-                fontWeight: isActive ? 650 : 450,
-                fontSize: 14,
-                transition: `background var(--sq-duration-standard)`,
-              })}
-            >
-              <Icon size={20} strokeWidth={1.8} />
-              {label}
-            </NavLink>
-          ))}
+          {NAV.map((n) =>
+            'item' in n ? (
+              <NavLink key={n.item.to} to={n.item.to} style={navStyle(false)}>
+                <n.item.icon size={20} strokeWidth={1.8} />
+                {n.item.label}
+              </NavLink>
+            ) : (
+              <NavGroup key={n.title} {...n} />
+            ),
+          )}
         </nav>
 
         <button

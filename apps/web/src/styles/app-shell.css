@@ -11,13 +11,13 @@
 }
 
 .sq-sidebar {
-  width: 248px;
+  width: 256px;
   flex-shrink: 0;
   background: var(--sq-surface);
   border-right: 1px solid var(--sq-line);
   display: flex;
   flex-direction: column;
-  padding: var(--sq-space-5) var(--sq-space-4);
+  padding: var(--sq-space-5) var(--sq-space-3);
   position: sticky;
   top: 0;
   height: 100vh;
@@ -56,10 +56,10 @@
 }
 
 .sq-topbar {
-  height: 64px;
+  height: 72px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--sq-line);
-  background: var(--sq-surface);
+  background: var(--sq-canvas);
   display: flex;
   align-items: center;
   justify-content: flex-end;

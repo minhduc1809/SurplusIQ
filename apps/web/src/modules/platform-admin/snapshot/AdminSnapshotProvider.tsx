@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { parseSnapshot, type AdminSnapshot } from './model';
-import { adminApi, AdminApiError, adminTokenStorage } from '../api/admin-api.client';
+import { adminApi, adminTokenStorage } from '../api/admin-api.client';
 
 // =====================================================
 // 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU
@@ -54,7 +54,8 @@ export function AdminSnapshotProvider({ children }: { children: ReactNode }) {
           } catch (cause) {
             console.error('[AdminSnapshotProvider] API /admin/snapshot failed:', cause);
             if (controller.signal.aborted) return;
-            if (cause instanceof AdminApiError && [401, 403].includes(cause.status)) throw cause;
+            // Không lùi về tệp tĩnh cũ khi API lỗi: tránh hiển thị số liệu không còn đúng với DB.
+            throw cause;
           }
         }
         const url = new URL(
