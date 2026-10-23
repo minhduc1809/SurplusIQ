@@ -150,10 +150,9 @@ export class CustomerProfileService {
     if (dto.lastLng !== undefined) profile.lastLng = dto.lastLng;
 
     const saved = await this.profileRepo.save(profile);
+    // Trả về hồ sơ đầy đủ (userId, phone...) như GET: app khách đọc phản hồi bằng cùng một kiểu dữ liệu.
     return {
-      fullName: saved.fullName,
-      avatarUrl: saved.avatarUrl,
-      searchRadiusKm: Number(saved.searchRadiusKm),
+      ...(await this.getProfile(userId)),
       lastLat: saved.lastLat ? Number(saved.lastLat) : null,
       lastLng: saved.lastLng ? Number(saved.lastLng) : null,
     };
