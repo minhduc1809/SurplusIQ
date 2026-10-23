@@ -38,7 +38,7 @@ async function run() {
       qty: 2,
       price: 45000,
       total: 90000,
-      hold_expires_at: new Date(Date.now() + 15 * 60 * 1000),
+      hold_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       created_at: new Date(Date.now() - 5 * 60 * 1000),
     },
     {
@@ -47,7 +47,7 @@ async function run() {
       qty: 1,
       price: 55000,
       total: 55000,
-      hold_expires_at: new Date(Date.now() + 12 * 60 * 1000),
+      hold_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       created_at: new Date(Date.now() - 8 * 60 * 1000),
     },
     {
@@ -56,7 +56,7 @@ async function run() {
       qty: 3,
       price: 35000,
       total: 105000,
-      hold_expires_at: new Date(Date.now() + 18 * 60 * 1000),
+      hold_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       created_at: new Date(Date.now() - 2 * 60 * 1000),
     },
     {
@@ -65,7 +65,7 @@ async function run() {
       qty: 2,
       price: 60000,
       total: 120000,
-      hold_expires_at: new Date(Date.now() - 20 * 60 * 1000),
+      hold_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       paid_at: new Date(Date.now() - 30 * 60 * 1000),
       created_at: new Date(Date.now() - 35 * 60 * 1000),
     },
@@ -75,7 +75,7 @@ async function run() {
       qty: 1,
       price: 40000,
       total: 40000,
-      hold_expires_at: new Date(Date.now() - 35 * 60 * 1000),
+      hold_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       paid_at: new Date(Date.now() - 45 * 60 * 1000),
       created_at: new Date(Date.now() - 50 * 60 * 1000),
     },
@@ -110,6 +110,12 @@ async function run() {
         ],
       );
       console.log(`Đã tạo đơn ${o.code} (${o.status}) cho store ${store.name}`);
+    } else {
+      await client.query(
+        `UPDATE orders SET status = $1, hold_expires_at = $2, paid_at = $3, updated_at = NOW() WHERE code = $4`,
+        [o.status, o.hold_expires_at || null, o.paid_at || null, o.code],
+      );
+      console.log(`Đã cập nhật đơn ${o.code} về (${o.status})`);
     }
   }
 
