@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { categoryLabel } from '../lib/categories';
 import { ArrowLeft, Plus, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApiData } from '../lib/useApiData';
@@ -174,7 +175,7 @@ function PoolList({ onSelect }: { onSelect: (id: string) => void }) {
         }}
       >
         <h1 className="sq-h1" style={{ margin: 0 }}>
-          Rescue Pool
+          Mua chung theo đợt
         </h1>
         <button onClick={() => setCreating(true)} style={primaryBtn}>
           <Plus size={18} /> Tạo đợt
@@ -188,7 +189,10 @@ function PoolList({ onSelect }: { onSelect: (id: string) => void }) {
       {state.status === 'empty' && <EmptyState title="Chưa có đợt nào" message={state.message} />}
       {state.status === 'success' && (
         <div style={card}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table
+            className="sq-table"
+            style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}
+          >
             <thead>
               <tr style={{ background: 'var(--sq-surface-soft)' }}>
                 <Th>Đợt</Th>
@@ -209,7 +213,7 @@ function PoolList({ onSelect }: { onSelect: (id: string) => void }) {
                   <td style={cell}>
                     <div style={{ fontWeight: 650 }}>{p.poolTitle}</div>
                     <div className="sq-caption" style={{ color: 'var(--sq-ink-muted)' }}>
-                      {p.targetCategory}
+                      {categoryLabel(p.targetCategory)}
                     </div>
                   </td>
                   <td style={cell}>{p.serviceArea}</td>
@@ -964,7 +968,7 @@ const card: CSSProperties = {
   background: 'var(--sq-surface)',
   border: '1px solid var(--sq-line)',
   borderRadius: 'var(--sq-radius-lg)',
-  overflow: 'hidden',
+  overflowX: 'auto',
 };
 const cell: CSSProperties = {
   padding: '14px 16px',

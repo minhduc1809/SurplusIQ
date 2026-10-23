@@ -141,6 +141,24 @@ export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
+  // Gắn nhãn cột cho từng ô để bảng .sq-table hiển thị dạng thẻ trên màn hẹp.
+  useEffect(() => {
+    const label = () =>
+      document.querySelectorAll<HTMLTableElement>('table.sq-table').forEach((t) => {
+        const heads = [...t.querySelectorAll('thead th')].map((h) => h.textContent ?? '');
+        t.querySelectorAll('tbody tr').forEach((tr) =>
+          [...tr.children].forEach((td, i) => {
+            if (heads[i] && td.getAttribute('data-label') !== heads[i])
+              td.setAttribute('data-label', heads[i]);
+          }),
+        );
+      });
+    label();
+    const mo = new MutationObserver(label);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
+
   // Ngăn kéo (màn hẹp) tự đóng khi đổi trang hoặc bấm Esc.
   useEffect(() => setMenuOpen(false), [location.pathname]);
   useEffect(() => {

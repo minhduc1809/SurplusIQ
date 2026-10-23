@@ -21,6 +21,7 @@ describe('PickupsService', () => {
   let service: PickupsService;
   let orderRepo: jest.Mocked<Repository<OrderEntity>>;
   let pickupTokenRepo: jest.Mocked<Repository<PickupTokenEntity>>;
+  let pickupTokenQb: Record<string, jest.Mock>;
   let proxyCodeRepo: jest.Mocked<Repository<ProxyPickupCodeEntity>>;
   let offerRepo: jest.Mocked<Repository<OfferEntity>>;
   let itemRepo: jest.Mocked<Repository<ItemEntity>>;
@@ -56,7 +57,16 @@ describe('PickupsService', () => {
       save: jest.fn(),
     } as any;
 
+    pickupTokenQb = {
+      innerJoin: jest.fn(),
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      getOne: jest.fn(),
+    };
+    for (const k of ['innerJoin', 'where', 'andWhere'])
+      pickupTokenQb[k].mockReturnValue(pickupTokenQb);
     pickupTokenRepo = {
+      createQueryBuilder: jest.fn(() => pickupTokenQb),
       findOne: jest.fn(),
       create: jest.fn((dto) => ({ id: mockTokenId, ...dto }) as any),
       save: jest.fn((entity) => Promise.resolve({ id: mockTokenId, ...entity } as any)),
@@ -196,7 +206,7 @@ describe('PickupsService', () => {
       const expiresAt = new Date(now.getTime() + 2 * 3600 * 1000);
       const backupPin = '2H7K9P';
 
-      pickupTokenRepo.findOne.mockResolvedValueOnce({
+      pickupTokenQb.getOne.mockResolvedValueOnce({
         id: mockTokenId,
         orderId: mockOrderId,
         backupCode: backupPin,

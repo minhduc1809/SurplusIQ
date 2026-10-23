@@ -142,7 +142,7 @@ export function RescueTimelinePage() {
       >
         <div>
           <h1 className="sq-h1" style={{ margin: 0 }}>
-            Rescue Timeline
+            Dòng thời gian cứu món
           </h1>
           <p className="sq-body" style={{ color: 'var(--sq-ink-soft)', margin: '4px 0 0' }}>
             Lô cần xử lý trước, theo số lượng còn, thời gian còn và tốc độ bán.

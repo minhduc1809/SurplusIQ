@@ -24,7 +24,8 @@ data class Deal(
     val allergens: List<String>,  // e.g. ["Gluten", "Sữa bò", "Trứng"]
     val dietaryType: DietaryType = DietaryType.NONE,
     val isFavorite: Boolean = false,
-    val isUrgent: Boolean = false  // Closes in less than 60 mins
+    val isUrgent: Boolean = false,  // Closes in less than 60 mins
+    val pickupEndAt: String? = null // ISO hết khung nhận, để tính thời gian còn lại
 )
 
 /** 10 nhóm món chuẩn; [displayName] là mã gửi/nhận với backend, [label] là tên ngắn hiển thị. */

@@ -197,7 +197,7 @@ export function RescueLabPage() {
       >
         <div>
           <h1 className="sq-h1" style={{ margin: 0 }}>
-            Rescue Lab
+            Phòng mô phỏng
           </h1>
           <p className="sq-body" style={{ color: 'var(--sq-ink-soft)', margin: '4px 0 0' }}>
             Thử kịch bản giá/số suất trên dữ liệu đã bán, lưu từng phiên bản và đối chiếu với kết

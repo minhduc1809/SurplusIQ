@@ -89,7 +89,7 @@ export function MarketingV2Page() {
         emptyText="Chưa có chương trình ưu đãi nào"
       >
         <TableContainer component={Card}>
-          <Table>
+          <Table className="sq-table">
             <TableHead>
               <TableRow>
                 <TableCell>Chương trình</TableCell>

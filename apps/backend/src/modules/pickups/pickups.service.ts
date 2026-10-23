@@ -151,9 +151,14 @@ export class PickupsService {
         );
       }
 
-      const tokenRecord = await this.pickupTokenRepo.findOne({
-        where: { backupCode: normalizedPin, status: PickupTokenStatus.UNUSED },
-      });
+      // PIN chỉ 6 ký tự nên có thể trùng giữa các quán: chỉ xét vé thuộc đơn của chính quán đang quét.
+      const tokenRecord = await this.pickupTokenRepo
+        .createQueryBuilder('t')
+        .innerJoin(OrderEntity, 'o', 'o.id = t.order_id')
+        .where('t.backup_code = :pin', { pin: normalizedPin })
+        .andWhere('t.status = :status', { status: PickupTokenStatus.UNUSED })
+        .andWhere('o.store_id = :storeId', { storeId })
+        .getOne();
 
       if (!tokenRecord) {
         throw new NotFoundException('Mã PIN dự phòng không tồn tại hoặc đã được sử dụng trước đó.');

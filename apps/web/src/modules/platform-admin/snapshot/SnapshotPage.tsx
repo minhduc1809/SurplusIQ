@@ -528,7 +528,6 @@ function downloadCsv(rows: readonly SnapshotRow[], key: string) {
 function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
   const orders = data.collections.orders ?? [];
   const aiLogs = data.collections.aiLogs ?? [];
-  const offers = data.collections.offers ?? [];
 
   const pickedUpCount = orders.filter((o) => o.status === 'PICKED_UP').length;
   const completionRate = orders.length > 0 ? Math.round((pickedUpCount / orders.length) * 100) : 0;
@@ -643,7 +642,7 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
             <Box sx={{ width: '100%', overflowX: 'auto' }}>
               <svg
                 viewBox={`0 0 ${chartWidth} ${chartHeight + 18}`}
-                style={{ width: '100%', height: 'auto', minWidth: 460, display: 'block' }}
+                style={{ width: '100%', height: 'auto', minWidth: 320, display: 'block' }}
                 role="img"
                 aria-label="Biểu đồ hiệu suất"
               >
@@ -723,12 +722,12 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
           >
             <CardContent sx={{ p: 2.75 }}>
               <Typography sx={{ fontSize: 15, fontWeight: 700, color: '#FFFFFF' }}>
-                Status Summary
+                Tóm tắt trạng thái
               </Typography>
               <Grid container spacing={2} sx={{ alignItems: 'center', mt: 1 }}>
-                <Grid size={{ xs: 5 }}>
+                <Grid size={{ xs: 12 }}>
                   <Typography sx={{ fontSize: 12, color: '#CBD5E1', fontWeight: 500 }}>
-                    Closed Value
+                    Suất đã cứu
                   </Typography>
                   <Typography
                     sx={{
@@ -739,23 +738,8 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
                       mt: 0.25,
                     }}
                   >
-                    {totalSavedMeals || offers.length}
+                    {totalSavedMeals}
                   </Typography>
-                </Grid>
-                <Grid size={{ xs: 7 }}>
-                  <svg
-                    viewBox="0 0 180 60"
-                    style={{ width: '100%', height: 56, display: 'block' }}
-                    aria-label="Status wave chart"
-                  >
-                    <path
-                      d="M 4 46 C 30 42, 42 14, 72 22 C 102 30, 118 8, 146 18 C 160 24, 170 10, 176 8"
-                      fill="none"
-                      stroke="#38BDF8"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                    />
-                  </svg>
                 </Grid>
               </Grid>
             </CardContent>
@@ -819,16 +803,16 @@ function StarAdminHeroSection({ data }: { data: AdminSnapshot }) {
                           fill="none"
                           stroke="#0EA5E9"
                           strokeWidth="3.8"
-                          strokeDasharray={`${aiSuccessRate}, 100`}
+                          strokeDasharray={`${aiLogs.length > 0 ? aiSuccessRate : 0}, 100`}
                         />
                       </svg>
                     </Box>
                     <Box sx={{ minWidth: 0 }}>
                       <Typography noWrap sx={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>
-                        AI Gemini SLA
+                        AI phản hồi thành công
                       </Typography>
                       <Typography sx={{ fontSize: 16, fontWeight: 800, color: '#1E293B' }}>
-                        {aiSuccessRate}%
+                        {aiLogs.length > 0 ? `${aiSuccessRate}%` : '—'}
                       </Typography>
                     </Box>
                   </Stack>
@@ -1782,7 +1766,7 @@ export function SnapshotPage({
               display: { xs: 'none', sm: 'inline-flex' },
             }}
           >
-            Share
+            Chia sẻ
           </Button>
           <Button
             size="small"
@@ -1797,7 +1781,7 @@ export function SnapshotPage({
               display: { xs: 'none', sm: 'inline-flex' },
             }}
           >
-            Print
+            In trang
           </Button>
           {tab !== 'live' && (
             <Button

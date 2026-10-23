@@ -1041,6 +1041,8 @@ export class DiscoveryService {
     ]);
     qb.addSelect(distanceSelectExpr, 'distance_meters');
 
+    // Giới hạn 500 phải lấy theo quán gần nhất / sắp hết giờ nhất, nếu không vùng đông sẽ cắt mất suất tốt.
+    qb.orderBy(hasCoords ? 'distance_meters' : 'o.pickup_end', 'ASC');
     const rawResults = await qb.limit(500).getRawMany();
     const now = Date.now();
 

@@ -336,7 +336,7 @@ export function AdminTopbar({
                 mt: 0.25,
               }}
             >
-              Your performance summary this week · Phân hệ:{' '}
+              Tổng hợp hoạt động tuần này · Phân hệ:{' '}
               <Box component="span" sx={{ fontWeight: 600, color: '#1F3BB3' }}>
                 {currentPageTitle}
               </Box>

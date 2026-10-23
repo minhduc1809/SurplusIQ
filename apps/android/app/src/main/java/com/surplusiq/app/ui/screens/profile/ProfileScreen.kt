@@ -112,7 +112,8 @@ fun ProfileScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         ProfileHeader(
-            initial = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "K",
+            name = userName,
+            avatarUrl = avatarUrl,
             unread = unreadNotificationCount,
             onBell = onOpenNotifications,
             onAvatar = onOpenEditProfile
@@ -313,7 +314,7 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileHeader(initial: String, unread: Int, onBell: () -> Unit, onAvatar: () -> Unit) {
+private fun ProfileHeader(name: String, avatarUrl: String?, unread: Int, onBell: () -> Unit, onAvatar: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Image(
             painter = painterResource(R.drawable.logo_surplusiq_icon),
@@ -328,10 +329,7 @@ private fun ProfileHeader(initial: String, unread: Int, onBell: () -> Unit, onAv
         }
         NotificationBellIcon(unreadCount = unread, onClick = onBell)
         Spacer(Modifier.width(14.dp))
-        Box(
-            Modifier.size(38.dp).clip(CircleShape).background(ForestGreenPrimary).clickable(onClick = onAvatar),
-            contentAlignment = Alignment.Center
-        ) { Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+        com.surplusiq.app.ui.components.UserAvatar(name = name, avatarUrl = avatarUrl, onClick = onAvatar)
     }
 }
 

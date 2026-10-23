@@ -217,7 +217,7 @@ export function FinanceV2Page() {
         onRetry={statements.reload}
       >
         <TableContainer component={Card}>
-          <Table>
+          <Table className="sq-table">
             <TableHead>
               <TableRow>
                 <TableCell>Tuần</TableCell>
