@@ -6,6 +6,7 @@ import com.google.gson.annotations.SerializedName
 data class RescuePoolDto(
     @SerializedName("id") val id: String,
     @SerializedName("storeName") val storeName: String? = null,
+    @SerializedName("imageUrl") val imageUrl: String? = null,
     @SerializedName("poolTitle") val poolTitle: String? = null,
     @SerializedName("targetCategory") val targetCategory: String? = null,
     @SerializedName("serviceArea") val serviceArea: String? = null,

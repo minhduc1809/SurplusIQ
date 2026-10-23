@@ -30,6 +30,16 @@ type Decision = Exclude<ContractStatus, 'PENDING_REVIEW'>;
 interface Contract {
   id: string;
   storeId: string;
+  storeName: string | null;
+  legalProfile?: {
+    legalName: string;
+    businessType: 'INDIVIDUAL' | 'HOUSEHOLD' | 'COMPANY';
+    taxCode: string | null;
+    businessLicenseNo: string | null;
+    representativeName: string;
+    representativePhone: string;
+    legalAddress: string;
+  } | null;
   status: ContractStatus;
   fileName: string;
   sizeBytes: number;
@@ -57,6 +67,12 @@ const DECISION_LABEL: Record<Decision, string> = {
   APPROVED: 'Duyệt',
   REJECTED: 'Từ chối',
   NEED_MORE_INFO: 'Yêu cầu bổ sung',
+};
+
+const BUSINESS_TYPE = {
+  INDIVIDUAL: 'Cá nhân',
+  HOUSEHOLD: 'Hộ kinh doanh',
+  COMPANY: 'Doanh nghiệp',
 };
 
 const errorText = (e: unknown) =>
@@ -191,7 +207,19 @@ export function ContractReviewPanel() {
               )}
               {rows.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{c.storeId}</TableCell>
+                  <TableCell>
+                    <Typography variant="subtitle2">{c.storeName ?? c.storeId}</Typography>
+                    {c.legalProfile ? (
+                      <Typography variant="caption" color="text.secondary">
+                        {c.legalProfile.legalName} · {BUSINESS_TYPE[c.legalProfile.businessType]}
+                        {c.legalProfile.taxCode ? ` · MST ${c.legalProfile.taxCode}` : ''}
+                      </Typography>
+                    ) : (
+                      <Typography variant="caption" color="error">
+                        Chưa khai hồ sơ kinh doanh
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {c.fileName} ({Math.ceil(c.sizeBytes / 1024)} KB)
                   </TableCell>
@@ -234,6 +262,28 @@ export function ContractReviewPanel() {
         <DialogTitle>Duyệt hợp đồng</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
+            {target && (
+              <Alert severity={target.legalProfile ? 'info' : 'warning'} icon={false}>
+                <b>{target.storeName ?? target.storeId}</b>
+                {target.legalProfile ? (
+                  <>
+                    <br />
+                    {target.legalProfile.legalName} (
+                    {BUSINESS_TYPE[target.legalProfile.businessType]})
+                    <br />
+                    MST: {target.legalProfile.taxCode ?? '—'} · GPKD:{' '}
+                    {target.legalProfile.businessLicenseNo ?? '—'}
+                    <br />
+                    Đại diện: {target.legalProfile.representativeName} ·{' '}
+                    {target.legalProfile.representativePhone}
+                    <br />
+                    Địa chỉ: {target.legalProfile.legalAddress}
+                  </>
+                ) : (
+                  <> chưa khai hồ sơ kinh doanh, nên cân nhắc yêu cầu bổ sung.</>
+                )}
+              </Alert>
+            )}
             <TextField
               select
               label="Quyết định"

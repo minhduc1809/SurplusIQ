@@ -1,15 +1,18 @@
 package com.surplusiq.app.ui.screens.postpurchase
 
-import android.util.Patterns
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,24 +21,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.surplusiq.app.data.remote.dto.ComplaintResponse
-import com.surplusiq.app.ui.components.BackTopBar
-import com.surplusiq.app.ui.components.ErrorState
-import com.surplusiq.app.ui.components.LabelValueRow
-import com.surplusiq.app.ui.components.LoadingState
-import com.surplusiq.app.ui.components.SectionCard
-import com.surplusiq.app.ui.components.StatusChip
+import com.surplusiq.app.ui.screens.basket.BasketCardBox
+import com.surplusiq.app.ui.screens.basket.BasketFrame
+import com.surplusiq.app.ui.screens.basket.CONTENT_MAX_WIDTH
+import com.surplusiq.app.ui.screens.basket.LilacInk
+import com.surplusiq.app.ui.screens.basket.Pill
+import com.surplusiq.app.ui.screens.basket.PrimaryAction
+import com.surplusiq.app.ui.screens.basket.SectionLabel
 import com.surplusiq.app.ui.theme.CoralRed
-import com.surplusiq.app.ui.theme.ForestGreenPrimary
-import com.surplusiq.app.ui.theme.MintDeep
+import com.surplusiq.app.ui.theme.LilacWash
+import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SkyBluePrimary
+import com.surplusiq.app.ui.theme.SurfaceSubtle
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
-import com.surplusiq.app.ui.theme.WarningOnLight
 import com.surplusiq.app.ui.util.formatDateTime
 import com.surplusiq.app.ui.util.formatVnd
 
@@ -43,7 +49,7 @@ import com.surplusiq.app.ui.util.formatVnd
 private const val MAX_EXTRA_PER_SUBMIT = 3
 private const val MAX_TOTAL_PHOTOS = 5
 
-/** K36 - Chi tiết khiếu nại (R1-062, R1-063, R1-068). */
+/** K36 - Chi tiết khiếu nại (R1-062, R1-063, R1-068): nội dung đã gửi, dòng thời gian, bổ sung ảnh bằng chứng, rút khiếu nại. */
 @Composable
 fun ComplaintDetailScreen(
     complaint: ComplaintResponse?,
@@ -54,111 +60,94 @@ fun ComplaintDetailScreen(
     onBackClick: () -> Unit,
     onRetry: () -> Unit,
     onAddEvidence: (List<String>) -> Unit,
-    onWithdraw: () -> Unit
+    onWithdraw: () -> Unit,
+    onUploadPhoto: ((ByteArray, String, (Boolean, String?) -> Unit) -> Unit)? = null
 ) {
     var showWithdrawDialog by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        BackTopBar("Chi tiết khiếu nại", onBackClick)
-        when {
-            isLoading && complaint == null -> LoadingState()
-            errorMessage != null -> ErrorState(errorMessage, onRetry)
-            complaint == null -> LoadingState()
-            else -> Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                val (statusText, statusColor) = complaintStatusLabel(complaint.status)
-                val photos = complaint.attachments ?: complaint.imageUrls
-                val isPending = complaint.status == "PENDING_STORE"
-
-                SectionCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            complaint.orderCode ?: "Đơn #${complaint.orderId.take(8).uppercase()}",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = TextPrimary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        StatusChip(statusText, statusColor)
-                    }
-                    complaint.store?.let { store ->
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(store.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                        store.address?.let { Text(it, fontSize = 12.sp, color = TextSecondary) }
-                        store.phone?.let { Text("SĐT: $it", fontSize = 12.sp, color = TextSecondary) }
-                    }
-                    if ((complaint.refundAmount ?: 0) > 0) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LabelValueRow("Số tiền hoàn", formatVnd(complaint.refundAmount), valueColor = ForestGreenPrimary, bold = true)
-                    }
+    BasketFrame(title = "Chi tiết khiếu nại", subtitle = complaint?.orderCode?.let { "Đơn $it" }, onBack = onBackClick) { inner ->
+        Box(Modifier.padding(inner).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            when {
+                errorMessage != null -> Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(errorMessage, color = CoralRed, fontSize = 14.sp)
+                    TextButton(onClick = onRetry) { Text("Thử lại", color = SkyBluePrimary) }
                 }
-
-                SectionCard {
-                    Text("Nội dung bạn đã gửi", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(complaint.category, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                    Text(complaint.description, fontSize = 14.sp, color = TextPrimary)
-                    if (photos.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            photos.forEach { url ->
-                                AsyncImage(
-                                    model = url,
-                                    contentDescription = "Ảnh bằng chứng",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(84.dp).clip(RoundedCornerShape(10.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                )
+                complaint == null || (isLoading && complaint == null) -> CircularProgressIndicator(Modifier.padding(32.dp), color = SkyBluePrimary)
+                else -> {
+                    val (statusText, statusColor) = complaintStatusLabel(complaint.status)
+                    val photos = complaint.attachments ?: complaint.imageUrls
+                    Column(
+                        Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        BasketCardBox {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(complaint.orderCode?.let { "Đơn #$it" } ?: "Đơn #${complaint.orderId.take(8).uppercase()}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+                                Pill(statusText, if (complaint.status == "PENDING_STORE") SkyBlueContainer else if (complaint.status == "ACCEPTED") LilacWash else SurfaceSubtle, statusColor)
+                            }
+                            complaint.store?.let { s ->
+                                Text(s.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.padding(top = 8.dp))
+                                s.address?.let { Text(it, fontSize = 12.sp, color = TextSecondary) }
+                                s.phone?.let { Text("SĐT $it", fontSize = 12.sp, color = TextSecondary) }
+                            }
+                            if ((complaint.refundAmount ?: 0) > 0) {
+                                Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Số tiền hoàn", fontSize = 13.sp, color = TextSecondary)
+                                    Text(formatVnd(complaint.refundAmount), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = SkyBluePrimary)
+                                }
                             }
                         }
-                    }
-                }
 
-                SectionCard {
-                    Text("Dòng thời gian", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TimelineItem("Bạn gửi khiếu nại", formatDateTime(complaint.createdAt), ForestGreenPrimary)
-                    when (complaint.status) {
-                        "PENDING_STORE" -> TimelineItem(
-                            "Đang chờ cửa hàng phản hồi",
-                            complaint.responseDueAt?.let { "Hạn phản hồi ${formatDateTime(it)}" } ?: "",
-                            WarningOnLight
-                        )
-                        "ACCEPTED" -> TimelineItem(
-                            if (complaint.autoAccepted == true) "Tự động chấp nhận do cửa hàng quá hạn phản hồi"
-                            else "Cửa hàng chấp nhận hoàn tiền",
-                            "Hoàn ${formatVnd(complaint.refundAmount)}",
-                            MintDeep
-                        )
-                        "REJECTED" -> TimelineItem("Cửa hàng từ chối", complaint.rejectReason ?: "", CoralRed)
-                        "CLOSED" -> TimelineItem("Khiếu nại đã đóng", complaint.rejectReason ?: "", TextMuted)
-                    }
-                }
+                        BasketCardBox {
+                            SectionLabel("Nội dung đã gửi")
+                            Text(complaint.category, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary, modifier = Modifier.padding(top = 8.dp))
+                            Text(complaint.description, fontSize = 14.sp, color = TextPrimary, lineHeight = 20.sp, modifier = Modifier.padding(top = 4.dp))
+                            if (photos.isNotEmpty()) {
+                                Spacer(Modifier.height(12.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    photos.take(MAX_TOTAL_PHOTOS).forEach { url ->
+                                        Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(14.dp)).background(SurfaceSubtle)) {
+                                            AsyncImage(model = url, contentDescription = "Ảnh bằng chứng", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
-                actionMessage?.let { Text(it, fontSize = 13.sp, color = TextSecondary) }
+                        BasketCardBox {
+                            SectionLabel("Dòng thời gian")
+                            Spacer(Modifier.height(8.dp))
+                            TimelineItem("Bạn gửi khiếu nại", formatDateTime(complaint.createdAt), SkyBluePrimary)
+                            when (complaint.status) {
+                                "PENDING_STORE" -> TimelineItem("Chờ cửa hàng phản hồi", complaint.responseDueAt?.let { "Hạn ${formatDateTime(it)}" } ?: "", TextMuted)
+                                "ACCEPTED" -> TimelineItem(
+                                    if (complaint.autoAccepted == true) "Tự động chấp nhận do cửa hàng quá hạn" else "Cửa hàng chấp nhận hoàn tiền",
+                                    "Hoàn ${formatVnd(complaint.refundAmount)}", LilacInk
+                                )
+                                "REJECTED" -> TimelineItem("Cửa hàng từ chối", complaint.rejectReason ?: "", CoralRed)
+                                "CLOSED" -> TimelineItem("Khiếu nại đã đóng", complaint.rejectReason ?: "", TextMuted)
+                            }
+                        }
 
-                if (isPending) {
-                    // Chỉ xóa các URL đã nhập khi server ghi nhận (số ảnh tăng), giữ lại nếu gửi lỗi.
-                    key(photos.size) {
-                        EvidenceBlock(
-                            remainingSlots = (MAX_TOTAL_PHOTOS - photos.size).coerceIn(0, MAX_EXTRA_PER_SUBMIT),
-                            isSubmitting = isActionLoading,
-                            onSubmit = onAddEvidence
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = { showWithdrawDialog = true },
-                        enabled = !isActionLoading,
-                        modifier = Modifier.fillMaxWidth().height(46.dp),
-                        shape = RoundedCornerShape(23.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed)
-                    ) {
-                        Text("Rút khiếu nại", fontWeight = FontWeight.SemiBold)
+                        actionMessage?.let { Text(it, fontSize = 13.sp, color = TextSecondary) }
+
+                        if (complaint.status == "PENDING_STORE") {
+                            key(photos.size) {
+                                EvidenceBlock(
+                                    remainingSlots = (MAX_TOTAL_PHOTOS - photos.size).coerceIn(0, MAX_EXTRA_PER_SUBMIT),
+                                    isSubmitting = isActionLoading,
+                                    onUpload = onUploadPhoto,
+                                    onSubmit = onAddEvidence
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = { showWithdrawDialog = true },
+                                enabled = !isActionLoading,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            ) { Text("Rút khiếu nại", color = CoralRed, fontWeight = FontWeight.SemiBold) }
+                        }
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
@@ -170,21 +159,17 @@ fun ComplaintDetailScreen(
             onDismissRequest = { showWithdrawDialog = false },
             title = { Text("Rút khiếu nại?") },
             text = { Text("Chỉ rút khi bạn đã thỏa thuận ổn với cửa hàng. Khiếu nại sẽ chuyển sang Đã đóng.") },
-            confirmButton = {
-                TextButton(onClick = { showWithdrawDialog = false; onWithdraw() }) {
-                    Text("Rút khiếu nại", color = CoralRed, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = { TextButton(onClick = { showWithdrawDialog = false }) { Text("Đóng") } }
+            confirmButton = { TextButton(onClick = { showWithdrawDialog = false; onWithdraw() }) { Text("Rút khiếu nại", color = CoralRed, fontWeight = FontWeight.Bold) } },
+            dismissButton = { TextButton(onClick = { showWithdrawDialog = false }) { Text("Đóng", color = TextSecondary) } }
         )
     }
 }
 
 @Composable
 private fun TimelineItem(title: String, subtitle: String, color: Color) {
-    Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
-        Box(modifier = Modifier.padding(top = 5.dp).size(10.dp).background(color, CircleShape))
-        Spacer(modifier = Modifier.width(10.dp))
+    Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.padding(top = 5.dp).size(10.dp).background(color, CircleShape))
+        Spacer(Modifier.width(12.dp))
         Column {
             Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             if (subtitle.isNotBlank()) Text(subtitle, fontSize = 12.sp, color = TextSecondary)
@@ -192,66 +177,67 @@ private fun TimelineItem(title: String, subtitle: String, color: Color) {
     }
 }
 
-/**
- * "Bổ sung bằng chứng": backend chỉ nhận URL ảnh (chưa có API tải ảnh lên), nên khách dán
- * đường dẫn ảnh công khai. Ghi chú kèm theo không được backend lưu nên không thu thập.
- */
+/** Bổ sung bằng chứng: chọn ảnh từ máy, tải lên máy chủ rồi gửi đường dẫn ảnh đã tải (không còn dán đường dẫn thủ công). */
 @Composable
-private fun EvidenceBlock(remainingSlots: Int, isSubmitting: Boolean, onSubmit: (List<String>) -> Unit) {
+private fun EvidenceBlock(
+    remainingSlots: Int,
+    isSubmitting: Boolean,
+    onUpload: ((ByteArray, String, (Boolean, String?) -> Unit) -> Unit)?,
+    onSubmit: (List<String>) -> Unit
+) {
+    val context = LocalContext.current
     val urls = remember { mutableStateListOf<String>() }
-    var input by remember { mutableStateOf("") }
-    val inputValid = input.isNotBlank() && Patterns.WEB_URL.matcher(input.trim()).matches() &&
-        input.trim().startsWith("http")
-
-    SectionCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Bổ sung bằng chứng", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    var uploading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null || onUpload == null) return@rememberLauncherForActivityResult
+        val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+        if (bytes == null || bytes.isEmpty()) { error = "Không đọc được ảnh đã chọn."; return@rememberLauncherForActivityResult }
+        uploading = true
+        error = null
+        onUpload(bytes, "evidence_${System.currentTimeMillis()}.jpg") { ok, url ->
+            uploading = false
+            if (ok && url != null) urls.add(url) else error = "Không tải được ảnh lên máy chủ."
         }
+    }
+
+    BasketCardBox {
+        SectionLabel("Bổ sung bằng chứng")
         Text(
-            if (remainingSlots == 0) "Đã đạt tối đa $MAX_TOTAL_PHOTOS ảnh cho khiếu nại này."
-            else "Thêm tối đa $remainingSlots đường dẫn ảnh (https://...).",
-            fontSize = 12.sp,
-            color = TextMuted
+            if (remainingSlots == 0) "Đã đủ $MAX_TOTAL_PHOTOS ảnh cho khiếu nại này." else "Thêm tối đa $remainingSlots ảnh.",
+            fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 4.dp)
         )
         if (remainingSlots > 0) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    label = { Text("Đường dẫn ảnh") },
-                    singleLine = true,
-                    isError = input.isNotBlank() && !inputValid,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                TextButton(
-                    onClick = { urls.add(input.trim()); input = "" },
-                    enabled = inputValid && urls.size < remainingSlots && input.trim() !in urls
-                ) { Text("Thêm") }
-            }
-            urls.forEachIndexed { index, url ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(url, fontSize = 12.sp, color = TextSecondary, maxLines = 1, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { urls.removeAt(index) }) {
-                        Icon(Icons.Default.Close, contentDescription = "Xóa", modifier = Modifier.size(16.dp))
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(MAX_EXTRA_PER_SUBMIT) { i ->
+                    val slotMod = Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(16.dp))
+                    val url = urls.getOrNull(i)
+                    when {
+                        i >= remainingSlots -> Box(slotMod.background(SurfaceSubtle))
+                        url != null -> Box(slotMod.background(SurfaceSubtle)) {
+                            AsyncImage(model = if (url.startsWith("http")) url else com.surplusiq.app.BuildConfig.API_BASE_URL.trimEnd('/') + url, contentDescription = "Ảnh bổ sung", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            IconButton(onClick = { urls.removeAt(i) }, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(26.dp).background(Color.Black.copy(alpha = 0.6f), CircleShape)) {
+                                Icon(Icons.Default.Close, contentDescription = "Xóa ảnh", tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                        i == urls.size -> Column(
+                            slotMod.background(SkyBlueContainer).border(1.dp, SkyBluePrimary.copy(alpha = 0.4f), RoundedCornerShape(16.dp)).clickable(enabled = !uploading && onUpload != null) { picker.launch("image/*") },
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
+                        ) {
+                            if (uploading) CircularProgressIndicator(Modifier.size(24.dp), color = SkyBluePrimary, strokeWidth = 2.dp)
+                            else {
+                                Icon(Icons.Default.AddAPhoto, contentDescription = "Thêm ảnh", tint = SkyBluePrimary, modifier = Modifier.size(26.dp))
+                                Text("Tải ảnh", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SkyBluePrimary, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                        else -> Box(slotMod.background(SurfaceSubtle))
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { onSubmit(urls.toList()) },
-                enabled = urls.isNotEmpty() && !isSubmitting,
-                modifier = Modifier.fillMaxWidth().height(46.dp),
-                shape = RoundedCornerShape(23.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
-            ) {
-                if (isSubmitting) CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                else Text("Gửi bằng chứng", fontWeight = FontWeight.Bold, color = Color.White)
-            }
+            error?.let { Text(it, color = CoralRed, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)) }
+            Spacer(Modifier.height(12.dp))
+            PrimaryAction("Gửi bằng chứng", enabled = urls.isNotEmpty(), loading = isSubmitting, modifier = Modifier.fillMaxWidth()) { onSubmit(urls.toList()) }
         }
     }
 }

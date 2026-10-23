@@ -101,7 +101,8 @@ private fun ScenarioList(
         error = null
         repository.getLabScenarios().fold(onSuccess = { list = it }, onFailure = { error = it.message })
     }
-    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 760.dp) / 2).coerceAtLeast(0.dp)
+    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(horizontal = sidePad).padding(20.dp)) {
         ScreenHeader("Phòng mô phỏng", onBack)
         Text("Thử mức giảm giá trên số liệu bán thật của quán. Kết quả là mô phỏng, không đổi giá hay tồn kho.", fontSize = 12.sp, color = SqInkSoft)
         Spacer(Modifier.height(10.dp))
@@ -155,7 +156,8 @@ private fun ScenarioDetail(
         return
     }
 
-    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 760.dp) / 2).coerceAtLeast(0.dp)
+    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(horizontal = sidePad).padding(20.dp)) {
         ScreenHeader(scenario?.title ?: "Kịch bản", onBack)
         InlineError(actionError)
         val s = scenario
@@ -187,7 +189,7 @@ private fun ScenarioDetail(
                             Spacer(Modifier.height(4.dp))
                             DualBarChart(dualRows(m.simulated, m.baseline), "Mô phỏng", "Thực tế kỳ nền")
                         }
-                        v.applied?.let { Text("Đã ghi nhận áp dụng ${shortDateTime(it.appliedAt)} · ${it.appliedScope?.note.orEmpty()}", fontSize = 12.sp, color = SqMintDeep, modifier = Modifier.padding(top = 6.dp)) }
+                        v.applied?.let { Text("Đã ghi nhận áp dụng ${shortDateTime(it.appliedAt)} · ${it.appliedScope?.note.orEmpty()}", fontSize = 12.sp, color = SqCoralDeep, modifier = Modifier.padding(top = 6.dp)) }
                         if (v.simulationStatus == "COMPLETED") Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = v.id in selected, onCheckedChange = { onToggle(v.id) })
                             Text("Chọn để so sánh", fontSize = 12.sp, color = SqInkSoft)
@@ -284,7 +286,8 @@ private fun VersionForm(repository: StoreRepository, scenarioId: String?, from: 
         else -> null
     }
 
-    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 760.dp) / 2).coerceAtLeast(0.dp)
+    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(horizontal = sidePad).padding(20.dp)) {
         ScreenHeader(if (scenarioId == null) "Tạo kịch bản" else "Phiên bản mới (từ v${from?.versionNo})", onCancel)
         Spacer(Modifier.height(12.dp))
         SqCard {

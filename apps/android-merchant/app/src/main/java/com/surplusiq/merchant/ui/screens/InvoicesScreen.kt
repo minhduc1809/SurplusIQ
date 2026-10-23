@@ -4,8 +4,9 @@ import android.util.Base64
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,7 +26,7 @@ import com.surplusiq.merchant.ui.theme.*
 import kotlinx.coroutines.launch
 
 private val INVOICE_STATUS = mapOf(
-    "PAID" to ("Đã thanh toán" to SqMintDeep),
+    "PAID" to ("Đã thanh toán" to SqCoralDeep),
     "PENDING" to ("Chờ thanh toán" to SqInkSoft),
     "FAILED" to ("Thất bại" to SqError),
     "REFUNDED" to ("Đã hoàn tiền" to SqCoralDeep),
@@ -64,7 +65,8 @@ fun InvoicesScreen(repository: StoreRepository, onBack: () -> Unit) {
 
     LaunchedEffect(Unit) { load() }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(20.dp)) {
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+    Column(modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize().padding(20.dp)) {
         ScreenHeader("Hóa đơn gói", onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -81,24 +83,30 @@ fun InvoicesScreen(repository: StoreRepository, onBack: () -> Unit) {
                     years.forEach { y -> SqChip(y, year == y) { year = y } }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
-                MetricCard(
-                    label = "Tổng đã chi${year?.let { " năm $it" } ?: ""}",
-                    value = currency(shown.filter { it.status == "PAID" }.sumOf { it.amount }),
-                    accent = SqCoral, modifier = Modifier.fillMaxWidth()
-                )
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(SqCoralWash).padding(16.dp)) {
+                    Text("TỔNG ĐÃ CHI${year?.let { " NĂM $it" } ?: ""}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SqCoralDeep, letterSpacing = 0.5.sp)
+                    Text(currency(shown.filter { it.status == "PAID" }.sumOf { it.amount }), fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.padding(top = 2.dp))
+                    Text("${shown.size} hóa đơn", fontSize = 12.sp, color = SqInkSoft)
+                }
                 InlineSuccess(message)
                 Spacer(modifier = Modifier.height(10.dp))
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(340.dp),
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     items(shown) { inv ->
                         val (label, color) = INVOICE_STATUS[inv.status] ?: (inv.status to SqInkSoft)
                         Row(
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(SqSurface).padding(12.dp),
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SqSurface).padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("${shortDate(inv.periodStart)} – ${shortDate(inv.periodEnd)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SqInk)
-                                Text("${currency(inv.amount)} · $label", fontSize = 12.sp, color = color)
-                                Text("Mã GD: ${inv.paymentTxnId ?: "—"}", fontSize = 11.sp, color = SqInkMuted)
+                                Text(currency(inv.amount), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
+                                Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color)
+                                Text("Mã giao dịch: ${inv.paymentTxnId ?: "—"}", fontSize = 11.sp, color = SqInkMuted)
                                 Text("Ngày thanh toán: ${shortDate(inv.createdAt)}", fontSize = 11.sp, color = SqInkMuted)
                             }
                             IconButton(onClick = { download(inv) }) {
@@ -109,5 +117,6 @@ fun InvoicesScreen(repository: StoreRepository, onBack: () -> Unit) {
                 }
             }
         }
+    }
     }
 }

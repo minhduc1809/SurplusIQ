@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -155,7 +155,34 @@ export class StoreLegalService {
       order: { createdAt: 'DESC' },
       take: 100,
     });
-    return rows.map((c) => ({ ...this.toContractView(c), storeId: c.storeId }));
+    const ids = [...new Set(rows.map((c) => c.storeId))];
+    const [profiles, stores] = ids.length
+      ? await Promise.all([
+          this.profileRepo.find({ where: { storeId: In(ids) } }),
+          this.profileRepo.manager.query('SELECT id, name FROM stores WHERE id = ANY($1)', [ids]),
+        ])
+      : [[], []];
+    const profileOf = new Map(profiles.map((p) => [p.storeId, p]));
+    const nameOf = new Map<string, string>(
+      stores.map((r: { id: string; name: string }) => [r.id, r.name]),
+    );
+    return rows.map((c) => {
+      const p = profileOf.get(c.storeId);
+      return {
+        ...this.toContractView(c),
+        storeId: c.storeId,
+        storeName: nameOf.get(c.storeId) ?? null,
+        legalProfile: p && {
+          legalName: p.legalName,
+          businessType: p.businessType,
+          taxCode: p.taxCode,
+          businessLicenseNo: p.businessLicenseNo,
+          representativeName: p.representativeName,
+          representativePhone: p.representativePhone,
+          legalAddress: p.legalAddress,
+        },
+      };
+    });
   }
 
   async review(contractId: string, adminId: string, dto: ReviewContractDto) {

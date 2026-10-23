@@ -953,7 +953,8 @@ fun SurplusAppRoot(
                 onBackClick = { currentDestination = AppDestination.ComplaintList },
                 onRetry = { interactionsViewModel.loadComplaintDetail(dest.complaintId) },
                 onAddEvidence = { urls -> interactionsViewModel.addComplaintEvidence(dest.complaintId, urls) },
-                onWithdraw = { interactionsViewModel.withdrawComplaint(dest.complaintId) }
+                onWithdraw = { interactionsViewModel.withdrawComplaint(dest.complaintId) },
+                onUploadPhoto = { bytes, fileName, callback -> interactionsViewModel.uploadEvidence(bytes, fileName, onResult = callback) }
             )
         }
 

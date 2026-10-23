@@ -64,7 +64,8 @@ fun OrderDetailScreen(repository: StoreRepository, orderId: String, canCancel: B
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 720.dp) / 2).coerceAtLeast(0.dp)
+    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(horizontal = sidePad).padding(20.dp)) {
         ScreenHeader("Chi tiết đơn", onBack)
         Spacer(modifier = Modifier.height(12.dp))
         val o = order

@@ -95,9 +95,9 @@ private fun <T> Loaded(state: Triple<T?, String?, () -> Unit>, content: @Composa
 private fun OverviewTab(repository: StoreRepository, days: Int) {
     Loaded(rememberLoad(days) { val (s, e) = rangeOf(days); repository.getReportsOverview(s, e) }) { r ->
         val s = r.summary
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard("Doanh thu", currency(s.grossRevenue), SqCoral, Modifier.weight(1f))
-            MetricCard("Tổng đơn", "${s.totalOrders}", SqMint, Modifier.weight(1f))
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricCard("Doanh thu", currency(s.grossRevenue), SqCoral, Modifier.weight(1f).fillMaxHeight())
+            MetricCard("Tổng đơn", "${s.totalOrders}", SqMint, Modifier.weight(1f).fillMaxHeight())
         }
         Spacer(Modifier.height(10.dp))
         SqCard {
@@ -111,12 +111,12 @@ private fun OverviewTab(repository: StoreRepository, days: Int) {
         Spacer(Modifier.height(10.dp))
         SectionTitle("Hao hụt")
         Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PastelTile("Đơn hủy", Icons.Default.Cancel, "${r.waste.cancelledCount}", "trong kỳ", TileTone.PEACH, Modifier.weight(1f))
             PastelTile("Không đến nhận", Icons.Default.PersonOff, "${r.waste.noShowCount}", "đơn bỏ", TileTone.BUTTER, Modifier.weight(1f))
         }
         Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PastelTile("Khối lượng bỏ", Icons.Default.Delete, "%.1f kg".format(r.waste.wastedWeightKg), "ước tính 0,4 kg/suất", TileTone.PEACH, Modifier.weight(1f))
             PastelTile("Giá trị hao hụt", Icons.Default.Paid, currency(r.waste.wastedEstimatedCost), "theo giá bán", TileTone.BUTTER, Modifier.weight(1f))
         }
@@ -133,9 +133,9 @@ private fun OverviewTab(repository: StoreRepository, days: Int) {
 private fun FinanceTab(repository: StoreRepository, days: Int) {
     Loaded(rememberLoad(days) { val (s, e) = rangeOf(days); repository.getFinanceSummary(s, e) }) { r ->
         val s = r.summary
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard("Doanh thu gộp", currency(s.grossSales), SqCoral, Modifier.weight(1f))
-            MetricCard("Thực nhận ước tính", currency(s.netPayout), SqMint, Modifier.weight(1f))
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricCard("Doanh thu gộp", currency(s.grossSales), SqCoral, Modifier.weight(1f).fillMaxHeight())
+            MetricCard("Thực nhận ước tính", currency(s.netPayout), SqMint, Modifier.weight(1f).fillMaxHeight())
         }
         Spacer(Modifier.height(10.dp))
         SqCard {
@@ -216,9 +216,9 @@ private fun HoursTab(repository: StoreRepository, days: Int) {
 @Composable
 private fun PricingTab(repository: StoreRepository) {
     Loaded(rememberLoad(Unit) { repository.getPricingEfficacy() }) { p ->
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard("Đề xuất giá", "${p.totalProposals}", SqCoral, Modifier.weight(1f))
-            MetricCard("Tỷ lệ duyệt", "${p.adoptionRate}%", SqMint, Modifier.weight(1f))
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricCard("Đề xuất giá", "${p.totalProposals}", SqCoral, Modifier.weight(1f).fillMaxHeight())
+            MetricCard("Tỷ lệ duyệt", "${p.adoptionRate}%", SqMint, Modifier.weight(1f).fillMaxHeight())
         }
         Spacer(Modifier.height(10.dp))
         SqCard {

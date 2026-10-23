@@ -3,8 +3,10 @@ package com.surplusiq.merchant.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -53,23 +55,27 @@ fun ComplaintsScreen(repository: StoreRepository, onOpen: (String) -> Unit, onBa
         repository.getComplaints(status).fold(onSuccess = { list = it }, onFailure = { error = it.message })
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(SqCanvas),
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(340.dp),
+        modifier = Modifier.widthIn(max = 1100.dp).fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) {
             ScreenHeader("Khiếu nại", onBack)
             Spacer(Modifier.height(8.dp))
             ChipRow(COMPLAINT_FILTERS, status) { status = it }
-        }
+        }}
         val l = list
         when {
-            error != null -> item { ErrorState(error!!) { reloadKey++ } }
-            l == null -> item { FullScreenLoading() }
-            l.isEmpty() -> item { EmptyState("Không có khiếu nại", "Khiếu nại của khách sẽ hiện ở đây. Quán có 24 giờ để phản hồi.") }
+            error != null -> item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) { ErrorState(error!!) { reloadKey++ } }}
+            l == null -> item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) { FullScreenLoading() }}
+            l.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) { EmptyState("Không có khiếu nại", "Khiếu nại của khách sẽ hiện ở đây. Quán có 24 giờ để phản hồi.") }}
             else -> items(l, key = { it.id }) { c -> ComplaintRow(c) { onOpen(c.id) } }
         }
+    }
     }
 }
 
@@ -119,7 +125,8 @@ fun ComplaintDetailScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(20.dp)) {
+    val sidePad = ((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 720.dp) / 2).coerceAtLeast(0.dp)
+    Column(Modifier.fillMaxSize().background(SqCanvas).verticalScroll(rememberScrollState()).padding(horizontal = sidePad).padding(20.dp)) {
         ScreenHeader("Xử lý khiếu nại", onBack)
         Spacer(Modifier.height(12.dp))
         val d = detail

@@ -212,7 +212,7 @@ fun TodayScreen(repository: StoreRepository, onOpenTasks: () -> Unit = {}, onNav
                     )
                 }
                 items(tiles.chunked(2)) { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { t ->
                             PastelTile(t.title, t.icon, t.value, t.sub, t.tone, Modifier.weight(1f), t.progress, t.onClick)
                         }
@@ -254,9 +254,9 @@ private fun OrdersToHandleCard(paid: Int, complaints: Int, onNavigate: (String) 
         if (paid == 0 && complaints == 0) {
             Text("Không có đơn nào cần xử lý lúc này.", fontSize = 13.sp, color = SqInkSoft)
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HandleTile("Chờ khách nhận", paid, "đơn đã thanh toán", Icons.Default.ShoppingBag, SqCoral, Modifier.weight(1f)) { onNavigate("orders") }
-                HandleTile("Khiếu nại", complaints, "phản hồi trong 48 giờ", Icons.Default.ReportProblem, SqCoralDeep, Modifier.weight(1f)) { onNavigate("complaints") }
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HandleTile("Chờ khách nhận", paid, "đơn đã thanh toán", Icons.Default.ShoppingBag, SqCoral, Modifier.weight(1f).fillMaxHeight()) { onNavigate("orders") }
+                HandleTile("Khiếu nại", complaints, "phản hồi trong 48 giờ", Icons.Default.ReportProblem, SqCoralDeep, Modifier.weight(1f).fillMaxHeight()) { onNavigate("complaints") }
             }
         }
     }
@@ -309,16 +309,16 @@ private fun CoreActionsCard(onNavigate: (String) -> Unit) {
     SqCard {
         SectionTitle("Việc chính hôm nay")
         Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CoreActionTile("Quét QR giao món", "Đối chiếu mã khách đưa", Icons.Default.QrCodeScanner, SqCoral, Modifier.weight(1f)) { onNavigate("verify") }
-            CoreActionTile("Đăng suất bán", "Giảm giá món còn dư", Icons.Default.LocalOffer, SqCoralDeep, Modifier.weight(1f)) { onNavigate("offer-new") }
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CoreActionTile("Quét QR giao món", "Đối chiếu mã khách đưa", Icons.Default.QrCodeScanner, SqCoral, Modifier.weight(1f).fillMaxHeight()) { onNavigate("verify") }
+            CoreActionTile("Đăng suất bán", "Giảm giá món còn dư", Icons.Default.LocalOffer, SqCoralDeep, Modifier.weight(1f).fillMaxHeight()) { onNavigate("offer-new") }
         }
         Spacer(Modifier.height(10.dp))
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SqSurfaceSoft).clickable { onNavigate("price-proposals") }.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.TrendingDown, contentDescription = null, tint = SqMintDeep, modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.TrendingDown, contentDescription = null, tint = SqCoralDeep, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("Giá và chiến lược giảm giá", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SqInk)

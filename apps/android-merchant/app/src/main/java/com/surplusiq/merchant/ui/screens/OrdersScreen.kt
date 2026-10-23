@@ -9,8 +9,10 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -66,11 +68,16 @@ fun OrdersScreen(repository: StoreRepository, onNavigate: (String) -> Unit = {})
     val scope = rememberCoroutineScope()
     val saveCsv = rememberFileSaver("text/csv") { ok -> if (ok) exportMsg = "Đã lưu tệp CSV." else exportError = "Không ghi được tệp." }
 
+    var autoWidened by remember { mutableStateOf(false) }
     LaunchedEffect(status, date, reloadKey) {
         isLoading = true
         error = null
         repository.getOrders(status, date?.toString(), page = 1).fold(
-            onSuccess = { orders = it.data; page = 1; totalPages = it.totalPages },
+            onSuccess = {
+                orders = it.data; page = 1; totalPages = it.totalPages
+                // Hôm nay chưa có đơn nào thì mở rộng sang mọi ngày một lần để không gặp màn hình trống.
+                if (it.data.isEmpty() && date == LocalDate.now() && status == null && !autoWidened) { autoWidened = true; date = null }
+            },
             onFailure = { error = it.message }
         )
         isLoading = false
@@ -108,12 +115,15 @@ fun OrdersScreen(repository: StoreRepository, onNavigate: (String) -> Unit = {})
 
     val visible = orders.filter { search.isBlank() || it.code.contains(search.trim(), ignoreCase = true) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(SqCanvas),
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(340.dp),
+        modifier = Modifier.widthIn(max = 1100.dp).fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 92.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Đơn hàng", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.weight(1f))
                 if (exporting) CircularProgressIndicator(color = SqCoral, strokeWidth = 2.dp, modifier = Modifier.padding(end = 12.dp).size(20.dp))
@@ -128,8 +138,8 @@ fun OrdersScreen(repository: StoreRepository, onNavigate: (String) -> Unit = {})
             }
             InlineError(exportError)
             InlineSuccess(exportMsg)
-        }
-        item {
+        }}
+        item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) {
             DatePill(
                 label = when (date) { null -> "Tất cả ngày"; LocalDate.now() -> "Hôm nay"; else -> shortDate(date.toString()) },
                 canNext = date != null && date!! < LocalDate.now(),
@@ -144,21 +154,22 @@ fun OrdersScreen(repository: StoreRepository, onNavigate: (String) -> Unit = {})
                 Spacer(modifier = Modifier.width(8.dp))
                 ChipRow(STATUS_FILTERS, status, modifier = Modifier.weight(1f)) { status = it }
             }
-        }
+        }}
 
         when {
-            isLoading -> item { FullScreenLoading() }
-            error != null -> item { ErrorState(message = error!!) { reloadKey++ } }
-            visible.isEmpty() -> item { EmptyState("Chưa có đơn nào", "Đơn sẽ xuất hiện khi khách đặt suất của bạn.") }
+            isLoading -> item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) { FullScreenLoading() }}
+            error != null -> item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) { ErrorState(message = error!!) { reloadKey++ } }}
+            visible.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) { EmptyState("Chưa có đơn nào", "Đơn sẽ xuất hiện khi khách đặt suất của bạn.") }}
             else -> {
                 items(visible, key = { it.id }) { order -> OrderRow(order) { onNavigate("order/${order.id}") } }
-                if (page < totalPages) item {
+                if (page < totalPages) item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth()) {
                     TextButton(onClick = ::loadMore, enabled = !loadingMore, modifier = Modifier.fillMaxWidth()) {
                         Text(if (loadingMore) "Đang tải..." else "Tải thêm đơn", color = SqCoral, fontWeight = FontWeight.Bold)
                     }
-                }
+                }}
             }
         }
+    }
     }
 }
 
@@ -169,7 +180,7 @@ private fun OrderRow(order: OrderDto, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         val (icon, tint) = when (order.status) {
-            "PICKED_UP" -> Icons.Default.TaskAlt to SqMintDeep
+            "PICKED_UP" -> Icons.Default.TaskAlt to SqInk
             "PAID" -> Icons.Default.Inventory2 to SqCoral
             "PENDING_PAYMENT" -> Icons.Default.HourglassTop to SqButter
             "CANCELLED", "REFUNDED", "HOLD_EXPIRED", "PICKUP_EXPIRED" -> Icons.Default.Cancel to SqCoralDeep
@@ -189,7 +200,7 @@ private fun OrderRow(order: OrderDto, onClick: () -> Unit) {
             }
             val slot = order.pickupSlot?.let { " · hẹn ${shortTime(it)}" }.orEmpty()
             Text(text = "${order.quantity} suất$slot", fontSize = 13.sp, color = SqInkSoft)
-            Text(text = "Đặt ${shortDateTime(order.createdAt)}", fontSize = 12.sp, color = SqInkMuted)
+            Text(text = "Đặt ${shortDateTime(order.createdAt)}", fontSize = 12.sp, color = SqInkMuted, maxLines = 1)
             order.note?.takeIf { it.isNotBlank() }?.let {
                 Text(text = it, fontSize = 12.sp, color = SqInkMuted, maxLines = 1)
             }

@@ -2,55 +2,55 @@
    Soft Market Intelligence: nền sáng, pastel có chiều sâu, dữ liệu vận hành rõ. */
 :root {
   /* 2.1 Palette cốt lõi */
-  --sq-ink: #243033;
-  --sq-ink-soft: #536164;
-  --sq-ink-muted: #879394;
-  --sq-canvas: #fff9f2;
+  --sq-ink: #1e293b;
+  --sq-ink-soft: #64748b;
+  --sq-ink-muted: #94a3b8;
+  --sq-canvas: #f4f5f7;
   --sq-surface: #ffffff;
-  --sq-surface-soft: #f7f1ea;
-  --sq-line: #e9e1d9;
+  --sq-surface-soft: #f8fafc;
+  --sq-line: #e5e7eb;
 
-  --sq-coral: #f2766a;
-  --sq-coral-deep: #d95a58;
-  --sq-coral-wash: #ffe3de;
+  --sq-coral: #1f3bb3;
+  --sq-coral-deep: #172e8c;
+  --sq-coral-wash: #eef2ff;
 
-  --sq-butter: #f6c85f;
-  --sq-butter-wash: #fff1c9;
+  --sq-butter: #f59e0b;
+  --sq-butter-wash: #fef3c7;
 
-  --sq-mint: #71c7a3;
-  --sq-mint-deep: #318a6a;
-  --sq-mint-wash: #ddf3e8;
+  --sq-mint: #10b981;
+  --sq-mint-deep: #047857;
+  --sq-mint-wash: #d1fae5;
 
-  --sq-lilac: #a99ae9;
-  --sq-lilac-wash: #ece8ff;
+  --sq-lilac: #6366f1;
+  --sq-lilac-wash: #e0e7ff;
 
-  --sq-sky: #8ac8e8;
-  --sq-sky-wash: #e1f2fa;
+  --sq-sky: #0ea5e9;
+  --sq-sky-wash: #e0f2fe;
 
-  --sq-error: #c84e56;
-  --sq-warning: #a96b18;
-  --sq-info: #3d73a8;
-  --sq-overlay: rgba(28, 35, 36, 0.42);
+  --sq-error: #ef4444;
+  --sq-warning: #b45309;
+  --sq-info: #0ea5e9;
+  --sq-overlay: rgba(15, 23, 42, 0.45);
 
   /* 2.2 Gradient có kiểm soát - chỉ dùng cho CTA hero/deal nổi bật/Pro */
-  --sq-gradient-coral: linear-gradient(135deg, #f2766a 0%, #ff9a83 100%);
-  --sq-gradient-mint: linear-gradient(135deg, #71c7a3 0%, #a9dec3 100%);
-  --sq-gradient-lilac: linear-gradient(135deg, #a99ae9 0%, #c7bdf4 100%);
-  --sq-gradient-butter: linear-gradient(135deg, #f6c85f 0%, #ffe49a 100%);
+  --sq-gradient-coral: #1f3bb3;
+  --sq-gradient-mint: #10b981;
+  --sq-gradient-lilac: #6366f1;
+  --sq-gradient-butter: #f59e0b;
 
   /* 2.3 Elevation - shadow mềm, không bóng đen dày */
-  --sq-elevation-low: 0 3px 12px rgba(67, 52, 42, 0.055);
-  --sq-elevation-mid: 0 8px 24px rgba(67, 52, 42, 0.09);
-  --sq-elevation-high: 0 16px 40px rgba(67, 52, 42, 0.14);
-  --sq-elevation-coral: 0 7px 20px rgba(242, 118, 106, 0.22);
+  --sq-elevation-low: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --sq-elevation-mid: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --sq-elevation-high: 0 12px 32px rgba(15, 23, 42, 0.14);
+  --sq-elevation-coral: 0 4px 12px rgba(31, 59, 179, 0.22);
 
   /* 4.2 Radius */
-  --sq-radius-xs: 6px;
-  --sq-radius-sm: 10px;
-  --sq-radius-md: 14px;
-  --sq-radius-lg: 18px;
-  --sq-radius-xl: 24px;
-  --sq-radius-2xl: 30px;
+  --sq-radius-xs: 4px;
+  --sq-radius-sm: 8px;
+  --sq-radius-md: 8px;
+  --sq-radius-lg: 12px;
+  --sq-radius-xl: 12px;
+  --sq-radius-2xl: 16px;
   --sq-radius-pill: 999px;
 
   /* 4.1 Spacing scale */
@@ -72,13 +72,13 @@
   --sq-duration-emphasis: 240ms;
   --sq-duration-page: 300ms;
 
-  --sq-font: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --sq-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 /* 2.4 Dark theme tùy chọn - ánh xạ chính thức, không phải đảo màu */
 :root[data-theme='dark'] {
-  --sq-canvas: #191b1b;
-  --sq-surface: #232626;
+  --sq-canvas: #0f172a;
+  --sq-surface: #1e293b;
   --sq-surface-soft: #2c3030;
   --sq-line: #414846;
   --sq-ink: #f7f2ea;
@@ -107,7 +107,7 @@ body {
 body {
   font-size: 14px;
   line-height: 1.5;
-  font-weight: 450;
+  font-weight: 400;
 }
 
 /* 3.2 Typography scale */

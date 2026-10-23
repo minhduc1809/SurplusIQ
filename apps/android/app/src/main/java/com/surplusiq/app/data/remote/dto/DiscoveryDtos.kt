@@ -142,7 +142,9 @@ data class BasketCandidateDto(
 data class BasketItemDto(
     @SerializedName("offerId") val offerId: String,
     @SerializedName("title") val title: String,
-    @SerializedName("price") val price: Double
+    @SerializedName("price") val price: Double,
+    @SerializedName("imageUrl") val imageUrl: String? = null,
+    @SerializedName("allergens") val allergens: List<String>? = null
 )
 
 // --- Bản đồ deal (R1-021): DiscoveryService.findMapPins ---
@@ -297,26 +299,24 @@ data class BasketCheckoutItemRequest(
 data class BasketCheckoutRequest(
     @SerializedName("storeId") val storeId: String,
     @SerializedName("items") val items: List<BasketCheckoutItemRequest>,
-    @SerializedName("pickupTimeWindow") val pickupTimeWindow: String? = null,
     @SerializedName("notes") val notes: String? = null
 )
 
-data class BasketCheckoutHeldItemDto(
+/** Một đơn giữ chỗ trong phản hồi giữ giỏ (DiscoveryService.checkoutBasket). */
+data class BasketCheckoutOrderDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("code") val code: String? = null,
     @SerializedName("offerId") val offerId: String,
-    @SerializedName("orderId") val orderId: String,
-    @SerializedName("title") val title: String,
     @SerializedName("quantity") val quantity: Int,
-    @SerializedName("unitPrice") val unitPrice: Double,
-    @SerializedName("totalPrice") val totalPrice: Double
+    @SerializedName("totalAmount") val totalAmount: Double
 )
 
 data class BasketCheckoutResponse(
     @SerializedName("success") val success: Boolean,
     @SerializedName("storeId") val storeId: String,
-    @SerializedName("orderIds") val orderIds: List<String> = emptyList(),
+    @SerializedName("orders") val orders: List<BasketCheckoutOrderDto> = emptyList(),
     @SerializedName("totalAmount") val totalAmount: Double,
     @SerializedName("holdExpiresAt") val holdExpiresAt: String,
-    @SerializedName("items") val items: List<BasketCheckoutHeldItemDto> = emptyList(),
     @SerializedName("message") val message: String? = null
 )
 

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -143,7 +144,8 @@ fun ItemsScreen(repository: StoreRepository, onNavigate: (String) -> Unit) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(SqCanvas).padding(horizontal = 20.dp).padding(top = 20.dp)) {
+    Box(Modifier.fillMaxSize().background(SqCanvas), contentAlignment = Alignment.TopCenter) {
+    Column(modifier = Modifier.widthIn(max = 1200.dp).fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
         FoodSwitch("items", onNavigate)
         TabHeader(
             title = "Thực phẩm", addLabel = "Thêm món", onAdd = { onNavigate("item-new") },
@@ -179,7 +181,7 @@ fun ItemsScreen(repository: StoreRepository, onNavigate: (String) -> Unit) {
                 if (search.isBlank() && category == null) "Thêm món đầu tiên để tạo suất cuối ngày." else "Thử bỏ bớt bộ lọc hoặc đổi từ khóa."
             )
             else -> androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(176.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 92.dp)
@@ -197,13 +199,15 @@ fun ItemsScreen(repository: StoreRepository, onNavigate: (String) -> Unit) {
                         )
                     )
                 }
-                if (page < totalPages) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
+                if (page < totalPages) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                     TextButton(onClick = ::loadMore, enabled = !loadingMore, modifier = Modifier.fillMaxWidth()) {
                         Text(if (loadingMore) "Đang tải…" else "Tải thêm", color = SqCoral)
                     }
                 }
             }
         }
+    }
+
     }
 
     if (showFilters) ItemFilterSheet(
@@ -237,24 +241,32 @@ private fun SearchBox(value: String, placeholder: String, onChange: (String) -> 
     }
 }
 
-/** Thẻ món dạng lưới: ảnh hoặc icon theo nhóm, tên, nhóm và hạn dùng, giá và trạng thái. */
+/** Thẻ món dạng lưới: ảnh tỷ lệ 4:3 (hoặc ô thêm ảnh), nút thao tác nổi trên nền trắng, tên 2 dòng, nhóm và hạn dùng, giá, trạng thái. Mọi thẻ cùng cấu trúc nên cùng chiều cao. */
 @Composable
 private fun ItemCard(item: ItemDto, onOpen: () -> Unit, onAddPhoto: () -> Unit, menu: List<MenuEntry>) {
-    Column(Modifier.fillMaxWidth().sqSurface(20.dp, 3.dp).clickable(onClick = onOpen).padding(12.dp)) {
-        Box(Modifier.fillMaxWidth()) {
-            if (item.imageUrl.isNullOrBlank()) PhotoPlaceholderButton("Thêm ảnh", onAddPhoto, Modifier.fillMaxWidth().height(96.dp))
-            else RemoteImage(item.imageUrl, modifier = Modifier.fillMaxWidth().height(96.dp), corner = 14.dp, fallback = categoryIcon(item.category))
-            Box(Modifier.align(Alignment.TopEnd)) { OverflowMenu(menu, contentDescription = "Thao tác với ${item.name}") }
+    val archived = item.status == "ARCHIVED"
+    Column(Modifier.fillMaxWidth().sqSurface(20.dp, 1.dp).clickable(onClick = onOpen).padding(10.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f)) {
+            if (item.imageUrl.isNullOrBlank()) PhotoPlaceholderButton("Thêm ảnh", onAddPhoto, Modifier.fillMaxSize())
+            else RemoteImage(item.imageUrl, modifier = Modifier.fillMaxSize(), corner = 14.dp, fallback = categoryIcon(item.category))
+            Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(32.dp).clip(CircleShape).background(SqSurface.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
+                OverflowMenu(menu, contentDescription = "Thao tác với ${item.name}")
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SqInk, maxLines = 2, overflow = TextOverflow.Ellipsis, minLines = 2)
+        Spacer(Modifier.height(10.dp))
+        Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, maxLines = 2, overflow = TextOverflow.Ellipsis, minLines = 2, lineHeight = 18.sp)
         Text(
             listOfNotNull(categoryLabel(item.category), item.standardShelfLifeHours?.let { "HSD ${it}h" }).joinToString(" · "),
-            fontSize = 11.sp, color = SqInkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis
+            fontSize = 11.sp, color = SqInkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp)
         )
-        Spacer(Modifier.height(6.dp))
-        Text(currency(item.originalPrice), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = SqInk)
-        Spacer(Modifier.height(4.dp))
-        StatusBadge(status = item.status)
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(currency(item.originalPrice), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = SqCoralDeep, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+            Text(
+                if (archived) "Đã lưu trữ" else "Đang dùng",
+                fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (archived) SqInkSoft else SqCoralDeep, maxLines = 1,
+                modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(50)).background(if (archived) SqSurfaceSoft else SqCoralWash).padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
     }
 }

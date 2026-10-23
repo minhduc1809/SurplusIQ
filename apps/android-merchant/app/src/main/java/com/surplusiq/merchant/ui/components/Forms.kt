@@ -73,8 +73,8 @@ fun ScreenHeader(title: String, onBack: () -> Unit, actions: @Composable RowScop
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = SqInk)
         }
         Text(
-            text = title, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = SqInk,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
+            text = title, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.ExtraBold, color = SqInk,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
         )
         actions()
     }
@@ -106,7 +106,7 @@ fun OverflowMenu(entries: List<MenuEntry>, contentDescription: String = "Thêm t
 @Composable
 fun TabHeader(title: String, addLabel: String, onAdd: () -> Unit, menu: List<MenuEntry>) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(text = title, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, modifier = Modifier.weight(1f))
+        Text(text = title, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = SqInk, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         OverflowMenu(menu)
         Spacer(modifier = Modifier.width(4.dp))
         Row(
@@ -115,7 +115,7 @@ fun TabHeader(title: String, addLabel: String, onAdd: () -> Unit, menu: List<Men
         ) {
             Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
-            Text(addLabel, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(addLabel, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
         }
     }
 }

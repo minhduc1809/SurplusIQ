@@ -95,6 +95,7 @@ class RescuePoolRepositoryImpl @Inject constructor(
     private fun RescuePoolDto.toDomain() = RescuePool(
         id = id,
         storeName = storeName ?: "Cửa hàng",
+        imageUrl = imageUrl?.ifBlank { null },
         title = poolTitle ?: "Đợt Mua chung theo đợt",
         targetCategory = targetCategory ?: "",
         serviceArea = serviceArea ?: "",

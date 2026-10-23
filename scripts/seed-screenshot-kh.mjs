@@ -50,8 +50,8 @@ const login = async (path, id) =>
   must(
     await call('POST', path, {
       body: path.includes('customer')
-        ? { identifier: id, password: '123456', deviceId: 'seed-shot' }
-        : { email: id, password: '123456', deviceId: 'seed-shot' },
+        ? { identifier: id, password: 'Surplus@1', deviceId: 'seed-shot' }
+        : { email: id, password: 'Surplus@1', deviceId: 'seed-shot' },
     }),
     'đăng nhập ' + id,
   ).accessToken;

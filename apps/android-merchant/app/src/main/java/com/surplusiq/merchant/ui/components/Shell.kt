@@ -75,7 +75,7 @@ fun QuickAccessRow(items: List<QuickItem>) {
 
 data class DualRow(val label: String, val a: Double, val b: Double, val aText: String, val bText: String)
 
-private val LINE_BLUE = androidx.compose.ui.graphics.Color(0xFF2B73AB)
+private val LINE_BLUE = androidx.compose.ui.graphics.Color(0xFF292524)
 
 /**
  * Biểu đồ cột kép kết hợp đường: mỗi chỉ số hai cột (a = mô phỏng/dự đoán, b = thực tế, cùng thang riêng của chỉ số đó,
@@ -83,17 +83,18 @@ private val LINE_BLUE = androidx.compose.ui.graphics.Color(0xFF2B73AB)
  * chỉ số có thực tế bằng 0 thì bỏ điểm đường vì không tính được %.
  */
 @Composable
-fun DualBarChart(rows: List<DualRow>, aLabel: String, bLabel: String, aColor: androidx.compose.ui.graphics.Color = SqCoral, bColor: androidx.compose.ui.graphics.Color = SqMint) {
+fun DualBarChart(rows: List<DualRow>, aLabel: String, bLabel: String, aColor: androidx.compose.ui.graphics.Color = SqCoral, bColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color(0xFFA99AE9)) {
     if (rows.isEmpty()) return
     val diffs = rows.map { if (it.b > 0) (it.a - it.b) / it.b * 100.0 else null }
     Column(Modifier.fillMaxWidth().semantics { contentDescription = "Biểu đồ cột so sánh $aLabel và $bLabel kèm đường chênh lệch phần trăm" }) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 6.dp)) {
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(bottom = 6.dp)) {
             Legend(aLabel, aColor); Legend(bLabel, bColor); Legend("Chênh lệch %", LINE_BLUE)
         }
         androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(290.dp)) {
             val labelPaint = android.graphics.Paint().apply { isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER; textSize = 10.sp.toPx(); color = 0xFF817B78.toInt() }
             val valuePaint = android.graphics.Paint().apply { isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER; textSize = 10.sp.toPx(); color = 0xFF292524.toInt(); isFakeBoldText = true }
-            val diffPaint = android.graphics.Paint().apply { isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER; textSize = 10.sp.toPx(); color = 0xFF2B73AB.toInt(); isFakeBoldText = true }
+            val diffPaint = android.graphics.Paint().apply { isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER; textSize = 10.sp.toPx(); color = 0xFF292524.toInt(); isFakeBoldText = true }
             val bandTop = 14.dp.toPx(); val bandBottom = 74.dp.toPx() // dải riêng cho đường, không đè lên cột
             val top = 98.dp.toPx(); val bottom = size.height - 38.dp.toPx(); val plotH = bottom - top
             val group = size.width / rows.size

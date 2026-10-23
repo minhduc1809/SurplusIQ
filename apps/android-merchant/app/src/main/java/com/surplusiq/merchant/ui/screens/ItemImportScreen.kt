@@ -232,9 +232,9 @@ fun ItemImportScreen(repository: StoreRepository, onBack: () -> Unit) {
                 SqCard {
                     SectionTitle("Kết quả nhập")
                     Spacer(modifier = Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        MetricCard("Đã nhập", "${summary.imported}", SqMint, Modifier.weight(1f))
-                        MetricCard("Lỗi", "${failed.size}", SqCoral, Modifier.weight(1f))
+                    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MetricCard("Đã nhập", "${summary.imported}", SqMint, Modifier.weight(1f).fillMaxHeight())
+                        MetricCard("Lỗi", "${failed.size}", SqCoral, Modifier.weight(1f).fillMaxHeight())
                     }
                     if (failed.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(10.dp))

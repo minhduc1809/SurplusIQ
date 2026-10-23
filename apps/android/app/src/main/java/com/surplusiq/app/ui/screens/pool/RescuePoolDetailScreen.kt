@@ -1,52 +1,50 @@
 package com.surplusiq.app.ui.screens.pool
 
 import androidx.compose.foundation.background
-import com.surplusiq.app.ui.components.SqCard
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Timer
+import com.surplusiq.app.ui.theme.SurfaceSubtle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.app.domain.model.RescuePool
 import com.surplusiq.app.domain.model.RescuePoolOffer
 import com.surplusiq.app.domain.model.RescuePoolRegistration
+import com.surplusiq.app.ui.screens.basket.BasketCardBox
+import com.surplusiq.app.ui.screens.basket.BasketFrame
+import com.surplusiq.app.ui.screens.basket.CONTENT_MAX_WIDTH
+import com.surplusiq.app.ui.screens.basket.PrimaryAction
+import com.surplusiq.app.ui.screens.basket.SectionLabel
+import com.surplusiq.app.ui.screens.basket.WIDE_BREAKPOINT
+import com.surplusiq.app.ui.screens.basket.WIDE_MAX_WIDTH
 import com.surplusiq.app.ui.theme.CoralRed
-import com.surplusiq.app.ui.theme.CoralRedLight
-import com.surplusiq.app.ui.theme.ForestGreenPrimary
-import com.surplusiq.app.ui.theme.InfoOnLight
-import com.surplusiq.app.ui.theme.MintDeep
-import com.surplusiq.app.ui.theme.SkyInfoWash
-import com.surplusiq.app.ui.theme.SurfaceSubtle
-import com.surplusiq.app.ui.theme.TextMuted
+import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SkyBluePrimary
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
-import com.surplusiq.app.ui.theme.WarningOnLight
 import com.surplusiq.app.ui.viewmodel.RescuePoolUiState
 import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.Instant
 
-private const val MAX_QTY_PER_REGISTRATION = 5
-private val TERMINAL = setOf("COMPLETED", "INSUFFICIENT", "CANCELLED", "EXPIRED")
-
-/** Rescue Pool (CM-C02): chi tiết đợt, đăng ký/sửa/rút nhu cầu, xem & xác nhận đề nghị cung ứng. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Chi tiết đợt (CM-C02): đăng ký, sửa, rút nhu cầu, xem và xác nhận đề nghị cung ứng.
+ * Điện thoại một cột; từ 840dp cột trái là thông tin đợt, cột phải là biểu mẫu thao tác.
+ */
 @Composable
 fun RescuePoolDetailScreen(
     state: RescuePoolUiState,
@@ -61,322 +59,236 @@ fun RescuePoolDetailScreen(
 ) {
     val pool = state.selectedPool
 
-    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TopAppBar(
-            title = { Text(pool?.title ?: "Mua chung theo đợt", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") }
-            }
-        )
-
+    BasketFrame(title = "Chi tiết đợt", subtitle = pool?.storeName, onBack = onBackClick, modifier = modifier) { inner ->
         if (pool == null) {
-            Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.padding(inner).fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                 if (state.detailError != null) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(state.detailError, color = CoralRed)
-                        Spacer(Modifier.height(12.dp))
-                        Button(onClick = onRetry) { Text("Thử lại") }
+                        TextButton(onClick = onRetry) { Text("Thử lại", color = SkyBluePrimary) }
                     }
-                } else {
-                    CircularProgressIndicator(color = ForestGreenPrimary)
-                }
+                } else CircularProgressIndicator(color = SkyBluePrimary)
             }
         } else {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            if (state.isDetailLoading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = ForestGreenPrimary)
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(pool.storeName, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                    Text("${pool.serviceArea} · ${pool.targetCategory}", fontSize = 13.sp, color = TextSecondary)
+            BoxWithConstraints(Modifier.padding(inner).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                val wide = maxWidth >= WIDE_BREAKPOINT
+                val reg = pool.myRegistration
+                val info: @Composable ColumnScope.() -> Unit = {
+                    if (state.isDetailLoading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = SkyBluePrimary, trackColor = SkyBlueContainer)
+                    Hero(pool)
+                    reg?.let { RegistrationBanner(it, onOpenMyOrders) }
+                    if (pool.status in TERMINAL_STATUSES) NoticeBox(terminalText(pool), error = false)
+                    state.createdOrderCode?.let { OrderCreatedBanner(it, onOpenMyOrders) }
+                    state.actionMessage?.let { if (state.createdOrderCode == null) NoticeBox(it, error = false) }
+                    state.actionError?.let { NoticeBox(it, error = true) }
+                    pool.offer?.let { offer ->
+                        OfferCard(pool.title, offer, reg?.requestedQuantity ?: 0, state.isSubmitting) { onConfirmOffer(offer.offerVersion) }
+                    }
+                    PublishedConditions(pool)
                 }
-                PoolStatusChip(pool.status)
-            }
-
-            pool.myRegistration?.let { RegistrationBanner(it, onOpenMyOrders) }
-
-            if (pool.status in TERMINAL) TerminalBanner(pool)
-
-            state.createdOrderCode?.let { OrderCreatedBanner(it, onOpenMyOrders) }
-            state.actionMessage?.let { if (state.createdOrderCode == null) MessageBox(it, isError = false) }
-            state.actionError?.let { MessageBox(it, isError = true) }
-
-            pool.offer?.let { offer ->
-                OfferCard(
-                    offer = offer,
-                    quantity = pool.myRegistration?.requestedQuantity ?: 0,
-                    isSubmitting = state.isSubmitting,
-                    onConfirm = { onConfirmOffer(offer.offerVersion) }
-                )
-            }
-
-            PublishedConditions(pool)
-
-            val reg = pool.myRegistration
-            when {
-                pool.canRegister -> DemandForm(
-                    pool = pool,
-                    initial = null,
-                    submitLabel = "Gửi đăng ký nhu cầu",
-                    isSubmitting = state.isSubmitting,
-                    onSubmit = onRegister
-                )
-                reg?.status == "ACTIVE" && pool.status == "OPEN" -> {
-                    DemandForm(
-                        pool = pool,
-                        initial = reg,
-                        submitLabel = "Cập nhật nhu cầu",
-                        isSubmitting = state.isSubmitting,
-                        onSubmit = onUpdate
-                    )
-                    WithdrawSection(state.isSubmitting, onWithdraw)
+                val actions: @Composable ColumnScope.() -> Unit = {
+                    when {
+                        pool.canRegister -> DemandForm(pool, null, "Gửi đăng ký nhu cầu", state.isSubmitting, onRegister)
+                        reg?.status == "ACTIVE" && pool.status == "OPEN" -> {
+                            DemandForm(pool, reg, "Cập nhật nhu cầu", state.isSubmitting, onUpdate)
+                            WithdrawSection(state.isSubmitting, onWithdraw)
+                        }
+                        reg?.status == "ACTIVE" && pool.status !in TERMINAL_STATUSES -> WithdrawSection(state.isSubmitting, onWithdraw)
+                        pool.status == "OPEN" && reg == null -> Text(
+                            "Đợt chưa đến giờ mở đăng ký (mở lúc ${formatPoolTime(pool.registrationOpenAt)}).",
+                            color = TextSecondary, fontSize = 13.sp
+                        )
+                    }
                 }
-                reg?.status == "ACTIVE" && pool.status !in TERMINAL -> WithdrawSection(state.isSubmitting, onWithdraw)
-                pool.status == "OPEN" && reg == null -> Text(
-                    "Đợt chưa đến giờ mở đăng ký (mở lúc ${formatPoolTime(pool.registrationOpenAt)}).",
-                    color = TextSecondary,
-                    fontSize = 13.sp
-                )
+                if (wide) {
+                    Row(Modifier.widthIn(max = WIDE_MAX_WIDTH).fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        Column(Modifier.weight(0.55f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp), content = info)
+                        Column(Modifier.weight(0.45f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp), content = actions)
+                    }
+                } else {
+                    Column(
+                        Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) { info(); actions(); Spacer(Modifier.height(8.dp)) }
+                }
             }
         }
+    }
+}
+
+private fun terminalText(pool: RescuePool) = when (pool.status) {
+    "CANCELLED" -> "Cửa hàng đã hủy đợt" + (pool.cancellationReason?.let { ": $it" } ?: ".")
+    "INSUFFICIENT" -> "Đợt không đủ điều kiện để mở đặt hàng."
+    "EXPIRED" -> "Đợt đã hết hạn."
+    else -> "Đợt đã kết thúc."
+}
+
+@Composable
+private fun Hero(pool: RescuePool) {
+    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+        PoolImage(pool.imageUrl, Modifier.fillMaxSize(), corner = 22.dp, description = pool.title)
+        Box(
+            Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp))
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))))
+        )
+        PoolStatusChip(pool.status, Modifier.align(Alignment.TopStart).padding(12.dp))
+        Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+            Text(pool.title, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, maxLines = 2)
+            Text("${pool.storeName} · ${pool.serviceArea}", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp, maxLines = 1)
         }
     }
 }
 
 @Composable
 private fun RegistrationBanner(reg: RescuePoolRegistration, onOpenMyOrders: () -> Unit) {
-    val ordered = reg.status == "ORDERED"
-    Column(
-        Modifier.fillMaxWidth()
-            .background(if (ordered) MintDeep else SkyInfoWash, RoundedCornerShape(12.dp))
-            .padding(14.dp)
-    ) {
-        RegistrationStatusChip(reg.status)
-        Spacer(Modifier.height(6.dp))
-        val text = when (reg.status) {
-            "ORDERED" -> "Bạn đã có đơn chính thức từ đợt này. Rút nhu cầu không hủy đơn - muốn hủy, vào \"Đơn hàng của tôi\" theo chính sách hủy/hoàn tiền hiện hành."
-            "ACTIVE" -> "Bạn quan tâm ${reg.requestedQuantity} suất. Đây chỉ là đăng ký nhu cầu: chưa có đơn, chưa giữ suất, chưa thu tiền."
-            "WITHDRAWN" -> "Bạn đã rút nhu cầu khỏi đợt này."
-            else -> "Đợt đã kết thúc, đăng ký của bạn đã đóng. Không có khoản thu nào."
-        }
-        Text(text, fontSize = 13.sp, color = if (ordered) Color.White else InfoOnLight)
-        if (ordered) {
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = onOpenMyOrders, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
-                Text("Mở Đơn hàng của tôi")
+    BasketCardBox {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                SectionLabel("Yêu cầu của bạn")
+                Text("${reg.requestedQuantity} suất", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
             }
+            RegistrationStatusChip(reg.status)
+        }
+        if (reg.status == "ORDERED") {
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onOpenMyOrders, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                Text("Xem trong Đơn hàng của tôi", color = SkyBluePrimary, fontWeight = FontWeight.SemiBold)
+            }
+        } else if (reg.status == "ACTIVE") {
+            Text("Quán xác nhận đủ lượng rồi mới thanh toán.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 6.dp))
         }
     }
-}
-
-@Composable
-private fun TerminalBanner(pool: RescuePool) {
-    val text = when (pool.status) {
-        "INSUFFICIENT" -> "Đợt không đủ nhu cầu tối thiểu và đã đóng. Không có đơn nào được tạo, không thu tiền."
-        "CANCELLED" -> "Cửa hàng đã từ chối/hủy đợt${pool.cancellationReason?.let { " (lý do: $it)" } ?: ""}."
-        "EXPIRED" -> "Đợt đã hết hạn${pool.cancellationReason?.let { " ($it)" } ?: ""}."
-        else -> "Đợt đã kết thúc."
-    }
-    MessageBox(text, isError = pool.status == "CANCELLED")
 }
 
 @Composable
 private fun OrderCreatedBanner(orderCode: String, onOpenMyOrders: () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(MintDeep, RoundedCornerShape(12.dp)).padding(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
-            Spacer(Modifier.width(8.dp))
-            Text("ĐÃ ĐẶT HÀNG - đơn $orderCode", color = Color.White, fontWeight = FontWeight.Bold)
-        }
-        Text(
-            "Đơn chính thức đã được tạo và giữ suất 10 phút. Vui lòng thanh toán trong \"Đơn hàng của tôi\".",
-            color = Color.White,
-            fontSize = 13.sp
-        )
-        Spacer(Modifier.height(8.dp))
-        Button(
-            onClick = onOpenMyOrders,
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = MintDeep)
-        ) { Text("Thanh toán trong Đơn hàng của tôi") }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(TextPrimary).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Đã tạo đơn $orderCode", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+        Text("Suất được giữ 10 phút chờ thanh toán.", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+        PrimaryAction("Thanh toán trong Đơn hàng của tôi", modifier = Modifier.fillMaxWidth(), onClick = onOpenMyOrders)
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OfferCard(offer: RescuePoolOffer, quantity: Int, isSubmitting: Boolean, onConfirm: () -> Unit) {
+private fun OfferCard(title: String, offer: RescuePoolOffer, quantity: Int, isSubmitting: Boolean, onConfirm: () -> Unit) {
     var now by remember { mutableStateOf(Instant.now()) }
-    LaunchedEffect(offer.offerExpiryAt) {
-        while (true) {
-            delay(30_000)
-            now = Instant.now()
-        }
-    }
+    LaunchedEffect(offer.offerExpiryAt) { while (true) { delay(30_000); now = Instant.now() } }
     val expiry = parsePoolInstant(offer.offerExpiryAt)
     val minutesLeft = expiry?.let { Duration.between(now, it).toMinutes() }
     val expired = minutesLeft != null && minutesLeft < 0
     var showConfirm by remember { mutableStateOf(false) }
 
-    Column(
-        Modifier.fillMaxWidth()
-            .border(2.dp, WarningOnLight, RoundedCornerShape(14.dp))
-            .background(Color(0xFFFFF8E6), RoundedCornerShape(14.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            "ĐỀ NGHỊ CUNG ỨNG · phiên bản ${offer.offerVersion}",
-            color = WarningOnLight,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp
-        )
-        Text("Đây là đề nghị, chưa phải đơn hàng.", fontSize = 12.sp, color = TextSecondary)
-        Text("${formatVnd(offer.proposedPrice)} / suất", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
-        Text("Bạn mua: $quantity suất · tổng ${formatVnd((offer.proposedPrice ?: 0) * quantity)}", fontSize = 13.sp, color = TextPrimary)
-        Text("Khung nhận: ${formatPoolTime(offer.pickupStart)} → ${formatPoolTime(offer.pickupEnd)}", fontSize = 13.sp, color = TextSecondary)
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(SkyBlueContainer).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("ĐỀ NGHỊ CUNG ỨNG · PHIÊN BẢN ${offer.offerVersion}", color = SkyBluePrimary, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, letterSpacing = 0.5.sp)
+        Text("${formatVnd(offer.proposedPrice)} / suất", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+        Text("Bạn mua $quantity suất, tổng ${formatVnd((offer.proposedPrice ?: 0) * quantity)}", fontSize = 13.sp, color = TextPrimary)
+        Text("Nhận ${formatPoolTime(offer.pickupStart)} → ${formatPoolTime(offer.pickupEnd)}", fontSize = 13.sp, color = TextSecondary)
         offer.remainingQuantity?.let { Text("Còn $it/${offer.offeredQuantity ?: it} suất cung ứng", fontSize = 13.sp, color = TextSecondary) }
         Text(
             when {
-                expired -> "Đề nghị đã hết hạn - không thể đặt từ đề nghị này."
-                minutesLeft != null && minutesLeft < 30 -> "Sắp hết hạn: còn $minutesLeft phút (hạn ${formatPoolTime(offer.offerExpiryAt)})"
-                else -> "Hạn xác nhận: ${formatPoolTime(offer.offerExpiryAt)}"
+                expired -> "Đề nghị đã hết hạn."
+                minutesLeft != null && minutesLeft < 30 -> "Sắp hết hạn: còn $minutesLeft phút"
+                else -> "Hạn xác nhận ${formatPoolTime(offer.offerExpiryAt)}"
             },
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (expired || (minutesLeft ?: 99) < 30) CoralRed else WarningOnLight
+            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (expired || (minutesLeft ?: 99) < 30) CoralRed else TextPrimary
         )
+        Text("Đây là đề nghị, chưa phải đơn hàng.", fontSize = 12.sp, color = TextSecondary)
         if (offer.canConfirm && !expired) {
-            Spacer(Modifier.height(6.dp))
-            Button(
-                onClick = { showConfirm = true },
-                enabled = !isSubmitting && quantity > 0,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
-            ) {
-                Text(if (isSubmitting) "Đang xử lý…" else "Xác nhận mua", fontWeight = FontWeight.Bold)
-            }
+            Spacer(Modifier.height(4.dp))
+            PrimaryAction(if (isSubmitting) "Đang xử lý…" else "Xác nhận mua", enabled = !isSubmitting && quantity > 0, modifier = Modifier.fillMaxWidth()) { showConfirm = true }
         }
     }
 
     if (showConfirm) {
-        AlertDialog(
-            onDismissRequest = { showConfirm = false },
-            title = { Text("Xác nhận mua theo đề nghị?") },
-            text = {
-                Text(
-                    "$quantity suất × ${formatVnd(offer.proposedPrice)} = ${formatVnd((offer.proposedPrice ?: 0) * quantity)}\n" +
-                        "Nhận: ${formatPoolTime(offer.pickupStart)} → ${formatPoolTime(offer.pickupEnd)}\n\n" +
-                        "Một đơn chính thức sẽ được tạo và giữ suất 10 phút chờ thanh toán."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showConfirm = false
-                    onConfirm()
-                }) { Text("Đặt hàng") }
-            },
-            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Để sau") } }
-        )
-    }
-}
-
-/** BR-C02-04: ngưỡng, thời hạn, khung nhận công bố trước khi đăng ký; giá/ngân sách trước đề nghị là dự kiến (BR-C02-02). */
-@Composable
-private fun PublishedConditions(pool: RescuePool) {
-    SqCard(shape = RoundedCornerShape(14.dp)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Điều kiện của đợt", fontWeight = FontWeight.Bold, color = TextPrimary)
-            ConditionRow("Đăng ký", "${formatPoolTime(pool.registrationOpenAt)} → ${formatPoolTime(pool.registrationCloseAt)}")
-            ConditionRow("Ngưỡng mở đợt", "${pool.minimumDemand} suất (đang có ${pool.expectedQuantity} suất quan tâm)")
-            LinearProgressIndicator(
-                progress = { (pool.expectedQuantity.toFloat() / pool.minimumDemand.coerceAtLeast(1)).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-                color = ForestGreenPrimary
-            )
-            ConditionRow("Số lượng dự kiến tối đa", "${pool.maximumSupply} suất")
-            ConditionRow("Khung nhận dự kiến", "${formatPoolTime(pool.pickupWindowStart)} → ${formatPoolTime(pool.pickupWindowEnd)}")
-            if (pool.targetBudgetMin != null || pool.targetBudgetMax != null) {
-                ConditionRow("Giá dự kiến", "${formatVnd(pool.targetBudgetMin)} – ${formatVnd(pool.targetBudgetMax)} (chưa phải giá chốt)")
+        val unit = offer.proposedPrice ?: 0
+        ModalBottomSheet(onDismissRequest = { showConfirm = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(SkyBlueContainer), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Restaurant, contentDescription = null, tint = SkyBluePrimary, modifier = Modifier.size(28.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text("XÁC NHẬN ĐƠN", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SkyBluePrimary, letterSpacing = 0.6.sp)
+                        Text("Xác nhận mua theo đề nghị?", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+                    }
+                }
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(SurfaceSubtle).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(26.dp).clip(CircleShape).background(SkyBluePrimary), contentAlignment = Alignment.Center) {
+                            Text("1", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(title, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary, modifier = Modifier.weight(1f), maxLines = 2)
+                        Spacer(Modifier.width(8.dp))
+                        Text(formatVnd(unit * quantity), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = SkyBluePrimary, maxLines = 1)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Đơn giá", fontSize = 13.sp, color = TextSecondary)
+                        Text("$quantity × ${formatVnd(unit)}", fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    }
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Khung nhận: ${formatPoolTime(offer.pickupStart)} → ${formatPoolTime(offer.pickupEnd)}",
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary
+                        )
+                    }
+                }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SkyBlueContainer).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Timer, contentDescription = null, tint = SkyBluePrimary, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Đơn sẽ được tạo và giữ suất trong 10 phút để bạn hoàn tất thanh toán.", fontSize = 13.sp, color = TextPrimary, lineHeight = 18.sp)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { showConfirm = false },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SkyBlueContainer),
+                        modifier = Modifier.weight(0.8f).heightIn(min = 56.dp)
+                    ) { Text("Để sau", color = SkyBluePrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+                    Button(
+                        onClick = { showConfirm = false; onConfirm() },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SkyBluePrimary),
+                        modifier = Modifier.weight(1.2f).heightIn(min = 56.dp)
+                    ) {
+                        Text("Đặt hàng", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
             }
-            ConditionRow("Hạn cửa hàng quyết định", formatPoolTime(pool.confirmDeadlineAt))
-            ConditionRow("Kết thúc khi", pool.endCondition)
         }
     }
 }
 
+/** BR-C02-04: ngưỡng, thời hạn, khung nhận công bố trước khi đăng ký; giá và ngân sách trước đề nghị chỉ là dự kiến (BR-C02-02). */
 @Composable
-private fun ConditionRow(label: String, value: String) {
-    Row {
-        Text(label, modifier = Modifier.width(150.dp), fontSize = 13.sp, color = TextMuted)
-        Text(value, fontSize = 13.sp, color = TextPrimary)
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun DemandForm(
-    pool: RescuePool,
-    initial: RescuePoolRegistration?,
-    submitLabel: String,
-    isSubmitting: Boolean,
-    onSubmit: (Int, Int?, String?, String?) -> Unit
-) {
-    val maxQty = minOf(MAX_QTY_PER_REGISTRATION, pool.maximumSupply.coerceAtLeast(1))
-    var quantity by remember(initial?.id) { mutableIntStateOf(initial?.requestedQuantity ?: 1) }
-    var budget by remember(initial?.id) { mutableStateOf(initial?.budgetMax?.toString() ?: "") }
-    val slots = remember(pool.pickupWindowStart, pool.pickupWindowEnd) { hourlySlots(pool.pickupWindowStart, pool.pickupWindowEnd) }
-    var slot by remember(initial?.id) {
-        mutableStateOf(slots.firstOrNull { it.first == parsePoolInstant(initial?.preferredPickupStart) })
-    }
-
-    SqCard(shape = RoundedCornerShape(14.dp)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(if (initial == null) "Đăng ký nhu cầu" else "Sửa nhu cầu", fontWeight = FontWeight.Bold, color = TextPrimary)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Số suất quan tâm", modifier = Modifier.weight(1f), fontSize = 14.sp)
-                IconButton(onClick = { if (quantity > 1) quantity-- }) { Icon(Icons.Default.Remove, contentDescription = "Giảm") }
-                Text("$quantity", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                IconButton(onClick = { if (quantity < maxQty) quantity++ }) { Icon(Icons.Default.Add, contentDescription = "Tăng") }
-            }
-            Text("Tối đa $maxQty suất mỗi đăng ký.", fontSize = 12.sp, color = TextMuted)
-            OutlinedTextField(
-                value = budget,
-                onValueChange = { v -> budget = v.filter { it.isDigit() }.take(7) },
-                label = { Text("Ngân sách tối đa / suất (đ, không bắt buộc)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+private fun PublishedConditions(pool: RescuePool) {
+    BasketCardBox {
+        SectionLabel("Điều kiện của đợt")
+        Spacer(Modifier.height(10.dp))
+        DemandProgress(pool.expectedQuantity, pool.minimumDemand, pool.maximumSupply)
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            InfoTile(
+                "Giá dự kiến",
+                if (pool.targetBudgetMin != null || pool.targetBudgetMax != null) "${formatVnd(pool.targetBudgetMin)} – ${formatVnd(pool.targetBudgetMax)}" else "Chờ chốt giá",
+                Modifier.weight(1f)
             )
-            Text("Khung nhận mong muốn", fontSize = 14.sp)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = slot == null, onClick = { slot = null }, label = { Text("Linh hoạt") })
-                slots.forEach { s ->
-                    FilterChip(
-                        selected = slot == s,
-                        onClick = { slot = s },
-                        label = { Text(formatPoolTime(s.first.toString()).substringBefore(' ')) }
-                    )
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth().background(SurfaceSubtle, RoundedCornerShape(8.dp)).padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Info, contentDescription = null, tint = InfoOnLight, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "Gửi đăng ký KHÔNG tạo đơn, không giữ suất, không thu tiền. Bạn chỉ mua khi tự xác nhận đề nghị của cửa hàng.",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
-            }
-            Button(
-                onClick = { onSubmit(quantity, budget.toIntOrNull(), slot?.first?.toString(), slot?.second?.toString()) },
-                enabled = !isSubmitting,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = InfoOnLight)
-            ) { Text(if (isSubmitting) "Đang gửi…" else submitLabel) }
+            InfoTile("Khung nhận", "${formatPoolTime(pool.pickupWindowStart).substringBefore(' ')} – ${formatPoolTime(pool.pickupWindowEnd).substringBefore(' ')}", Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            InfoTile("Đăng ký đến", formatPoolTime(pool.registrationCloseAt), Modifier.weight(1f))
+            InfoTile("Quán quyết định", formatPoolTime(pool.confirmDeadlineAt), Modifier.weight(1f))
+        }
+        if (pool.endCondition.isNotBlank()) {
+            Text("Kết thúc khi: ${pool.endCondition}", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 10.dp))
         }
     }
 }
@@ -385,55 +297,26 @@ private fun DemandForm(
 private fun WithdrawSection(isSubmitting: Boolean, onWithdraw: (String) -> Unit) {
     var show by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf("") }
-    OutlinedButton(
-        onClick = { show = true },
-        enabled = !isSubmitting,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed)
-    ) { Text("Rút nhu cầu") }
-
+    OutlinedButton(onClick = { show = true }, enabled = !isSubmitting, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        Text("Rút nhu cầu", color = CoralRed, fontWeight = FontWeight.SemiBold)
+    }
     if (show) {
         AlertDialog(
             onDismissRequest = { show = false },
             title = { Text("Rút nhu cầu khỏi đợt?") },
-            text = {
-                OutlinedTextField(
-                    value = reason,
-                    onValueChange = { reason = it.take(200) },
-                    label = { Text("Lý do (bắt buộc)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(enabled = reason.isNotBlank(), onClick = {
-                    show = false
-                    onWithdraw(reason.trim())
-                }) { Text("Rút nhu cầu") }
-            },
-            dismissButton = { TextButton(onClick = { show = false }) { Text("Hủy") } }
+            text = { OutlinedTextField(value = reason, onValueChange = { reason = it.take(200) }, label = { Text("Lý do (bắt buộc)") }, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { TextButton(enabled = reason.isNotBlank(), onClick = { show = false; onWithdraw(reason.trim()) }) { Text("Rút nhu cầu", color = CoralRed) } },
+            dismissButton = { TextButton(onClick = { show = false }) { Text("Hủy", color = TextSecondary) } }
         )
     }
 }
 
 @Composable
-private fun MessageBox(text: String, isError: Boolean) {
+private fun NoticeBox(text: String, error: Boolean) {
     Text(
         text,
-        modifier = Modifier.fillMaxWidth()
-            .background(if (isError) CoralRedLight else SkyInfoWash, RoundedCornerShape(10.dp))
-            .padding(12.dp),
-        color = if (isError) CoralRed else InfoOnLight,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (error) CoralRed.copy(alpha = 0.1f) else SkyBlueContainer).padding(14.dp),
+        color = if (error) CoralRed else TextPrimary,
         fontSize = 13.sp
     )
-}
-
-/** Các khung 1 giờ trong khung nhận của đợt (tối đa 8 lựa chọn). */
-private fun hourlySlots(startIso: String?, endIso: String?): List<Pair<Instant, Instant>> {
-    val start = parsePoolInstant(startIso) ?: return emptyList()
-    val end = parsePoolInstant(endIso) ?: return emptyList()
-    return generateSequence(start) { it.plusSeconds(3600) }
-        .takeWhile { it < end }
-        .take(8)
-        .map { it to minOf(it.plusSeconds(3600), end) }
-        .toList()
 }
