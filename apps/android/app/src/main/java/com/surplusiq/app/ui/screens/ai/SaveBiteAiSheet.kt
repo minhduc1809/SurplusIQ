@@ -381,7 +381,7 @@ private fun MessageRow(
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 Text(
-                    text = msg.text,
+                    text = if (isAi) com.surplusiq.app.ui.components.markdownToAnnotated(msg.text) else androidx.compose.ui.text.AnnotatedString(msg.text),
                     fontSize = 14.sp,
                     color = if (isAi) TextPrimary else Color.White,
                     lineHeight = 20.sp

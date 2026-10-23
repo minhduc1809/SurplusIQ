@@ -216,7 +216,7 @@ private fun ChatTab(
                             Spacer(Modifier.width(8.dp))
                             Column(Modifier.widthIn(max = 300.dp)) {
                                 Text(
-                                    m.text, fontSize = 14.sp, color = SqInk,
+                                    com.surplusiq.merchant.ui.components.markdownToAnnotated(m.text), fontSize = 14.sp, color = SqInk,
                                     modifier = Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)).background(SqCoralWash).border(1.dp, SqCoral.copy(alpha = 0.35f), RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)).padding(horizontal = 14.dp, vertical = 10.dp)
                                 )
                                 if (m.action != null && onNavigate != null) {

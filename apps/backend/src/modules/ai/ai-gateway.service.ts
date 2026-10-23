@@ -991,6 +991,23 @@ Câu hỏi của chủ quán: "${dto.message}"`,
       }
     }
 
+    // Câu hỏi tìm món/quán mà chưa khớp luồng nào: trả lời bằng suất thật đang mở quanh khách thay vì lời chào chung.
+    const recommendedDealIds: string[] = [];
+    // Câu hỏi nêu rõ nhu cầu tìm suất (ngân sách, "gần tôi", "quán nào", "đang mở") dùng dữ liệu thật dù đã khớp bài hướng dẫn.
+    const strongDealIntent = /(duoi \d|toi da \d|gan toi|gan day|quan nao|mon re|dang mo)/.test(
+      norm,
+    );
+    if (
+      strongDealIntent ||
+      fallbackReply.startsWith('Chào bạn! Mình là SaveBite AI – trợ lý cứu thực phẩm thông minh.')
+    ) {
+      const deals = await this.buildNearbyDealsReply(userId, norm);
+      if (deals) {
+        fallbackReply = deals.text;
+        recommendedDealIds.push(...deals.ids);
+      }
+    }
+
     // Kiểm tra cài đặt ghi nhớ ngữ cảnh (R1-091, K51)
     const memorySetting = await this.getMemorySetting(userId);
     let contextHistoryPrompt = '';
@@ -1069,7 +1086,91 @@ Câu hỏi của khách hàng: "${dto.message}"`,
       logId: savedLog.id,
       remainingQuota: after.remaining,
       quotaLimit: after.limit,
+      recommendedDealIds,
       suggestedAction: suggestedAction || undefined,
+    };
+  }
+
+  /**
+   * Gợi ý suất đang mở quanh khách từ dữ liệu thật. Vị trí lấy từ hồ sơ (lần cuối) hoặc địa điểm đã lưu gần nhất;
+   * ngân sách tách từ câu hỏi ("dưới 35k"). Không có ý định tìm món thì trả null để giữ luồng cũ.
+   */
+  private async buildNearbyDealsReply(
+    userId: string,
+    norm: string,
+  ): Promise<{ text: string; ids: string[] } | null> {
+    const wantsDeals =
+      /(mon|quan|suat|deal|re |gan toi|gan day|dang mo|khuyen mai|giam gia|an gi)/.test(norm + ' ');
+    if (!wantsDeals) return null;
+    const budgetMatch = norm.match(/(\d+)\s*(k|nghin|ngan)\b/);
+    const budget = budgetMatch ? Number(budgetMatch[1]) * 1000 : null;
+    const m = this.conversationRepo.manager;
+    const [pos] = await m.query(
+      `SELECT lat, lng FROM (
+         SELECT last_lat::float AS lat, last_lng::float AS lng, 0 AS pri, updated_at AS ts FROM customer_profiles
+          WHERE user_id = $1 AND last_lat IS NOT NULL AND last_lng IS NOT NULL
+         UNION ALL
+         SELECT ST_Y(location::geometry), ST_X(location::geometry), 1, updated_at FROM saved_places WHERE user_id = $1
+       ) x ORDER BY pri, ts DESC LIMIT 1`,
+      [userId],
+    );
+    const where = [
+      "o.status = 'OPEN'",
+      'o.remaining_quantity > 0',
+      'o.pickup_end > now()',
+      "s.status = 'ACTIVE'",
+    ];
+    const params: unknown[] = [];
+    if (budget) {
+      params.push(budget);
+      where.push(`o.current_price <= $${params.length}`);
+    }
+    let dist = 'NULL::float';
+    if (pos) {
+      params.push(pos.lng, pos.lat);
+      const pt = `ST_SetSRID(ST_MakePoint($${params.length - 1}, $${params.length}), 4326)::geography`;
+      dist = `ST_Distance(s.location::geography, ${pt})`;
+      where.push(`ST_DWithin(s.location::geography, ${pt}, 5000)`);
+    }
+    const rows: {
+      id: string;
+      item: string;
+      store: string;
+      price: number;
+      orig: number;
+      end: string;
+      qty: number;
+      dist: number | null;
+    }[] = await m.query(
+      `SELECT o.id, coalesce(i.name, 'Suất cứu món') AS item, s.name AS store, o.current_price AS price, o.original_price AS orig,
+                o.pickup_end AS "end", o.remaining_quantity AS qty, ${dist} AS dist
+           FROM offers o JOIN stores s ON s.id = o.store_id LEFT JOIN items i ON i.id = o.item_id
+          WHERE ${where.join(' AND ')}
+          ORDER BY ${pos ? 'dist' : 'o.current_price'} ASC LIMIT 5`,
+      params,
+    );
+    const area = pos
+      ? 'trong bán kính 5 km quanh vị trí của bạn'
+      : 'trên hệ thống (bạn chưa lưu vị trí nên chưa lọc theo khoảng cách)';
+    const limit = budget ? ` có giá từ ${budget.toLocaleString('vi-VN')}đ trở xuống` : '';
+    if (rows.length === 0) {
+      return {
+        text: `Hiện chưa có suất nào${limit} đang mở ${area}. Bạn thử tăng bán kính hoặc xem lại sau nhé.`,
+        ids: [],
+      };
+    }
+    const lines = rows.map((r, i) => {
+      const off = r.orig > 0 ? Math.round(((r.orig - r.price) / r.orig) * 100) : 0;
+      const left = Math.max(0, Math.round((new Date(r.end).getTime() - Date.now()) / 60000));
+      const far =
+        r.dist == null
+          ? ''
+          : `, cách ${r.dist < 1000 ? `${Math.round(r.dist)} m` : `${(r.dist / 1000).toFixed(1)} km`}`;
+      return `${i + 1}. ${r.item} tại ${r.store}: ${Number(r.price).toLocaleString('vi-VN')}đ (giảm ${off}%), còn ${r.qty} suất, còn ${left} phút để nhận${far}.`;
+    });
+    return {
+      text: `Các suất đang mở${limit} ${area}, xếp theo ${pos ? 'khoảng cách' : 'giá'}:\n${lines.join('\n')}`,
+      ids: rows.map((r) => r.id),
     };
   }
 
