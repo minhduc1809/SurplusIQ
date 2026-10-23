@@ -125,7 +125,7 @@ export class AiGatewayService {
       preferredModel ||
       process.env.GEMINI_CHAT_MODEL?.trim() ||
       process.env.GEMINI_MODEL?.trim() ||
-      'gemini-1.5-flash';
+      'gemini-3.5-flash';
 
     if (
       !apiKey ||
@@ -145,7 +145,7 @@ export class AiGatewayService {
       return { text: fallbackText, model: configuredModel, latencyMs: 1 };
     }
     const candidateModels = Array.from(
-      new Set([configuredModel, 'gemini-2.0-flash', 'gemini-1.5-flash']),
+      new Set([configuredModel, 'gemini-3.5-flash', 'gemini-3.6-flash']),
     );
     const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 10000;
     const maxOutputTokens = Number(process.env.GEMINI_MAX_TOKENS) || 2048;

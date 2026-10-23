@@ -90,4 +90,8 @@ run(
   'Hồ sơ pháp lý & hợp đồng kinh doanh scan KYC (phục vụ Admin duyệt tay)',
   'node scripts/seed-kyc-contracts.mjs',
 );
-console.log('\nHoàn tất. Đăng nhập lại trên app (phiên cũ đã mất nếu dùng --reset).');
+run(
+  'Bộ dữ liệu Demo Full Luồng cho 2 tài khoản (Chủ quán Cơm Thố & Khách hàng Hà My)',
+  'node scripts/seed-full-flow-two-accounts.mjs',
+);
+console.log('\n🎉 Hoàn tất nạp toàn bộ dữ liệu mẫu! Tất cả chức năng đã sẵn sàng để test và demo.');
