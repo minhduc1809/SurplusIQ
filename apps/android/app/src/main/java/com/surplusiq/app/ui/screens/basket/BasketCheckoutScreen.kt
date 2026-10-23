@@ -1,14 +1,13 @@
 package com.surplusiq.app.ui.screens.basket
 
-import androidx.compose.animation.AnimatedVisibility
-import com.surplusiq.app.ui.components.SqCard
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Storefront
@@ -18,25 +17,28 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.surplusiq.app.domain.model.BasketCustomItem
 import com.surplusiq.app.domain.model.BasketHoldResult
-import com.surplusiq.app.ui.theme.*
+import com.surplusiq.app.ui.theme.CoralRed
+import com.surplusiq.app.ui.theme.DividerColor
+import com.surplusiq.app.ui.theme.SkyBluePrimary
+import com.surplusiq.app.ui.theme.SurfaceSubtle
+import com.surplusiq.app.ui.theme.TextPrimary
+import com.surplusiq.app.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
- * Màn hình Đặt giữ giỏ cứu (KC04):
- * - Kiểm tra trước khi đặt (tóm tắt danh sách món, thành tiền)
- * - Nhập ghi chú & khung giờ nhận hàng
- * - Đặt giữ giỏ nguyên tử (10 phút)
- * - Đếm ngược 10 phút sau khi giữ thành công
- * - Xử lý thông báo khi có món hết hàng (rollback nguyên tử)
+ * Đặt giữ giỏ cứu (KC04): xem lại món, chọn khung giờ nhận, ghi chú rồi giữ giỏ nguyên tử trong 10 phút.
+ * Điện thoại: một cột. Từ 840dp: thông tin nhận hàng bên trái, món và thanh toán bên phải.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BasketCheckoutScreen(
     storeName: String,
@@ -49,408 +51,171 @@ fun BasketCheckoutScreen(
     onNavigateToMyOrders: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var pickupWindow by remember { mutableStateOf("Hôm nay trong 1-2 giờ tới") }
     var notes by remember { mutableStateOf("") }
     val totalAmount = remember(items) { items.sumOf { it.price * it.quantity } }
 
-    // Đồng hồ đếm ngược 10 phút nếu đã hold thành công
+    // Đếm ngược theo hạn giữ thật của máy chủ; không đọc được thì dùng 10 phút mặc định của luật giữ suất.
     var remainingSeconds by remember(checkoutResult?.holdExpiresAt) {
-        val seconds = if (checkoutResult?.holdExpiresAt != null) {
-            try {
-                val expires = Instant.parse(checkoutResult.holdExpiresAt)
-                val diff = ChronoUnit.SECONDS.between(Instant.now(), expires)
-                if (diff > 0) diff else 600L
-            } catch (_: Exception) {
-                600L
-            }
-        } else 600L
+        val seconds = checkoutResult?.holdExpiresAt?.let {
+            runCatching { ChronoUnit.SECONDS.between(Instant.now(), Instant.parse(it)) }.getOrNull()?.takeIf { s -> s > 0 }
+        } ?: 600L
         mutableLongStateOf(seconds)
     }
-
     LaunchedEffect(checkoutResult) {
-        if (checkoutResult != null) {
-            while (remainingSeconds > 0) {
-                delay(1000)
-                remainingSeconds--
+        if (checkoutResult != null) while (remainingSeconds > 0) { delay(1000); remainingSeconds-- }
+    }
+
+    BasketFrame(
+        title = if (checkoutResult != null) "Đã giữ giỏ" else "Xác nhận đặt giữ",
+        subtitle = storeName,
+        onBack = onBackClick,
+        modifier = modifier,
+        bottomBar = {
+            if (checkoutResult != null) {
+                PrimaryAction("Xem đơn hàng của tôi", modifier = Modifier.fillMaxWidth(), onClick = onNavigateToMyOrders)
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text("Tổng thanh toán", fontSize = 11.sp, color = TextSecondary)
+                        Text(vnd(totalAmount), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary, maxLines = 1)
+                    }
+                    PrimaryAction(
+                        "Giữ giỏ 10 phút",
+                        enabled = items.isNotEmpty(),
+                        loading = isCheckingOut,
+                        onClick = { onConfirmCheckout(null, notes.trim().takeIf { it.isNotBlank() }) }
+                    )
+                }
+            }
+        }
+    ) { inner ->
+        BoxWithConstraints(Modifier.padding(inner).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            val wide = maxWidth >= WIDE_BREAKPOINT
+
+            val receiveCard: @Composable ColumnScope.() -> Unit = {
+                BasketCardBox {
+                    SectionLabel("Ghi chú cho quán")
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = notes, onValueChange = { notes = it.take(200) },
+                        label = { Text("Tùy chọn") },
+                        placeholder = { Text("Ví dụ: không hành, thêm đũa") },
+                        supportingText = { Text("${notes.length}/200", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), maxLines = 3
+                    )
+                }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CoralWash).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Timer, contentDescription = null, tint = SkyBluePrimary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Suất được giữ 10 phút, nhận hàng theo khung giờ của từng suất. Quá hạn mà chưa thanh toán, suất tự trả lại.", fontSize = 12.sp, color = TextPrimary, lineHeight = 17.sp)
+                }
+            }
+
+            val itemsCard: @Composable ColumnScope.() -> Unit = {
+                BasketCardBox {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(CoralWash), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Storefront, contentDescription = null, tint = SkyBluePrimary)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Quán cung ứng", fontSize = 11.sp, color = TextSecondary)
+                            Text(storeName, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = TextPrimary)
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    HorizontalDivider(color = DividerColor)
+                    Spacer(Modifier.height(10.dp))
+                    SectionLabel("Món trong giỏ (${items.sumOf { it.quantity }})")
+                    Spacer(Modifier.height(6.dp))
+                    items.forEach { item -> LineRow("${item.title}", "${vnd(item.price)} x ${item.quantity}", vnd(item.price * item.quantity)) }
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(color = DividerColor)
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tổng", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                        Text(vnd(totalAmount), fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = SkyBluePrimary, maxLines = 1)
+                    }
+                }
+            }
+
+            val errorCard: @Composable ColumnScope.() -> Unit = {
+                if (checkoutError != null) {
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CoralRed.copy(alpha = 0.1f)).padding(14.dp), verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = CoralRed, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("Không thể giữ giỏ", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = CoralRed)
+                            Text(checkoutError, fontSize = 12.sp, color = TextPrimary)
+                        }
+                    }
+                }
+            }
+
+            val successCards: @Composable ColumnScope.() -> Unit = {
+                val r = checkoutResult
+                if (r != null) {
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(CoralWash).padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SkyBluePrimary, modifier = Modifier.size(44.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text("Giỏ cứu đã được giữ", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
+                        Text("Thanh toán hoặc đến nhận trước khi hết giờ giữ.", fontSize = 12.sp, color = TextSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Row(
+                            Modifier.clip(RoundedCornerShape(50)).background(TextPrimary).padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Timer, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Còn %02d:%02d".format(remainingSeconds / 60, remainingSeconds % 60), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                        }
+                    }
+                    BasketCardBox {
+                        SectionLabel("Đã giữ (${r.orderIds.size} đơn)")
+                        Spacer(Modifier.height(6.dp))
+                        r.items.forEach { h -> LineRow(h.title, "x${h.quantity}", vnd(h.totalPrice)) }
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = DividerColor)
+                        Spacer(Modifier.height(10.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Tổng cộng", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                            Text(vnd(r.totalAmount), fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = SkyBluePrimary, maxLines = 1)
+                        }
+                    }
+                }
+            }
+
+            when {
+                checkoutResult != null -> Column(
+                    Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp), content = successCards
+                )
+                wide -> Row(
+                    Modifier.widthIn(max = WIDE_MAX_WIDTH).fillMaxSize().padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Column(Modifier.weight(0.5f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { errorCard(); receiveCard() }
+                    Column(Modifier.weight(0.5f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp), content = itemsCard)
+                }
+                else -> Column(
+                    Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) { errorCard(); itemsCard(); receiveCard(); Spacer(Modifier.height(8.dp)) }
             }
         }
     }
+}
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (checkoutResult != null) "Đặt giữ thành công" else "Xác nhận đặt giữ giỏ",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Quay lại"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        bottomBar = {
-            Surface(
-                tonalElevation = 8.dp,
-                shadowElevation = 8.dp,
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .navigationBarsPadding()
-                ) {
-                    if (checkoutResult != null) {
-                        Button(
-                            onClick = onNavigateToMyOrders,
-                            shape = RoundedCornerShape(24.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                        ) {
-                            Text("Xem đơn hàng của tôi", fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Tổng thanh toán", fontSize = 12.sp, color = TextSecondary)
-                                Text(
-                                    text = "${"%,d".format(totalAmount)} ₫",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    color = ForestGreenPrimary
-                                )
-                            }
-                            Button(
-                                onClick = {
-                                    onConfirmCheckout(
-                                        pickupWindow.takeIf { it.isNotBlank() },
-                                        notes.takeIf { it.isNotBlank() }
-                                    )
-                                },
-                                enabled = !isCheckingOut && items.isNotEmpty(),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                                modifier = Modifier.height(48.dp)
-                            ) {
-                                if (isCheckingOut) {
-                                    CircularProgressIndicator(
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Text("Giữ giỏ 10 phút", fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        modifier = modifier
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Trường hợp ĐÃ HOLD THÀNH CÔNG
-            if (checkoutResult != null) {
-                item {
-                    SqCard(
-                        colors = CardDefaults.cardColors(
-                            containerColor = ForestGreenPrimary.copy(alpha = 0.1f)
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(18.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = ForestGreenPrimary,
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Giỏ cứu đã được giữ chỗ!",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = ForestGreenPrimary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Quán đang chuẩn bị đơn cho bạn. Vui lòng hoàn tất thanh toán hoặc đến nhận trước khi hết giờ giữ chỗ.",
-                                fontSize = 12.sp,
-                                color = TextSecondary,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-                            val minutes = remainingSeconds / 60
-                            val seconds = remainingSeconds % 60
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(ForestGreenPrimary)
-                                    .padding(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Timer,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Thời gian giữ còn: %02d:%02d".format(minutes, seconds),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    SqCard(shape = RoundedCornerShape(12.dp)) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Text(
-                                text = "Mã đơn hàng giữ chỗ (${checkoutResult.orderIds.size} đơn)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            checkoutResult.items.forEach { heldItem ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "${heldItem.title} x${heldItem.quantity}",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "${"%,d".format(heldItem.totalPrice)} ₫",
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp,
-                                        color = ForestGreenPrimary
-                                    )
-                                }
-                            }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Tổng cộng", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(
-                                    text = "${"%,d".format(checkoutResult.totalAmount)} ₫",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = ForestGreenPrimary
-                                )
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Trường hợp CHƯA CHECKOUT
-                if (checkoutError != null) {
-                    item {
-                        SqCard(
-                            colors = CardDefaults.cardColors(
-                                containerColor = CoralRed.copy(alpha = 0.1f)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ErrorOutline,
-                                    contentDescription = null,
-                                    tint = CoralRed,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = "Không thể giữ giỏ hàng",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = CoralRed
-                                    )
-                                    Text(
-                                        text = checkoutError,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    SqCard(shape = RoundedCornerShape(12.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Storefront,
-                                contentDescription = null,
-                                tint = ForestGreenPrimary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Quán cung ứng",
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                                Text(
-                                    text = storeName,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    SqCard(shape = RoundedCornerShape(12.dp)) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Text(
-                                text = "Món trong giỏ (${items.sumOf { it.quantity }})",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            items.forEach { item ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = item.title,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = "${"%,d".format(item.price)} ₫ x ${item.quantity}",
-                                            fontSize = 12.sp,
-                                            color = TextSecondary
-                                        )
-                                    }
-                                    Text(
-                                        text = "${"%,d".format(item.price * item.quantity)} ₫",
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    SqCard(shape = RoundedCornerShape(12.dp)) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Text(
-                                text = "Thông tin nhận hàng",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedTextField(
-                                value = pickupWindow,
-                                onValueChange = { pickupWindow = it },
-                                label = { Text("Khung giờ nhận dự kiến") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedTextField(
-                                value = notes,
-                                onValueChange = { notes = it },
-                                label = { Text("Ghi chú cho quán (tùy chọn)") },
-                                placeholder = { Text("Ví dụ: Không hành, lấy muỗng đũa...") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp),
-                                maxLines = 3
-                            )
-                        }
-                    }
-                }
-
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Timer,
-                            contentDescription = null,
-                            tint = ForestGreenPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Hệ thống sẽ giữ suất cho bạn trong 10 phút. Nếu không đến nhận hoặc thanh toán trước hạn, suất sẽ tự động giải phóng.",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                    }
-                }
-            }
+@Composable
+private fun LineRow(title: String, detail: String, amount: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            Text(detail, fontSize = 12.sp, color = TextSecondary)
         }
+        Text(amount, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
     }
 }

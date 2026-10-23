@@ -121,7 +121,8 @@ interface DiscoveryApiService {
 
     @POST("customer/baskets/checkout")
     suspend fun checkoutBasket(
-        @Body request: BasketCheckoutRequest
+        @Body request: BasketCheckoutRequest,
+        @retrofit2.http.Header("Idempotency-Key") idempotencyKey: String
     ): Response<BasketCheckoutResponse>
 
     @POST("customer/deals/{id}/back-in-stock")

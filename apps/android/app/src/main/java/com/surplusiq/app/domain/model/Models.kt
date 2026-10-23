@@ -181,7 +181,9 @@ data class TrustpassInfo(
 data class BasketItem(
     val offerId: String,
     val title: String,
-    val price: Int
+    val price: Int,
+    val imageUrl: String? = null,
+    val allergens: List<String> = emptyList()
 )
 
 /** Rescue Basket (CM-C01): tổ hợp suất gợi ý - chỉ tính toán, không giữ tồn/tạo đơn. */

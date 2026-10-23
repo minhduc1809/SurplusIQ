@@ -4,6 +4,7 @@ package com.surplusiq.app.domain.model
 data class RescuePool(
     val id: String,
     val storeName: String,
+    val imageUrl: String?,
     val title: String,
     val targetCategory: String,
     val serviceArea: String,

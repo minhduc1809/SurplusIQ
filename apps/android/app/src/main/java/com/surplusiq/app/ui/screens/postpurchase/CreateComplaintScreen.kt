@@ -1,7 +1,6 @@
 package com.surplusiq.app.ui.screens.postpurchase
 
 import android.net.Uri
-import com.surplusiq.app.ui.components.SqCard
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -13,12 +12,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,16 +32,35 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.surplusiq.app.domain.model.ActiveOrder
 import com.surplusiq.app.domain.repository.InteractionsRepository
+import com.surplusiq.app.ui.screens.basket.BasketFrame
+import com.surplusiq.app.ui.screens.basket.CONTENT_MAX_WIDTH
+import com.surplusiq.app.ui.screens.basket.Pill
+import com.surplusiq.app.ui.screens.basket.PrimaryAction
+import com.surplusiq.app.ui.screens.basket.SectionLabel
 import com.surplusiq.app.ui.theme.CoralRed
-import com.surplusiq.app.ui.theme.ForestGreenDark
-import com.surplusiq.app.ui.theme.ForestGreenPrimary
+import com.surplusiq.app.ui.theme.DividerColor
+import com.surplusiq.app.ui.theme.LilacWash
+import com.surplusiq.app.ui.theme.SkyBlueContainer
+import com.surplusiq.app.ui.theme.SkyBluePrimary
+import com.surplusiq.app.ui.theme.SurfaceSubtle
 import com.surplusiq.app.ui.theme.TextMuted
 import com.surplusiq.app.ui.theme.TextPrimary
 import com.surplusiq.app.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
-import java.io.InputStream
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Lý do khiếu nại: [value] là mã gửi lên máy chủ (giữ nguyên), [hint] là mô tả ngắn giúp chọn đúng. */
+private data class ComplaintReason(val value: String, val title: String, val hint: String, val tag: String? = null)
+
+private val REASONS = listOf(
+    ComplaintReason("Thức ăn ôi thiu / biến chất (An toàn thực phẩm)", "Thức ăn ôi thiu / biến chất", "Mùi vị bất thường, đổ hỏng, chưa cho hoặc không thể dùng được", "An toàn"),
+    ComplaintReason("Không đúng loại món như mô tả", "Không đúng loại món như mô tả", "Món khác xa so với loại thực phẩm gói cứu trợ cam kết"),
+    ComplaintReason("Thiếu số lượng / trọng lượng", "Thiếu số lượng / trọng lượng", "Thiếu phần ăn kèm, nước chấm, hoặc định lượng quá ít"),
+    ComplaintReason("Cửa hàng đóng cửa khi đến nhận", "Cửa hàng đóng cửa khi đến nhận", "Đến trong khung giờ hẹn nhưng quán không mở cửa phục vụ"),
+    ComplaintReason("Khác", "Lý do khác", "Vấn đề đặc biệt phát sinh trong quá trình nhận món")
+)
+private const val MAX_PHOTOS = 3
+
+/** Gửi khiếu nại (R1-061): lý do, mô tả 10 đến 500 ký tự, tối đa 3 ảnh bằng chứng. Một cột trên điện thoại, căn giữa trên màn rộng. */
 @Composable
 fun CreateComplaintScreen(
     order: ActiveOrder,
@@ -53,441 +70,186 @@ fun CreateComplaintScreen(
     onSubmitSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
-
-    val complaintCategories = listOf(
-        "Thức ăn ôi thiu / biến chất (An toàn thực phẩm)",
-        "Không đúng loại món như mô tả",
-        "Thiếu số lượng / trọng lượng",
-        "Cửa hàng đóng cửa khi đến nhận",
-        "Khác"
-    )
-
-    var selectedCategory by remember { mutableStateOf(complaintCategories.first()) }
+    var reason by remember { mutableStateOf(REASONS.first()) }
     var description by remember { mutableStateOf("") }
-    val evidenceImages = remember { mutableStateListOf<String>() }
+    val photos = remember { mutableStateListOf<String>() }
     var isSubmitting by remember { mutableStateOf(false) }
-    var isUploadingPhoto by remember { mutableStateOf(false) }
-    var generatedComplaintCode by remember { mutableStateOf("") }
-    var showSuccessDialog by remember { mutableStateOf(false) }
+    var isUploading by remember { mutableStateOf(false) }
+    var createdCode by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            try {
-                val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-                val bytes = inputStream?.use { it.readBytes() }
-                if (bytes != null && bytes.isNotEmpty()) {
-                    if (onUploadEvidence != null) {
-                        isUploadingPhoto = true
-                        onUploadEvidence(bytes, "evidence_${System.currentTimeMillis()}.jpg") { success, uploadedUrl ->
-                            isUploadingPhoto = false
-                            if (success && uploadedUrl != null) {
-                                evidenceImages.add(uploadedUrl)
-                            } else {
-                                errorMessage = "Không thể tải ảnh bằng chứng lên máy chủ."
-                            }
-                        }
-                    } else {
-                        evidenceImages.add(uri.toString())
-                    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { bytes ->
+            if (onUploadEvidence != null) {
+                isUploading = true
+                onUploadEvidence(bytes, "evidence_${System.currentTimeMillis()}.jpg") { ok, url ->
+                    isUploading = false
+                    if (ok && url != null) photos.add(url) else errorMessage = "Không tải được ảnh lên máy chủ."
                 }
-            } catch (e: Exception) {
-                errorMessage = "Lỗi khi đọc file ảnh: ${e.localizedMessage}"
-            }
-        }
+            } else errorMessage = "Chưa thể tải ảnh bằng chứng."
+        } ?: run { errorMessage = "Không đọc được ảnh đã chọn." }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        TopAppBar(
-            title = {
-                Text(
-                    text = "Khiếu nại đơn hàng",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-            },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Quay lại"
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp)
-        ) {
-            // Rule Banner: 24h & 48h limit (BR-026 & R1-061)
-            SqCard(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = CoralRed.copy(alpha = 0.08f)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.3f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = CoralRed,
-                        modifier = Modifier.size(20.dp).padding(top = 2.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = "Thời hạn khiếu nại",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = CoralRed
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Khiếu nại chỉ được chấp nhận trong vòng 24 giờ sau khi nhận hàng. Cửa hàng có tối đa 48 giờ để xử lý và hoàn tiền.",
-                            fontSize = 12.sp,
-                            color = TextPrimary,
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // Order Target Card
-            SqCard(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = order.deal.storeName,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = "Đơn #${order.orderCode} • ${order.deal.title}",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                    }
-                    Text(
-                        text = "${String.format("%,d", order.totalPrice)} ₫",
-                        fontWeight = FontWeight.Bold,
-                        color = ForestGreenPrimary,
-                        fontSize = 14.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Reason Category Dropdown / Selection
-            Text(
-                text = "Lý do khiếu nại:",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = TextPrimary
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                complaintCategories.forEach { category ->
-                    val isSelected = selectedCategory == category
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (isSelected) ForestGreenPrimary.copy(alpha = 0.12f)
-                                else MaterialTheme.colorScheme.surface
-                            )
-                            .border(
-                                width = if (isSelected) 1.5.dp else 1.dp,
-                                color = if (isSelected) ForestGreenPrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .clickable { selectedCategory = category }
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = { selectedCategory = category },
-                            colors = RadioButtonDefaults.colors(selectedColor = ForestGreenPrimary)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = category,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = TextPrimary
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Description Input (10 - 500 characters, R1-061)
-            Text(
-                text = "Mô tả chi tiết vấn đề:",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = TextPrimary
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = description,
-                onValueChange = { if (it.length <= 500) description = it },
-                placeholder = { Text("Vui lòng nêu rõ tình trạng món ăn, bao bì khi nhận hoặc lý do không hài lòng (tối thiểu 10 ký tự)...") },
-                modifier = Modifier.fillMaxWidth().height(140.dp),
-                shape = RoundedCornerShape(12.dp),
-                supportingText = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = if (description.length < 10) "Tối thiểu 10 ký tự" else "Hợp lệ",
-                            color = if (description.length >= 10) ForestGreenPrimary else CoralRed,
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            text = "${description.length} / 500",
-                            color = TextMuted,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Evidence Photos Section (max 3 images, R1-061)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Ảnh chụp bằng chứng (${evidenceImages.size}/3):",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = TextPrimary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Display attached photos
-                evidenceImages.forEachIndexed { index, url ->
-                    val fullUrl = if (url.startsWith("http") || url.startsWith("content://")) url else com.surplusiq.app.BuildConfig.API_BASE_URL.trimEnd('/') + url
-                    Box(
-                        modifier = Modifier
-                            .size(90.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    ) {
-                        AsyncImage(
-                            model = fullUrl,
-                            contentDescription = "Evidence $index",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        IconButton(
-                            onClick = { evidenceImages.removeAt(index) },
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .size(24.dp)
-                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Xóa ảnh",
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Add photo slot button
-                if (evidenceImages.size < 3) {
-                    Box(
-                        modifier = Modifier
-                            .size(90.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .clickable {
-                                if (onUploadEvidence != null) photoPickerLauncher.launch("image/*")
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isUploadingPhoto) {
-                            CircularProgressIndicator(
-                                color = ForestGreenPrimary,
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Default.AddPhotoAlternate,
-                                    contentDescription = "Thêm ảnh",
-                                    tint = ForestGreenPrimary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Tải ảnh",
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Error notice if any
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage!!,
-                    color = CoralRed,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-            }
-
-            // Submit Button
-            val isFormValid = description.trim().length >= 10
-            Button(
-                onClick = {
-                    if (!isFormValid) {
-                        errorMessage = "Vui lòng nhập mô tả chi tiết tối thiểu 10 ký tự."
-                        return@Button
-                    }
+    val valid = description.trim().length >= 10
+    BasketFrame(
+        title = "Khiếu nại đơn hàng",
+        subtitle = "Đơn ${order.orderCode}",
+        onBack = onBackClick,
+        modifier = modifier,
+        bottomBar = {
+            Column(Modifier.fillMaxWidth()) {
+                errorMessage?.let { Text(it, color = CoralRed, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp)) }
+                PrimaryAction("Gửi khiếu nại", enabled = valid, loading = isSubmitting, modifier = Modifier.fillMaxWidth()) {
                     errorMessage = null
                     isSubmitting = true
-                    coroutineScope.launch {
-                        val result = interactionsRepository.submitComplaint(
-                            orderId = order.id,
-                            category = selectedCategory,
-                            description = description,
-                            imageUrls = evidenceImages.toList()
-                        )
+                    scope.launch {
+                        val result = interactionsRepository.submitComplaint(order.id, reason.value, description.trim(), photos.toList())
                         isSubmitting = false
-                        if (result.isSuccess) {
-                            generatedComplaintCode = result.getOrNull()?.id ?: "CMP-8941"
-                            showSuccessDialog = true
-                        } else {
-                            errorMessage = result.exceptionOrNull()?.message ?: "Có lỗi xảy ra khi gửi khiếu nại"
-                        }
+                        result.fold(
+                            onSuccess = { createdCode = it.id.take(8).uppercase() },
+                            onFailure = { errorMessage = it.message ?: "Có lỗi xảy ra khi gửi khiếu nại." }
+                        )
                     }
-                },
-                enabled = isFormValid && !isSubmitting,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(25.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CoralRed)
+                }
+                Text("Cửa hàng phản hồi trong 48 giờ, quá hạn hệ thống hoàn tiền cho bạn.", fontSize = 11.sp, color = TextMuted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+            }
+        }
+    ) { inner ->
+        Box(Modifier.padding(inner).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        text = "Gửi khiếu nại (Chờ phản hồi 48h)",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SkyBlueContainer).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Schedule, contentDescription = null, tint = SkyBluePrimary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Chỉ nhận khiếu nại trong 24 giờ sau khi nhận hàng.", fontSize = 13.sp, color = TextPrimary, lineHeight = 18.sp)
+                }
+
+                OrderSummary(order)
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Lý do khiếu nại", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
+                    Text("Chọn 1 lý do phản ánh đúng tình trạng của đơn", fontSize = 12.sp, color = TextSecondary)
+                    REASONS.forEach { r -> ReasonCard(r, selected = reason == r) { reason = r } }
+                }
+
+                Column {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Mô tả chi tiết vấn đề", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
+                        Text("${description.length}/500", fontSize = 12.sp, color = TextMuted)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it.take(500) },
+                        placeholder = { Text("Nêu rõ tình trạng món ăn, bao bì khi nhận hoặc lý do không hài lòng") },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        supportingText = { Text(if (valid) "Đủ nội dung" else "Tối thiểu 10 ký tự", color = if (valid) TextSecondary else CoralRed, fontSize = 11.sp) }
                     )
                 }
+
+                Column {
+                    Text("Ảnh chụp bằng chứng (${photos.size}/$MAX_PHOTOS)", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        repeat(MAX_PHOTOS) { index ->
+                            val url = photos.getOrNull(index)
+                            val slotMod = Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(16.dp))
+                            when {
+                                url != null -> Box(slotMod.background(SurfaceSubtle)) {
+                                    AsyncImage(
+                                        model = if (url.startsWith("http") || url.startsWith("content://")) url else com.surplusiq.app.BuildConfig.API_BASE_URL.trimEnd('/') + url,
+                                        contentDescription = "Ảnh bằng chứng ${index + 1}", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
+                                    )
+                                    IconButton(
+                                        onClick = { photos.removeAt(index) },
+                                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(26.dp).background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                    ) { Icon(Icons.Default.Close, contentDescription = "Xóa ảnh", tint = Color.White, modifier = Modifier.size(14.dp)) }
+                                }
+                                index == photos.size -> Column(
+                                    slotMod.background(SkyBlueContainer).border(1.dp, SkyBluePrimary.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                                        .clickable(enabled = !isUploading) { picker.launch("image/*") },
+                                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
+                                ) {
+                                    if (isUploading) CircularProgressIndicator(Modifier.size(24.dp), color = SkyBluePrimary, strokeWidth = 2.dp)
+                                    else {
+                                        Icon(Icons.Default.AddAPhoto, contentDescription = "Thêm ảnh", tint = SkyBluePrimary, modifier = Modifier.size(26.dp))
+                                        Text("Tải ảnh", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SkyBluePrimary, modifier = Modifier.padding(top = 4.dp))
+                                    }
+                                }
+                                else -> Box(slotMod.background(SurfaceSubtle), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Image, contentDescription = null, tint = TextMuted, modifier = Modifier.size(24.dp))
+                                }
+                            }
+                        }
+                    }
+                    Text("Chụp rõ món ăn, nhãn dán túi cứu trợ và tem niêm phong nếu có để xử lý nhanh hơn.", fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp, modifier = Modifier.padding(top = 8.dp))
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
 
-    if (showSuccessDialog) {
+    createdCode?.let { code ->
         AlertDialog(
-            onDismissRequest = {
-                showSuccessDialog = false
-                onSubmitSuccess()
-            },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = ForestGreenPrimary,
-                    modifier = Modifier.size(48.dp)
-                )
-            },
-            title = {
-                Text(
-                    text = "Đã tiếp nhận khiếu nại!",
-                    fontWeight = FontWeight.Bold
-                )
-            },
+            onDismissRequest = { createdCode = null; onSubmitSuccess() },
+            icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SkyBluePrimary, modifier = Modifier.size(44.dp)) },
+            title = { Text("Đã tiếp nhận khiếu nại", fontWeight = FontWeight.ExtraBold) },
             text = {
-                Column {
-                    Text(
-                        text = "Mã khiếu nại: $generatedComplaintCode",
-                        fontWeight = FontWeight.Bold,
-                        color = ForestGreenDark,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Hệ thống đã gửi thông báo đến cửa hàng. Cửa hàng có tối đa 48 giờ để xử lý. Nếu quá hạn, bạn sẽ được tự động hoàn tiền 100%.",
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Mã khiếu nại: $code", fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text("Cửa hàng đã được thông báo và có tối đa 48 giờ để xử lý. Quá hạn, bạn được hoàn tiền 100%.", fontSize = 13.sp, color = TextSecondary, lineHeight = 18.sp)
                 }
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showSuccessDialog = false
-                        onSubmitSuccess()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
-                ) {
-                    Text("Tôi đã hiểu")
-                }
-            }
+            confirmButton = { TextButton(onClick = { createdCode = null; onSubmitSuccess() }) { Text("Đã hiểu", color = SkyBluePrimary, fontWeight = FontWeight.Bold) } }
         )
+    }
+}
+
+@Composable
+private fun OrderSummary(order: ActiveOrder) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surface).border(1.dp, DividerColor, RoundedCornerShape(20.dp)).padding(14.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            SectionLabel("Đơn #${order.orderCode}")
+            Pill("Đã nhận hàng", LilacWash, com.surplusiq.app.ui.screens.basket.LilacInk)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)).background(SurfaceSubtle)) {
+                if (order.deal.coverImageUrl.isNotBlank()) AsyncImage(model = order.deal.coverImageUrl, contentDescription = order.deal.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(order.deal.storeName, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = TextPrimary, maxLines = 2)
+                Text(order.deal.title, fontSize = 12.sp, color = TextSecondary, maxLines = 2)
+                Text("%,d ₫".format(order.totalPrice), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SkyBluePrimary, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReasonCard(r: ComplaintReason, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+            .background(if (selected) SkyBlueContainer else MaterialTheme.colorScheme.surface)
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) SkyBluePrimary else DividerColor, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick).padding(14.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        RadioButton(selected = selected, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = SkyBluePrimary), modifier = Modifier.padding(top = 2.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(r.title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary, modifier = Modifier.weight(1f, fill = false))
+                if (r.tag != null) { Spacer(Modifier.width(8.dp)); Pill(r.tag, SkyBluePrimary, Color.White) }
+            }
+            Text(r.hint, fontSize = 12.sp, color = TextSecondary, lineHeight = 16.sp, modifier = Modifier.padding(top = 2.dp))
+        }
     }
 }

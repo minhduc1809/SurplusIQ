@@ -61,7 +61,7 @@ fun ChangePasswordScreen(
                 label = "Mật khẩu mới",
                 value = state.newChangePassword,
                 onValueChange = onNewPasswordChange,
-                placeholder = "Tối thiểu 8 ký tự, gồm chữ và số",
+                placeholder = "Nhập mật khẩu",
                 keyboardType = KeyboardType.Password,
                 visualTransformation = PasswordVisualTransformation()
             )

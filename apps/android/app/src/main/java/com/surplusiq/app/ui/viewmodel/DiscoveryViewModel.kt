@@ -398,8 +398,8 @@ class DiscoveryViewModel @Inject constructor(
                 title = item.title,
                 price = item.price,
                 quantity = 1,
-                imageUrl = matchingDeal?.coverImageUrl,
-                allergens = matchingDeal?.allergens ?: emptyList()
+                imageUrl = item.imageUrl ?: matchingDeal?.coverImageUrl,
+                allergens = item.allergens.ifEmpty { matchingDeal?.allergens ?: emptyList() }
             )
         }
         _uiState.value = _uiState.value.copy(
@@ -491,7 +491,9 @@ class DiscoveryViewModel @Inject constructor(
                 notes = notes
             )
             result.fold(
-                onSuccess = { holdResult ->
+                onSuccess = { raw ->
+                    val titles = _uiState.value.customBasketItems.associate { it.offerId to it.title }
+                    val holdResult = raw.copy(items = raw.items.map { it.copy(title = titles[it.offerId] ?: "Suất cứu món") })
                     _uiState.value = _uiState.value.copy(
                         isCheckingOutBasket = false,
                         basketCheckoutResult = holdResult,

@@ -574,7 +574,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
         return BasketSuggestion(
             storeId = dto.storeId,
             storeName = dto.storeName,
-            items = dto.items.map { BasketItem(it.offerId, it.title, it.price.toInt()) },
+            items = dto.items.map { BasketItem(it.offerId, it.title, it.price.toInt(), it.imageUrl, it.allergens.orEmpty()) },
             estimatedTotal = dto.estimatedTotal.toInt(),
             withinBudget = dto.withinBudget,
             meetsPeopleCount = dto.meetsPeopleCount,
@@ -737,25 +737,26 @@ class DiscoveryRepositoryImpl @Inject constructor(
                 BasketCheckoutRequest(
                     storeId = storeId,
                     items = items.map { BasketCheckoutItemRequest(offerId = it.first, quantity = it.second) },
-                    pickupTimeWindow = pickupTimeWindow,
                     notes = notes
-                )
+                ),
+                java.util.UUID.randomUUID().toString()
             )
         }) { body ->
             BasketHoldResult(
                 success = body.success,
                 storeId = body.storeId,
-                orderIds = body.orderIds,
+                orderIds = body.orders.map { it.id },
                 totalAmount = body.totalAmount.toInt(),
                 holdExpiresAt = body.holdExpiresAt,
-                items = body.items.map {
+                // Phản hồi chỉ có mã suất; tên món được ViewModel điền từ giỏ đang đặt.
+                items = body.orders.map {
                     BasketHeldItem(
                         offerId = it.offerId,
-                        orderId = it.orderId,
-                        title = it.title,
+                        orderId = it.id,
+                        title = "",
                         quantity = it.quantity,
-                        unitPrice = it.unitPrice.toInt(),
-                        totalPrice = it.totalPrice.toInt()
+                        unitPrice = if (it.quantity > 0) (it.totalAmount / it.quantity).toInt() else 0,
+                        totalPrice = it.totalAmount.toInt()
                     )
                 },
                 message = body.message
