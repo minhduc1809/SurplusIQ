@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -195,6 +196,25 @@ fun DealCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+                    val minutesLeft = remember(deal.pickupEndAt) {
+                        deal.pickupEndAt?.let {
+                            runCatching { java.time.Duration.between(java.time.Instant.now(), java.time.Instant.parse(it)).toMinutes() }.getOrNull()
+                        }
+                    }
+                    if (minutesLeft != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            when {
+                                minutesLeft <= 0 -> "Hết giờ nhận"
+                                minutesLeft < 60 -> "Còn $minutesLeft phút"
+                                else -> "Còn ${minutesLeft / 60} giờ ${minutesLeft % 60} phút"
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (minutesLeft <= 30) CoralRed else TextSecondary,
+                            maxLines = 1
+                        )
+                    }
                     Spacer(Modifier.width(6.dp))
                     Text("TỰ ĐẾN LẤY", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = ForestGreenDark, letterSpacing = 0.4.sp)
                 }

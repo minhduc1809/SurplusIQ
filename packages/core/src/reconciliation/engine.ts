@@ -117,7 +117,7 @@ export class ReconciliationEngine {
     const explanation =
       `Kỳ đối soát ${input.period.cycleId}: Tổng doanh thu gộp ${eligibleGrossSales.toLocaleString('vi-VN')} đ ` +
       `(${summary.pickedUpCount} đơn đã nhận, ${summary.noShowCount} đơn hết hạn nhận). ` +
-      `Khấu trừ hoa hồng 10%: ${commissionAmount.toLocaleString('vi-VN')} đ. ` +
+      `Khấu trừ hoa hồng ${Math.round(commissionRate * 1000) / 10}%: ${commissionAmount.toLocaleString('vi-VN')} đ. ` +
       (refundsDeduction > 0
         ? `Khấu trừ hoàn tiền khiếu nại: ${refundsDeduction.toLocaleString('vi-VN')} đ. `
         : '') +

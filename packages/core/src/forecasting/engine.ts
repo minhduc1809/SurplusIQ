@@ -132,7 +132,7 @@ export class ForecastingEngine {
         : Math.max(recommended, Math.round(baseDowAverage * eventFactor + margin));
 
     // Đánh giá độ tin cậy và sai số MAPE 7 ngày gần nhất
-    const mape7Days = this.calculateRecentMape(history.slice(-7));
+    const mape7Days = this.calculateBacktestMape(history);
     const confidence = this.evaluateConfidence(sameDowRecords.length, mape7Days);
 
     // Template giải thích tiếng Việt chuẩn theo BRD 5.12.6 R2-037
@@ -244,24 +244,25 @@ export class ForecastingEngine {
   }
 
   /**
-   * Tính Mean Absolute Percentage Error (MAPE) của các ngày gần nhất
+   * MAPE thật bằng backtest: với mỗi ngày trong 7 ngày gần nhất, dự báo bằng trung bình cùng thứ của các
+   * ngày TRƯỚC đó rồi so với lượng bán thực tế. (Không dùng chênh lệch sản xuất - bán: đó là hao hụt, không phải sai số dự báo.)
+   * Ngày không có mẫu cùng thứ trước đó hoặc không bán được gì bị bỏ qua; không có ngày nào tính được thì mặc định 0,2.
    */
-  private static calculateRecentMape(recentRecords: DailySalesRecord[]): number {
-    if (recentRecords.length === 0) {
-      return 0.2;
-    }
-
-    const validRecords = recentRecords.filter((r) => r.produced > 0);
-    if (validRecords.length === 0) {
-      return 0.2;
-    }
-
-    const totalError = validRecords.reduce((sum, r) => {
+  private static calculateBacktestMape(history: DailySalesRecord[]): number {
+    const demand = (r: DailySalesRecord) => {
       const sold = r.soldApp + r.soldOffline;
-      return sum + Math.abs(r.produced - sold) / r.produced;
-    }, 0);
-
-    return totalError / validRecords.length;
+      return r.stockoutEarly ? sold * 1.1 : sold;
+    };
+    const errors: number[] = [];
+    for (let i = Math.max(0, history.length - 7); i < history.length; i++) {
+      const actual = demand(history[i]);
+      if (actual <= 0) continue;
+      const prior = history.slice(0, i).filter((r) => r.dayOfWeek === history[i].dayOfWeek);
+      if (prior.length === 0) continue;
+      const predicted = prior.reduce((sum, r) => sum + demand(r), 0) / prior.length;
+      errors.push(Math.abs(actual - predicted) / actual);
+    }
+    return errors.length === 0 ? 0.2 : errors.reduce((a, b) => a + b, 0) / errors.length;
   }
 
   /**

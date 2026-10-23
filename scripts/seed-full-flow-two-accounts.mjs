@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 
-const require = createRequire('e:/SurplusIQ/apps/backend/node_modules/pg');
+const require = createRequire(import.meta.url);
 const { Client } = require('pg');
 require('dotenv').config({ path: new URL('../.env', import.meta.url) });
 

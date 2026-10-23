@@ -123,7 +123,7 @@ export function OffersV2Page() {
         emptyText="Chưa có suất nào hôm nay. Tạo suất để bắt đầu bán."
       >
         <TableContainer component={Card}>
-          <Table>
+          <Table className="sq-table">
             <TableHead>
               <TableRow>
                 <TableCell>Món</TableCell>

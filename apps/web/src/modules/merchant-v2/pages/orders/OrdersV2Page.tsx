@@ -112,7 +112,7 @@ export function OrdersV2Page({ onNavigate }: { onNavigate?: (href: string) => vo
         emptyText="Không có đơn hàng phù hợp"
       >
         <TableContainer component={Card}>
-          <Table>
+          <Table className="sq-table">
             <TableHead>
               <TableRow>
                 <TableCell>Mã đơn</TableCell>

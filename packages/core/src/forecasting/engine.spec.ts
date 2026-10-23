@@ -321,3 +321,25 @@ describe('ForecastingEngine (BRD 5.12 R2-036..043, BR-060..063, Ch.13 #10)', () 
     });
   });
 });
+
+describe('MAPE backtest', () => {
+  const day = (i: number, sold: number) => ({
+    date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+    dayOfWeek: i % 7,
+    produced: 100,
+    soldApp: sold,
+    soldOffline: 0,
+  });
+
+  it('bán ổn định cùng thứ thì sai số dự báo bằng 0 dù sản xuất dư nhiều', () => {
+    const history = Array.from({ length: 28 }, (_, i) => day(i, 50));
+    const r = ForecastingEngine.generateForecast({
+      itemId: 'x',
+      targetDate: '2026-10-01',
+      targetDayOfWeek: 4,
+      history,
+    });
+    expect(r.components.mape7Days).toBe(0);
+    expect(r.confidence).toBe('HIGH');
+  });
+});

@@ -75,6 +75,7 @@ fun DiscoverHomeScreen(
     onSeeAllClick: () -> Unit,
     onSeeAllForYou: () -> Unit = onSeeAllClick,
     userName: String = "",
+    avatarUrl: String? = null,
     onOpenProfile: () -> Unit = {},
     unreadNotificationCount: Int = 0,
     onOpenNotifications: () -> Unit = {},
@@ -145,16 +146,7 @@ fun DiscoverHomeScreen(
             }
             NotificationBellIcon(unreadCount = unreadNotificationCount, onClick = onOpenNotifications)
             Spacer(Modifier.width(14.dp))
-            Box(
-                modifier = Modifier.size(38.dp).clip(CircleShape).background(ForestGreenPrimary).clickable(onClick = onOpenProfile),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = userName.trim().substringAfterLast(" ").take(1).ifEmpty { "?" }.uppercase(),
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
+            com.surplusiq.app.ui.components.UserAvatar(name = userName, avatarUrl = avatarUrl, onClick = onOpenProfile)
         }
 
         // Hàng 2: vị trí + bán kính + số quán đang mở

@@ -143,6 +143,7 @@ describe('OrdersService', () => {
 
   let mockTransactionManager: any;
   const mockDataSource = {
+    manager: { count: jest.fn().mockResolvedValue(0) },
     transaction: jest.fn().mockImplementation(async (callback) => {
       return callback(mockTransactionManager);
     }),
@@ -265,6 +266,15 @@ describe('OrdersService', () => {
       await expect(service.holdOrder(mockCustomerId, invalidDto)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('từ chối khi khách đã giữ đủ số suất chờ thanh toán tối đa', async () => {
+      mockOrderLockRepo.findOne.mockResolvedValue(null);
+      mockDataSource.manager.count.mockResolvedValueOnce(3);
+
+      await expect(
+        service.holdOrder(mockCustomerId, { offerId: mockOfferId, quantity: 1 }),
+      ).rejects.toThrow(/đang giữ 3 suất/);
     });
 
     it('phải ném lỗi BadRequestException nếu suất không còn đủ số lượng tồn', async () => {

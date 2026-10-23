@@ -107,6 +107,7 @@ describe('OffersService', () => {
     createQueryBuilder: jest.fn(),
     manager: {
       transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(mockManagerRef())),
+      findOne: jest.fn().mockResolvedValue(null),
     },
   };
 
@@ -289,6 +290,12 @@ describe('OffersService', () => {
       await expect(service.createOffer(mockStoreId, invalidDto)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('không cho khai giá sàn thấp hơn mức 40% của cửa hàng để lách giá sàn an toàn', async () => {
+      await expect(
+        service.createOffer(mockStoreId, { ...validDto, currentPrice: 10000, floorPrice: 500 }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('phải ném lỗi BadRequestException nếu giá bán thấp hơn giá sàn 40% (BR-054)', async () => {
