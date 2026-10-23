@@ -128,7 +128,7 @@ describe('AiGatewayService Unit Tests (R2-108..R2-126, R1-082..R1-094)', () => {
       });
 
       expect(res.conversationId).toBe('conv-1');
-      expect(res.reply).toContain('Số liệu hệ thống'); // không bịa lời khuyên, chỉ nêu số liệu có thật
+      expect(res.reply).toContain('Số liệu hiện tại'); // không bịa lời khuyên, chỉ nêu số liệu có thật
       expect(logRepo.save).toHaveBeenCalled();
       expect(quotaService.consume).toHaveBeenCalled();
     });

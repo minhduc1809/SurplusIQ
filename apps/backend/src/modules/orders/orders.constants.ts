@@ -2,6 +2,7 @@ export const ORDERS_CONSTANTS = {
   HOLD_DURATION_MINUTES: 10, // 10 phút giữ suất per BR-017, R1-040
   MIN_QUANTITY_PER_ORDER: 1, // Tối thiểu 1 suất per BR-019
   MAX_QUANTITY_PER_ORDER: 5, // Tối đa 5 suất per BR-019, check constraint DB
+  MAX_PENDING_HOLDS_PER_CUSTOMER: 3, // Tối đa 3 đơn đang giữ suất chờ thanh toán cùng lúc, chống giữ chỗ hàng loạt
   NOSHOW_THRESHOLD: 3, // Ngưỡng 3 lần noshow per BR-020
   NOSHOW_WINDOW_DAYS: 30, // Cửa sổ theo dõi 30 ngày per BR-020
   LOCK_DAYS: 7, // Khóa đặt hàng 7 ngày sau 3 lần noshow per BR-020

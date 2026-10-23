@@ -134,7 +134,16 @@ describe('DiscoveryService.getRadarRanking bộ lọc (KC15)', () => {
 
   function radar(rows: object[]) {
     const qb: Record<string, jest.Mock> = {};
-    for (const k of ['innerJoin', 'leftJoin', 'where', 'andWhere', 'select', 'addSelect', 'limit'])
+    for (const k of [
+      'innerJoin',
+      'leftJoin',
+      'where',
+      'andWhere',
+      'select',
+      'addSelect',
+      'limit',
+      'orderBy',
+    ])
       qb[k] = jest.fn(() => qb);
     qb.getRawMany = jest.fn().mockResolvedValue(rows);
     const offerRepo = { createQueryBuilder: jest.fn(() => qb) };

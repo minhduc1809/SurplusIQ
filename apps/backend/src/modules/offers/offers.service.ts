@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
+import { StoreSettingsEntity } from '../../entities/stores/store-settings.entity';
 import { OfferEntity, OfferStatus, OfferKind } from '../../entities/catalog/offer.entity';
 import { OfferEventEntity, OfferEventType } from '../../entities/catalog/offer-event.entity';
 import { ItemEntity, ItemStatus } from '../../entities/catalog/item.entity';
@@ -192,14 +193,18 @@ export class OffersService {
       );
     }
 
-    // 3. Tính toán và xác thực giá sàn (BR-054)
+    // 3. Tính toán và xác thực giá sàn (BR-054): lấy theo tỷ lệ sàn của cửa hàng (mặc định 40%, BR-046);
+    // giá sàn khai tay chỉ được cao hơn mức này, không được hạ thấp để lách giá sàn an toàn.
+    const storeSettings = await this.offerRepo.manager?.findOne(StoreSettingsEntity, {
+      where: { storeId },
+    });
+    const floorRatio =
+      Number(storeSettings?.floorRatio) || OFFERS_CONSTANTS.DEFAULT_FLOOR_PRICE_RATIO;
     const calculatedFloor =
-      Math.ceil(
-        (dto.originalPrice * OFFERS_CONSTANTS.DEFAULT_FLOOR_PRICE_RATIO) /
-          OFFERS_CONSTANTS.PRICE_ROUNDING_STEP,
-      ) * OFFERS_CONSTANTS.PRICE_ROUNDING_STEP;
+      Math.ceil((dto.originalPrice * floorRatio) / OFFERS_CONSTANTS.PRICE_ROUNDING_STEP) *
+      OFFERS_CONSTANTS.PRICE_ROUNDING_STEP;
 
-    const finalFloorPrice = dto.floorPrice ?? calculatedFloor;
+    const finalFloorPrice = Math.max(dto.floorPrice ?? 0, calculatedFloor);
 
     if (dto.currentPrice < finalFloorPrice) {
       throw new BadRequestException(

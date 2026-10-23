@@ -9,7 +9,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager, In, IsNull } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, IsNull, MoreThan } from 'typeorm';
 import { OrderEntity, OrderStatus, CancelledBy } from '../../entities/orders/order.entity';
 import { OfferEntity, OfferStatus } from '../../entities/catalog/offer.entity';
 import { createRefundTransaction } from '../payments/refund-transaction';
@@ -109,6 +109,22 @@ export class OrdersService {
     if (lock && new Date(lock.lockedUntil) > new Date()) {
       throw new BadRequestException(
         `Tài khoản của bạn đang bị tạm khóa quyền đặt hàng đến ${new Date(lock.lockedUntil).toLocaleString('vi-VN')} do không đến nhận nhiều lần (BR-020).`,
+      );
+    }
+
+    // Chặn giữ chỗ hàng loạt khi đặt lẻ (giỏ cứu và Rescue Pool chạy trong transaction riêng, có giới hạn riêng).
+    const pendingHolds = outerManager
+      ? 0
+      : await this.dataSource.manager.count(OrderEntity, {
+          where: {
+            customerId,
+            status: OrderStatus.PENDING_PAYMENT,
+            holdExpiresAt: MoreThan(new Date()),
+          },
+        });
+    if (pendingHolds >= ORDERS_CONSTANTS.MAX_PENDING_HOLDS_PER_CUSTOMER) {
+      throw new BadRequestException(
+        `Bạn đang giữ ${pendingHolds} suất chờ thanh toán. Hãy thanh toán hoặc huỷ bớt trước khi giữ thêm.`,
       );
     }
 

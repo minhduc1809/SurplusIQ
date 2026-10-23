@@ -52,6 +52,7 @@ describe('Concurrency Race Condition: Anti-Overselling Verification', () => {
 
     dataSource = {
       transaction: jest.fn(),
+      manager: { count: jest.fn().mockResolvedValue(0) },
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({

@@ -296,19 +296,34 @@ describe('JobsService (All 12 Background Jobs)', () => {
   });
 
   describe('closeWeeklyStatements', () => {
-    it('chốt và khóa sao kê tuần cho cửa hàng', async () => {
+    it('chốt sao kê theo sổ cái: tính đơn hoàn tất chưa vào kỳ nào, trừ hoàn tiền một lần', async () => {
       storeRepo.find.mockResolvedValueOnce([{ id: mockStoreId } as StoreEntity]);
       statementRepo.findOne.mockResolvedValueOnce(null);
-      orderRepo.find.mockResolvedValueOnce([
-        { id: 'o-1', totalAmount: 200000, status: OrderStatus.PICKED_UP } as any,
+      statementRepo.create.mockImplementation((e: any) => e);
+      const qb: any = { where: jest.fn(), andWhere: jest.fn(), getMany: jest.fn() };
+      qb.where.mockReturnValue(qb);
+      qb.andWhere.mockReturnValue(qb);
+      qb.getMany.mockResolvedValue([
+        { id: 'o-1', totalAmount: 200000, status: OrderStatus.PICKED_UP },
       ]);
-      complaintRepo.find.mockResolvedValueOnce([]);
-      statementRepo.create.mockReturnValue({ id: 'stmt-1' } as any);
-      statementRepo.save.mockResolvedValueOnce({ id: 'stmt-1' } as any);
+      const manager: any = {
+        createQueryBuilder: jest.fn(() => qb),
+        query: jest.fn().mockResolvedValue([{ order_id: 'o-0', refund_amount: 30000 }]),
+        save: jest.fn((a: any, b?: any) => Promise.resolve(b ? b : { id: 'stmt-1', ...a })),
+      };
+      dataSource.transaction.mockImplementationOnce((cb: any) => cb(manager));
 
       const res = await service.closeWeeklyStatements(new Date('2026-10-14T00:05:00Z'));
-      expect(res.count).toBe(1);
+
       expect(res.storeIds).toContain(mockStoreId);
+      const statement = statementRepo.create.mock.calls[0][0] as any;
+      expect(statement).toMatchObject({ gross: 200000, commission: 20000, refunds: 30000 });
+      expect(statement.netPayable).toBe(150000);
+      const lines = manager.save.mock.calls.find((c: any[]) => Array.isArray(c[1]))[1];
+      expect(lines.map((l: any) => [l.type, l.amount])).toEqual([
+        ['ORDER', 200000],
+        ['REFUND', -30000],
+      ]);
     });
   });
 
