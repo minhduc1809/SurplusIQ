@@ -1284,6 +1284,7 @@ fun SurplusAppRoot(
                             DiscoverHomeScreen(
                                 deals = dealsList,
                                 userName = displayName,
+                                avatarUrl = profileUiState.userProfile?.avatarUrl,
                                 onOpenProfile = { selectedTab = NavTab.ME },
                                 onDealClick = { deal ->
                                     currentDestination = AppDestination.DealDetail(deal)
