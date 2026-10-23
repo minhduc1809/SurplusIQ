@@ -19,6 +19,7 @@
     "seed": "npx ts-node apps/backend/src/seed-hanoi-runner.ts",
     "seed:hanoi": "npx ts-node apps/backend/src/seed-hanoi-runner.ts",
     "seed:test-accounts": "node scripts/seed-test-accounts.mjs",
+    "seed:full-flow": "node scripts/seed-full-flow-two-accounts.mjs",
     "seed:kyc": "node scripts/seed-kyc-contracts.mjs",
     "seed:default": "npx ts-node apps/backend/src/seed-runner.ts",
     "dev:backend": "npm --workspace=@surplusiq/backend run start:dev",

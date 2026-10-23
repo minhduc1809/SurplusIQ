@@ -64,7 +64,7 @@ const admin = must(
   await call('POST', '/auth/admin/login', {
     body: {
       email: 'admin@surplusiq.vn',
-      password: process.env.SEED_ADMIN_PASSWORD || 'Admin@SurplusIQ2026',
+      password: process.env.SEED_ADMIN_PASSWORD || PASSWORD,
       deviceId: 'seed-gaps',
     },
   }),
