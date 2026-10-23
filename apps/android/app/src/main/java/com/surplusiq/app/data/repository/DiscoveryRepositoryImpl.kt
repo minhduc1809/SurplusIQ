@@ -105,6 +105,7 @@ class DiscoveryRepositoryImpl @Inject constructor(
                 remainingStock = detail.remainingQuantity,
                 initialStock = detail.remainingQuantity,
                 pickupWindowText = pickupWindowText(detail.pickupStart, detail.pickupEnd),
+                pickupEndAt = detail.pickupEnd,
                 isToday = isToday(detail.pickupEnd),
                 distanceText = "",
                 rating = store?.rating ?: 0.0,
@@ -478,7 +479,8 @@ class DiscoveryRepositoryImpl @Inject constructor(
             reviewCount = store?.reviewsCount ?: 0,
             allergens = emptyList(),
             isFavorite = favoriteOverrides[storeId] ?: false,
-            isUrgent = dto.remainingQuantity in 1..2
+            isUrgent = dto.remainingQuantity in 1..2,
+            pickupEndAt = dto.pickupEnd
         )
     }
 
