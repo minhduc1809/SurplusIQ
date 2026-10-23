@@ -6,7 +6,7 @@ $api = '-PAPI_BASE_URL=http://127.0.0.1:4000/'
 & $adb reverse tcp:4000 tcp:4000
 foreach ($app in 'android', 'android-merchant') {
   Push-Location "$PSScriptRoot\..\apps\$app"
-  .\gradlew.bat :app:assembleDebug $api -q
-  & $adb install -r app\build\outputs\apk\debug\app-debug.apk
+  .\gradlew.bat :app:assemblePerf $api -q
+  & $adb install -r app\build\outputs\apk\perf\app-perf.apk
   Pop-Location
 }

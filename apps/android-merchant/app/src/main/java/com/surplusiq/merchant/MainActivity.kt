@@ -160,7 +160,8 @@ private fun MerchantApp(repository: StoreRepository, session: SessionManager, on
     var storeName by remember { mutableStateOf("") }
     var storePaused by remember { mutableStateOf(false) }
     // Tải lại mỗi lần đổi màn để chấm trạng thái đúng sau khi tạm ngưng/mở lại.
-    LaunchedEffect(currentEntry?.destination?.route) { repository.getStoreProfile().onSuccess { storeName = it.store.name; storePaused = it.isPausedToday } }
+    // Chỉ tải lại khi vào một tab chính (không tải ở mọi màn con) để chuyển màn không phải chờ mạng.
+    LaunchedEffect(currentEntry?.destination?.route?.takeIf { it in TAB_ROUTES }) { repository.getStoreProfile().onSuccess { storeName = it.store.name; storePaused = it.isPausedToday } }
 
     // Làm mới số chưa đọc mỗi khi đổi màn (gồm cả khi rời màn Thông báo sau khi đọc).
     LaunchedEffect(currentEntry?.destination?.route) {

@@ -40,14 +40,20 @@ class TokenAuthenticator @Inject constructor(
             .header("x-device-id", sessionManager.getDeviceId())
             .post("""{"refreshToken":"$refresh"}""".toRequestBody("application/json".toMediaType()))
             .build()
+        // Chỉ xoá phiên khi máy chủ TRẢ LỜI là refresh token không dùng được (400-403).
+        // Lỗi mạng/hết thời gian chờ chỉ làm request này thất bại, giữ nguyên phiên, nếu không mỗi lần chập chờn mạng là bị đá về đăng nhập.
+        var rejected = false
         val fresh = runCatching {
             bare.newCall(req).execute().use { r ->
-                if (!r.isSuccessful) null
-                else JsonParser.parseString(r.body?.string()).asJsonObject.get("accessToken")?.asString
+                if (r.isSuccessful) JsonParser.parseString(r.body?.string()).asJsonObject.get("accessToken")?.asString
+                else {
+                    rejected = r.code in 400..403
+                    null
+                }
             }
         }.getOrNull()
         if (fresh == null) {
-            sessionManager.clearSession()
+            if (rejected) sessionManager.clearSession()
             return null
         }
         sessionManager.saveSession(fresh, refresh, sessionManager.getUserId().orEmpty())

@@ -10,6 +10,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.credentials.exceptions.GetCredentialException
@@ -269,8 +270,11 @@ fun SurplusAppRoot(
     LaunchedEffect(authScreenState) { authViewModel.clearError() }
     
     // K06: lần đầu vào app (đăng nhập hoặc khách) mà chưa thiết lập vị trí -> màn quyền vị trí & bán kính.
+    // Chỉ nhắc một lần mỗi phiên: nếu không, mỗi lần trạng thái đăng nhập đổi hoặc mạng chập chờn là bị kéo về màn chọn vị trí.
+    var locationPrompted by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(authState.isLoggedIn, authState.isGuestMode) {
-        if ((authState.isLoggedIn || authState.isGuestMode) && !placesViewModel.isLocationConfigured()) {
+        if (!locationPrompted && (authState.isLoggedIn || authState.isGuestMode) && !placesViewModel.isLocationConfigured()) {
+            locationPrompted = true
             val restored = authState.isLoggedIn && placesViewModel.restoreFromSavedPlaces()
             if (!restored) {
                 placesViewModel.startSelection()

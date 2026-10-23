@@ -74,9 +74,13 @@ function normalizeText(text: string): string {
     .trim();
 }
 
+const GEMINI_COOLDOWN_MS = 2 * 60 * 1000;
+
 @Injectable()
 export class AiGatewayService {
   private readonly logger = new Logger(AiGatewayService.name);
+  /** Mốc thời gian đến khi tạm không gọi Gemini (cầu dao sau lỗi mạng / hết hạn mức). */
+  private geminiDownUntil = 0;
 
   constructor(
     @InjectRepository(AiConversationEntity)
@@ -135,6 +139,11 @@ export class AiGatewayService {
       };
     }
 
+    // Cầu dao: Gemini vừa không tới được (mạng chặn, hết hạn mức) thì dùng bản dự phòng ngay trong thời gian nghỉ,
+    // không bắt khách chờ thêm hết thời gian chờ của từng mô hình.
+    if (Date.now() < this.geminiDownUntil) {
+      return { text: fallbackText, model: configuredModel, latencyMs: 1 };
+    }
     const candidateModels = Array.from(
       new Set([configuredModel, 'gemini-2.0-flash', 'gemini-1.5-flash']),
     );
@@ -158,6 +167,11 @@ export class AiGatewayService {
         });
 
         if (!response.ok) {
+          // Khoá sai / hết hạn mức: đổi mô hình cũng vô ích, nghỉ gọi một lúc.
+          if ([401, 403, 429].includes(response.status)) {
+            this.geminiDownUntil = Date.now() + GEMINI_COOLDOWN_MS;
+            break;
+          }
           continue;
         }
 
@@ -180,6 +194,9 @@ export class AiGatewayService {
         this.logger.warn(
           `Gemini API call failed on model ${model}: ${err instanceof Error ? err.message : String(err)}`,
         );
+        // Hết thời gian chờ / lỗi mạng: mô hình khác cũng không tới được, dừng và nghỉ gọi một lúc.
+        this.geminiDownUntil = Date.now() + GEMINI_COOLDOWN_MS;
+        break;
       }
     }
 

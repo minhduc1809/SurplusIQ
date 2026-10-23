@@ -80,12 +80,18 @@ private class RefreshAuthenticator(private val session: SessionManager) : Authen
             .header("x-device-id", session.getDeviceId())
             .post("""{"refreshToken":"$refresh"}""".toRequestBody("application/json".toMediaType()))
             .build()
+        // Chỉ đăng xuất khi máy chủ TRẢ LỜI là refresh token không dùng được (401/403/400).
+        // Lỗi mạng/hết thời gian chờ chỉ làm request này thất bại, giữ nguyên phiên, nếu không mỗi lần chập chờn mạng là bị đá về đăng nhập.
+        var rejected = false
         val fresh = runCatching {
             bare.newCall(req).execute().use { r ->
-                if (!r.isSuccessful) null
-                else JsonParser.parseString(r.body?.string()).asJsonObject.get("accessToken")?.asString
+                if (r.isSuccessful) JsonParser.parseString(r.body?.string()).asJsonObject.get("accessToken")?.asString
+                else {
+                    rejected = r.code in 400..403
+                    null
+                }
             }
-        }.getOrNull() ?: return expire()
+        }.getOrNull() ?: return if (rejected) expire() else null
         session.setAccessToken(fresh)
         return response.request.newBuilder().header("Authorization", "Bearer $fresh").build()
     }

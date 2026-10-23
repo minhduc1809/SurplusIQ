@@ -52,6 +52,14 @@ android {
     }
 
     buildTypes {
+        // Bản cài thử trên máy thật: không debuggable (Compose chạy nhanh hơn nhiều so với debug), ký bằng khoá debug
+        // nên cài đè được lên bản debug. Build: gradlew :app:assemblePerf
+        create("perf") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            isDebuggable = false
+            matchingFallbacks += listOf("release")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
