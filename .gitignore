@@ -35,7 +35,7 @@ Thumbs.db
 powershell.cmd
 
 # Documentation
-docs/
+docs/*
 !docs/*.md
 
 # Generated local demo data (served as public static files)
