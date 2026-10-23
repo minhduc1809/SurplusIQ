@@ -6,6 +6,7 @@ import {
   IsInt,
   Min,
   IsOptional,
+  MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -56,6 +57,12 @@ export class BasketCheckoutDto {
   @IsOptional()
   @IsString()
   promotionId?: string;
+
+  @ApiPropertyOptional({ description: 'Ghi chú cho quán (tối đa 200 ký tự)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  notes?: string;
 
   @ApiPropertyOptional({ description: 'Phương thức thanh toán', default: 'COD' })
   @IsOptional()

@@ -469,6 +469,7 @@ export class RescuePoolService {
       this.storeRepo.find({ where: { id: In([...new Set(pools.map((p) => p.storeId))]) } }),
       this.demandByPool(pools.map((p) => p.id)),
     ]);
+    const images = await this.poolImages(pools, stores);
     return pools.map((p) =>
       this.toCustomerView(
         p,
@@ -476,6 +477,7 @@ export class RescuePoolService {
         this.pickMyRegistration(myRegs, p.id),
         demandRows.get(p.id) ?? 0,
         null,
+        images.get(p.id) ?? null,
       ),
     );
   }
@@ -491,12 +493,35 @@ export class RescuePoolService {
     ]);
     const remaining =
       pool.offeredQuantity !== null ? Math.max(0, pool.offeredQuantity - confirmed) : null;
+    const images = await this.poolImages([pool], store ? [store] : []);
     return this.toCustomerView(
       pool,
       store?.name ?? null,
       this.pickMyRegistration(myRegs, poolId),
       demand.get(poolId) ?? 0,
       remaining,
+      images.get(poolId) ?? null,
+    );
+  }
+
+  /** Ảnh đại diện của đợt: ảnh món mục tiêu, nếu chưa có thì ảnh món của suất cung ứng, cuối cùng là logo cửa hàng. */
+  private async poolImages(
+    pools: RescuePoolEntity[],
+    stores: StoreEntity[],
+  ): Promise<Map<string, string | null>> {
+    const offerIds = pools.map((p) => p.linkedOfferId).filter(Boolean) as string[];
+    const offers = offerIds.length
+      ? await this.dataSource.manager.find(OfferEntity, { where: { id: In(offerIds) } })
+      : [];
+    const itemIdOf = (p: RescuePoolEntity) =>
+      p.targetItemId ?? offers.find((o) => o.id === p.linkedOfferId)?.itemId ?? null;
+    const itemIds = [...new Set(pools.map(itemIdOf).filter(Boolean))] as string[];
+    const items = itemIds.length ? await this.itemRepo.find({ where: { id: In(itemIds) } }) : [];
+    return new Map(
+      pools.map((p) => {
+        const itemImage = items.find((i) => i.id === itemIdOf(p))?.imageUrl ?? null;
+        return [p.id, itemImage ?? stores.find((s) => s.id === p.storeId)?.logoUrl ?? null];
+      }),
     );
   }
 
@@ -1053,6 +1078,7 @@ export class RescuePoolService {
     myReg: RescuePoolRegistrationEntity | null,
     expectedQuantity: number,
     remainingSupply: number | null,
+    imageUrl: string | null = null,
   ) {
     const eligible = !!myReg && myReg.registrationStatus !== R.WITHDRAWN && pool.offerVersion > 0;
     const now = Date.now();
@@ -1060,6 +1086,7 @@ export class RescuePoolService {
       id: pool.id,
       storeId: pool.storeId,
       storeName,
+      imageUrl,
       poolTitle: pool.poolTitle,
       targetCategory: pool.targetCategory,
       targetItemId: pool.targetItemId,

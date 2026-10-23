@@ -1293,6 +1293,7 @@ export class DiscoveryService {
       'o.pickup_end AS pickup_end',
       'i.name AS item_name',
       'i.allergens AS item_allergens',
+      'i.image_url AS item_image_url',
       's.name AS store_name',
     ]);
 
@@ -1320,7 +1321,13 @@ export class DiscoveryService {
     interface BasketCandidate {
       storeId: string;
       storeName: string;
-      items: Array<{ offerId: string; title: string; price: number }>;
+      items: Array<{
+        offerId: string;
+        title: string;
+        price: number;
+        imageUrl: string | null;
+        allergens: string[];
+      }>;
       estimatedTotal: number;
       pickupEnd: Date;
     }
@@ -1348,6 +1355,8 @@ export class DiscoveryService {
           offerId: o.offer_id,
           title: o.item_name || 'Suất cứu món',
           price: Number(o.current_price),
+          imageUrl: o.item_image_url ?? null,
+          allergens: (o.item_allergens as string[] | null) ?? [],
         })),
         estimatedTotal: total,
         pickupEnd: picked.reduce(
@@ -1538,7 +1547,7 @@ export class DiscoveryService {
             offerId: checked.offer.id,
             quantity: checked.quantity,
             promotionId: dto.promotionId,
-            note: 'Đặt qua Rescue Basket (CM-C01)',
+            note: dto.notes?.trim() ? dto.notes.trim() : 'Đặt qua giỏ cứu (CM-C01)',
           },
           customerId,
           queryRunner.manager,
