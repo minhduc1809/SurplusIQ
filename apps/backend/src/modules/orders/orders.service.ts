@@ -987,6 +987,9 @@ export class OrdersService {
     }
 
     const offer = await this.offerRepo.findOne({ where: { id: order.offerId } });
+    if (offer && new Date(offer.pickupEnd).getTime() <= Date.now()) {
+      throw new BadRequestException('Khung giờ nhận hàng đã kết thúc, không thể tạo mã nhận hộ.');
+    }
 
     // Thu hồi mọi mã nhận hộ chưa dùng trước đó của đơn hàng (R1-052 rule 1)
     await this.proxyCodeRepo.update(

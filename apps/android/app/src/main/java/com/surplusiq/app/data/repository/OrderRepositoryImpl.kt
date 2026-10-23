@@ -268,6 +268,9 @@ class OrderRepositoryImpl @Inject constructor(
             } else {
                 Result.failure(apiError(response.code(), response.errorBody()?.string()))
             }
+        } catch (e: java.io.EOFException) {
+            // Backend trả 200 thân rỗng khi đơn chưa có mã nhận hộ: coi là chưa có mã, không phải lỗi mạng.
+            Result.success(null)
         } catch (e: Exception) {
             Result.failure(networkError(e))
         }
